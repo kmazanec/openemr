@@ -1,0 +1,1416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical Co-Pilot Architecture</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #132033;
+      --muted: #5e6b7c;
+      --line: #d9e0ea;
+      --primary: #2154d8;
+      --primary-dark: #14398f;
+      --accent: #0d8f75;
+      --danger: #bd3b3b;
+      --warn: #b7791f;
+      --soft-blue: #eaf0ff;
+      --soft-green: #e9f8f4;
+      --soft-red: #fff0f0;
+      --shadow: 0 18px 45px rgba(19, 32, 51, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(33, 84, 216, 0.16), transparent 36rem),
+        radial-gradient(circle at top right, rgba(13, 143, 117, 0.13), transparent 30rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 18rem minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 2rem 1.25rem;
+      overflow-y: auto;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+    }
+
+    nav h2 {
+      margin: 0 0 0.25rem;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary-dark);
+    }
+
+    nav p {
+      margin: 0 0 1.25rem;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    nav a {
+      display: block;
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.7rem;
+      color: var(--ink);
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    nav a:hover {
+      background: var(--soft-blue);
+      text-decoration: none;
+    }
+
+    nav a.active {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+      box-shadow: inset 0.25rem 0 0 var(--primary);
+    }
+
+    main {
+      min-width: 0;
+    }
+
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      align-content: center;
+      padding: 5rem clamp(2rem, 6vw, 6rem);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1.2rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid rgba(33, 84, 216, 0.22);
+      border-radius: 999px;
+      color: var(--primary-dark);
+      background: rgba(255, 255, 255, 0.75);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    h1 {
+      max-width: 64rem;
+      margin: 0;
+      font-size: clamp(3rem, 7vw, 6.8rem);
+      line-height: 0.95;
+      letter-spacing: -0.07em;
+    }
+
+    .hero .subtitle {
+      max-width: 54rem;
+      margin: 1.6rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1.15rem, 2vw, 1.55rem);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 3rem;
+    }
+
+    section {
+      min-height: 100vh;
+      padding: 4.5rem clamp(2rem, 6vw, 6rem);
+      border-top: 1px solid rgba(217, 224, 234, 0.72);
+    }
+
+    section.compact {
+      min-height: auto;
+    }
+
+    .section-head {
+      max-width: 58rem;
+      margin-bottom: 2rem;
+    }
+
+    .kicker {
+      margin: 0 0 0.4rem;
+      color: var(--primary);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4.5vw, 4rem);
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    h3 {
+      margin: 0 0 0.7rem;
+      font-size: 1.1rem;
+    }
+
+    .lead {
+      max-width: 56rem;
+      margin: 1rem 0 0;
+      color: var(--muted);
+      font-size: 1.15rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      padding: 1.25rem;
+      border: 1px solid rgba(217, 224, 234, 0.9);
+      border-radius: 1.25rem;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.06);
+    }
+
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .stat {
+      min-height: 9rem;
+    }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--primary-dark);
+      font-size: 2.2rem;
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    .stat span,
+    .card p,
+    li {
+      color: var(--muted);
+    }
+
+    .decision {
+      border-color: rgba(13, 143, 117, 0.28);
+      background: var(--soft-green);
+    }
+
+    .decision h3::before {
+      content: "Decision criteria";
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--accent);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .risk {
+      border-color: rgba(189, 59, 59, 0.25);
+      background: var(--soft-red);
+    }
+
+    .risk h3::before {
+      content: "Failure mode";
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--danger);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 1rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.42rem 0.62rem;
+      border-radius: 999px;
+      background: var(--soft-blue);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.7rem;
+      align-items: stretch;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 1rem;
+      min-height: 8rem;
+      border-radius: 1rem;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 8px 20px rgba(19, 32, 51, 0.05);
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -0.62rem;
+      z-index: 2;
+      transform: translateY(-50%);
+      color: var(--primary);
+      font-weight: 900;
+    }
+
+    .flow-step small {
+      display: block;
+      color: var(--primary);
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin: 0.45rem 0;
+      line-height: 1.15;
+    }
+
+    .system-diagram {
+      padding: clamp(1rem, 2vw, 1.5rem);
+      border: 1px solid rgba(217, 224, 234, 0.95);
+      border-radius: 1.6rem;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(234, 240, 255, 0.78)),
+        var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .diagram-lanes {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .lane {
+      display: grid;
+      align-content: start;
+      gap: 0.8rem;
+      min-height: 34rem;
+      padding: 1rem;
+      border: 1px solid rgba(217, 224, 234, 0.85);
+      border-radius: 1.25rem;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .lane-title {
+      margin: 0 0 0.35rem;
+      color: var(--primary-dark);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .node {
+      position: relative;
+      padding: 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 0.95rem;
+      background: var(--panel);
+      box-shadow: 0 8px 18px rgba(19, 32, 51, 0.06);
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: var(--ink);
+      line-height: 1.15;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .node.primary {
+      border-color: rgba(33, 84, 216, 0.28);
+      background: var(--soft-blue);
+    }
+
+    .node.safe {
+      border-color: rgba(13, 143, 117, 0.28);
+      background: var(--soft-green);
+    }
+
+    .node.warn {
+      border-color: rgba(183, 121, 31, 0.3);
+      background: #fff8ea;
+    }
+
+    .node.danger {
+      border-color: rgba(189, 59, 59, 0.28);
+      background: var(--soft-red);
+    }
+
+    .arrow-note {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      min-height: 2.1rem;
+      color: var(--primary-dark);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .arrow-note::before,
+    .arrow-note::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .diagram-caption {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .caption-item {
+      padding: 0.75rem;
+      border-radius: 0.9rem;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .caption-item strong {
+      display: block;
+      color: var(--ink);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 1rem;
+      background: var(--panel);
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.06);
+    }
+
+    .table th,
+    .table td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .table th {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    code {
+      padding: 0.15rem 0.35rem;
+      border-radius: 0.35rem;
+      color: #1f3765;
+      background: #edf2ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+    }
+
+    .quote {
+      margin: 0;
+      padding: 1.25rem;
+      border-left: 0.35rem solid var(--primary);
+      border-radius: 1rem;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      font-size: 1.12rem;
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.06);
+    }
+
+    .big-number {
+      color: var(--primary);
+      font-size: 4rem;
+      font-weight: 900;
+      letter-spacing: -0.08em;
+      line-height: 1;
+    }
+
+    .footer {
+      padding: 3rem clamp(2rem, 6vw, 6rem);
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 1100px) {
+      .shell {
+        display: block;
+      }
+
+      nav {
+        position: static;
+        height: auto;
+      }
+
+      .hero-grid,
+      .flow,
+      .diagram-lanes,
+      .diagram-caption {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .span-3,
+      .span-4,
+      .span-5,
+      .span-6,
+      .span-7,
+      .span-8 {
+        grid-column: span 12;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .hero,
+      section {
+        min-height: auto;
+        padding: 3rem 1rem;
+      }
+
+      .hero-grid,
+      .flow,
+      .diagram-lanes,
+      .diagram-caption {
+        grid-template-columns: 1fr;
+      }
+
+      .lane {
+        min-height: auto;
+      }
+
+      .flow-step:not(:last-child)::after {
+        display: none;
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      nav {
+        display: none;
+      }
+
+      .shell {
+        display: block;
+      }
+
+      section,
+      .hero {
+        min-height: auto;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav aria-label="Presentation navigation">
+      <h2>Clinical Co-Pilot</h2>
+      <p>Architecture presentation</p>
+      <a class="active" href="#overview">Overview</a>
+      <a href="#principles">Principles</a>
+      <a href="#components">Components</a>
+      <a href="#full-diagram">Full system diagram</a>
+      <a href="#integration">OpenEMR integration</a>
+      <a href="#flow">Runtime flow</a>
+      <a href="#data">Data contracts</a>
+      <a href="#agent">LangGraph runtime</a>
+      <a href="#verification">Verification</a>
+      <a href="#security">Security</a>
+      <a href="#audit">Audit and PHI</a>
+      <a href="#evals">Evals and observability</a>
+      <a href="#deployment">Deployment</a>
+      <a href="#scale">Scale posture</a>
+      <a href="#tradeoffs">Rejected alternatives</a>
+    </nav>
+
+    <main>
+      <header id="overview" class="hero">
+        <div class="eyebrow">OpenEMR embedded AI agent</div>
+        <h1>Clinical Co-Pilot Architecture</h1>
+        <p class="subtitle">
+          A read-only, source-cited clinical briefing agent for the 90-second pre-visit window.
+          Built as an OpenEMR-native feature with a private LangGraph runtime.
+        </p>
+        <div class="hero-grid">
+          <div class="card stat">
+            <strong>90s</strong>
+            <span>Core moment: the physician is between rooms and needs context fast.</span>
+          </div>
+          <div class="card stat">
+            <strong>5-15</strong>
+            <span>MVP concurrency: a family-practice sized clinical team.</span>
+          </div>
+          <div class="card stat">
+            <strong>5</strong>
+            <span>Tool families: patient context, labs, meds, encounters, schedule.</span>
+          </div>
+          <div class="card stat">
+            <strong>0</strong>
+            <span>Write actions: no orders, notes, prescriptions, or chart updates in v1.</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="principles">
+        <div class="section-head">
+          <p class="kicker">Architecture lens</p>
+          <h2>Principles That Constrain The Design</h2>
+          <p class="lead">
+            The architecture starts from the user and safety constraints defined during presearch, then maps them onto OpenEMR's existing boundaries.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-6">
+            <h3>User problem</h3>
+            <p>
+              Dr. Patel needs a glanceable briefing before entering the room: who the patient is,
+              why they are here, what changed, current meds, allergies, labs, and recent encounters.
+            </p>
+            <div class="pill-row">
+              <span class="pill">Default briefing</span>
+              <span class="pill">Follow-up drill-down</span>
+              <span class="pill">Patient-bound context</span>
+            </div>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why this scope</h3>
+            <p>
+              Presearch rejected broader hospitalist or ED workflows because the primary-care
+              scheduled day is more predictable, easier to defend, and maps cleanly to a small tool surface.
+            </p>
+          </div>
+          <div class="card span-4">
+            <h3>System of record</h3>
+            <p>OpenEMR remains clinical truth. The agent reads, summarizes, and cites; it does not create independent clinical state.</p>
+          </div>
+          <div class="card span-4">
+            <h3>Human in the loop</h3>
+            <p>The clinician always decides. The agent advises, flags, and retrieves; it does not prescribe or act.</p>
+          </div>
+          <div class="card span-4">
+            <h3>Proof over polish</h3>
+            <p>Every clinical claim needs a source reference. Unverified content is stripped before display.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="components">
+        <div class="section-head">
+          <p class="kicker">System shape</p>
+          <h2>Two Bounded Contexts</h2>
+          <p class="lead">
+            OpenEMR owns the clinical boundary. The private LangGraph service owns agent orchestration.
+          </p>
+        </div>
+
+        <div class="flow" aria-label="Component flow">
+          <div class="flow-step">
+            <small>01</small>
+            <strong>Browser UI</strong>
+            <p>OpenEMR-origin panel with briefing, citations, follow-ups, streaming state.</p>
+          </div>
+          <div class="flow-step">
+            <small>02</small>
+            <strong>Agent Module</strong>
+            <p>Custom PHP module for routes, policy gates, snapshots, audit, proxying.</p>
+          </div>
+          <div class="flow-step">
+            <small>03</small>
+            <strong>Adapters</strong>
+            <p>Typed chart reads, normalization, source references, PHI minimization.</p>
+          </div>
+          <div class="flow-step">
+            <small>04</small>
+            <strong>LangGraph</strong>
+            <p>Self-hosted Node service running graph nodes and LLM calls.</p>
+          </div>
+          <div class="flow-step">
+            <small>05</small>
+            <strong>Verification</strong>
+            <p>Claim ledger, deterministic checks, safety rules, response gate.</p>
+          </div>
+          <div class="flow-step">
+            <small>06</small>
+            <strong>State + Traces</strong>
+            <p>Postgres stores state; LangSmith records metadata, not PHI bodies.</p>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 1rem;">
+          <div class="card decision span-6">
+            <h3>Why split PHP and Node</h3>
+            <p>
+              OpenEMR is PHP and owns auth/data. LangGraph.js is the chosen agent framework.
+              Splitting services keeps OpenEMR stable while letting the agent runtime evolve independently.
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why private service</h3>
+            <p>
+              The browser never talks directly to the agent, avoiding CORS, separate login,
+              browser-held agent tokens, and a second public attack surface.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="full-diagram">
+        <div class="section-head">
+          <p class="kicker">End-to-end view</p>
+          <h2>Full System Architecture</h2>
+          <p class="lead">
+            One cohesive view of the user boundary, OpenEMR module, private agent runtime, persistence,
+            observability, and LLM provider.
+          </p>
+        </div>
+
+        <div class="system-diagram" role="img" aria-label="Clinical Co-Pilot full architecture diagram">
+          <div class="diagram-lanes">
+            <div class="lane">
+              <p class="lane-title">Clinician + Browser</p>
+              <div class="node primary">
+                <strong>Dr. Patel</strong>
+                <span>Primary care physician in the 90-second pre-visit window.</span>
+              </div>
+              <div class="arrow-note">opens chart</div>
+              <div class="node">
+                <strong>OpenEMR Browser UI</strong>
+                <span>Patient or schedule context, agent panel, citations, follow-up controls.</span>
+              </div>
+              <div class="node safe">
+                <strong>Single Origin</strong>
+                <span>Browser talks only to OpenEMR. No CORS or browser-held agent tokens.</span>
+              </div>
+            </div>
+
+            <div class="lane">
+              <p class="lane-title">OpenEMR Clinical Boundary</p>
+              <div class="node primary">
+                <strong>Agent Custom Module</strong>
+                <span>Routes, UI entry points, proxy bridge, explicit listeners.</span>
+              </div>
+              <div class="arrow-note">policy gate</div>
+              <div class="node danger">
+                <strong>Auth, Site, Patient, Scope</strong>
+                <span>Fail-closed checks before any model-bound disclosure.</span>
+              </div>
+              <div class="node warn">
+                <strong>AGENT_PHI_DISCLOSURE</strong>
+                <span>Dedicated disclosure audit before chart data leaves OpenEMR.</span>
+              </div>
+              <div class="node">
+                <strong>OpenEMR MySQL</strong>
+                <span>Clinical system of record. Never queried directly by Node.</span>
+              </div>
+            </div>
+
+            <div class="lane">
+              <p class="lane-title">Data Shaping + Agent Runtime</p>
+              <div class="node safe">
+                <strong>ChartSnapshot Adapters</strong>
+                <span>Normalize legacy data, dates, identifiers, code labels, and missingness.</span>
+              </div>
+              <div class="node safe">
+                <strong>PHI Minimizer</strong>
+                <span>Drops SSN, driver's license, full address, unrelated fields, raw bundles.</span>
+              </div>
+              <div class="arrow-note">private request</div>
+              <div class="node primary">
+                <strong>Self-Hosted LangGraph Service</strong>
+                <span>Node/TypeScript graph for retrieval, synthesis, verification, formatting.</span>
+              </div>
+              <div class="node danger">
+                <strong>Verification Gate</strong>
+                <span>Claim ledger, source checks, clinical hard stops, prompt-injection defense.</span>
+              </div>
+            </div>
+
+            <div class="lane">
+              <p class="lane-title">External + State Services</p>
+              <div class="node primary">
+                <strong>Claude Sonnet 4</strong>
+                <span>Managed LLM API for MVP retrieval/synthesis and verification.</span>
+              </div>
+              <div class="node">
+                <strong>Agent Postgres</strong>
+                <span>Conversation state, claim ledgers, source refs, verification metadata, costs.</span>
+              </div>
+              <div class="node">
+                <strong>LangSmith</strong>
+                <span>Trace metadata, latency, token counts, cost, tool status. No PHI bodies.</span>
+              </div>
+              <div class="node safe">
+                <strong>Railway Private Network</strong>
+                <span>OpenEMR is public; agent, MySQL, and Postgres remain private.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="diagram-caption">
+            <div class="caption-item">
+              <strong>Trust boundary</strong>
+              Browser stays inside OpenEMR; the agent service is private.
+            </div>
+            <div class="caption-item">
+              <strong>Data boundary</strong>
+              LLM receives a minimized <code>ChartSnapshot</code>, not raw chart data.
+            </div>
+            <div class="caption-item">
+              <strong>Safety boundary</strong>
+              Verification gates every source-backed clinical claim.
+            </div>
+            <div class="caption-item">
+              <strong>Ops boundary</strong>
+              Postgres and LangSmith capture state and metadata separately.
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <section id="integration">
+        <div class="section-head">
+          <p class="kicker">OpenEMR boundary</p>
+          <h2>Integrate As A Custom Module</h2>
+          <p class="lead">
+            The agent enters OpenEMR through the module system, explicit route/listener registration, and patient or schedule UI entry points.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-3">
+            <h3>UI entry points</h3>
+            <p>Patient-chart button, schedule annotation, inline panel, or module-hosted launch page.</p>
+          </div>
+          <div class="card span-3">
+            <h3>HTTP route</h3>
+            <p>Register agent routes through OpenEMR REST extension events where possible.</p>
+          </div>
+          <div class="card span-3">
+            <h3>Policy services</h3>
+            <p>Validate session, site, patient, scope, data category, and use case.</p>
+          </div>
+          <div class="card span-3">
+            <h3>Proxy bridge</h3>
+            <p>Forward minimized requests to the private service and stream responses back.</p>
+          </div>
+          <div class="card decision span-12">
+            <h3>Decision criteria from presearch</h3>
+            <p>
+              Stack choice should fit OpenEMR, minimize core patches, and support the 90-second workflow.
+              The user should experience this as an OpenEMR feature that happens to use AI, not as a separate app.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="flow">
+        <div class="section-head">
+          <p class="kicker">Request lifecycle</p>
+          <h2>Default Briefing Flow</h2>
+          <p class="lead">
+            A briefing is context-triggered: opening a patient or schedule context starts the workflow without a typed prompt.
+          </p>
+        </div>
+        <div class="flow">
+          <div class="flow-step">
+            <small>Open</small>
+            <strong>Patient context</strong>
+            <p>Clinician opens a chart or schedule item inside OpenEMR.</p>
+          </div>
+          <div class="flow-step">
+            <small>Gate</small>
+            <strong>Auth + policy</strong>
+            <p>OpenEMR verifies session, site, patient, scope, and read-only task.</p>
+          </div>
+          <div class="flow-step">
+            <small>Audit</small>
+            <strong>Disclosure event</strong>
+            <p><code>AGENT_PHI_DISCLOSURE</code> is emitted before model-bound data leaves OpenEMR.</p>
+          </div>
+          <div class="flow-step">
+            <small>Shape</small>
+            <strong>ChartSnapshot</strong>
+            <p>Adapters normalize data and remove unnecessary identifiers.</p>
+          </div>
+          <div class="flow-step">
+            <small>Run</small>
+            <strong>LangGraph</strong>
+            <p>Graph synthesizes, verifies, formats, and records metadata.</p>
+          </div>
+          <div class="flow-step">
+            <small>Show</small>
+            <strong>Cited response</strong>
+            <p>OpenEMR streams verified briefing and citations to the browser.</p>
+          </div>
+        </div>
+        <div class="grid" style="margin-top: 1rem;">
+          <div class="card decision span-6">
+            <h3>Latency target</h3>
+            <p>
+              Presearch target was 3-7 seconds with a loading state. The integrated MVP uses 5-8s P50
+              and 30s hard ceiling because OpenEMR bootstrap and LLM calls are synchronous costs.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>Silent omission</h3>
+            <p>
+              Missing allergies or meds cannot be hidden. The response must show a safety-critical gap
+              instead of producing a clean but unsafe summary.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="data">
+        <div class="section-head">
+          <p class="kicker">Model input boundary</p>
+          <h2>ChartSnapshot, Not Raw Chart</h2>
+          <p class="lead">
+            The LLM gets a minimized clinical snapshot with source references, not raw SQL rows or broad FHIR bundles.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-7">
+            <h3>Included in the snapshot</h3>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Presentation requirement</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Appointment context</td>
+                  <td>Why the patient is here today.</td>
+                </tr>
+                <tr>
+                  <td>Display-safe demographics</td>
+                  <td>Enough identity to orient the clinician.</td>
+                </tr>
+                <tr>
+                  <td>Current medications</td>
+                  <td>Names, dosages, recent changes, source record.</td>
+                </tr>
+                <tr>
+                  <td>Recent labs</td>
+                  <td>Value, date, unit, reference range, abnormal flag.</td>
+                </tr>
+                <tr>
+                  <td>Allergies</td>
+                  <td>Always surfaced when present.</td>
+                </tr>
+                <tr>
+                  <td>Recent encounters</td>
+                  <td>Date, type, reason, source-backed summary.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card span-5">
+            <h3>Excluded by default</h3>
+            <ul>
+              <li>SSN and driver's license</li>
+              <li>Full address and unrelated contact data</li>
+              <li>Billing-only fields</li>
+              <li>Non-unique MRN/<code>pubpid</code> as identity</li>
+              <li>Full chart history outside the requested window</li>
+            </ul>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why adapters exist</h3>
+            <p>
+              Presearch wanted FHIR/API tools to avoid direct SQL. The audit adds a stricter criterion:
+              data must also be normalized and minimized before it becomes model input.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>Legacy data hazards</h3>
+            <p>
+              OpenEMR can contain duplicate <code>pubpid</code>, zero-date sentinels, unbounded strings,
+              and fragmented <code>form_*</code> data. The adapter layer absorbs those hazards.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="agent">
+        <div class="section-head">
+          <p class="kicker">Agent runtime</p>
+          <h2>Small Deterministic LangGraph</h2>
+          <p class="lead">
+            LangGraph.js gives explicit graph state and node-level traceability without building a sprawling multi-agent system.
+          </p>
+        </div>
+        <div class="flow">
+          <div class="flow-step">
+            <small>Node</small>
+            <strong>LoadState</strong>
+            <p>Load patient-bound conversation state from Postgres.</p>
+          </div>
+          <div class="flow-step">
+            <small>Node</small>
+            <strong>PlanContext</strong>
+            <p>Classify default briefing vs. follow-up and needed categories.</p>
+          </div>
+          <div class="flow-step">
+            <small>Node</small>
+            <strong>Retrieve</strong>
+            <p>Use snapshot facts or request additional minimized context.</p>
+          </div>
+          <div class="flow-step">
+            <small>Node</small>
+            <strong>Synthesize</strong>
+            <p>Create draft response and structured claim ledger.</p>
+          </div>
+          <div class="flow-step">
+            <small>Node</small>
+            <strong>Verify</strong>
+            <p>Check source support and hard clinical rules.</p>
+          </div>
+          <div class="flow-step">
+            <small>Node</small>
+            <strong>Format</strong>
+            <p>Stream cited briefing with explicit gaps.</p>
+          </div>
+        </div>
+        <div class="grid" style="margin-top: 1rem;">
+          <div class="card decision span-6">
+            <h3>Framework decision</h3>
+            <p>
+              LangGraph was chosen over a custom loop because explicit nodes and state transitions
+              make the clinical workflow auditable and easier to defend.
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Model decision</h3>
+            <p>
+              Claude Sonnet 4 is used for retrieval and verification in the MVP for tool use,
+              context window, and instruction-following. Cheaper verifier models wait for eval proof.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="verification">
+        <div class="section-head">
+          <p class="kicker">Trust layer</p>
+          <h2>Verification Before Display</h2>
+          <p class="lead">
+            The response users see is not the first model draft. It is the post-verification answer.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-4">
+            <div class="big-number">1</div>
+            <h3>Claim ledger</h3>
+            <p>Every factual claim is represented as structured data with category, source, safety flag, and status.</p>
+          </div>
+          <div class="card span-4">
+            <div class="big-number">2</div>
+            <h3>Deterministic checks</h3>
+            <p>Structured facts like dose, lab value, date, allergy, and patient identity are checked directly.</p>
+          </div>
+          <div class="card span-4">
+            <div class="big-number">3</div>
+            <h3>Gate output</h3>
+            <p>Unsupported claims are stripped; malformed output is rejected; safety-critical gaps are displayed.</p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why source tags at retrieval time</h3>
+            <p>
+              Presearch rejected post-hoc fact tracing because reverse-mapping prose back to records is
+              slower and less reliable than producing citations as part of retrieval.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>Clinical hard stops</h3>
+            <p>
+              Allergies, drug interactions, and dosage-sensitive warnings cannot be probabilistic labels.
+              They are verified or the system fails closed.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="security">
+        <div class="section-head">
+          <p class="kicker">Trust boundaries</p>
+          <h2>Security Model</h2>
+          <p class="lead">
+            The agent has no public identity and no privileges beyond authorized OpenEMR chart context.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-4">
+            <h3>Browser → OpenEMR</h3>
+            <p>Standard OpenEMR session. No second login. No agent tokens in the browser.</p>
+          </div>
+          <div class="card span-4">
+            <h3>OpenEMR → Agent</h3>
+            <p>Private request envelope over Railway private network. Optional shared secret or mTLS for production.</p>
+          </div>
+          <div class="card span-4">
+            <h3>Agent → LLM</h3>
+            <p>Provider API key lives server-side. Model receives minimized snapshot, not full chart.</p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Authorization criteria</h3>
+            <p>
+              Multi-user clinical settings are the norm. The policy gate checks site, patient, scope,
+              data category, and supported task before disclosure.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>Prompt injection</h3>
+            <p>
+              Patient notes are untrusted input. Instructions inside chart text are ignored and cannot
+              create verified claims without source support.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="audit">
+        <div class="section-head">
+          <p class="kicker">Compliance posture</p>
+          <h2>Audit And PHI Controls</h2>
+          <p class="lead">
+            Demo data is used, but the architecture treats chart content as PHI-equivalent.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-7">
+            <h3><code>AGENT_PHI_DISCLOSURE</code></h3>
+            <p>
+              Emitted before model-bound chart content leaves OpenEMR. It records user, site,
+              patient identifiers, request/conversation ID, purpose, disclosed categories, destination,
+              timestamp, and result status when known.
+            </p>
+            <p>
+              It does not store raw prompt or completion text.
+            </p>
+          </div>
+          <div class="card span-5">
+            <h3>Production requirements</h3>
+            <ul>
+              <li>Signed BAA with model provider</li>
+              <li>No-training/no-retention settings</li>
+              <li>TLS 1.2+ outbound calls</li>
+              <li>Retention policy</li>
+              <li>Centralized audit monitoring</li>
+              <li>Breach response procedures</li>
+            </ul>
+          </div>
+          <div class="card decision span-12">
+            <h3>Why explicit audit</h3>
+            <p>
+              Presearch required audit/compliance from day one. The architecture therefore uses a
+              dedicated disclosure event rather than relying only on configurable query or API logs.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="evals">
+        <div class="section-head">
+          <p class="kicker">Quality system</p>
+          <h2>Evals, Observability, And Cost</h2>
+          <p class="lead">
+            The agent is only trustworthy if failures are measurable and regressions are caught.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-4">
+            <h3>LangSmith</h3>
+            <p>Graph/LLM traces with latency, token, cost, tool, and status metadata. No PHI bodies.</p>
+          </div>
+          <div class="card span-4">
+            <h3>Vitest evals</h3>
+            <p>Happy path, failure path, adversarial cases, and schema-drift smoke tests.</p>
+          </div>
+          <div class="card span-4">
+            <h3>Cost tracking</h3>
+            <p>Per-request token/cost metrics plus usage model for 100, 1K, 10K, and 100K users.</p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Eval criteria</h3>
+            <p>
+              Tests must cover correctness, all claims source-attributed, no cross-patient leakage,
+              prompt-injection resistance, and graceful failure on missing data.
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Cost criteria</h3>
+            <p>
+              Cost projection is not cost-per-token times users. It depends on patients per clinician,
+              follow-up rate, snapshot size, cache hit rate, retention, and audit volume.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="deployment">
+        <div class="section-head">
+          <p class="kicker">Operations</p>
+          <h2>Railway Deployment</h2>
+          <p class="lead">
+            A pragmatic deployment for the sprint: simple enough to ship, structured enough to defend.
+          </p>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Visibility</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>OpenEMR service</td>
+              <td>Public</td>
+              <td>EHR UI, auth, agent module, browser-origin proxy.</td>
+            </tr>
+            <tr>
+              <td>LangGraph service</td>
+              <td>Private</td>
+              <td>Self-hosted Node/TypeScript agent runtime.</td>
+            </tr>
+            <tr>
+              <td>MySQL</td>
+              <td>Private</td>
+              <td>OpenEMR database.</td>
+            </tr>
+            <tr>
+              <td>Postgres</td>
+              <td>Private</td>
+              <td>Agent state, claim ledgers, metadata, costs.</td>
+            </tr>
+            <tr>
+              <td>Object storage</td>
+              <td>Private/public by config</td>
+              <td>OpenEMR documents.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="grid" style="margin-top: 1rem;">
+          <div class="card decision span-6">
+            <h3>Why Railway</h3>
+            <p>
+              Presearch prioritized simple infra over DevOps complexity. Railway gives managed MySQL,
+              Postgres, object storage, variables, environments, and deploys in one place.
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why Postgres for agent state</h3>
+            <p>
+              LangGraph has first-party Postgres checkpointing, and separate storage reduces the blast
+              radius if the agent service is compromised.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="scale">
+        <div class="section-head">
+          <p class="kicker">Production thinking</p>
+          <h2>Scale And Performance</h2>
+          <p class="lead">
+            The MVP targets a family practice, while documenting the changes needed for a 500-bed hospital.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-4">
+            <h3>MVP target</h3>
+            <ul>
+              <li>5-15 concurrent users</li>
+              <li>5-8s P50 response</li>
+              <li>30s hard ceiling</li>
+              <li>SSE streaming</li>
+            </ul>
+          </div>
+          <div class="card span-4">
+            <h3>Hospital changes</h3>
+            <ul>
+              <li>Streaming outside PHP-FPM</li>
+              <li>Background precomputation</li>
+              <li>Application cache</li>
+              <li>Rate limits</li>
+            </ul>
+          </div>
+          <div class="card span-4">
+            <h3>Data operations</h3>
+            <ul>
+              <li>Retention jobs</li>
+              <li>Audit export</li>
+              <li>Operational indexes</li>
+              <li>Anomaly detection</li>
+            </ul>
+          </div>
+          <div class="card decision span-12">
+            <h3>Scale criteria</h3>
+            <p>
+              We are not building for hospital scale in week one, but we avoid choices that foreclose it:
+              private service boundary, separate state store, explicit audit, and eval-driven model changes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="tradeoffs">
+        <div class="section-head">
+          <p class="kicker">Tradeoffs</p>
+          <h2>Rejected Alternatives</h2>
+          <p class="lead">
+            These options were simpler in one dimension but weaker against the clinical, security, or maintainability criteria.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-6">
+            <h3>Direct Node-to-MySQL reads</h3>
+            <p>Rejected because it bypasses OpenEMR authorization and audit and exposes the agent to legacy schema hazards.</p>
+          </div>
+          <div class="card span-6">
+            <h3>Raw FHIR bundle prompting</h3>
+            <p>Rejected as model input because raw bundles are too broad and PHI-heavy. FHIR remains useful inside adapters.</p>
+          </div>
+          <div class="card span-6">
+            <h3>Standalone public SPA</h3>
+            <p>Rejected because it creates a second origin, token handling, and worse workflow fit.</p>
+          </div>
+          <div class="card span-6">
+            <h3>Third-party SMART app flow</h3>
+            <p>Rejected for MVP because this is an internal OpenEMR feature, not a cross-EHR marketplace app.</p>
+          </div>
+          <div class="card span-6">
+            <h3>Self-hosted open-weight LLM</h3>
+            <p>Rejected for MVP because GPU/model operations add too much delivery risk for the sprint.</p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Defense summary</h3>
+            <p>
+              The chosen architecture is intentionally narrow: OpenEMR-native, read-only, source-cited,
+              minimized, audited, eval-gated, and deployable in the project timeline.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Source documents: <code>ARCHITECTURE.md</code>, <code>docs/PRESEARCH.md</code>,
+          <code>USER.md</code>, and <code>AUDIT.md</code>. Open this file locally in a browser
+          for the architecture presentation.
+        </p>
+      </footer>
+    </main>
+  </div>
+  <script>
+    const navLinks = Array.from(document.querySelectorAll('nav a[href^="#"]'));
+    const sections = navLinks
+      .map((link) => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+
+    const setActiveLink = (id) => {
+      navLinks.forEach((link) => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+      });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+      if (visible?.target?.id) {
+        setActiveLink(visible.target.id);
+      }
+    }, {
+      rootMargin: '-35% 0px -45% 0px',
+      threshold: [0.1, 0.25, 0.5, 0.75]
+    });
+
+    sections.forEach((section) => observer.observe(section));
+  </script>
+</body>
+</html>

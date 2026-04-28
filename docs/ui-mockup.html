@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical Co-Pilot UI Mockup</title>
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --surface: #ffffff;
+      --surface-2: #f7f9fc;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d7dee8;
+      --primary: #1b5fd1;
+      --primary-dark: #164391;
+      --accent: #0b8f74;
+      --warning: #b76e00;
+      --danger: #b42318;
+      --soft-blue: #eaf2ff;
+      --soft-green: #e9f8f2;
+      --soft-yellow: #fff6df;
+      --soft-red: #fff1f0;
+      --shadow: 0 18px 45px rgba(16, 24, 40, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(27, 95, 209, 0.13), transparent 36rem),
+        radial-gradient(circle at bottom right, rgba(11, 143, 116, 0.1), transparent 34rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    .page {
+      width: min(1440px, calc(100vw - 2rem));
+      margin: 2rem auto;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+      gap: 1.25rem;
+      align-items: end;
+      margin-bottom: 1.25rem;
+    }
+
+    .title-card,
+    .note-card {
+      padding: 1.4rem;
+      border: 1px solid rgba(215, 222, 232, 0.9);
+      border-radius: 1.35rem;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 12px 32px rgba(16, 24, 40, 0.08);
+      backdrop-filter: blur(16px);
+    }
+
+    .eyebrow {
+      margin: 0 0 0.45rem;
+      color: var(--primary);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.1rem, 5vw, 4.6rem);
+      line-height: 0.95;
+      letter-spacing: -0.06em;
+    }
+
+    .hero p {
+      margin: 0.85rem 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .note-card strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--primary-dark);
+    }
+
+    .mock-browser {
+      overflow: hidden;
+      border: 1px solid rgba(215, 222, 232, 0.95);
+      border-radius: 1.4rem;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: #f9fbfd;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.5rem;
+      color: white;
+      background: var(--primary);
+      font-weight: 900;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 15.5rem minmax(0, 1fr) 28rem;
+      min-height: 46rem;
+    }
+
+    .sidebar {
+      padding: 1rem;
+      border-right: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    .side-title {
+      margin: 0.6rem 0;
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.7rem;
+      padding: 0.7rem 0.75rem;
+      margin-bottom: 0.35rem;
+      border-radius: 0.75rem;
+      color: var(--ink);
+      font-size: 0.92rem;
+      font-weight: 650;
+    }
+
+    .nav-item.active {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+    }
+
+    .badge {
+      display: inline-flex;
+      min-width: 1.45rem;
+      justify-content: center;
+      padding: 0.16rem 0.42rem;
+      border-radius: 999px;
+      color: var(--primary-dark);
+      background: #dbe8ff;
+      font-size: 0.73rem;
+      font-weight: 800;
+    }
+
+    .content {
+      padding: 1.15rem;
+      background: var(--surface-2);
+    }
+
+    .patient-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: var(--surface);
+    }
+
+    .patient-header h2 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: -0.03em;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.55rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.32rem 0.52rem;
+      border-radius: 999px;
+      color: var(--muted);
+      background: #eef2f7;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .chip.blue {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+    }
+
+    .chip.green {
+      color: #04735d;
+      background: var(--soft-green);
+    }
+
+    .chip.red {
+      color: var(--danger);
+      background: var(--soft-red);
+    }
+
+    .patient-actions {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    button {
+      border: 0;
+      border-radius: 0.7rem;
+      padding: 0.65rem 0.85rem;
+      color: white;
+      background: var(--primary);
+      font: inherit;
+      font-size: 0.86rem;
+      font-weight: 800;
+      cursor: default;
+    }
+
+    button.secondary {
+      color: var(--primary-dark);
+      border: 1px solid #c8d8fb;
+      background: #eef4ff;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .card {
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: var(--surface);
+      box-shadow: 0 8px 22px rgba(16, 24, 40, 0.05);
+    }
+
+    .card h3 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin: 0 0 0.85rem;
+      font-size: 0.98rem;
+    }
+
+    .section-list {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .brief-row {
+      padding: 0.85rem;
+      border: 1px solid #e5eaf1;
+      border-radius: 0.85rem;
+      background: #fbfcfe;
+    }
+
+    .brief-row strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: var(--ink);
+      font-size: 0.9rem;
+    }
+
+    .brief-row p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .source {
+      display: inline-flex;
+      margin-left: 0.25rem;
+      padding: 0.08rem 0.35rem;
+      border-radius: 999px;
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+      font-size: 0.68rem;
+      font-weight: 900;
+      vertical-align: middle;
+    }
+
+    .alert {
+      padding: 0.8rem;
+      border: 1px solid #ffd2cd;
+      border-radius: 0.85rem;
+      color: #7a271a;
+      background: var(--soft-red);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .schedule-list {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .schedule-item {
+      display: grid;
+      grid-template-columns: 4.2rem minmax(0, 1fr);
+      gap: 0.8rem;
+      padding: 0.8rem;
+      border: 1px solid #e5eaf1;
+      border-radius: 0.9rem;
+      background: #fbfcfe;
+    }
+
+    .schedule-item.active {
+      border-color: #aac4ff;
+      background: var(--soft-blue);
+    }
+
+    .time {
+      color: var(--primary-dark);
+      font-weight: 900;
+    }
+
+    .schedule-item h4 {
+      margin: 0;
+      font-size: 0.92rem;
+    }
+
+    .schedule-item p {
+      margin: 0.25rem 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .copilot {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--line);
+      background: #fcfdff;
+    }
+
+    .copilot-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, #eef4ff, #ffffff);
+    }
+
+    .copilot-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .copilot-title h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 900;
+    }
+
+    .dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .copilot-header p {
+      margin: 0.55rem 0 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .copilot-body {
+      display: grid;
+      gap: 1rem;
+      padding: 1rem;
+      overflow: auto;
+    }
+
+    .briefing {
+      padding: 1rem;
+      border-radius: 1rem;
+      background: var(--surface);
+      border: 1px solid #dce5f2;
+      box-shadow: 0 10px 24px rgba(16, 24, 40, 0.06);
+    }
+
+    .briefing h3 {
+      margin: 0 0 0.55rem;
+      font-size: 1rem;
+    }
+
+    .briefing p {
+      margin: 0;
+      color: var(--ink);
+      font-size: 0.95rem;
+    }
+
+    .confidence {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .mini-card {
+      padding: 0.75rem;
+      border: 1px solid #e5eaf1;
+      border-radius: 0.85rem;
+      background: var(--surface);
+    }
+
+    .mini-card strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      font-size: 0.83rem;
+    }
+
+    .mini-card span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .followups {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .followup {
+      display: block;
+      width: 100%;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid #d8e3f5;
+      border-radius: 0.8rem;
+      color: var(--primary-dark);
+      background: #f4f8ff;
+      text-align: left;
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+
+    .chat-box {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .chat-box input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      color: var(--muted);
+      font: inherit;
+    }
+
+    .callouts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .callout {
+      padding: 1rem;
+      border: 1px solid rgba(215, 222, 232, 0.9);
+      border-radius: 1rem;
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 0.3rem;
+    }
+
+    .callout p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .app,
+      .main-grid,
+      .callouts {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .copilot {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+
+    .oemr-page {
+      width: min(1500px, calc(100vw - 1.25rem));
+      margin: 0.65rem auto 2rem;
+    }
+
+    .mock-note {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid #d8e2ef;
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 8px 20px rgba(16, 24, 40, 0.06);
+    }
+
+    .mock-note h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: -0.03em;
+    }
+
+    .mock-note p {
+      margin: 0.15rem 0 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .oemr-window {
+      overflow: hidden;
+      border: 1px solid #cfd8e5;
+      border-radius: 0.35rem;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+
+    .oemr-topnav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.55rem 0.8rem;
+      border-bottom: 1px solid #d9e1eb;
+      background: #ffffff;
+      font-size: 0.82rem;
+    }
+
+    .oemr-menu {
+      display: flex;
+      align-items: center;
+      gap: 0.72rem;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .oemr-search {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      color: #566274;
+    }
+
+    .oemr-search-box {
+      width: 11rem;
+      padding: 0.36rem 0.45rem;
+      border: 1px solid #bcc7d6;
+      border-radius: 0.15rem;
+      color: #6b7280;
+      font-size: 0.76rem;
+    }
+
+    .oemr-patient-bar {
+      display: grid;
+      grid-template-columns: 3.2rem minmax(0, 1fr) 22rem;
+      gap: 0.8rem;
+      align-items: start;
+      padding: 0.75rem 0.9rem;
+      background: #fbfcfe;
+      border-bottom: 1px solid #d9e1eb;
+    }
+
+    .avatar {
+      width: 2.75rem;
+      height: 2.75rem;
+      border: 1px solid #cbd5e1;
+      background:
+        radial-gradient(circle at 50% 35%, #bcc4cf 0 28%, transparent 29%),
+        radial-gradient(circle at 50% 88%, #bcc4cf 0 42%, transparent 43%),
+        #f0f3f7;
+    }
+
+    .patient-name {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #1b5aa7;
+      font-size: 1.25rem;
+      font-weight: 500;
+    }
+
+    .patient-sub {
+      margin-top: 0.25rem;
+      color: #111827;
+      font-size: 0.82rem;
+    }
+
+    .encounter-tools {
+      color: #111827;
+      font-size: 0.82rem;
+    }
+
+    .encounter-tools button {
+      padding: 0.3rem 0.55rem;
+      border: 1px solid #aab4c2;
+      border-radius: 0.1rem;
+      color: #111827;
+      background: #edf0f5;
+      font-size: 0.75rem;
+    }
+
+    .oemr-tabbar {
+      display: flex;
+      align-items: end;
+      gap: 0.12rem;
+      padding: 0.45rem 0.55rem 0;
+      border-bottom: 2px solid #2e9ccc;
+      background: #ffffff;
+      font-size: 0.74rem;
+    }
+
+    .oemr-tab {
+      padding: 0.45rem 0.7rem;
+      border: 1px solid #d8dee8;
+      border-bottom: 0;
+      color: #4b5563;
+      background: #f7f8fb;
+    }
+
+    .oemr-tab.active {
+      color: #111827;
+      background: #ffffff;
+      border-top: 2px solid #2e9ccc;
+    }
+
+    .dashboard-title {
+      padding: 0.85rem 0.9rem;
+      font-size: 0.95rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .oemr-dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 25rem;
+      gap: 0.65rem;
+      padding: 0.65rem;
+      background: #ffffff;
+    }
+
+    .dashboard-left {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.65rem;
+      align-content: start;
+    }
+
+    .dashboard-right {
+      display: grid;
+      gap: 0.65rem;
+      align-content: start;
+    }
+
+    .widget {
+      border: 1px solid #d6dde8;
+      background: #ffffff;
+      min-height: 3.1rem;
+    }
+
+    .widget.wide {
+      grid-column: span 3;
+    }
+
+    .widget.double {
+      grid-column: span 2;
+    }
+
+    .widget-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.38rem 0.55rem;
+      border-bottom: 1px solid #e5eaf1;
+      color: #1f58a8;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .widget-body {
+      padding: 0.55rem;
+      font-size: 0.78rem;
+    }
+
+    .widget-body p {
+      margin: 0 0 0.38rem;
+    }
+
+    .vitals-grid {
+      display: grid;
+      grid-template-columns: 7rem minmax(0, 1fr);
+      gap: 0.2rem 0.5rem;
+      font-size: 0.76rem;
+    }
+
+    .reminder {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.6rem;
+      margin-bottom: 0.35rem;
+      color: #374151;
+    }
+
+    .past-due {
+      color: #b42318;
+      font-weight: 800;
+    }
+
+    .copilot-context {
+      border: 2px solid #1f7acb;
+      border-radius: 0.35rem;
+      background: #f8fbff;
+      box-shadow: 0 14px 34px rgba(31, 122, 203, 0.18);
+    }
+
+    .copilot-context .widget-title {
+      color: white;
+      background: linear-gradient(135deg, #1f63b7, #1898a6);
+      border-bottom: 0;
+      font-size: 0.82rem;
+    }
+
+    .copilot-context .widget-body {
+      padding: 0.75rem;
+    }
+
+    .ai-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: #0b6b57;
+      background: #e5f8f2;
+      border-radius: 999px;
+      padding: 0.22rem 0.45rem;
+      font-size: 0.68rem;
+      font-weight: 900;
+    }
+
+    .ai-dot {
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 50%;
+      background: #0b8f74;
+    }
+
+    .ai-brief {
+      padding: 0.65rem;
+      border: 1px solid #d3e4fb;
+      border-radius: 0.45rem;
+      background: #ffffff;
+      color: #1f2937;
+      font-size: 0.82rem;
+    }
+
+    .ai-brief p {
+      margin: 0;
+    }
+
+    .source-chip {
+      display: inline-flex;
+      padding: 0.05rem 0.28rem;
+      border-radius: 999px;
+      color: #174ea6;
+      background: #e8f0ff;
+      font-size: 0.62rem;
+      font-weight: 900;
+      vertical-align: middle;
+    }
+
+    .ai-alert {
+      margin-top: 0.55rem;
+      padding: 0.55rem;
+      border: 1px solid #ffd3cc;
+      border-radius: 0.45rem;
+      color: #842029;
+      background: #fff1f0;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .followup-grid {
+      display: grid;
+      gap: 0.35rem;
+      margin-top: 0.65rem;
+    }
+
+    .followup-link {
+      padding: 0.48rem 0.55rem;
+      border: 1px solid #cbdcf8;
+      border-radius: 0.45rem;
+      color: #174ea6;
+      background: #f2f6ff;
+      text-align: left;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .chat-inline {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.65rem;
+    }
+
+    .chat-inline input {
+      min-width: 0;
+      flex: 1;
+      padding: 0.48rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.35rem;
+      color: #64748b;
+      font-size: 0.76rem;
+    }
+
+    .chat-inline button {
+      padding: 0.48rem 0.65rem;
+      border-radius: 0.35rem;
+      font-size: 0.76rem;
+    }
+
+    .mock-rationale {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    .mock-rationale .callout {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    @media (max-width: 1180px) {
+      .oemr-dashboard,
+      .oemr-patient-bar,
+      .mock-rationale {
+        grid-template-columns: 1fr;
+      }
+
+      .dashboard-left {
+        grid-template-columns: 1fr;
+      }
+
+      .widget.wide,
+      .widget.double {
+        grid-column: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="oemr-page">
+    <div class="mock-note">
+      <div>
+        <h1>Clinical Co-Pilot in OpenEMR Context</h1>
+        <p>Mockup updated to match the patient dashboard layout from the provided OpenEMR screenshot.</p>
+      </div>
+      <div>
+        <p><strong>Design intent:</strong> the Co-Pilot appears as a native dashboard widget, not a separate app.</p>
+      </div>
+    </div>
+
+    <section class="oemr-window" aria-label="OpenEMR patient dashboard with Clinical Co-Pilot widget">
+      <div class="oemr-topnav">
+        <div class="oemr-menu">
+          <span>Calendar</span>
+          <span>Finder</span>
+          <span>Flow</span>
+          <span>Recalls</span>
+          <span>Messages</span>
+          <span>Patient</span>
+          <span>Fees</span>
+          <span>Procedures</span>
+          <span>Reports</span>
+          <span>Miscellaneous</span>
+          <span>Popups</span>
+        </div>
+        <div class="oemr-search">
+          <input class="oemr-search-box" value="Search by any demographic">
+          <span>⌕</span>
+          <span>◉</span>
+        </div>
+      </div>
+
+      <div class="oemr-patient-bar">
+        <div class="avatar" aria-hidden="true"></div>
+        <div>
+          <div class="patient-name">Phil Belford <span style="font-size: 0.95rem; color: #4b5563;">(1) ×</span></div>
+          <div class="patient-sub">DOB: 1972-02-09 Age: 54</div>
+        </div>
+        <div class="encounter-tools">
+          <button>↻</button>
+          <button>Select Encounter (1*)</button>
+          <button>+</button>
+          <div style="margin-top: 0.45rem;">Open Encounter: None</div>
+        </div>
+      </div>
+
+      <div class="oemr-tabbar">
+        <div class="oemr-tab">Calendar</div>
+        <div class="oemr-tab">Message Center</div>
+        <div class="oemr-tab">Patient Finder</div>
+        <div class="oemr-tab active">Dashboard</div>
+        <div class="oemr-tab">Visit History</div>
+      </div>
+
+      <div class="dashboard-title">Medical Record Dashboard - Phil Belford</div>
+
+      <div class="oemr-dashboard">
+        <div class="dashboard-left">
+          <div class="widget">
+            <div class="widget-title">Allergies <span>✎</span></div>
+            <div class="widget-body">
+              <p>penicillin <span class="source-chip">source</span></p>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">Medical Problems <span>✎</span></div>
+            <div class="widget-body">
+              <p>HTN</p>
+              <p>Chronic Renal Insufficiency</p>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">Medications <span>✎</span></div>
+            <div class="widget-body">
+              <p>Norvasc</p>
+              <p>Lisinopril</p>
+            </div>
+          </div>
+
+          <div class="widget wide">
+            <div class="widget-title">Prescriptions <span>✎</span></div>
+            <div class="widget-body">None</div>
+          </div>
+
+          <div class="widget wide">
+            <div class="widget-title">Care Team <span>⛶</span></div>
+            <div class="widget-body">&nbsp;</div>
+          </div>
+
+          <div class="widget wide">
+            <div class="widget-title">Treatment Intervention Preferences <span>⛶</span></div>
+            <div class="widget-body">&nbsp;</div>
+          </div>
+
+          <div class="widget wide">
+            <div class="widget-title">Demographics <span>✎</span></div>
+            <div class="widget-body">&nbsp;</div>
+          </div>
+
+          <div class="widget wide">
+            <div class="widget-title">Labs <span>⛶</span></div>
+            <div class="widget-body">&nbsp;</div>
+          </div>
+
+          <div class="widget wide">
+            <div class="widget-title">Vitals <span>✚</span></div>
+            <div class="widget-body">
+              <p><strong>Most recent vitals from:</strong> 2014-02-01 18:44:44</p>
+              <div class="vitals-grid">
+                <strong>Blood Pressure:</strong><span>130/80</span>
+                <strong>Height:</strong><span>70 in (177.80 cm)</span>
+                <strong>Weight:</strong><span>220 lb (99.79 kg)</span>
+                <strong>Temperature:</strong><span>98 F (36.67 C)</span>
+                <strong>Pulse:</strong><span>60 per min</span>
+                <strong>BMI:</strong><span>32 kg/m²</span>
+                <strong>BMI Status:</strong><span>Obesity</span>
+                <strong>Oxygen Saturation:</strong><span>98 %</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-right">
+          <div class="widget copilot-context">
+            <div class="widget-title">
+              <span>Clinical Co-Pilot</span>
+              <span class="ai-status"><span class="ai-dot"></span> Verified</span>
+            </div>
+            <div class="widget-body">
+              <div class="ai-brief">
+                <p>
+                  Phil Belford, 54, has hypertension and chronic renal insufficiency
+                  <span class="source-chip">problems</span>. Current meds include Norvasc and
+                  lisinopril <span class="source-chip">meds</span>. Penicillin allergy is documented
+                  <span class="source-chip">allergy</span>. Most recent vitals show BP 130/80 and BMI
+                  32 <span class="source-chip">vitals</span>.
+                </p>
+              </div>
+
+              <div class="ai-alert">
+                Safety-critical: penicillin allergy surfaced automatically. Medication list verified from dashboard records.
+              </div>
+
+              <div class="followup-grid">
+                <button class="followup-link">What changed since last visit?</button>
+                <button class="followup-link">Show current medications with source records.</button>
+                <button class="followup-link">Any renal-risk context I should notice?</button>
+                <button class="followup-link">Open cited allergy and medication records.</button>
+              </div>
+
+              <div class="chat-inline">
+                <input value="Ask patient-bound follow-up...">
+                <button>Ask</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">Patient Portal / API Access <span>⛶</span></div>
+            <div class="widget-body">&nbsp;</div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">Clinical Reminders <span>✎</span></div>
+            <div class="widget-body">
+              <div class="reminder"><span>Assessment: Colon Cancer Screening</span><span class="past-due">Past Due</span></div>
+              <div class="reminder"><span>Assessment: Prostate Cancer Screening</span><span class="past-due">Past Due</span></div>
+              <div class="reminder"><span>Measurement: Blood Pressure</span><span class="past-due">Past Due</span></div>
+              <div class="reminder"><span>Treatment: Influenza Vaccine</span><span class="past-due">Past Due</span></div>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">Appointments <span>＋</span></div>
+            <div class="widget-body">
+              <p><strong>Future Appointments</strong></p>
+              <p style="text-align: center;">No Appointments</p>
+              <p><strong>Recurring Appointments</strong></p>
+              <p style="text-align: center;">No Recurring Appointments</p>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">Immunizations <span>✎</span></div>
+            <div class="widget-body">None</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mock-rationale" aria-label="UI design rationale">
+      <div class="callout">
+        <strong>Contextual, not separate</strong>
+        <p>The Co-Pilot sits inside the dashboard beside existing clinical widgets.</p>
+      </div>
+      <div class="callout">
+        <strong>Zero-input briefing</strong>
+        <p>The summary appears from patient context, before Dr. Patel types anything.</p>
+      </div>
+      <div class="callout">
+        <strong>Citations stay visible</strong>
+        <p>Source chips show which dashboard records support the briefing.</p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
