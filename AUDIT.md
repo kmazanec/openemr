@@ -8,21 +8,38 @@
 
 ## Executive Summary
 
-OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-11 core grafted onto a procedural legacy. For an AI-agent project the good news is there is a clean insertion seam: a Symfony `Kernel`, an `EventDispatcher`, a documented module system, an OAuth2/OIDC + SMART-on-FHIR stack, and a working at-rest encryption layer (`CryptoGen`, AES-256-CBC + HMAC-SHA384). The bad news is everything *outside* that seam — the data model, the audit story, and the request lifecycle — is hostile to anything that wants to take a patient chart and send it to an LLM.
+OpenEMR is a large, ~25-year-old PHP application with a modern Symfony/PSR-11 core grafted onto a procedural legacy. In this checkout `sql/database.sql` defines 100 base tables and 38 `form_*` tables; installed modules and migrations can expand the deployed schema, so production counts must be measured from `information_schema`. For an AI-agent project the good news is there is a clean insertion seam: a Symfony `Kernel`, an `EventDispatcher`, a documented module system, an OAuth2/OIDC + SMART-on-FHIR stack, and a working at-rest encryption layer (`CryptoGen`, AES-256-CBC + HMAC-SHA384 for current keys). The bad news is everything *outside* that seam — the data model, the audit story, and the request lifecycle — is hostile to anything that wants to take a patient chart and send it to an LLM.
 
 **The five most consequential findings, in priority order:**
 
-1. **No BAA path is currently safe by default.** OpenEMR has audit-event types for reads but they are *configuration flags* (`audit_events_http-request`, `audit_events_query`) that can be — and in fresh installs often are — disabled. FHIR read controllers do not unconditionally audit. Sending PHI to any LLM requires (a) a signed BAA with the provider (Anthropic enterprise and Google Vertex offer one; OpenAI does not by default), and (b) code changes to make read-side audit logging mandatory and tamper-evident before the first byte leaves the process.
+1. **No BAA path is currently safe by default.** OpenEMR has audit-event types for reads but they are *configuration flags* (`audit_events_http-request`, `audit_events_query`) that can be disabled. FHIR read controllers do not unconditionally create a patient-specific disclosure record for model-bound PHI. Sending PHI to any LLM requires (a) a signed BAA with the provider, and (b) code changes to make agent disclosure logging mandatory and tamper-evident before the first byte leaves the process.
 
-2. **The data model will silently mislead the agent.** `patient_data` stores `sex`, `race`, `ethnicity`, `language`, `gender_identity`, `sexual_orientation` as unbounded `varchar`/`text` with no FK to `list_options` despite comments claiming otherwise. Dates use the legacy `0000-00-00` sentinel alongside `NULL`. There are **no foreign key constraints anywhere** in the schema (InnoDB tables, but FKs simply not declared), and `pubpid` (the MRN) is not unique. Clinical content is fragmented across ~39 `form_*` tables, each with its own schema. An agent that assumes referential integrity, type safety, or MRN uniqueness will be wrong on real data.
+2. **The data model will silently mislead the agent.** `patient_data` stores `sex`, `race`, `ethnicity`, `language`, `gender_identity`, `sexual_orientation` as unbounded `varchar`/`text` with no FK to `list_options` despite comments claiming otherwise. Dates use the legacy `0000-00-00` sentinel alongside `NULL`. There are **no foreign key constraints anywhere** in the schema (InnoDB tables, but FKs simply not declared), and `pubpid` (the MRN) is not unique. Clinical content is fragmented across 38 `form_*` tables in this schema dump, each with its own schema. An agent that assumes referential integrity, type safety, or MRN uniqueness will be wrong on real data.
 
-3. **Latency budget is tight and synchronous.** `max_execution_time = 60s`, `memory_limit = 256M`. There is no message queue (Symfony Messenger is not used), no query cache, and no Redis wrapper despite `ext-redis` being available. `PatientService` already issues a two-query pattern to avoid Cartesian products from 1:N joins, and audit/log tables (`audit_master`, `api_log`) lack indexes on `pid` and `created_time`. A safe agent budget is **5–10s P50 / 30s P99**, with anything heavier deferred to the existing `BackgroundServiceRunner` lease pattern.
+3. **Latency budget is tight and synchronous.** `max_execution_time = 60s`, `memory_limit = 256M`. There is no message queue (Symfony Messenger is not used) and no application query cache. Redis is required by Composer and used for sessions in the Redis dev image, but there is no general cache wrapper in `/src/Services`. `PatientService` already issues a two-query pattern to avoid Cartesian products from 1:N joins; `api_log` has no secondary indexes, and the workflow-oriented `audit_master` table lacks indexes on `pid` and `created_time` even though the primary audit sink is actually `log`/`log_comment_encrypt`. A safe agent budget is **5–10s P50 / 30s P99**, with anything heavier deferred to the existing `BackgroundServiceRunner` lease pattern.
 
-4. **The integration surface is unusually clean for a legacy EHR.** `OpenEMR\Core\Kernel` builds a Symfony `ContainerBuilder`, `RegisterListenersPass` auto-wires subscribers, REST routes are closures in `apis/routes/_rest_routes_standard.inc.php` with OpenAPI attributes, and the `interface/modules/custom_modules/` pattern (see `oe-module-weno`) gives a copy-pasteable module template. The agent should ship as a custom module that registers an event subscriber **and** a REST controller — not as patches into `/library` or `/interface`.
+4. **The integration surface is unusually clean for a legacy EHR.** `OpenEMR\Core\Kernel` builds a Symfony `ContainerBuilder`, a shared `EventDispatcher` exists, REST routes are extensible through route events, and the `interface/modules/custom_modules/` pattern gives copy-pasteable module examples. The agent should ship as a custom module that explicitly registers event listeners **and** REST routes — not as patches into `/library` or `/interface`.
 
-5. **AuthN is solid; AuthZ is coarse.** Password hashing is versioned (`AuthHash`), MFA (TOTP/U2F) is implemented, OAuth2/OIDC + SMART scopes are present, and timing-attack mitigation is explicit. But the ACL (`AclMain`) is role/section based with no per-patient or per-encounter scoping, document `sensitivity` is not enforced at the FHIR layer, and there is no break-glass audit beyond `BreakglassChecker.php`. Any agent endpoint must add its own scope check on every call — do not assume a bearer token grants minimum-necessary access.
+5. **AuthN is solid; AuthZ is layered but still coarse for agent use.** Password hashing is versioned (`AuthHash`), MFA (TOTP/U2F) is implemented, OAuth2/OIDC + SMART scopes are present, timing-attack mitigation is explicit, and FHIR controllers that extend `FhirGenericRestController` call resource policy checks. But the ACL (`AclMain`) is role/section based with no broad per-patient or per-encounter authorization model, document `sensitivity` is not consistently enforced for FHIR document/Binary access, and break-glass is mostly a group check that affects logging. Any agent endpoint must add its own scope check on every call — do not assume a bearer token grants minimum-necessary access.
 
 **Recommendation:** treat the agent as a *new bounded context* — its own custom module, its own REST controller, its own audit event class, its own consent gate, its own de-identification step — that *consumes* OpenEMR through narrow, typed adapters. Do not let agent code reach into `$GLOBALS`, raw `sqlStatement` calls, or form tables directly.
+
+---
+
+## Validation Addendum
+
+This document was re-validated against the codebase after its first draft. The audit's main risk themes hold up: read-side audit behavior is configurable, OpenEMR's schema is permissive and lacks foreign keys, PHI-heavy rows can be returned from standard services, API response logging can duplicate sensitive payloads, and an LLM integration needs its own disclosure audit, minimization layer, and authorization gates.
+
+The first draft also had several corrections:
+
+- The base schema in `sql/database.sql` contains 100 `CREATE TABLE` statements, not a reproducible 282-table count. Treat larger counts as deployment-specific and verify them in the running database.
+- The primary audit stream written by `EventAuditLogger` is `log` plus `log_comment_encrypt`, with optional `api_log` entries. `audit_master`/`audit_details` are separate workflow tables and should not be described as the primary HIPAA audit trail.
+- `log.patient_id` is indexed, but `api_log` has only its primary key. `audit_master` also lacks useful indexes for patient/time queries.
+- FHIR scope enforcement is not absent. `FhirGenericRestController` filters resources through `canAccessResource()`, but coverage depends on the controller/resource path and does not remove the need for agent-specific checks, especially for documents/Binary and sensitivity.
+- `RegisterListenersPass` is registered, but the container in this checkout does not auto-discover arbitrary subscriber services. Modules generally register subscribers/listeners explicitly.
+- `EncounterCreatedEvent` does not exist in `src/Events`; encounter integration must use the actual encounter events or services.
+- Redis is not merely a dev-image extension; `ext-redis` is required and the Redis dev image can use it for sessions. What is missing is an application-level cache abstraction used by services.
+- Several line references in the first draft were stale. Use the file names and behaviors in this document rather than trusting old line numbers blindly.
 
 ---
 
@@ -30,8 +47,8 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 
 ### 1.1 Authentication
 
-- **Password storage:** versioned hashing via `src/Common/Auth/AuthHash.php`, verified through `AuthUtils::passwordVerify()` at `src/Common/Auth/AuthUtils.php:247`. Supports algorithm migration (bcrypt→argon2 etc.) without forcing resets.
-- **Timing attack mitigation:** `AuthUtils::preventTimingAttack()` (lines 89–113) runs a dummy hash on unknown usernames so login latency does not leak user existence.
+- **Password storage:** versioned hashing via `src/Common/Auth/AuthHash.php`, verified through `AuthUtils::passwordVerify()` in both portal and staff authentication flows. Supports algorithm migration (bcrypt→argon2 etc.) without forcing resets.
+- **Timing attack mitigation:** `AuthUtils::preventTimingAttack()` runs a dummy hash on unknown usernames so login latency does not leak user existence.
 - **MFA:** TOTP and U2F via `src/Common/Auth/MfaUtils.php`, persisted to `login_mfa_registrations`.
 - **Session lifecycle:** `src/Common/Session/SessionTracker.php:33-37` enforces DB-backed expiration; default cleanup at 7 days.
 - **OAuth2/OIDC:** `src/Common/Auth/OpenIDConnect/` and `oauth2/authorize.php`, with Google Sign-In support.
@@ -39,9 +56,9 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 ### 1.2 Authorization
 
 - **ACL:** `src/Common/Acl/AclMain.php` (the `AclMain::aclCheckCore()` static API) on top of the gacl library. Sections include `patients` (`demo`, `med`, `docs`, `rx`), `encounters` (`auth`, `coding`, `notes`), `admin`, `accounting`, etc.
-- **Default-deny architecturally**, but enforcement is per-controller — there is no middleware that fails closed if a controller forgets to call `aclCheckCore`. This is the largest authorization risk surface for new code.
+- **Layered but easy to bypass accidentally:** REST requests go through listener-based security checks, and many controllers also call `RestConfig::request_authorization_check()`. New code still must register routes correctly and use the existing request/security conventions; otherwise it can fall outside expected enforcement.
 - **SMART/FHIR scopes:** parsed in `src/RestControllers/SMART/ScopePermissionParser.php:85-100` (handles ONC `Condition`/`Observation` category restrictions). Bearer tokens validated at `src/RestControllers/Authorization/BearerTokenAuthorizationStrategy.php:29+`.
-- **Gap:** `PatientRestController` (lines ~63–95, ~137–150) whitelists search fields but does not appear to enforce per-resource SMART scopes on every code path. Verify before any agent endpoint reuses this layer.
+- **Gap:** Standard REST controllers and FHIR controllers do not all share the same authorization shape. FHIR generic controllers apply resource policy filtering, but agent endpoints still need explicit scope, site, patient, and data-category checks instead of assuming one middleware covers every code path.
 
 ### 1.3 Data exposure vectors
 
@@ -59,13 +76,13 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 ### 1.5 Existing security tooling
 
 - Custom PHPStan rules in `tests/PHPStan/Rules/` already forbid `global`, `eval`, certain curl functions, direct session writes, and direct globals access. Use these — extend them for agent code (e.g. forbid `new AnthropicClient()` outside a single adapter).
-- A `/security-review` skill exists for branch-level review.
+- Custom PHPStan rules provide static checks, but no repository-local `/security-review` skill was found in this checkout.
 
 ### 1.6 Top-5 risks for an LLM-integration project
 
 1. **Read-side audit is opt-in.** Fix at the source — make agent reads emit a dedicated `AGENT_PHI_DISCLOSURE` audit event unconditionally.
 2. **Full PHI in API responses.** `PatientRestController` returns SSN, driver's license, full contact info. Build a response DTO that excludes these by default for agent consumers.
-3. **No per-resource scope check on FHIR reads.** Add a decorator/listener that fails closed.
+3. **FHIR scope coverage is path-dependent.** Reuse `ResourceConstraintFilterer` patterns where possible, and add agent-specific gates that fail closed.
 4. **OAuth refresh tokens** — no explicit rotation evidence. If the agent uses a service account, rotate manually and audit.
 5. **Multi-tenant boundary** is URL-derived, not session-asserted. Add a middleware that asserts `session.site_id == request.site_id`.
 
@@ -75,21 +92,22 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 
 ### 2.1 Database
 
-- **282 tables** in `sql/database.sql:6`. 521 indexes total, but coverage is uneven.
+- **100 base tables** in `sql/database.sql` in this checkout, including 38 `form_*` tables. Production deployments can differ after migrations/modules; count tables and indexes from `information_schema` for deployed sizing. Index coverage is uneven.
 - **`patient_data`** (`sql/database.sql:8334-8472`): 80+ columns, indexed on `pid`, `uuid`, `(lname, fname)`, `DOB`. **No index on `providerID` or `ref_providerID`** — provider-scoped queries scan.
 - **`forms`** (`2460-2478`): compound `(pid, encounter)` index exists; individual lookups by `pid` alone are fine.
-- **`audit_master` / `audit_details`** (`149-180`): no index on `pid` or `created_time`. Unbounded growth, table-scan for any patient-scoped audit query.
-- **`api_log`** (`92-105`): no index on patient_id, method, or created_time.
+- **Primary audit sink:** `EventAuditLogger` writes to `log` and `log_comment_encrypt`; `log.patient_id` is indexed, but there is no date index.
+- **`audit_master` / `audit_details`** (`149-180`): workflow audit tables, not the primary `EventAuditLogger` sink. `audit_master` has no index on `pid` or `created_time`; `audit_details` has no `pid` column and points back to `audit_master`.
+- **`api_log`** (`92-105`): no index on `patient_id`, `method`, or `created_time`; can store request/response payloads depending on `api_log_option`.
 
 ### 2.2 Query patterns
 
 - `PatientService::search()` (`src/Services/PatientService.php:392-515`) issues two queries (UUIDs first, then full records) to avoid Cartesian products from 1:N joins on `patient_history`/`contact_address`/`addresses`. Doubles latency vs. a single join but is correct. Pagination cap `MAX_LIMIT = 200` in `QueryPagination.php:22`.
-- `EncounterService::search()` (`src/Services/EncounterService.php:80-200`) has 3 LEFT JOINs (form_encounter→patient_data→users→facility) without obvious pagination enforcement.
+- `EncounterService::search()` has many LEFT JOINs/subqueries across encounter, patient, user, facility, category, UUID mapping, and list option data. It applies `LIMIT` only if callers pass a positive integer, so broad searches can be unbounded.
 
 ### 2.3 Caching
 
-- `symfony/cache` is in `composer.json:116` but **`CacheItemPoolInterface` is not used anywhere in `/src/Services`**. No production caching layer exists.
-- `ext-redis` is available in dev images but no wrappers reference it.
+- `symfony/cache` is in `composer.json`, but **`CacheItemPoolInterface` is not used by services**. No production query/result caching layer exists.
+- `ext-redis` is required and can back sessions in the Redis dev image, but no general service-level Redis cache wrapper was found.
 
 ### 2.4 Bootstrap weight
 
@@ -110,7 +128,7 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 
 - **Budget:** target P50 5–8s, hard ceiling 30s. Bootstrap eats 1–3s before the agent runs.
 - **Cache hot data** in Redis (you'll need to wire it): patient demographics, provider lookup, list_options. 1h TTLs are safe; invalidate on the relevant audit event.
-- **Never query inline:** `audit_master`, `api_log`, "all forms for a patient" wildcard joins, cross-patient aggregations.
+- **Never query inline:** `api_log`, broad `log`/audit scans, "all forms for a patient" wildcard joins, cross-patient aggregations.
 - **Defer to `BackgroundServiceRunner`** (or introduce Symfony Messenger as part of this project) any LLM call expected to exceed ~5s. Do not let the LLM call sit on the request thread for the full 60s window.
 
 ---
@@ -129,7 +147,7 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 
 ### 3.2 Bootstrap & DI
 
-- `OpenEMR\Core\Kernel` (`src/Core/Kernel.php`) builds a Symfony `ContainerBuilder` and registers a compiler pass `RegisterListenersPass` that auto-wires `EventSubscriberInterface` implementations.
+- `OpenEMR\Core\Kernel` (`src/Core/Kernel.php`) builds a Symfony `ContainerBuilder` and registers `RegisterListenersPass`, but this checkout does not define a normal Symfony service graph that auto-discovers arbitrary subscriber services. Modules and API bootstraps usually register listeners/subscribers explicitly.
 - `interface/globals.php:1-80` is the universal entry — loads autoload, builds Kernel, exposes `OEGlobalsBag::getInstance()`.
 - `OpenEMR\BC\ServiceContainer` (line 77) is the BC service-locator with an `override()` hook for modules.
 
@@ -143,7 +161,7 @@ OpenEMR is a 282-table, ~25-year-old PHP application with a modern Symfony/PSR-1
 
 Two patterns coexist; **use the custom_modules pattern**:
 
-- **Custom (preferred):** `interface/modules/custom_modules/oe-module-weno/openemr.bootstrap.php:14-28` is the template. PSR-4 namespace, `ModuleManagerListener` for install/enable/disable lifecycle, event subscribers wired in bootstrap.
+- **Custom (preferred):** `interface/modules/custom_modules/` is the right pattern. `oe-module-weno` shows PSR-4 bootstrap basics; `oe-module-claimrev-connect` is a better example for REST route/scope/resource extension events.
 - **Laminas (legacy):** `interface/modules/zend_modules/module/FHIR/Module.php` — full Laminas MVC. Avoid for new work; bridges back to Symfony at line 42.
 
 ### 3.5 REST API
@@ -168,8 +186,8 @@ Two patterns coexist; **use the custom_modules pattern**:
 
 ### 3.9 Top 3 insertion points (ranked)
 
-1. **Custom module + EventSubscriber** — `interface/modules/custom_modules/oe-module-ai-agent/`. Reacts to `PatientDocumentEvent`, `EncounterCreatedEvent`, etc. Cleanest because it requires no edits outside the module directory.
-2. **REST controller in the same module** — `src/RestControllers/AgentRestController.php` registered via `_rest_routes_standard.inc.php`. Inherits the existing OAuth2 + bearer token pipeline. Required for any UI-initiated "ask the agent" flow.
+1. **Custom module + explicit event subscribers/listeners** — `interface/modules/custom_modules/oe-module-ai-agent/`. Reacts to actual events such as `PatientDocumentEvent`, `EncounterMenuEvent`, `EncounterFormsListRenderEvent`, `EncounterButtonEvent`, `MenuEvent`, and script/header filter events. Cleanest because it minimizes core edits.
+2. **REST routes registered from the module** — prefer listening for `RestApiCreateEvent` (and scope/resource-service events as needed) rather than editing `_rest_routes_standard.inc.php` directly. This keeps the agent endpoint inside the existing OAuth2 + bearer token pipeline while preserving upstream mergeability.
 3. **Frontend widget via `ScriptFilterEvent`** — inject the agent UI into the patient chart by listening for `ScriptFilterEvent` rather than editing template files. Keeps merges with upstream clean.
 
 ---
@@ -213,7 +231,7 @@ Two patterns coexist; **use the custom_modules pattern**:
 
 ### 4.7 Forms ecosystem
 
-- ~39 distinct `form_*` tables, each with its own schema. `form_vitals` has 45+ columns; `form_soap` has 9. There is no central data dictionary.
+- 38 distinct `form_*` tables in this schema dump, each with its own schema. `form_vitals` has roughly 30 columns; `form_soap` has 9. There is no central data dictionary.
 - "Read the chart" is not a single query — it is: scan `forms WHERE pid=?`, map each `form_name` to its specific table, join on `form_id`, repeat per form type.
 
 ### 4.8 Failure modes for the agent
@@ -237,10 +255,11 @@ Two patterns coexist; **use the custom_modules pattern**:
 
 ### 5.1 Audit logging
 
-- Tables: `audit_master` (`sql/database.sql:569-590`), `audit_details` (`592-603`).
-- Event logger: `src/Common/Logging/EventAuditLogger.php:34-95` with DB sink and optional ATNA/syslog sink.
+- Primary tables: `log`, `log_comment_encrypt`, and optional `api_log` rows created by `LogTablesSink`.
+- Workflow tables: `audit_master` and `audit_details` exist, but they are not the primary `EventAuditLogger` sink.
+- Event logger: `src/Common/Logging/EventAuditLogger.php` with DB sink and optional ATNA/syslog sink.
 - API logger: `src/RestControllers/Subscriber/ApiResponseLoggerListener.php:39-80`.
-- **Gap:** read auditing is gated on configuration flags (`audit_events_query`, `audit_events_http-request`, `audit_events_patient-record`). FHIR reads will not be audited if these are off. HIPAA §164.312(b) requires audit *controls*, and the OCR enforcement guidance treats undisabled-by-design as the floor.
+- **Gap:** read auditing is gated on configuration flags (`audit_events_query`, `audit_events_http-request`, `audit_events_patient-record`). FHIR/API reads do not guarantee a dedicated patient disclosure audit event if these are off. HIPAA §164.312(b) requires audit *controls*, and the OCR enforcement guidance treats undisabled-by-design as the floor.
 
 ### 5.2 Data retention
 
@@ -261,7 +280,7 @@ Two patterns coexist; **use the custom_modules pattern**:
 ### 5.5 Access control granularity
 
 - ACL sections per `AclMain.php:12-79` are role/section based.
-- **No per-patient or per-encounter ACL.** Document `sensitivity` is not enforced at the FHIR controller layer.
+- **No broad per-patient or per-encounter ACL.** Document `sensitivity` is not consistently enforced at the FHIR document/Binary layer.
 - `BreakglassChecker.php` exists but emergency-access auditing is not robust.
 
 ### 5.6 De-identification
@@ -303,7 +322,7 @@ Two patterns coexist; **use the custom_modules pattern**:
 **Should-do:**
 
 - [ ] De-identification module (Safe Harbor 18) for analytics/training pathways that do not need re-identification.
-- [ ] Retention policy on `audit_master` and `api_log` (start with 6 years, configurable).
+- [ ] Retention policy on `log`, `log_comment_encrypt`, and `api_log` (start with 6 years, configurable).
 - [ ] Per-encounter / per-document ACL in the FHIR controllers the agent calls.
 - [ ] Force-HTTPS / HSTS in shipped `apis/.htaccess`.
 - [ ] Cover the agent code with the existing custom PHPStan rules (`tests/PHPStan/Rules/`) and add a rule forbidding direct LLM-client instantiation outside the adapter.
@@ -312,7 +331,7 @@ Two patterns coexist; **use the custom_modules pattern**:
 
 - [ ] ATNA syslog sink already supported by `EventAuditLogger` — wire it for centralized audit.
 - [ ] HSM/Cloud KMS for `CryptoGen` keys.
-- [ ] Anomaly detection on `audit_master` for unusual agent disclosure patterns.
+- [ ] Anomaly detection on `log`/agent disclosure events for unusual agent disclosure patterns.
 
 ---
 
@@ -320,10 +339,10 @@ Two patterns coexist; **use the custom_modules pattern**:
 
 Security: `src/Common/Auth/AuthUtils.php`, `src/Common/Auth/AuthHash.php`, `src/Common/Auth/MfaUtils.php`, `src/Common/Session/SessionTracker.php`, `src/Common/Acl/AclMain.php`, `src/Common/Crypto/CryptoGen.php`, `src/RestControllers/Authorization/BearerTokenAuthorizationStrategy.php`, `src/RestControllers/SMART/ScopePermissionParser.php`, `src/Common/Logging/EventAuditLogger.php`, `tests/PHPStan/Rules/`.
 
-Performance: `sql/database.sql` (lines 8334-8472, 569-603, 92-105, 2460-2478), `src/Services/PatientService.php:392-515`, `src/Services/Background/BackgroundServiceRunner.php`, `docker/development-easy-redis/php.ini`, `composer.json`.
+Performance: `sql/database.sql` (notably `api_log`, `audit_master`/`audit_details`, `log`, `forms`, and `patient_data`), `src/Services/PatientService.php`, `src/Services/EncounterService.php`, `src/Services/Background/BackgroundServiceRunner.php`, `docker/development-easy-redis/php.ini`, `composer.json`.
 
 Architecture: `src/Core/Kernel.php`, `src/Core/OEGlobalsBag.php`, `interface/globals.php`, `src/RestControllers/ApiApplication.php`, `apis/routes/_rest_routes_standard.inc.php`, `apis/dispatch.php`, `interface/modules/custom_modules/oe-module-weno/`, `swagger/openemr-api.yaml`.
 
 Data quality: `sql/database.sql` (8334-8472, 2396, 2418, 2022, 1124, 10596), `src/BC/Utilities.php:16-30`, `src/Services/Utils/DateFormatterUtils.php:40-46`, `tests/Tests/Isolated/Common/Twig/fixtures/render/README.md`.
 
-Compliance: `sql/database.sql:569-603`, `src/Common/Logging/EventAuditLogger.php`, `src/RestControllers/Subscriber/ApiResponseLoggerListener.php`, `src/Common/Crypto/CryptoGen.php`, `src/Common/Acl/AclMain.php`, `apis/.htaccess`, `README.md:74`.
+Compliance: `sql/database.sql` (`log`, `log_comment_encrypt`, `api_log`, `audit_master`, `audit_details`), `src/Common/Logging/EventAuditLogger.php`, `src/Common/Logging/Audit/LogTablesSink.php`, `src/RestControllers/Subscriber/ApiResponseLoggerListener.php`, `src/Common/Crypto/CryptoGen.php`, `src/Common/Acl/AclMain.php`, `apis/.htaccess`, `README.md:74`.
