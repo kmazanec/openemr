@@ -163,6 +163,22 @@ not because they are correct. Never use existing legacy patterns as
 justification for writing new code the same way — follow the standards
 documented here instead.
 
+### Do Not Reformat Untouched Code
+
+This repository is a fork of upstream `openemr/openemr`. Lint, format, and
+modernization fixes (whitespace, JSON re-indentation, `array()` → `[]`, added
+type casts, etc.) applied to files you are not otherwise modifying create
+permanent merge conflicts against upstream and obscure your real changes.
+
+- Only commit auto-fix changes to files your task is already touching.
+- Never run `prek run --all-files`, `composer phpcbf` repo-wide, or
+  `composer rector-fix` repo-wide and commit the result. These tools are fine
+  to run, but `git restore` any drive-by edits to files outside your task's
+  scope before committing.
+- The pre-commit hook (which runs only on staged files) is the intended
+  enforcement point — let it fix the files you author and leave the rest
+  alone.
+
 ### Formatting and Structure
 
 - **Indentation:** 4 spaces
@@ -430,8 +446,11 @@ Preserve existing authors/copyrights when editing files.
 - Multiple template engines: check extension (.twig, .html, .php)
 - Event system uses Symfony EventDispatcher
 - **Pre-commit hooks:** Install with `prek install` (or `pre-commit install` if
-  prek is unavailable). Run `prek run --all-files` before committing to catch
-  issues early — the hooks run phpstan, rector, phpcs, codespell, and more.
+  prek is unavailable). The hook fires on each commit against staged files
+  only, running phpstan, rector, phpcs, codespell, and more. Do **not** run
+  `prek run --all-files` and commit the result — see "Do Not Reformat
+  Untouched Code" above. Use `prek run` (no `--all-files`) to re-check just
+  the currently staged files.
 - Custom PHPStan rules in `tests/PHPStan/Rules/` enforce project conventions
   (forbidden globals, forbidden direct instantiations, namespace rules, etc.)
 - Commit messages are validated against Conventional Commits format in CI
