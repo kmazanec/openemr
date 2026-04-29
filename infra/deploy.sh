@@ -70,7 +70,41 @@ log "recreating openemr container"
 docker compose up --detach --no-deps --force-recreate openemr
 
 # ---------------------------------------------------------------------
-# 3. Healthcheck loop.
+# 3. Make dependency installs deterministic.
+# ---------------------------------------------------------------------
+# The flex image's entrypoint already runs composer install + npm
+# install + npm run build, but only if vendor/ and node_modules/ look
+# empty. On a 2GB Droplet the entrypoint has historically been OOM-
+# killed mid-install, leaving partial state — and on the next boot
+# the entrypoint sees a non-empty vendor/ and *skips* the install,
+# keeping the broken state forever. Run the same steps unconditionally
+# from the deploy so a partial state can heal on its own.
+#
+# Mirrors the entrypoint's logic (see /var/www/localhost/htdocs/openemr.sh
+# in the flex image): composer install --no-dev, npm install +
+# npm run build (which needs devDependencies for gulp), then optimize.
+log "waiting for container to accept exec"
+for i in $(seq 1 30); do
+    if docker compose exec -T openemr true 2>/dev/null; then
+        break
+    fi
+    sleep 2
+done
+
+log "running composer install"
+docker compose exec -T openemr sh -c \
+    "cd /var/www/localhost/htdocs/openemr && composer install --no-dev --no-interaction --no-progress"
+
+log "running npm install + build"
+docker compose exec -T openemr sh -c \
+    "cd /var/www/localhost/htdocs/openemr && npm install --unsafe-perm --no-audit --no-fund && npm run build"
+
+log "optimizing autoloader"
+docker compose exec -T openemr sh -c \
+    "cd /var/www/localhost/htdocs/openemr && composer dump-autoload --optimize --apcu --no-interaction"
+
+# ---------------------------------------------------------------------
+# 4. Healthcheck loop.
 # ---------------------------------------------------------------------
 log "waiting for ${HEALTH_URL} (timeout ${HEALTH_TIMEOUT}s)"
 deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
