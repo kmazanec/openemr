@@ -463,6 +463,11 @@ container (locally via `docker compose exec openemr ...`, in Railway via
 `railway ssh`).
 
 ```sh
+# Quickstart: run the whole pipeline end-to-end.
+db/seeds/seed-all.sh --count=100 --days=10
+
+# Or step through manually:
+
 # 1. Restore baseline (upstream demo: 3 patients, 9 users, ACLs, list_options).
 #    Refuses to run if patient_data is non-empty (--force overrides).
 db/seeds/restore-baseline.sh
@@ -472,10 +477,15 @@ db/seeds/restore-baseline.sh
 php bin/console seed:patients --count=100
 php bin/console seed:patients --count=20      # add 20 more later
 
-# 3. Populate the calendar with appointments (yesterday + N business days).
+# 3. Insert weekly In Office / Out Of Office blocks per provider.
+#    REQUIRED before seed:schedule — without these blocks OpenEMR treats
+#    every provider as unavailable and patient check-in fails.
+php bin/console seed:availability --weeks=26
+
+# 4. Populate the calendar with appointments (yesterday + N business days).
 php bin/console seed:schedule --days=10
 
-# 4. Verify state — coverage, PCP panels, schedule window.
+# 5. Verify state — coverage, PCP panels, schedule window.
 php bin/console seed:status
 ```
 
@@ -500,6 +510,8 @@ provider's calendar toward their own panel but swaps in coverage patients
 
 - `db/seeds/baseline.sql.gz` — committed dump (regenerate via
   `db/seeds/regenerate-baseline.sh`)
+- `db/seeds/seed-all.sh` — one-shot orchestrator (baseline → patients →
+  availability → schedule → status)
 - `bin/seed/PatientArchetype.php` — archetype enum + clinical profile
 - `bin/seed/Generators/` — Faker generators (autoloaded as `OpenEMR\Seed\*`)
 - `bin/seed/data/*.json` — curated condition/medication/encounter lists
