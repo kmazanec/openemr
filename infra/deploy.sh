@@ -59,6 +59,13 @@ cd "${CONFIG_DIR}"
 log "pulling images"
 docker compose pull --quiet
 
+# Ensure all services are up (mysql, caddy). compose up with no service
+# arg leaves running containers alone and starts any that are missing —
+# matters after a `compose down` or a fresh Droplet, otherwise the
+# subsequent --no-deps openemr recreate would happen with no DB.
+log "ensuring full stack is up"
+docker compose up --detach
+
 log "recreating openemr container"
 docker compose up --detach --no-deps --force-recreate openemr
 
