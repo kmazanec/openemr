@@ -79,14 +79,48 @@ Three things to do once the script returns the Droplet's IP:
 
 ### Deploying code changes
 
-Push to the tracked branch (`master` by default), then SSH into the Droplet and:
+Pushes to `master` trigger `.gitlab-ci.yml`'s `deploy` job, which SSHes to
+the Droplet and runs `infra/deploy.sh`. The script does an in-place
+rolling recreate of the `openemr` container only — `mysql` and `caddy`
+stay up across the deploy. Caddy holds in-flight connections to the old
+container until it exits, so the switchover window is the few seconds
+between the new container becoming healthy and the old one being torn
+down. Not true blue/green (a single MariaDB is shared and only one
+openemr container runs at a time), but no scheduled downtime.
+
+The deploy job aborts if `/meta/health/readyz` doesn't pass within five
+minutes, leaving the container up so its logs are inspectable.
+
+#### Required GitLab CI/CD variables
+
+Set these under the project's **Settings → CI/CD → Variables**. Mark
+all four **Protected** so only jobs on protected branches (master by
+default) see them.
+
+| Variable                 | Type     | Value                                                   |
+| ------------------------ | -------- | ------------------------------------------------------- |
+| `DEPLOY_SSH_PRIVATE_KEY` | File     | Private key whose public half is in the Droplet's `~root/.ssh/authorized_keys`. |
+| `SSH_KNOWN_HOSTS`        | Variable | Output of `ssh-keyscan <droplet-ip>` — pins the host key so the runner never prompts. |
+| `DEPLOY_HOST`            | Variable | Droplet IP or hostname (e.g. `emr.biograph.dev`).       |
+| `DEPLOY_USER`            | Variable | SSH user on the Droplet. Default `root` if unset.       |
+
+Generate a dedicated deploy keypair (don't reuse a personal key):
 
 ```bash
-cd /opt/openemr && git pull
-cd docker/digitalocean && docker compose up -d
+ssh-keygen -t ed25519 -f /tmp/openemr-deploy -C 'gitlab-ci-deploy' -N ''
+# Append /tmp/openemr-deploy.pub to ~root/.ssh/authorized_keys on the Droplet,
+# then upload /tmp/openemr-deploy as the DEPLOY_SSH_PRIVATE_KEY file variable.
+ssh-keyscan "$DROPLET_IP"   # paste output into SSH_KNOWN_HOSTS
 ```
 
-A pull-based auto-deploy poller is a planned follow-up. For now, deploys are manual.
+#### Manual deploy (fallback)
+
+If the CI job is broken or you need to push a hotfix without going
+through GitLab, SSH in and run the same script directly:
+
+```bash
+ssh root@emr.biograph.dev bash /opt/openemr/infra/deploy.sh
+```
 
 ### Environment overrides
 
@@ -103,4 +137,3 @@ A pull-based auto-deploy poller is a planned follow-up. For now, deploys are man
 | `OE_DOMAIN`               | `emr.biograph.dev`            |
 | `OE_PASS`                 | randomly generated if unset   |
 | `MYSQL_ROOT_PASSWORD`     | randomly generated if unset   |
-

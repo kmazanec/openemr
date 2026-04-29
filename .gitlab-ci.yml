@@ -1,0 +1,44 @@
+# GitLab CI: deploy master to the DigitalOcean Droplet on every push.
+#
+# Strategy: SSH push from a shared runner. The runner connects to the
+# Droplet as ${DEPLOY_USER}@${DEPLOY_HOST} and runs infra/deploy.sh,
+# which does an in-place rolling recreate of the openemr container.
+# MariaDB and Caddy stay up across the deploy.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   DEPLOY_SSH_PRIVATE_KEY  Private key authorized on the Droplet.
+#                           Type: File. Protected: yes. Masked: no
+#                           (file vars can't be masked).
+#   SSH_KNOWN_HOSTS         Output of `ssh-keyscan <droplet-ip>` so the
+#                           runner doesn't prompt to trust the host.
+#                           Type: Variable. Protected: yes.
+#   DEPLOY_HOST             Droplet IP or hostname (e.g. emr.biograph.dev).
+#                           Type: Variable. Protected: yes.
+#   DEPLOY_USER             SSH user on the Droplet. Default: root.
+#                           Type: Variable. Protected: yes.
+#
+# Mark all four as "Protected" so they're only exposed to jobs running
+# on protected branches (master is protected by default).
+
+stages:
+- deploy
+
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
+  before_script:
+  - apk add --no-cache openssh-client
+  - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  - cp "${DEPLOY_SSH_PRIVATE_KEY}" ~/.ssh/id_ed25519
+  - chmod 600 ~/.ssh/id_ed25519
+  - echo "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+  - chmod 644 ~/.ssh/known_hosts
+  script:
+  - |
+    ssh "${DEPLOY_USER:-root}@${DEPLOY_HOST}" \
+        'bash /opt/openemr/infra/deploy.sh'
+  environment:
+    name: production
+    url: https://emr.biograph.dev
