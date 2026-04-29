@@ -70,28 +70,56 @@ ufw allow 443/tcp
 ufw --force enable
 
 # ---------------------------------------------------------------------------
-# 4. Clone the repository
+# 4. Install gitlab-runner (deploys run on the Droplet itself)
 # ---------------------------------------------------------------------------
+
+if ! command -v gitlab-runner > /dev/null; then
+    curl -L "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh" | bash
+    apt-get install -y gitlab-runner
+fi
+
+# Let gitlab-runner drive docker compose. Group membership applies to
+# new processes; the systemd restart later picks it up.
+usermod -aG docker gitlab-runner
+
+# ---------------------------------------------------------------------------
+# 5. Layout (releases, config, bare repo)
+# ---------------------------------------------------------------------------
+# /srv/openemr/   runner-owned. Releases and the active-release symlink.
+# /etc/openemr/   runner-owned. compose project + .env. Outside any
+#                 bind-mount so the container can never chown it.
+
+mkdir -p /srv/openemr/releases /etc/openemr
+chown -R gitlab-runner:gitlab-runner /srv/openemr /etc/openemr
 
 REPO_URL='https://__GITLAB_DEPLOY_TOKEN_NAME__:__GITLAB_DEPLOY_TOKEN_VALUE__@__GITLAB_HOST__/__GITLAB_REPO_PATH__.git'
 REPO_BRANCH='__GITLAB_BRANCH__'
-REPO_DIR=/opt/openemr
+REPO_GIT=/srv/openemr/repo.git
 
-if [[ ! -d "${REPO_DIR}/.git" ]]; then
-    echo "[bootstrap] cloning ${REPO_BRANCH} into ${REPO_DIR}"
-    git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${REPO_DIR}"
-else
-    echo "[bootstrap] ${REPO_DIR} already a git repo, fetching"
-    git -C "${REPO_DIR}" fetch origin "${REPO_BRANCH}"
-    git -C "${REPO_DIR}" checkout "${REPO_BRANCH}"
-    git -C "${REPO_DIR}" reset --hard "origin/${REPO_BRANCH}"
+if [[ ! -d "${REPO_GIT}" ]]; then
+    echo "[bootstrap] mirroring ${REPO_URL} into ${REPO_GIT}"
+    sudo -u gitlab-runner git clone --mirror "${REPO_URL}" "${REPO_GIT}"
+fi
+
+# Initial release: clone from the bare mirror into a release dir, then
+# symlink current → it. Subsequent deploys reuse this layout via
+# infra/runner-bootstrap.sh.
+INITIAL_SHA=$(sudo -u gitlab-runner git -C "${REPO_GIT}" rev-parse "${REPO_BRANCH}")
+INITIAL_RELEASE="/srv/openemr/releases/${INITIAL_SHA}"
+if [[ ! -d "${INITIAL_RELEASE}" ]]; then
+    echo "[bootstrap] creating initial release ${INITIAL_SHA}"
+    sudo -u gitlab-runner git clone --shared --branch "${REPO_BRANCH}" \
+        "${REPO_GIT}" "${INITIAL_RELEASE}"
+fi
+if [[ ! -L /srv/openemr/current ]]; then
+    sudo -u gitlab-runner ln -sfn "${INITIAL_RELEASE}" /srv/openemr/current
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Application .env file (read by docker compose)
+# 6. /etc/openemr/.env (read by docker compose)
 # ---------------------------------------------------------------------------
 
-ENV_FILE="${REPO_DIR}/docker/digitalocean/.env"
+ENV_FILE=/etc/openemr/.env
 if [[ ! -f "${ENV_FILE}" ]]; then
     echo "[bootstrap] writing ${ENV_FILE}"
     cat > "${ENV_FILE}" <<EOF
@@ -101,13 +129,24 @@ OE_USER=admin
 OE_PASS=__OE_PASS__
 MYSQL_ROOT_PASSWORD=__MYSQL_ROOT_PASSWORD__
 EOF
+    chown gitlab-runner:gitlab-runner "${ENV_FILE}"
     chmod 600 "${ENV_FILE}"
 else
     echo "[bootstrap] ${ENV_FILE} already exists, leaving it alone"
 fi
 
+# Seed compose config from the initial release. Future deploys overwrite
+# these via infra/deploy.sh, but they need to exist for the very first
+# `docker compose up` below.
+install -D -m 0644 -o gitlab-runner -g gitlab-runner \
+    "${INITIAL_RELEASE}/docker/digitalocean/docker-compose.yml" \
+    /etc/openemr/docker-compose.yml
+install -D -m 0644 -o gitlab-runner -g gitlab-runner \
+    "${INITIAL_RELEASE}/docker/digitalocean/Caddyfile" \
+    /etc/openemr/Caddyfile
+
 # ---------------------------------------------------------------------------
-# 5b. Static apex landing page directory
+# 6b. Static apex landing page directory
 # ---------------------------------------------------------------------------
 # Caddy bind-mounts /opt/site into the container to serve the apex
 # landing page. The actual HTML lives on the Droplet only — not in
@@ -115,13 +154,20 @@ fi
 mkdir -p /opt/site
 
 # ---------------------------------------------------------------------------
-# 6. Bring up the stack
+# 7. Bring up the stack and start the runner
 # ---------------------------------------------------------------------------
 
-cd "${REPO_DIR}/docker/digitalocean"
+cd /etc/openemr
 docker compose pull
 docker compose up -d
+
+# gitlab-runner registration is interactive (needs a token from the UI),
+# so cloud-init can't fully automate it. Restart the service so the
+# docker group membership takes effect, then leave registration as a
+# one-time manual step (documented in infra/README.md).
+systemctl restart gitlab-runner
 
 echo "[bootstrap] complete at $(date -Iseconds)"
 echo "[bootstrap] OpenEMR will be reachable at https://__OE_DOMAIN__/ once"
 echo "[bootstrap] DNS resolves and Caddy has fetched a cert."
+echo "[bootstrap] Register the runner: see infra/README.md"

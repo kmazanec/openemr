@@ -81,35 +81,88 @@ Three things to do once the script returns the Droplet's IP:
 
 Pushes to `master` trigger `.gitlab-ci.yml`'s `deploy` job, which runs
 on a project-specific GitLab runner installed on the Droplet itself.
-The job invokes `infra/runner-bootstrap.sh`, which:
 
-1. `git fetch && git reset --hard origin/master` in `/opt/openemr`.
-2. `exec`s into `infra/deploy.sh` from the freshly-pulled commit.
+#### Layout
 
-`deploy.sh` then does an in-place rolling recreate of the `openemr`
-container only — `mysql` and `caddy` stay up across the deploy. Caddy
-holds in-flight connections to the old container until it exits, so
-the switchover window is the few seconds between the new container
+```
+/srv/openemr/
+├── repo.git/              bare mirror; runner fetches into it
+├── releases/<sha>/        immutable per-release checkout
+├── releases/<sha>/        kept for rollback (only N most recent kept)
+└── current → releases/<sha>/   atomic symlink, what compose mounts
+
+/etc/openemr/
+├── docker-compose.yml     copied from current release on each deploy
+├── Caddyfile              same
+└── .env                   never overwritten; runner-readable; outside
+                           any bind-mount so the container can't chown it
+```
+
+The container bind-mounts `/srv/openemr/current` **read-only** at
+`/openemr`. The flex entrypoint populates the container's writable
+runtime path from that read-only source on every boot. There is no
+read-write bind-mount of code anywhere — that's what avoids the
+chown war between the apache-uid-1000 process inside the container
+and the gitlab-runner-uid-997 process outside.
+
+#### Flow
+
+`runner-bootstrap.sh`:
+
+1. `git fetch` into the bare mirror at `/srv/openemr/repo.git`.
+2. If the new SHA already has a release dir, reuse it; otherwise
+   `git clone --shared` into `/srv/openemr/releases/<new-sha>/`.
+3. Atomically swap `/srv/openemr/current` → new release.
+4. `exec` into the new release's `infra/deploy.sh`.
+
+`deploy.sh`:
+
+1. Copy the new release's `docker-compose.yml` and `Caddyfile` to
+   `/etc/openemr/`.
+2. `docker compose up --force-recreate openemr` (mysql/caddy stay up).
+3. Poll `/meta/health/readyz` for up to 10 minutes.
+4. **If healthy:** prune `/srv/openemr/releases/` to the 2 most recent.
+5. **If unhealthy:** roll back the symlink to the previous release,
+   recreate the container from that, exit non-zero.
+
+Caddy holds in-flight connections to the old container until it exits,
+so the switchover window is the few seconds between the new container
 becoming healthy and the old one being torn down. Not true blue/green
 (a single MariaDB is shared and only one openemr container runs at a
-time), but no scheduled downtime.
+time), but no scheduled downtime and a real rollback path.
 
-The deploy job aborts if `/meta/health/readyz` doesn't pass within ten
-minutes, leaving the container up so its logs are inspectable.
+#### Rollback
+
+If the deploy job exits non-zero, the symlink has already been rolled
+back and the previous release is what's running. To roll back further
+(or to roll back a deploy that *did* go healthy but is misbehaving):
+
+```bash
+# What's running now?
+readlink /srv/openemr/current
+
+# What's available to roll back to?
+ls -1t /srv/openemr/releases/
+
+# Roll back.
+sudo -u gitlab-runner ln -sfn /srv/openemr/releases/<sha> /srv/openemr/current.new
+sudo -u gitlab-runner mv -T /srv/openemr/current.new /srv/openemr/current
+sudo -u gitlab-runner bash /srv/openemr/current/infra/deploy.sh
+```
 
 #### Why the two-script split
 
-Bash reads a script into memory at invocation. If a single script
-both pulled the repo *and* ran the deploy, every fix to the deploy
-logic would only take effect on the deploy *after* the one that
-landed it — because the runner re-invokes the on-disk copy from the
-*previous* deploy. The split (`runner-bootstrap.sh` for the pull,
-`deploy.sh` for everything else) lets us `exec` into the new
-deploy.sh after the pull, so changes apply immediately.
+Bash reads a script into memory at invocation. If a single script both
+swapped releases *and* ran the deploy, every fix to the deploy logic
+would only take effect on the deploy *after* the one that landed it —
+because the runner re-invokes the on-disk copy from the *previous*
+deploy. The split (`runner-bootstrap.sh` for the symlink swap,
+`deploy.sh` for everything else) lets us `exec` into the new release's
+`deploy.sh` after the swap, so changes apply immediately.
 
 Consequence: `runner-bootstrap.sh` is effectively immutable — any
-change to it only takes effect on the deploy after the one that
-lands the change. Keep it small. Put new logic in `deploy.sh`.
+change to it only takes effect on the deploy after the one that lands
+the change. Keep it small. Put evolving logic in `deploy.sh`.
 
 #### Runner setup
 
@@ -126,9 +179,9 @@ To install (one-time, on the Droplet, as root):
 curl -L "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh" | bash
 apt-get install -y gitlab-runner
 
-# 2. Let the runner drive docker compose and write to the repo.
+# 2. Let the runner drive docker compose. (Layout under /srv/openemr/
+#    and /etc/openemr/ is set up by infra/cloud-init.sh.template.)
 usermod -aG docker gitlab-runner
-chown -R gitlab-runner:gitlab-runner /opt/openemr
 
 # 3. Register. Get <TOKEN> from GitLab → Settings → CI/CD → Runners →
 #    "New project runner" (the glrt-... value is shown once).
@@ -152,8 +205,9 @@ Verify:
 
 ```bash
 gitlab-runner verify
-sudo -u gitlab-runner docker ps                # no permission error
-sudo -u gitlab-runner git -C /opt/openemr pull # writable
+sudo -u gitlab-runner docker ps                                 # no permission error
+sudo -u gitlab-runner cat /etc/openemr/.env > /dev/null          # readable
+sudo -u gitlab-runner git -C /srv/openemr/repo.git rev-parse HEAD
 ```
 
 #### Manual deploy (fallback)
@@ -162,12 +216,12 @@ If the CI job is broken or you need to push a hotfix without going
 through GitLab, SSH in and run either script directly:
 
 ```bash
-# Same as what CI runs — pulls master, then deploys.
-ssh root@emr.biograph.dev bash /opt/openemr/infra/runner-bootstrap.sh
+# Same as what CI runs — fetch, swap release, recreate container.
+ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/runner-bootstrap.sh
 
-# Skip the pull and just redeploy whatever is currently checked out
-# (useful for testing local changes on the Droplet before pushing).
-ssh root@emr.biograph.dev bash /opt/openemr/infra/deploy.sh
+# Just redeploy the currently-symlinked release without fetching new
+# code (useful after `mv`-ing the symlink for a manual rollback).
+ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/deploy.sh
 ```
 
 ### Environment overrides
