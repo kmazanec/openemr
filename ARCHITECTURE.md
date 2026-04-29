@@ -10,7 +10,7 @@ The model-facing data contract is a minimized, typed `ChartSnapshot`, not raw SQ
 
 Every response passes through verification before display. The graph produces a structured claim ledger where each factual claim has a source reference. Deterministic verification checks structured facts such as medication names, dosages, allergies, lab values, dates, and source availability. LLM verification may be used only for bounded semantic checks against cited text. Unsupported claims are stripped. Missing safety-critical data, especially allergies and active medications, fails closed and is shown as an explicit gap rather than being silently omitted.
 
-The MVP deployment uses Railway: OpenEMR, a private LangGraph service, managed MySQL for OpenEMR, managed Postgres for agent state, and object storage for documents. This deployment is appropriate for demo data and the project timeline. Real PHI would require signed BAAs, hardened TLS/HSTS, retention policy, centralized audit operations, stronger patient/encounter authorization, and production incident response.
+The MVP deployment uses a single DigitalOcean Droplet running docker-compose: OpenEMR, MariaDB for OpenEMR, a private LangGraph service, Postgres for agent state, and Caddy as a reverse proxy with Let's Encrypt TLS. This deployment is appropriate for demo data and the project timeline. Real PHI would require signed BAAs, hardened TLS/HSTS, retention policy, centralized audit operations, stronger patient/encounter authorization, production incident response, and a move to dedicated infrastructure per service (managed databases, separate compute for the agent runtime, object storage for documents).
 
 This document describes the architecture as the implementation reference. The user workflow is defined in `USER.md`, the presearch rationale is captured in `docs/PRESEARCH.md`, and the OpenEMR constraints behind these decisions are documented in `AUDIT.md`.
 
@@ -53,9 +53,10 @@ flowchart LR
 | Chart adapters | PHP service classes | Typed reads from OpenEMR data sources with normalization and source references |
 | PHI minimizer | PHP service class | Drops identifiers and fields not needed for the requested task |
 | LangGraph service | Node/TypeScript private service | Agent graph, LLM calls, claim ledger, verification, response formatting, state persistence |
-| Agent Postgres | Railway managed Postgres | Conversation state, claim ledgers, source references, verification outcomes, token/cost metadata |
+| Agent Postgres | Postgres container on the Droplet (Docker private network) | Conversation state, claim ledgers, source references, verification outcomes, token/cost metadata |
 | LangSmith | External observability | LLM and graph metadata only; no PHI prompt/completion bodies |
-| OpenEMR MySQL | Railway managed MySQL | OpenEMR source of record |
+| OpenEMR MySQL | MariaDB container on the Droplet (Docker private network) | OpenEMR source of record |
+| Caddy reverse proxy | Container on the Droplet (binds 80/443) | Public TLS termination with Let's Encrypt; routes `emr.biograph.dev` to the OpenEMR container over Docker's private network |
 
 ---
 
@@ -468,19 +469,25 @@ Every production or development bug becomes a regression eval.
 
 ## Deployment Architecture
 
-The MVP deployment uses Railway with separate `dev` and `prod` environments.
+The MVP deployment is a single DigitalOcean Droplet running docker-compose at `emr.biograph.dev`. A `dev` environment is a deferred follow-up — either a second Droplet (clean isolation) or a second compose project on the same Droplet. Provisioning is `infra/bootstrap-do.sh` (idempotent doctl-driven Droplet creator) plus `infra/cloud-init.sh.template` (renders to user-data with secrets substituted, runs on first boot).
 
-| Resource | Visibility | Purpose |
+The compose stack at `docker/digitalocean/docker-compose.yml`:
+
+| Container | Port exposure | Purpose |
 |---|---|---|
-| OpenEMR service | Public | EHR UI, auth, agent module, browser-origin proxy |
-| LangGraph agent service | Private | Agent graph and LLM orchestration |
-| MySQL | Private | OpenEMR database |
-| Postgres | Private | Agent state and metadata |
-| Object storage | Private/public by OpenEMR config | OpenEMR documents |
+| `caddy` | Public 80/443 | TLS termination with Let's Encrypt; reverse-proxies `emr.biograph.dev` to OpenEMR's internal :443 |
+| `openemr` | Internal only | Upstream `openemr/openemr:flex` image with this repo bind-mounted at `/var/www/localhost/htdocs/openemr/` so application code from this repo is what runs |
+| `mysql` | Internal only | MariaDB; OpenEMR's database |
+| (`agent`) | Internal only | LangGraph service; added when the agent is built |
+| (`agent-postgres`) | Internal only | Postgres for agent state; added when the agent is built |
 
-Secrets are Railway environment variables. The repository contains examples/templates only, not real keys.
+The flex image's `EASY_DEV_MODE_NEW=yes` mechanism is the documented upstream path for running OpenEMR from a host bind-mount; we use it as upstream intends, no custom image.
 
-Rollback is via Railway deployment history tagged to commit SHA. CI deploys to `dev`; stable submission branches deploy to `prod`.
+Secrets live in `/opt/openemr/docker/digitalocean/.env` on the Droplet, written once by cloud-init with `chmod 600`. The repository contains examples/templates only, not real keys.
+
+Code deploys: push to GitLab `master`, then `git pull && docker compose up -d` on the Droplet. A pull-based auto-deploy poller is a planned follow-up. Rollback is `git checkout <previous-commit>` on the Droplet plus `docker compose up -d`; image rollbacks are handled by the digest-pinned compose file.
+
+Railway was attempted first and abandoned — its edge proxy could not reach the OpenEMR container in our configuration, and OpenEMR's flex image is not designed for behind-a-managed-edge-proxy deployments. DigitalOcean lets us own the network from edge to container; Caddy + Let's Encrypt provides production-grade TLS without modifying the upstream image. See `docs/PRESEARCH.md` section 15 for the full reasoning.
 
 ---
 
@@ -496,6 +503,7 @@ MVP target:
 
 Hospital-scale changes for 300 concurrent clinical users:
 
+- **Move from a single Droplet to dedicated infrastructure per service.** The MVP co-locates OpenEMR, MariaDB, the agent runtime, and agent Postgres on one Droplet via docker-compose — a deliberate choice to right-size for the demo. At hospital scale, each tier should run on its own infrastructure: managed databases for MariaDB and Postgres (DO Managed Databases or equivalent, with point-in-time restore and read replicas), a dedicated compute pool for the OpenEMR container behind a load balancer, a separate compute pool for the agent runtime so agent workloads don't share CPU/memory with the EHR request path, and object storage (DO Spaces or S3) for OpenEMR documents instead of a Droplet volume. The compose file's image and configuration semantics carry forward unchanged; only the host shape changes.
 - move long-lived streaming outside PHP-FPM;
 - add application cache for demographics, provider lookup, and list/code labels;
 - precompute morning schedule briefings with background jobs;
@@ -504,7 +512,8 @@ Hospital-scale changes for 300 concurrent clinical users:
 - add per-user and per-site rate limits;
 - define retention and archival jobs for agent state;
 - centralize disclosure audit export and anomaly detection;
-- evaluate cheaper verification models only after evals prove no regression.
+- evaluate cheaper verification models only after evals prove no regression;
+- introduce a CI/CD pipeline that builds, tests, and deploys on push (GitLab CI to dedicated runners; the MVP's manual `git pull` is acceptable at single-Droplet scale but not at multi-host scale).
 
 ---
 
@@ -548,7 +557,7 @@ Rejected for MVP because model hosting and GPU operations add too much delivery 
 | Persistence | Separate Postgres for agent state and metadata |
 | Observability | LangSmith metadata plus service metrics |
 | Evals | Vitest happy-path, failure, adversarial, and schema-drift cases |
-| Deployment | Railway dev/prod environments |
+| Deployment | Single DigitalOcean Droplet running docker-compose (MariaDB + flex OpenEMR with bind-mount + Caddy on Let's Encrypt). Scale path: dedicated infrastructure per service (managed databases, separate compute pools, object storage). |
 | Production caveat | Real PHI requires BAA, retention, hardening, and operational controls |
 
 ---

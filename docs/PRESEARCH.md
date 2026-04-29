@@ -314,33 +314,39 @@ The regression test policy ("every bug becomes a permanent test case") is the ev
 
 ### 15. Deployment & Operations
 
-**Hosting:** Railway. One project, two environments (`dev` and `prod`), each containing five resources: the OpenEMR service (built from `docker/production`, publicly reachable, also proxies `/agent/*` to the agent service over Railway's private network), the LangGraph agent service (Node/TS, **not publicly reachable** — only reachable from the OpenEMR service over the private network), Railway managed MySQL (OpenEMR's database), Railway managed Postgres (the agent's conversation state and audit log — see section 19), and a Railway managed object storage bucket for `sites/*/documents`.
+**Hosting:** A single DigitalOcean Droplet (`s-2vcpu-2gb`, Ubuntu 24.04) running three containers via docker-compose:
+- **mysql** — MariaDB. Internal Docker network only.
+- **openemr** — Upstream `openemr/openemr:flex` image, with this repo bind-mounted at `/var/www/localhost/htdocs/openemr/` so application code from this repo is what runs (not whatever was baked into the image). Internal Docker network only — Caddy fronts it.
+- **caddy** — Reverse proxy on the public 80/443. Auto-fetches and renews a Let's Encrypt cert for `emr.biograph.dev`. Forwards to OpenEMR's internal port 443 over Docker's private network.
 
-**Why Railway over alternatives:**
-- Fly.io has no first-party managed MySQL — you'd self-host MySQL in a Fly Machine with a volume, which adds operational burden the case study explicitly tells us to avoid.
-- Render's MySQL is also not first-party (Postgres only); for an OpenEMR project this is a poor fit.
-- DigitalOcean App Platform + Managed MySQL + Spaces works but is three products to wire together. Railway is one dashboard, one bill, one CLI.
-- A bare VPS with Docker Compose is cheaper and was the original plan, but Railway's managed MySQL + object storage + per-environment variable scoping removes enough toil to be worth the modest cost premium for a 3-week sprint.
+The compose stack lives at `docker/digitalocean/docker-compose.yml`; reverse-proxy config at `docker/digitalocean/Caddyfile`; provisioning logic at `infra/bootstrap-do.sh` and `infra/cloud-init.sh.template`.
+
+**Environment:** Just one (production) for now, on `emr.biograph.dev`. Adding a `dev` environment on `emr-dev.biograph.dev` is a deferred follow-up — either a second Droplet (clean isolation) or a second compose project on the same Droplet (cheaper).
+
+**Why DigitalOcean over alternatives — including the original Railway plan:**
+- **Railway was attempted first and abandoned.** Railway's edge proxy speaks plain HTTP to upstream containers and could not reach the OpenEMR container in our configuration despite extensive debugging (the OpenEMR maintainer team has explicitly noted the flex image is not designed for behind-a-proxy deployments). After several days of working around Railway-specific constraints — port-binding quirks, IPv6/IPv4 dual-stack issues, conflicting Apache directives between the upstream image and our overlay — we moved to a host where we control the network end-to-end.
+- **Fly.io** has no first-party managed MySQL; would require self-hosting MySQL on a Fly Machine.
+- **Render** has the same MySQL gap.
+- **DigitalOcean App Platform** is similar to Railway in shape and has the same risks of edge-proxy quirks.
+- **A single Droplet** running OpenEMR's canonical compose pattern (with our overlay for code and TLS) sidesteps these constraints entirely. We own the network from edge to container; Caddy + Let's Encrypt gives us a real cert; the upstream flex image runs as upstream intends.
 
 **No real PHI in scope.** This is a demo with synthetic patient data, so HIPAA/BAA constraints do not gate the host choice. The architecture still treats data as if it were PHI (no PHI in logs, source-tagged claims, RBAC at the tool layer) so the production story remains defensible — the only deferred item is the actual BAA, which would need to be in place before any real patient data touched the system.
 
-**Service split:** OpenEMR (PHP/Apache) and the agent (Node/TS) deploy as separate Railway services rather than one container. This decouples deploys (the agent can ship without restarting OpenEMR), keeps logs and metrics clean per service, and lets the agent scale independently if needed. The agent reaches MySQL over Railway's private network using a read-only DB user scoped to only the tables the five tools require — a cleaner trust boundary than sharing OpenEMR's app credentials.
+**Code-deploy mechanism:** The flex image's `EASY_DEV_MODE_NEW=yes` runs OpenEMR from a host bind-mount instead of from code baked into the image. Our cloud-init clones this repo to `/opt/openemr` on the Droplet and bind-mounts that directory into the openemr container. To deploy code changes: push to GitLab `master`, SSH into the Droplet, `git pull`, `docker compose up -d`. A pull-based auto-deploy poller is a planned follow-up.
 
-**Environments:** Two — `dev` (CI deploys here for testing, looser config) and `prod` (submission URLs, stable, separate database and bucket). Railway's environment feature gives separate variables, separate volumes, separate managed DB instances per environment within the same project.
+**CI/CD:** Manual `git pull` for now (one SSH command). The architecture supports adding a tiny systemd timer that polls origin and pulls + restarts the stack on new commits, but we have not built it yet — out of scope for the initial prod deploy.
 
-**CI/CD:** GitLab CI/CD pipeline. Merges to `dev` deploy to the dev environment via `railway up --service <name> --environment dev`. Merges to `main` deploy to prod the same way.
+**Infrastructure as code:** `doctl` CLI + a checked-in `cloud-init.sh.template` (rendered with secrets at provision time by `infra/bootstrap-do.sh`). Terraform was considered and rejected: with one Droplet to provision, Terraform is overhead, not leverage. The cloud-init script is itself the source of truth for "what the box does on first boot," and it's in version control. The migration story to Terraform-on-ECS or similar at higher scale is documented as a future-cost-analysis bullet rather than built now.
 
-**Infrastructure as code:** Railway CLI + checked-in `railway.json` (or `railway.toml`) per service for build/start/healthcheck config + a `scripts/bootstrap-env.sh` that uses the Railway CLI to create an environment, link services, and seed variables from a template. Terraform was considered and rejected: the community Railway provider lags behind Railway's product surface (notably the recently added managed object storage), and with only ~4 resources per environment Terraform is overhead, not leverage. The case study's "keep infra simple" guidance reinforces this. The migration story to Terraform-on-ECS at higher scale is documented as a future-cost-analysis bullet rather than built now.
+**Rollback strategy:** `git checkout <previous-commit>` on the Droplet, then `docker compose up -d`. Code is the deploy unit, not images. For Caddy/MariaDB rollbacks, the compose file's pinned image digests give a clean reversion path.
 
-**Rollback strategy:** Redeploy previous Docker image tag from Railway's deployment history (one click in UI, or `railway redeploy <deployment-id>` via CLI). Each deploy is immutable and tagged with the GitLab commit SHA.
+**Monitoring:** LangSmith for agent observability (covered in section 8). DigitalOcean's built-in Droplet metrics (CPU, memory, network, disk). Uptime checks via a free external pinger (UptimeRobot or similar) hitting the OpenEMR login page.
 
-**Monitoring:** LangSmith for agent observability (covered in section 8). Railway's built-in metrics (CPU, memory, request rate, error rate) at the service level. Uptime checks via a free external pinger (UptimeRobot or similar) hitting the OpenEMR login page and the agent health endpoint.
+**Secrets management:** A single `.env` file at `/opt/openemr/docker/digitalocean/.env` on the Droplet, written once by cloud-init with `chmod 600`. Contains `OE_PASS`, `MYSQL_ROOT_PASSWORD`, `OE_DOMAIN`. Never committed; never in the image. Local development uses a `.env.example` (gitignored — checked in as a template only).
 
-**Secrets management:** Per-environment Railway variables, never committed. `ANTHROPIC_API_KEY`, `LANGSMITH_API_KEY`, MySQL credentials, OpenEMR `sqlconf.php` values, session secret, and bucket credentials are all environment-scoped. Local development uses `.env` files (gitignored) seeded from a checked-in `.env.example`.
+**Reasoning:** The case study explicitly says "infra, keep it simple, not building for DevOps skills." A single Droplet running docker-compose is the simplest defensible deployment that gives us a real domain with a real cert, a database, and our application code shipped from this repo. Using upstream's flex image with bind-mount means the deployment story is "we use OpenEMR's published image as upstream intends, with our code overlaid via the documented `EASY_DEV_MODE_NEW` mechanism" — no custom images to maintain.
 
-**Reasoning:** The case study explicitly says "infra, keep it simple, not building for DevOps skills." Railway is the simplest defensible deployment that supports two environments, managed MySQL, managed object storage, and automated deploys without standing up cloud-provider primitives. Building from OpenEMR's existing Dockerfiles means the deployment story is "we deployed OpenEMR's official container with our agent service alongside it," which is an easy story to tell.
-
-The IaC posture (Railway CLI + per-service config + a bootstrap script, no Terraform) is deliberately right-sized: the deployment is reproducible from a fresh Railway account in one command, but we don't pay the Terraform tax for four resources. If the project ever migrates off Railway, the same Dockerfiles port to ECS/GKE/Fly without rework — the lock-in is shallow.
+The IaC posture (`doctl` + per-Droplet cloud-init + a bootstrap script, no Terraform) is deliberately right-sized. The Droplet is reproducible from a fresh DO account in one command (`infra/bootstrap-do.sh`), but we don't pay the Terraform tax for one resource. If the project ever scales to multiple Droplets or multi-region, the same compose file ports to ECS/GKE/Fly without rework — the lock-in is shallow.
 
 ---
 
@@ -362,7 +368,7 @@ The IaC posture (Railway CLI + per-service config + a bootstrap script, no Terra
 
 **Approach:** A new OpenEMR-rendered page (Twig template, served by an OpenEMR controller) that hosts the agent panel as a small JS bundle. The panel appears alongside the existing patient chart workflow so the physician encounters it inside their normal context — not in a separate window, tab, or app.
 
-**Browser-side traffic flow:** The browser only ever talks to OpenEMR's origin. The agent panel calls `/agent/chat` (and similar) on OpenEMR; OpenEMR proxies those requests to the Node agent service over Railway's private network. There is no second public origin, no CORS, no cross-origin token handling.
+**Browser-side traffic flow:** The browser only ever talks to OpenEMR's origin. The agent panel calls `/agent/chat` (and similar) on OpenEMR; OpenEMR proxies those requests to the Node agent service over Docker's private network on the same host. There is no second public origin, no CORS, no cross-origin token handling.
 
 **Streaming:** Server-Sent Events from the agent through OpenEMR's proxy to the browser. SSE is the simplest fit for the streaming requirement implied by the 3–7 second response target — without streaming, perceived latency makes the panel feel broken; with streaming, time-to-first-token is the experienced latency.
 
@@ -384,7 +390,7 @@ The IaC posture (Railway CLI + per-service config + a bootstrap script, no Terra
 
 **OpenEMR-to-agent (proxy hop):** OpenEMR validates the session, then proxies the request to the agent service on the private network. Before proxying, OpenEMR mints a short-lived OAuth2 access token via its own existing OAuth2 server (League OAuth2) — using the client credentials grant with the acting user's identity baked into the token. The token is attached to the proxied request as a bearer token. The agent never sees the OpenEMR session cookie; it only sees the bearer token.
 
-**Proxy mechanism — a PHP controller, not Apache mod_proxy.** A new OpenEMR controller registered for `/agent/*` handles every proxied request. The controller validates the session, mints the OAuth2 token, opens a streaming HTTP request to the agent service over Railway's private network, and pipes the response back to the browser preserving SSE framing.
+**Proxy mechanism — a PHP controller, not Apache mod_proxy.** A new OpenEMR controller registered for `/agent/*` handles every proxied request. The controller validates the session, mints the OAuth2 token, opens a streaming HTTP request to the agent service over Docker's private network, and pipes the response back to the browser preserving SSE framing.
 
 Apache mod_proxy alone was rejected because it has no way to invoke OpenEMR's PHP-based OAuth2 server before forwarding — a pure-Apache proxy would forward requests with only the OpenEMR session cookie, which is useless to the agent. A hybrid pattern (PHP exchanges the session for a bearer token, browser holds the token, Apache proxies subsequent requests) was rejected because it puts the bearer token in the browser, walking back the BFF posture this section commits to.
 
@@ -400,7 +406,7 @@ Apache mod_proxy alone was rejected because it has no way to invoke OpenEMR's PH
 - Scoped to the minimum needed: `openid fhirUser api:fhir user/Patient.rs user/Condition.rs user/AllergyIntolerance.rs user/Observation.rs user/MedicationRequest.rs user/Encounter.rs user/Appointment.rs`.
 - Carries the acting user's `fhirUser` claim (`Practitioner/{uuid}`) — used both by OpenEMR for ACL and by the agent for observability tags.
 
-**Network boundary:** The agent service is not reachable from the public internet. Railway's private networking exposes it only to the OpenEMR service. This is the load-bearing assumption for the trust model — if the agent were reachable from outside, the bearer token would have to be treated as the only line of defense, and we'd want a second layer (mTLS or a shared secret on the proxy hop). Behind the private network, the proxy header path is sufficient.
+**Network boundary:** The agent service is not reachable from the public internet. The Caddy reverse proxy on the Droplet only routes `emr.biograph.dev` to the OpenEMR container; the agent container is on the same Docker network but has no public route. This is the load-bearing assumption for the trust model — if the agent were reachable from outside, the bearer token would have to be treated as the only line of defense, and we'd want a second layer (mTLS or a shared secret on the proxy hop). Behind the private network, the proxy header path is sufficient.
 
 **No agent-side session storage.** The agent is stateless with respect to user sessions. It does not store tokens, does not store user identities between requests, does not run a session store. Every tool call is self-contained — token in, data out. Conversation state lives in LangGraph's run state and is keyed by an opaque conversation ID issued per browser session.
 
@@ -422,7 +428,7 @@ Apache mod_proxy alone was rejected because it has no way to invoke OpenEMR's PH
 2. **Conversation history per user** — message thread plus a sticky "current patient context" so the physician doesn't have to re-specify the patient on every turn.
 3. **Audit log of every query** — who asked, when, what tools fired, verification pass/fail, the conversation ID. Audit log entries do not duplicate full content; they reference conversation IDs so content lives in one place.
 
-**Storage:** Railway managed Postgres, a separate resource from OpenEMR's MySQL.
+**Storage:** Postgres, a separate engine from OpenEMR's MariaDB. On DigitalOcean we run it as a fourth container on the same Droplet (added to `docker/digitalocean/docker-compose.yml` when the agent service is added) or as a DO managed Postgres if we outgrow the single-Droplet shape. Engine choice is the load-bearing decision; host shape is fungible.
 
 **Why Postgres over MySQL** (initial lean was MySQL to reuse the existing instance):
 - LangGraph has a first-party Postgres checkpointer; MySQL would require writing and maintaining a custom checkpointer adapter (~100–200 lines plus tests, plus keeping it in sync with LangGraph upgrades). That work buys nothing the case study cares about.
@@ -431,20 +437,20 @@ Apache mod_proxy alone was rejected because it has no way to invoke OpenEMR's PH
 
 **Why a separate DB at all** (rejected: in-memory, SQLite-on-volume, Redis):
 - In-memory loses state on every redeploy, fails under any horizontal scaling, and provides no audit trail.
-- SQLite on a Railway volume works for one instance but bakes "one instance forever" into the architecture. Not foreclosed by current scale, but not architecturally honest either.
+- SQLite on a host volume works for one instance but bakes "one instance forever" into the architecture. Not foreclosed by current scale, but not architecturally honest either.
 - Redis is the wrong durability shape for audit logs and long-tail conversation history.
 
 **LangGraph checkpointer:** First-party Postgres checkpointer wired in at agent startup, schema managed by LangGraph's own migrations.
 
 **PHI-equivalent treatment.** Conversation state contains patient data (the user's question may name a patient; the response contains patient data verbatim). It is treated as PHI even though the demo uses synthetic data:
-- Encrypted at rest via Railway managed Postgres (default).
+- Encrypted at rest via the host's disk encryption (Droplet volumes are encrypted at rest by default; if we move to managed Postgres later, the same property holds).
 - Credentials scoped to the agent service only; OpenEMR has no access to this database.
 - Retention policy: documented as a deferred operational concern. A real production deployment would set retention to match HIPAA audit requirements (typically 6 years); for the demo we set a short retention window and call out the production policy in `AUDIT.md`.
 - Logs and observability traces (LangSmith) reference conversation IDs only — never full content — so PHI lives in one durable place.
 
 **Local dev:** Postgres added as a service in `docker/development-easy/docker-compose.yml` alongside the existing MySQL. One more container, no host-side setup.
 
-**Reasoning:** This is the simplest defensible answer for "where does the agent's state live." The deciding factor was LangGraph checkpointer support — every other consideration was a tiebreaker. Putting the agent's state in its own engine, separate from OpenEMR's, also makes the trust boundary cleaner: agent compromise reaches only conversation data, not patient records. The cost (one more managed Railway resource per environment, ~$5–10/month per environment) is real but small at this scope.
+**Reasoning:** This is the simplest defensible answer for "where does the agent's state live." The deciding factor was LangGraph checkpointer support — every other consideration was a tiebreaker. Putting the agent's state in its own engine, separate from OpenEMR's, also makes the trust boundary cleaner: agent compromise reaches only conversation data, not patient records.
 
 ---
 
@@ -454,7 +460,7 @@ The following decisions are intentionally deferred. The architecture does not fo
 
 ### Monorepo layout details
 
-Top-level shape agreed: `/agent/` for the Node service, `/infra/` for deployment scripts and per-service `railway.json`. The interior layout of `/agent/` (folder structure, build setup, test layout) is TBD and will be decided when scaffolding starts.
+Top-level shape agreed: `/agent/` for the Node service, `/infra/` for deployment scripts, `/docker/digitalocean/` for the production compose stack. The interior layout of `/agent/` (folder structure, build setup, test layout) is TBD and will be decided when scaffolding starts.
 
 ### Where the agent panel surfaces in OpenEMR's UI
 
@@ -503,7 +509,7 @@ Mentioned during integration design but not yet captured in section 9's eval tie
 
 ### Agent-side observability beyond LangSmith
 
-Section 8 covers LLM-level observability via LangSmith. The agent service itself (Node process, HTTP handlers, Postgres queries) has its own observability needs (request rate, error rate, p50/p99 latency, Postgres connection pool health). Railway's built-in service metrics cover most of this; whether we add anything more (structured logs, OpenTelemetry export) is deferred.
+Section 8 covers LLM-level observability via LangSmith. The agent service itself (Node process, HTTP handlers, Postgres queries) has its own observability needs (request rate, error rate, p50/p99 latency, Postgres connection pool health). DigitalOcean's Droplet metrics cover host-level resource use; service-level metrics need either container stats (`docker stats` exported) or an OpenTelemetry pipeline. Deferred.
 
 ---
 
@@ -529,6 +535,6 @@ Section 8 covers LLM-level observability via LangSmith. The agent service itself
 | Agent auth | Internal-only service on private network; OpenEMR mints short-lived OAuth2 token per proxied request |
 | Tool data path | HTTP wrappers over OpenEMR REST/FHIR API — no direct DB access, LLM never produces SQL |
 | RBAC | Delegated to OpenEMR's existing ACL — agent enforces nothing |
-| Deployment | Railway (managed MySQL + Postgres + object storage), two environments, Railway CLI as IaC (no Terraform) |
-| Conversation state | Railway managed Postgres (separate from OpenEMR's MySQL), LangGraph first-party Postgres checkpointer |
+| Deployment | DigitalOcean Droplet, docker-compose (mariadb + flex openemr with bind-mount + Caddy on Let's Encrypt), one environment for now, doctl + cloud-init as IaC (no Terraform) |
+| Conversation state | Postgres (separate from OpenEMR's MariaDB), LangGraph first-party Postgres checkpointer — host TBD when we add the agent service |
 | License | GPL-3.0 inherited from OpenEMR |

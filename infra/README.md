@@ -104,6 +104,3 @@ A pull-based auto-deploy poller is a planned follow-up. For now, deploys are man
 | `OE_PASS`                 | randomly generated if unset   |
 | `MYSQL_ROOT_PASSWORD`     | randomly generated if unset   |
 
-## Legacy: Railway (in transition)
-
-`bootstrap-env.sh` and `../docker/railway/` are the Railway deploy artifacts. We're migrating off Railway to DigitalOcean because Railway's edge proxy could not reach the OpenEMR container in our configuration despite extensive debugging. The Railway resources will be torn down once the DigitalOcean deploy is verified working.
