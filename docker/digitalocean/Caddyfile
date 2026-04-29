@@ -18,3 +18,16 @@
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+# Apex landing page (biograph.dev)
+# ---------------------------------------------------------------------------
+# Static placeholder served from /srv/site, mounted from the host at
+# /opt/site. Content lives directly on the Droplet (not in this repo)
+# and would need to be re-uploaded after a Droplet rebuild — acceptable
+# because it's placeholder content, not load-bearing infrastructure.
+{$APEX_DOMAIN} {
+    root * /srv/site
+    file_server
+    encode gzip zstd
+}

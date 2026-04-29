@@ -59,6 +59,11 @@ services:
       - nodemodules:/var/www/localhost/htdocs/openemr/node_modules:rw
       - vendordir:/var/www/localhost/htdocs/openemr/vendor:rw
       - logvolume:/var/log
+      # The flex image's entrypoint expects /couchdb/data to exist (the
+      # full dev-easy stack mounts CouchDB there). We don't run CouchDB,
+      # so we mount an empty named volume just to satisfy rsync's
+      # link_stat — without this the container exits with code 23.
+      - couchdbstub:/couchdb/data
     environment:
       MYSQL_HOST: mysql
       MYSQL_ROOT_PASS: ${MYSQL_ROOT_PASSWORD}
@@ -92,10 +97,12 @@ services:
       - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/site:/srv/site:ro
       - caddydata:/data
       - caddyconfig:/config
     environment:
       OE_DOMAIN: ${OE_DOMAIN}
+      APEX_DOMAIN: ${APEX_DOMAIN}
     depends_on:
       openemr:
         condition: service_started
@@ -108,5 +115,6 @@ volumes:
   nodemodules: {}
   vendordir: {}
   logvolume: {}
+  couchdbstub: {}
   caddydata: {}
   caddyconfig: {}
