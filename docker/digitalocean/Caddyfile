@@ -1,0 +1,20 @@
+# Caddy reverse proxy for OpenEMR.
+#
+# Caddy auto-fetches a Let's Encrypt cert for $OE_DOMAIN on first
+# request (the domain's A record must point at this Droplet). It
+# terminates TLS at the public edge and forwards to OpenEMR's
+# internal :443 over Docker's private network.
+#
+# `tls_insecure_skip_verify` is on the internal Caddy → openemr hop
+# only — the cert OpenEMR's container serves is self-signed and we
+# don't validate it because the connection never leaves the Droplet.
+# The user-facing cert (real Let's Encrypt) is unaffected.
+
+{$OE_DOMAIN} {
+    reverse_proxy openemr:443 {
+        transport http {
+            tls
+            tls_insecure_skip_verify
+        }
+    }
+}

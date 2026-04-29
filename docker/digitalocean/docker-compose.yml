@@ -1,0 +1,112 @@
+# DigitalOcean deploy stack for OpenEMR.
+#
+# Three services on a single Droplet:
+#   - mysql:    MariaDB, internal network only.
+#   - openemr:  Upstream openemr/openemr:flex image, bind-mounts the
+#               cloned repo at /opt/openemr so our application code is
+#               what runs (not whatever was baked into the image).
+#               Internal network only — Caddy fronts it.
+#   - caddy:    Reverse proxy on the public 80/443. Auto-fetches and
+#               renews a Let's Encrypt cert for $OE_DOMAIN. Forwards to
+#               openemr's internal :443 (which uses a self-signed cert
+#               we ignore on the Caddy → openemr hop, since both ends
+#               are inside Docker's private network).
+#
+# Required env vars (read from /opt/openemr/.env on the Droplet):
+#   OE_DOMAIN              The public hostname Caddy serves.
+#   OE_USER                Initial OpenEMR admin username.
+#   OE_PASS                Initial OpenEMR admin password.
+#   MYSQL_ROOT_PASSWORD    MariaDB root password.
+#   FLEX_REPOSITORY        HTTPS clone URL with deploy token. The flex
+#                          image clones this on first boot.
+#   FLEX_REPOSITORY_BRANCH Branch the flex image checks out.
+
+services:
+  mysql:
+    image: mariadb:11.8.6@sha256:78a5047d3ba33975f183f183c2464cc7f1eab13ec8667e57cc9a5821d6da7577
+    restart: unless-stopped
+    command: ['mariadbd', '--character-set-server=utf8mb4']
+    volumes:
+      - databasevolume:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/healthcheck.sh', '--su-mysql', '--connect', '--innodb_initialized']
+      start_period: 1m
+      start_interval: 10s
+      interval: 1m
+      timeout: 5s
+      retries: 3
+
+  openemr:
+    image: openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      # Bind-mount this repo into the container so our application code
+      # is what runs. The flex image clones into /openemr on first boot
+      # if FLEX_REPOSITORY is set; with EASY_DEV_MODE_NEW it will run
+      # from /openemr instead of cloning from FLEX_REPOSITORY.
+      - /opt/openemr:/openemr:ro
+      - /opt/openemr:/var/www/localhost/htdocs/openemr:rw
+      # Application-managed dirs that the upstream image expects to be
+      # writable independently of the bind-mount.
+      - sitesvolume:/var/www/localhost/htdocs/openemr/sites:rw
+      - assetvolume:/var/www/localhost/htdocs/openemr/public/assets:rw
+      - themevolume:/var/www/localhost/htdocs/openemr/public/themes:rw
+      - nodemodules:/var/www/localhost/htdocs/openemr/node_modules:rw
+      - vendordir:/var/www/localhost/htdocs/openemr/vendor:rw
+      - logvolume:/var/log
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASS: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: openemr
+      MYSQL_PASS: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: openemr
+      OE_USER: ${OE_USER}
+      OE_PASS: ${OE_PASS}
+      EASY_DEV_MODE: 'yes'
+      EASY_DEV_MODE_NEW: 'yes'
+    healthcheck:
+      test:
+        - CMD
+        - /usr/bin/curl
+        - --fail
+        - --insecure
+        - --location
+        - --silent
+        - https://localhost/meta/health/readyz
+      start_period: 5m
+      start_interval: 15s
+      interval: 1m
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine@sha256:834468128c7696cec0ceea6172f7d692daf645ae51983ca76e39da54a97c570d
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    environment:
+      OE_DOMAIN: ${OE_DOMAIN}
+    depends_on:
+      openemr:
+        condition: service_started
+
+volumes:
+  databasevolume: {}
+  sitesvolume: {}
+  assetvolume: {}
+  themevolume: {}
+  nodemodules: {}
+  vendordir: {}
+  logvolume: {}
+  caddydata: {}
+  caddyconfig: {}

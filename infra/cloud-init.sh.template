@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+#
+# Droplet first-boot script. Rendered from this template by
+# infra/bootstrap-do.sh — placeholders like __OE_DOMAIN__ are replaced
+# before the script is uploaded as the Droplet's user-data.
+#
+# Runs once, as root, the first time the Droplet boots. Logs to
+# /var/log/cloud-init-output.log.
+
+set -euo pipefail
+exec > >(tee -a /var/log/openemr-bootstrap.log) 2>&1
+echo "[bootstrap] starting at $(date -Iseconds)"
+
+# ---------------------------------------------------------------------------
+# 1. System packages
+# ---------------------------------------------------------------------------
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y \
+    ca-certificates \
+    curl \
+    git \
+    gnupg \
+    ufw
+
+# ---------------------------------------------------------------------------
+# 2. Docker engine + compose plugin (Docker's official apt repo)
+# ---------------------------------------------------------------------------
+
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+# shellcheck source=/dev/null
+. /etc/os-release
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
+    > /etc/apt/sources.list.d/docker.list
+
+apt-get update -y
+apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+
+systemctl enable --now docker
+
+# ---------------------------------------------------------------------------
+# 3. Firewall — only 22/80/443 open
+# ---------------------------------------------------------------------------
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+
+# ---------------------------------------------------------------------------
+# 4. Clone the repository
+# ---------------------------------------------------------------------------
+
+REPO_URL='https://__GITLAB_DEPLOY_TOKEN_NAME__:__GITLAB_DEPLOY_TOKEN_VALUE__@__GITLAB_HOST__/__GITLAB_REPO_PATH__.git'
+REPO_BRANCH='__GITLAB_BRANCH__'
+REPO_DIR=/opt/openemr
+
+if [[ ! -d "${REPO_DIR}/.git" ]]; then
+    echo "[bootstrap] cloning ${REPO_BRANCH} into ${REPO_DIR}"
+    git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${REPO_DIR}"
+else
+    echo "[bootstrap] ${REPO_DIR} already a git repo, fetching"
+    git -C "${REPO_DIR}" fetch origin "${REPO_BRANCH}"
+    git -C "${REPO_DIR}" checkout "${REPO_BRANCH}"
+    git -C "${REPO_DIR}" reset --hard "origin/${REPO_BRANCH}"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Application .env file (read by docker compose)
+# ---------------------------------------------------------------------------
+
+ENV_FILE="${REPO_DIR}/docker/digitalocean/.env"
+if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "[bootstrap] writing ${ENV_FILE}"
+    cat > "${ENV_FILE}" <<EOF
+OE_DOMAIN=__OE_DOMAIN__
+OE_USER=admin
+OE_PASS=__OE_PASS__
+MYSQL_ROOT_PASSWORD=__MYSQL_ROOT_PASSWORD__
+EOF
+    chmod 600 "${ENV_FILE}"
+else
+    echo "[bootstrap] ${ENV_FILE} already exists, leaving it alone"
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Bring up the stack
+# ---------------------------------------------------------------------------
+
+cd "${REPO_DIR}/docker/digitalocean"
+docker compose pull
+docker compose up -d
+
+echo "[bootstrap] complete at $(date -Iseconds)"
+echo "[bootstrap] OpenEMR will be reachable at https://__OE_DOMAIN__/ once"
+echo "[bootstrap] DNS resolves and Caddy has fetched a cert."
