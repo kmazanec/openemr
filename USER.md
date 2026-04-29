@@ -48,9 +48,11 @@ The right framing: the agent is a way to distill a large, dense, multi-source pa
 
 ## Use Cases
 
+UC1 is the entry point: the default briefing, generated without any input from her. UC2-UC4 are the three shapes of follow-up the agent auto-suggests as one-tap drill-downs from that briefing — each pulling from a different data category (labs, medications, outside care). UC5 is the same briefing engine applied to her morning schedule view.
+
 ### UC1: Default Pre-Visit Briefing
 
-> Dr. Patel taps Mrs. Patel's name in her schedule. Without typing anything, she sees: *"Maya Patel, 67, here for diabetes follow-up. A1c last week was 8.2, up from 7.4 in March. Started lisinopril 6 weeks ago for new-onset hypertension. Allergic to penicillin. Last visit 4 months ago for routine follow-up."* She reads it in 8 seconds and walks in.
+> Dr. Patel taps Mrs. Patel's name in her schedule. Without typing anything, she sees: *"Maya Patel, 67, here for diabetes follow-up. **Since last visit (4 months ago):** A1c rose to 8.2 from 7.4; started lisinopril 6 weeks ago for new-onset hypertension. **Current meds:** metformin 1000mg BID, lisinopril 10mg daily. **Allergies:** penicillin. **Reason today:** routine diabetes follow-up."* She reads it in 8 seconds and walks in.
 
 **The user's problem:** She needs the picture immediately, without typing or speaking, often while walking with a tablet.
 
@@ -58,35 +60,47 @@ The right framing: the agent is a way to distill a large, dense, multi-source pa
 
 **Why integrated, not chat-only:** She is not "starting a conversation." She is opening a patient. The briefing appears as part of opening the patient view. The agent's first response requires zero input from her.
 
-### UC2: What Changed Since Last Visit
+**What the briefing always includes:**
 
-> *"What's changed for Maya since her last visit?"* — or, more often, she taps a suggested follow-up labeled "What's changed since last visit?" The agent surfaces deltas: new diagnoses, new or stopped medications, new lab results, recent encounters with other providers.
+- Today's reason for visit (chief complaint or scheduled reason)
+- Demographics (name, age, sex)
+- Active diagnoses
+- Current medications with dosages
+- Allergies (always surfaced, never omitted)
+- **Deltas since last visit** — new/stopped medications, new diagnoses, new abnormal labs, recent encounters with other providers. This is part of the briefing, not a follow-up.
+- Date and reason of last 1-3 encounters
 
-**The user's problem:** Especially for partner-coverage patients and patients she hasn't seen in months, she needs to orient on what's new — not the entire history, just what's changed.
+Below the briefing, the agent generates 3-5 contextual one-tap follow-ups drawn from what's actually in the record. UC2-UC4 describe the three most common shapes those follow-ups take.
 
-**Why an agent:** "What changed" is a temporal query that depends on the date of the last visit, which varies per patient. The agent computes the delta against the right reference point. A dashboard "recent changes" widget can't know what counts as recent for *this* relationship.
+### UC2: Lab or Vitals Trend Drill-Down
 
-**Why integrated, not chat-only:** She often arrives at this question from the default briefing, prompted by something she saw. The follow-up tap keeps the conversation context — she doesn't have to re-state the patient or the timeframe.
+> Dr. Patel reads the briefing and sees the A1c jumped from 7.4 to 8.2. The agent has already generated a suggested follow-up: **"Why is the A1c up?"** She taps it. The agent walks back through the trend: prior A1c values over the last two years, any documented context (medication adherence notes, recent illness, weight changes), and any related labs (fasting glucose, lipid panel) that bear on the question.
 
-### UC3: Medication Reconciliation Check
+**The user's problem:** A number changed. She wants the story behind it without scrolling through lab history and old encounter notes.
 
-> *"What is she currently taking, and is anything new since last visit?"* The agent returns the active medication list with dosages, flagging additions, dose changes, and discontinuations since her last visit. Allergies are surfaced unconditionally.
+**Why an agent:** The follow-up is generated *because* the A1c moved. For a patient whose A1c is stable, the agent would not surface this question — it would surface a different one. The drill-down then synthesizes lab history, encounter notes, and medication history into one answer. A "lab trend" widget cannot read the surrounding notes.
 
-**The user's problem:** Med lists are the most error-prone part of any patient record, and the most clinically dangerous to get wrong. She needs a clean, current view that flags what's new and surfaces allergy interactions.
+**Why integrated, not chat-only:** The suggestion is a tap, not a typed prompt. She is reacting to something the briefing already showed her; she does not have to formulate a question.
 
-**Why an agent:** The verification layer enforces source attribution on every medication claim and runs hard clinical rule checks (allergy conflicts, known interactions). A dashboard can show the med list, but it can't enforce the verification policy that makes it trustworthy in a clinical context.
+### UC3: Medication Change Drill-Down
 
-**Why integrated, not chat-only:** Med reconciliation is a moment of high cognitive load. The physician needs the answer in the same view as the rest of the briefing, not in a separate chat panel.
+> The briefing flags that lisinopril was started 6 weeks ago. The agent suggests **"When was lisinopril started, and why?"** as a one-tap follow-up. She taps. The agent returns: the prescribing date, the prescribing provider (one of her partners, since this is a partner-coverage patient), the documented indication (new-onset hypertension flagged at the last visit), the starting dose and any dose adjustments, and any related notes from that encounter.
 
-### UC4: Multi-Turn Drill-Down
+**The user's problem:** A new medication shows up on the list. Before she walks in, she needs to know who started it, when, why, and whether anything has changed since.
 
-> After the default briefing, Dr. Patel taps "Why is the A1c up?" — a suggested follow-up the agent generated based on what's actually in the record. The agent walks back through the recent labs, recent encounters, and any documented context that bears on the question.
+**Why an agent:** Medication histories are scattered across prescription records, encounter notes, and provider documentation. The agent reads across those to assemble the rationale. A med list shows what is prescribed; it does not explain why.
 
-**The user's problem:** The default briefing is a starting point. Real questions emerge from what she sees in it. She needs to ask follow-ups without retyping the patient context, often while walking, often without typing at all.
+**Why integrated, not chat-only:** Medication reconciliation is the most clinically dangerous part of any visit. The drill-down lives in the same view as the briefing, with citations back to the actual prescribing record.
 
-**Why an agent:** Follow-up questions are unpredictable in shape and number. There is no way to design a static UI that anticipates every drill-down. Conversational state — knowing the patient she's asking about, the context of the prior question — is what makes the drill-down fast.
+### UC4: Recent Outside Care Drill-Down
 
-**Why integrated, not chat-only:** Suggested follow-ups generated from the patient's actual record let her drill down with a tap rather than a typed question. She can fall back to free-text when she needs to, but the default interaction is one-tap, not type-a-prompt.
+> The briefing notes a recent imported document on file. The agent suggests **"Has she had any care at other facilities recently?"** Dr. Patel taps. The agent surfaces external encounters parsed from imported CCDA documents: a 3-week-old ED visit at the regional hospital for chest pain (ruled out cardiac, discharged with a follow-up recommendation), and a cardiology consult two weeks later. Citations link back to the imported documents in OpenEMR.
+
+**The user's problem:** Especially for partner-coverage patients, she has no idea what has happened to this patient outside this practice. An ED visit she does not know about is exactly the kind of context that changes how she runs the visit.
+
+**Why an agent:** OpenEMR's `external_encounters` table and CCDA import pipeline capture this data when other facilities send documents — but the data is buried under the documents tab, separated from the active chart view, and easy to miss. The agent reads it and surfaces what is recent and relevant, with citations to the source CCDA.
+
+**Why integrated, not chat-only:** This is exactly the kind of question Dr. Patel would not think to type but would tap when offered. The agent generates the suggestion *because* there is recent imported data; for a patient with none, it surfaces a different follow-up instead.
 
 ### UC5: Schedule-Aware Morning Prep
 
@@ -104,11 +118,12 @@ Every default briefing follows the same fixed structure. Within each section, co
 
 1. **Today's appointment context** — chief complaint or reason for visit
 2. **Demographics** — name, age, sex
-3. **Active diagnoses** — ongoing conditions relevant to current care
-4. **Current medications** — with dosages, flagging recent changes
-5. **Recent labs** — last 90 days, abnormal values flagged
-6. **Allergies** — always surfaced, never omitted
-7. **Recent encounters** — last 1-3 visits with date and reason
+3. **Deltas since last visit** — new or stopped medications, new diagnoses, new abnormal labs, encounters with other providers. Always surfaced as part of the briefing, not gated behind a follow-up tap.
+4. **Active diagnoses** — ongoing conditions relevant to current care
+5. **Current medications** — with dosages, flagging recent changes
+6. **Recent labs** — last 90 days, abnormal values flagged
+7. **Allergies** — always surfaced, never omitted
+8. **Recent encounters** — last 1-3 visits with date and reason
 
 The fixed structure is deliberate: Dr. Patel scans briefings the same way every time, which lowers cognitive load. The prioritization within each section is also deliberate: what's clinically notable surfaces above what's routine.
 

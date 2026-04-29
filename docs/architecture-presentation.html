@@ -586,20 +586,14 @@
       <h2>Clinical Co-Pilot</h2>
       <p>Architecture presentation</p>
       <a class="active" href="#overview">Overview</a>
-      <a href="#principles">Principles</a>
-      <a href="#components">Components</a>
-      <a href="#full-diagram">Full system diagram</a>
-      <a href="#integration">OpenEMR integration</a>
-      <a href="#flow">Runtime flow</a>
-      <a href="#data">Data contracts</a>
-      <a href="#agent">LangGraph runtime</a>
-      <a href="#verification">Verification</a>
-      <a href="#security">Security</a>
-      <a href="#audit">Audit and PHI</a>
-      <a href="#evals">Evals and observability</a>
-      <a href="#deployment">Deployment</a>
-      <a href="#scale">Scale posture</a>
-      <a href="#tradeoffs">Rejected alternatives</a>
+      <a href="#user">The user and the moment</a>
+      <a href="#use-cases">Use cases</a>
+      <a href="#architecture">Architecture at a glance</a>
+      <a href="#flow">Runtime flow and data</a>
+      <a href="#agent">Agent graph and verification</a>
+      <a href="#hardest">Hardest problems</a>
+      <a href="#decisions">Decisions and rejected alternatives</a>
+      <a href="#operations">Security, audit, operations</a>
     </nav>
 
     <main>
@@ -607,140 +601,173 @@
         <div class="eyebrow">OpenEMR embedded AI agent</div>
         <h1>Clinical Co-Pilot Architecture</h1>
         <p class="subtitle">
-          A read-only, source-cited clinical briefing agent for the 90-second pre-visit window.
-          Built as an OpenEMR-native feature with a private LangGraph runtime.
+          A read-only, source-cited briefing agent for the 90 seconds between exam rooms.
+          Built as an OpenEMR-native module so it lives where the physician already works.
         </p>
         <div class="hero-grid">
           <div class="card stat">
             <strong>90s</strong>
-            <span>Core moment: the physician is between rooms and needs context fast.</span>
+            <span>The moment: between rooms, attention split, no time to navigate four screens.</span>
           </div>
           <div class="card stat">
-            <strong>5-15</strong>
-            <span>MVP concurrency: a family-practice sized clinical team.</span>
+            <strong>1</strong>
+            <span>User in focus: Dr. Patel, primary-care physician, 20-patient day.</span>
           </div>
           <div class="card stat">
             <strong>5</strong>
-            <span>Tool families: patient context, labs, meds, encounters, schedule.</span>
+            <span>Distinct use cases drive every architectural choice in this deck.</span>
           </div>
           <div class="card stat">
             <strong>0</strong>
-            <span>Write actions: no orders, notes, prescriptions, or chart updates in v1.</span>
+            <span>Write actions in v1. The agent prepares; the physician decides.</span>
           </div>
         </div>
       </header>
 
-      <section id="principles">
+      <section id="user">
         <div class="section-head">
-          <p class="kicker">Architecture lens</p>
-          <h2>Principles That Constrain The Design</h2>
+          <p class="kicker">Start with the user</p>
+          <h2>Dr. Patel And The 90-Second Window</h2>
           <p class="lead">
-            The architecture starts from the user and safety constraints defined during presearch, then maps them onto OpenEMR's existing boundaries.
+            Every architectural choice in this deck traces back to one person and one moment.
+            Pick the wrong user and the rest is wasted.
           </p>
         </div>
         <div class="grid">
-          <div class="card span-6">
-            <h3>User problem</h3>
+          <div class="card span-7">
+            <h3>The user</h3>
             <p>
-              Dr. Patel needs a glanceable briefing before entering the room: who the patient is,
-              why they are here, what changed, current meds, allergies, labs, and recent encounters.
+              Dr. Patel is a family medicine physician at a 12-physician group. 20-patient day,
+              8:00 AM to 5:30 PM, lunch eaten at her desk. About a third of her panel is partner
+              coverage — patients she has never met, scheduled with her because a colleague is out.
             </p>
-            <div class="pill-row">
-              <span class="pill">Default briefing</span>
-              <span class="pill">Follow-up drill-down</span>
-              <span class="pill">Patient-bound context</span>
-            </div>
+            <p>
+              She is not anti-tech. She knows OpenEMR well enough to find what she needs eventually.
+              "Eventually" is what she does not have between rooms.
+            </p>
+          </div>
+          <div class="card span-5">
+            <h3>The moment</h3>
+            <p>
+              The 30 seconds before she opens an exam-room door, she is finishing the previous
+              patient's note and walking down a hallway. She has maybe 90 seconds to learn who
+              this person is, why they are here, what changed, what they take, what to be careful of.
+            </p>
+            <p>
+              Today the EHR forces four or five screens. This is the problem.
+            </p>
           </div>
           <div class="card decision span-6">
-            <h3>Why this scope</h3>
+            <h3>Why this user, not a hospitalist or ED resident</h3>
             <p>
-              Presearch rejected broader hospitalist or ED workflows because the primary-care
-              scheduled day is more predictable, easier to defend, and maps cleanly to a small tool surface.
+              The primary-care scheduled day is predictable, has a clean read-only surface, and
+              maps to a small tool set. ED intake and hospital rounding have higher write-action
+              pressure and more ambient context — wrong shape for an MVP.
             </p>
           </div>
+          <div class="card decision span-6">
+            <h3>Why an agent, not a better dashboard</h3>
+            <p>
+              What matters varies per patient. A dashboard prioritizes the same fields every time
+              and pushes prioritization onto the physician. An agent reads the actual record and
+              surfaces what is notable for <em>this</em> patient. Drill-down questions are
+              unpredictable; conversation handles them, a static UI cannot.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="use-cases">
+        <div class="section-head">
+          <p class="kicker">Concrete scenarios</p>
+          <h2>Five Use Cases That Define The Build</h2>
+          <p class="lead">
+            UC1 is the entry point. UC2-UC4 are the three shapes of one-tap follow-up the agent
+            auto-suggests from the briefing — each pulling from a different data category.
+            UC5 is the same engine applied to her morning schedule.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card span-12">
+            <h3>UC1 — Default pre-visit briefing</h3>
+            <p>
+              Dr. Patel taps a patient's name. Without typing, she sees:
+              <em>"Maya Patel, 67, diabetes follow-up. Since last visit (4mo): A1c 8.2 (was 7.4),
+              started lisinopril 6 weeks ago. Current meds: metformin 1000 BID, lisinopril 10
+              daily. Allergic to penicillin."</em> Eight seconds, then she walks in.
+            </p>
+            <p>
+              The briefing always includes deltas since last visit, current meds, allergies, and
+              today's reason for visit. Below it, the agent generates 3-5 contextual one-tap
+              follow-ups drawn from what is actually in the record.
+            </p>
+            <p><strong>Why an agent:</strong> the briefing is prioritized for this patient. Zero input required — she is opening a chart, not starting a chat.</p>
+          </div>
+          <div class="card span-4">
+            <h3>UC2 — Lab/vitals trend follow-up</h3>
+            <p>
+              The briefing shows A1c moved 7.4 → 8.2. The agent suggests
+              <em>"Why is the A1c up?"</em> She taps. The agent returns the trend, related labs,
+              and any encounter notes that bear on the change.
+            </p>
+            <p><strong>Why an agent:</strong> the suggestion only appears <em>because</em> the value moved. A static lab-trend widget cannot read the surrounding notes.</p>
+            <p><strong>Data source:</strong> <code>procedure_result</code> (lab values), encounter notes.</p>
+          </div>
+          <div class="card span-4">
+            <h3>UC3 — Medication change follow-up</h3>
+            <p>
+              The briefing flags lisinopril as a new medication. The agent suggests
+              <em>"When was lisinopril started, and why?"</em> She taps. She gets the prescribing
+              date, the prescribing partner, the documented indication, and the starting dose.
+            </p>
+            <p><strong>Why an agent:</strong> medication histories are scattered across prescriptions, encounter notes, and provider documentation. The agent reads across them.</p>
+            <p><strong>Data source:</strong> <code>prescriptions</code>, <code>lists</code> (medication problem list), encounter notes.</p>
+          </div>
+          <div class="card span-4">
+            <h3>UC4 — Recent outside care follow-up</h3>
+            <p>
+              The agent notices an imported CCDA on file and suggests
+              <em>"Has she had care at other facilities recently?"</em> She taps. The agent surfaces
+              a recent ED visit and cardiology consult parsed from imported CCDAs.
+            </p>
+            <p><strong>Why an agent:</strong> external care is buried under the documents tab, easy to miss. The agent surfaces it only when it is recent and relevant.</p>
+            <p><strong>Data source:</strong> <code>external_encounters</code>, <code>external_procedures</code>, <code>ccda</code> table.</p>
+          </div>
+          <div class="card span-12">
+            <h3>UC5 — Schedule-aware morning prep</h3>
+            <p>
+              At 7:50 AM, briefings are pre-computed for today's list. Patients with notable items
+              — new abnormal labs, recent ED visits, new meds — are flagged in the schedule view.
+              She glances down and mentally flags the three patients needing extra attention today.
+            </p>
+            <p><strong>Why an agent:</strong> "notable" is patient-specific and clinically judged — depends on the patient's baseline. A "patients with new labs" filter is too coarse.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-head">
+          <p class="kicker">System shape</p>
+          <h2>Architecture At A Glance</h2>
+          <p class="lead">
+            Two bounded contexts. OpenEMR owns the clinical boundary; a private LangGraph service
+            owns agent orchestration. The browser only ever talks to OpenEMR.
+          </p>
+        </div>
+
+        <div class="grid" style="margin-bottom: 1.5rem;">
           <div class="card span-4">
             <h3>System of record</h3>
-            <p>OpenEMR remains clinical truth. The agent reads, summarizes, and cites; it does not create independent clinical state.</p>
+            <p>OpenEMR stays clinical truth. The agent reads, summarizes, and cites — it does not create independent state.</p>
           </div>
           <div class="card span-4">
             <h3>Human in the loop</h3>
-            <p>The clinician always decides. The agent advises, flags, and retrieves; it does not prescribe or act.</p>
+            <p>Read-only in v1. The agent prepares; the physician decides. No orders, no notes, no prescriptions.</p>
           </div>
           <div class="card span-4">
             <h3>Proof over polish</h3>
-            <p>Every clinical claim needs a source reference. Unverified content is stripped before display.</p>
+            <p>Every clinical claim carries a source reference. Unverified content is stripped before display.</p>
           </div>
-        </div>
-      </section>
-
-      <section id="components">
-        <div class="section-head">
-          <p class="kicker">System shape</p>
-          <h2>Two Bounded Contexts</h2>
-          <p class="lead">
-            OpenEMR owns the clinical boundary. The private LangGraph service owns agent orchestration.
-          </p>
-        </div>
-
-        <div class="flow" aria-label="Component flow">
-          <div class="flow-step">
-            <small>01</small>
-            <strong>Browser UI</strong>
-            <p>OpenEMR-origin panel with briefing, citations, follow-ups, streaming state.</p>
-          </div>
-          <div class="flow-step">
-            <small>02</small>
-            <strong>Agent Module</strong>
-            <p>Custom PHP module for routes, policy gates, snapshots, audit, proxying.</p>
-          </div>
-          <div class="flow-step">
-            <small>03</small>
-            <strong>Adapters</strong>
-            <p>Typed chart reads, normalization, source references, PHI minimization.</p>
-          </div>
-          <div class="flow-step">
-            <small>04</small>
-            <strong>LangGraph</strong>
-            <p>Self-hosted Node service running graph nodes and LLM calls.</p>
-          </div>
-          <div class="flow-step">
-            <small>05</small>
-            <strong>Verification</strong>
-            <p>Claim ledger, deterministic checks, safety rules, response gate.</p>
-          </div>
-          <div class="flow-step">
-            <small>06</small>
-            <strong>State + Traces</strong>
-            <p>Postgres stores state; LangSmith records metadata, not PHI bodies.</p>
-          </div>
-        </div>
-
-        <div class="grid" style="margin-top: 1rem;">
-          <div class="card decision span-6">
-            <h3>Why split PHP and Node</h3>
-            <p>
-              OpenEMR is PHP and owns auth/data. LangGraph.js is the chosen agent framework.
-              Splitting services keeps OpenEMR stable while letting the agent runtime evolve independently.
-            </p>
-          </div>
-          <div class="card decision span-6">
-            <h3>Why private service</h3>
-            <p>
-              The browser never talks directly to the agent, avoiding CORS, separate login,
-              browser-held agent tokens, and a second public attack surface.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="full-diagram">
-        <div class="section-head">
-          <p class="kicker">End-to-end view</p>
-          <h2>Full System Architecture</h2>
-          <p class="lead">
-            One cohesive view of the user boundary, OpenEMR module, private agent runtime, persistence,
-            observability, and LLM provider.
-          </p>
         </div>
 
         <div class="system-diagram" role="img" aria-label="Clinical Co-Pilot full architecture diagram">
@@ -847,47 +874,13 @@
 
       </section>
 
-      <section id="integration">
-        <div class="section-head">
-          <p class="kicker">OpenEMR boundary</p>
-          <h2>Integrate As A Custom Module</h2>
-          <p class="lead">
-            The agent enters OpenEMR through the module system, explicit route/listener registration, and patient or schedule UI entry points.
-          </p>
-        </div>
-        <div class="grid">
-          <div class="card span-3">
-            <h3>UI entry points</h3>
-            <p>Patient-chart button, schedule annotation, inline panel, or module-hosted launch page.</p>
-          </div>
-          <div class="card span-3">
-            <h3>HTTP route</h3>
-            <p>Register agent routes through OpenEMR REST extension events where possible.</p>
-          </div>
-          <div class="card span-3">
-            <h3>Policy services</h3>
-            <p>Validate session, site, patient, scope, data category, and use case.</p>
-          </div>
-          <div class="card span-3">
-            <h3>Proxy bridge</h3>
-            <p>Forward minimized requests to the private service and stream responses back.</p>
-          </div>
-          <div class="card decision span-12">
-            <h3>Decision criteria from presearch</h3>
-            <p>
-              Stack choice should fit OpenEMR, minimize core patches, and support the 90-second workflow.
-              The user should experience this as an OpenEMR feature that happens to use AI, not as a separate app.
-            </p>
-          </div>
-        </div>
-      </section>
-
       <section id="flow">
         <div class="section-head">
-          <p class="kicker">Request lifecycle</p>
-          <h2>Default Briefing Flow</h2>
+          <p class="kicker">Request lifecycle and data contract</p>
+          <h2>Runtime Flow And ChartSnapshot</h2>
           <p class="lead">
-            A briefing is context-triggered: opening a patient or schedule context starts the workflow without a typed prompt.
+            Opening a chart triggers the briefing without a typed prompt. The model never sees raw chart rows —
+            it sees a minimized, source-tagged <code>ChartSnapshot</code>.
           </p>
         </div>
         <div class="flow">
@@ -899,63 +892,37 @@
           <div class="flow-step">
             <small>Gate</small>
             <strong>Auth + policy</strong>
-            <p>OpenEMR verifies session, site, patient, scope, and read-only task.</p>
+            <p>Session, site, patient, scope, and read-only task verified.</p>
           </div>
           <div class="flow-step">
             <small>Audit</small>
             <strong>Disclosure event</strong>
-            <p><code>AGENT_PHI_DISCLOSURE</code> is emitted before model-bound data leaves OpenEMR.</p>
+            <p><code>AGENT_PHI_DISCLOSURE</code> emitted before data leaves OpenEMR.</p>
           </div>
           <div class="flow-step">
             <small>Shape</small>
             <strong>ChartSnapshot</strong>
-            <p>Adapters normalize data and remove unnecessary identifiers.</p>
+            <p>Adapters normalize legacy data and minimize identifiers.</p>
           </div>
           <div class="flow-step">
             <small>Run</small>
             <strong>LangGraph</strong>
-            <p>Graph synthesizes, verifies, formats, and records metadata.</p>
+            <p>Graph synthesizes, verifies, formats, records metadata.</p>
           </div>
           <div class="flow-step">
             <small>Show</small>
             <strong>Cited response</strong>
-            <p>OpenEMR streams verified briefing and citations to the browser.</p>
+            <p>Verified briefing streams back through OpenEMR to the browser.</p>
           </div>
         </div>
-        <div class="grid" style="margin-top: 1rem;">
-          <div class="card decision span-6">
-            <h3>Latency target</h3>
-            <p>
-              Presearch target was 3-7 seconds with a loading state. The integrated MVP uses 5-8s P50
-              and 30s hard ceiling because OpenEMR bootstrap and LLM calls are synchronous costs.
-            </p>
-          </div>
-          <div class="card risk span-6">
-            <h3>Silent omission</h3>
-            <p>
-              Missing allergies or meds cannot be hidden. The response must show a safety-critical gap
-              instead of producing a clean but unsafe summary.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="data">
-        <div class="section-head">
-          <p class="kicker">Model input boundary</p>
-          <h2>ChartSnapshot, Not Raw Chart</h2>
-          <p class="lead">
-            The LLM gets a minimized clinical snapshot with source references, not raw SQL rows or broad FHIR bundles.
-          </p>
-        </div>
-        <div class="grid">
+        <div class="grid" style="margin-top: 1.25rem;">
           <div class="card span-7">
-            <h3>Included in the snapshot</h3>
+            <h3>What the snapshot includes</h3>
             <table class="table">
               <thead>
                 <tr>
                   <th>Data</th>
-                  <th>Presentation requirement</th>
+                  <th>Why it is in scope</th>
                 </tr>
               </thead>
               <tbody>
@@ -996,18 +963,12 @@
               <li>Full chart history outside the requested window</li>
             </ul>
           </div>
-          <div class="card decision span-6">
-            <h3>Why adapters exist</h3>
+          <div class="card decision span-12">
+            <h3>Why a snapshot, not raw FHIR or SQL</h3>
             <p>
-              Presearch wanted FHIR/API tools to avoid direct SQL. The audit adds a stricter criterion:
-              data must also be normalized and minimized before it becomes model input.
-            </p>
-          </div>
-          <div class="card risk span-6">
-            <h3>Legacy data hazards</h3>
-            <p>
-              OpenEMR can contain duplicate <code>pubpid</code>, zero-date sentinels, unbounded strings,
-              and fragmented <code>form_*</code> data. The adapter layer absorbs those hazards.
+              Raw FHIR bundles are PHI-heavy and broad. Direct SQL bypasses OpenEMR auth and audit.
+              The snapshot is the boundary that lets the agent be useful without exporting the chart.
+              Source references travel with the data, so verification has something to check against.
             </p>
           </div>
         </div>
@@ -1015,10 +976,11 @@
 
       <section id="agent">
         <div class="section-head">
-          <p class="kicker">Agent runtime</p>
-          <h2>Small Deterministic LangGraph</h2>
+          <p class="kicker">Agent runtime and trust layer</p>
+          <h2>LangGraph Plus Verification Gate</h2>
           <p class="lead">
-            LangGraph.js gives explicit graph state and node-level traceability without building a sprawling multi-agent system.
+            A small, deterministic graph in LangGraph.js. The response the user sees is the
+            post-verification answer, not the first model draft.
           </p>
         </div>
         <div class="flow">
@@ -1040,84 +1002,204 @@
           <div class="flow-step">
             <small>Node</small>
             <strong>Synthesize</strong>
-            <p>Create draft response and structured claim ledger.</p>
+            <p>Draft response plus structured claim ledger.</p>
           </div>
           <div class="flow-step">
             <small>Node</small>
             <strong>Verify</strong>
-            <p>Check source support and hard clinical rules.</p>
+            <p>Source-support and clinical hard-stops.</p>
           </div>
           <div class="flow-step">
             <small>Node</small>
             <strong>Format</strong>
-            <p>Stream cited briefing with explicit gaps.</p>
+            <p>Stream cited briefing, with explicit gaps where data is missing.</p>
           </div>
         </div>
-        <div class="grid" style="margin-top: 1rem;">
-          <div class="card decision span-6">
-            <h3>Framework decision</h3>
-            <p>
-              LangGraph was chosen over a custom loop because explicit nodes and state transitions
-              make the clinical workflow auditable and easier to defend.
-            </p>
-          </div>
-          <div class="card decision span-6">
-            <h3>Model decision</h3>
-            <p>
-              Claude Sonnet 4 is used for retrieval and verification in the MVP for tool use,
-              context window, and instruction-following. Cheaper verifier models wait for eval proof.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="verification">
-        <div class="section-head">
-          <p class="kicker">Trust layer</p>
-          <h2>Verification Before Display</h2>
-          <p class="lead">
-            The response users see is not the first model draft. It is the post-verification answer.
-          </p>
-        </div>
-        <div class="grid">
+        <div class="grid" style="margin-top: 1.25rem;">
           <div class="card span-4">
             <div class="big-number">1</div>
             <h3>Claim ledger</h3>
-            <p>Every factual claim is represented as structured data with category, source, safety flag, and status.</p>
+            <p>Every factual claim is structured: category, source ref, safety flag, status. Citations are produced at retrieval time, not reverse-mapped after.</p>
           </div>
           <div class="card span-4">
             <div class="big-number">2</div>
             <h3>Deterministic checks</h3>
-            <p>Structured facts like dose, lab value, date, allergy, and patient identity are checked directly.</p>
+            <p>Doses, lab values, dates, allergies, and patient identity are verified against the snapshot directly — not re-prompted to a model.</p>
           </div>
           <div class="card span-4">
             <div class="big-number">3</div>
             <h3>Gate output</h3>
-            <p>Unsupported claims are stripped; malformed output is rejected; safety-critical gaps are displayed.</p>
+            <p>Unsupported claims stripped; malformed output rejected; safety-critical gaps surfaced rather than hidden behind clean prose.</p>
           </div>
           <div class="card decision span-6">
-            <h3>Why source tags at retrieval time</h3>
+            <h3>Why LangGraph over a custom loop</h3>
             <p>
-              Presearch rejected post-hoc fact tracing because reverse-mapping prose back to records is
-              slower and less reliable than producing citations as part of retrieval.
+              Explicit nodes and state transitions make the clinical workflow auditable. A free-form
+              loop would be smaller code but harder to defend in a clinical context.
             </p>
           </div>
-          <div class="card risk span-6">
-            <h3>Clinical hard stops</h3>
+          <div class="card decision span-6">
+            <h3>Why Claude Sonnet 4</h3>
             <p>
-              Allergies, drug interactions, and dosage-sensitive warnings cannot be probabilistic labels.
-              They are verified or the system fails closed.
+              Tool use, context window, and instruction-following good enough for both retrieval and
+              verification roles in the MVP. Cheaper verifier models wait for eval proof before being adopted.
             </p>
           </div>
         </div>
       </section>
 
-      <section id="security">
+      <section id="hardest">
         <div class="section-head">
-          <p class="kicker">Trust boundaries</p>
-          <h2>Security Model</h2>
+          <p class="kicker">What was actually hard</p>
+          <h2>Hardest Problems And How We Solved Them</h2>
           <p class="lead">
-            The agent has no public identity and no privileges beyond authorized OpenEMR chart context.
+            The interesting work was not "call an LLM." It was making the LLM safe and useful inside
+            a 25-year-old clinical codebase without forking it.
+          </p>
+        </div>
+        <div class="grid">
+          <div class="card decision span-12">
+            <h3>1. Integrate into a legacy PHP monolith without forking it</h3>
+            <p>
+              OpenEMR is a long-lived codebase with global state, two template engines, and an upstream
+              we want to stay mergeable with. Bolting Node services into core, patching kernel routes,
+              or grafting a parallel auth model would all "work" and all be unshippable.
+            </p>
+            <p>
+              <strong>Solution:</strong> a custom module — the existing extension point. No core patches.
+              Routes and listeners registered through the module's bootstrap. UI entry points hook into
+              the patient and schedule views the way other modules already do. The result is a feature
+              that follows the same shape as the rest of OpenEMR's extensions and could plausibly be
+              proposed upstream as one.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>2. PHP and Node, without bolting Node into PHP</h3>
+            <p>
+              LangGraph.js is the right framework. OpenEMR is PHP. Embedding a Node runtime inside
+              PHP-FPM is the wrong shape.
+            </p>
+            <p>
+              <strong>Solution:</strong> private-network split. The PHP module proxies a minimized
+              request to the Node service over Railway's private network. Both stacks stay idiomatic;
+              the browser only ever talks to OpenEMR.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>3. Silent omission of safety-critical data</h3>
+            <p>
+              A clean summary that quietly drops an allergy is worse than no summary. This is the
+              failure mode that ends pilots.
+            </p>
+            <p>
+              <strong>Solution:</strong> claim ledger plus deterministic checks at the verification
+              gate. Allergies and interactions are not probabilistic — they are verified, or the
+              system fails closed and renders the gap.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>4. Prompt injection from chart text</h3>
+            <p>
+              Patient notes are untrusted input. A previous provider's free-text note can contain
+              "ignore previous instructions" or worse.
+            </p>
+            <p>
+              <strong>Solution:</strong> verification is structural, not instruction-following.
+              Instructions embedded in chart text cannot create verified claims without source
+              support, because the gate checks structured records, not the model's narrative.
+            </p>
+          </div>
+          <div class="card risk span-6">
+            <h3>5. Legacy schema hazards</h3>
+            <p>
+              Duplicate <code>pubpid</code>, zero-date sentinels, unbounded strings, fragmented
+              <code>form_*</code> tables. Anything that hands raw rows to a model produces wrong
+              answers confidently.
+            </p>
+            <p>
+              <strong>Solution:</strong> the ChartSnapshot adapter layer absorbs these hazards.
+              Normalization, identifier discipline, and missingness handling all happen before the
+              model sees anything.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="decisions">
+        <div class="section-head">
+          <p class="kicker">Tradeoffs</p>
+          <h2>Key Decisions And Rejected Alternatives</h2>
+          <p class="lead">
+            Each row: the choice, the option we did not take, and why.
+          </p>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Choice</th>
+              <th>Rejected alternative</th>
+              <th>Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Custom OpenEMR module</td>
+              <td>Standalone public SPA / SMART app</td>
+              <td>SPA creates a second origin, token handling, and worse workflow fit. SMART is for cross-EHR marketplace apps; this is an internal feature.</td>
+            </tr>
+            <tr>
+              <td>Private LangGraph service</td>
+              <td>Browser → agent direct, or Node embedded in PHP</td>
+              <td>Avoids CORS, second login, browser-held agent tokens, and a second public attack surface. Keeps PHP and Node idiomatic.</td>
+            </tr>
+            <tr>
+              <td>ChartSnapshot adapters</td>
+              <td>Direct Node-to-MySQL or raw FHIR bundle prompting</td>
+              <td>Direct SQL bypasses auth and audit. Raw FHIR is broad and PHI-heavy. The snapshot is the contract; FHIR can live inside adapters.</td>
+            </tr>
+            <tr>
+              <td>LangGraph.js</td>
+              <td>Custom agent loop</td>
+              <td>Explicit nodes and state transitions make the clinical workflow auditable and easier to defend.</td>
+            </tr>
+            <tr>
+              <td>Claude Sonnet 4 (managed)</td>
+              <td>Self-hosted open-weight model</td>
+              <td>GPU and model operations add too much delivery risk for the sprint. Managed API with BAA fits the timeline.</td>
+            </tr>
+            <tr>
+              <td>Postgres for agent state</td>
+              <td>Reuse OpenEMR MySQL</td>
+              <td>LangGraph has first-party Postgres checkpointing. Separate storage reduces blast radius if the agent service is compromised.</td>
+            </tr>
+            <tr>
+              <td>Read-only in v1</td>
+              <td>Write-back to chart</td>
+              <td>Write actions multiply review surface and clinical risk. Read-only proves the briefing loop first; write-back is the planned next step.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="grid" style="margin-top: 1.25rem;">
+          <div class="card decision span-12">
+            <h3>Defense summary</h3>
+            <p>
+              The architecture is intentionally narrow: OpenEMR-native, read-only, source-cited,
+              minimized, audited, eval-gated, and deployable in the sprint timeline. One consideration
+              that shaped several of these choices — though not a primary design goal — is that an
+              integration shaped like other OpenEMR modules is more plausibly adoptable upstream than
+              a forked or sidecar approach would be.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="operations">
+        <div class="section-head">
+          <p class="kicker">Security, audit, operations</p>
+          <h2>Boundaries, Audit, And Deployment</h2>
+          <p class="lead">
+            Demo data today, but the architecture treats chart content as PHI-equivalent and the
+            deployment shape carries forward into production.
           </p>
         </div>
         <div class="grid">
@@ -1127,251 +1209,57 @@
           </div>
           <div class="card span-4">
             <h3>OpenEMR → Agent</h3>
-            <p>Private request envelope over Railway private network. Optional shared secret or mTLS for production.</p>
+            <p>Private request envelope over Railway private network. Shared secret or mTLS for production.</p>
           </div>
           <div class="card span-4">
             <h3>Agent → LLM</h3>
-            <p>Provider API key lives server-side. Model receives minimized snapshot, not full chart.</p>
+            <p>Provider API key server-side. Model receives minimized snapshot, not full chart.</p>
           </div>
-          <div class="card decision span-6">
-            <h3>Authorization criteria</h3>
-            <p>
-              Multi-user clinical settings are the norm. The policy gate checks site, patient, scope,
-              data category, and supported task before disclosure.
-            </p>
-          </div>
-          <div class="card risk span-6">
-            <h3>Prompt injection</h3>
-            <p>
-              Patient notes are untrusted input. Instructions inside chart text are ignored and cannot
-              create verified claims without source support.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="audit">
-        <div class="section-head">
-          <p class="kicker">Compliance posture</p>
-          <h2>Audit And PHI Controls</h2>
-          <p class="lead">
-            Demo data is used, but the architecture treats chart content as PHI-equivalent.
-          </p>
-        </div>
-        <div class="grid">
           <div class="card span-7">
-            <h3><code>AGENT_PHI_DISCLOSURE</code></h3>
+            <h3><code>AGENT_PHI_DISCLOSURE</code> audit event</h3>
             <p>
-              Emitted before model-bound chart content leaves OpenEMR. It records user, site,
-              patient identifiers, request/conversation ID, purpose, disclosed categories, destination,
-              timestamp, and result status when known.
+              Emitted before any model-bound chart content leaves OpenEMR. Records user, site, patient
+              identifiers, request and conversation ID, purpose, disclosed categories, destination,
+              timestamp, and result status. Does not store raw prompt or completion text.
             </p>
             <p>
-              It does not store raw prompt or completion text.
+              Dedicated event, not buried in generic API logs — chosen so audit/compliance review can
+              trace every disclosure without query-log archaeology.
             </p>
           </div>
           <div class="card span-5">
-            <h3>Production requirements</h3>
+            <h3>Production checklist</h3>
             <ul>
               <li>Signed BAA with model provider</li>
-              <li>No-training/no-retention settings</li>
-              <li>TLS 1.2+ outbound calls</li>
-              <li>Retention policy</li>
+              <li>No-training / no-retention settings</li>
+              <li>TLS 1.2+ outbound</li>
+              <li>Retention and breach response policies</li>
               <li>Centralized audit monitoring</li>
-              <li>Breach response procedures</li>
             </ul>
           </div>
-          <div class="card decision span-12">
-            <h3>Why explicit audit</h3>
-            <p>
-              Presearch required audit/compliance from day one. The architecture therefore uses a
-              dedicated disclosure event rather than relying only on configurable query or API logs.
-            </p>
+          <div class="card span-6">
+            <h3>Deployment (Railway)</h3>
+            <table class="table">
+              <thead>
+                <tr><th>Resource</th><th>Visibility</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>OpenEMR service</td><td>Public</td></tr>
+                <tr><td>LangGraph service</td><td>Private</td></tr>
+                <tr><td>MySQL (OpenEMR)</td><td>Private</td></tr>
+                <tr><td>Postgres (agent state)</td><td>Private</td></tr>
+                <tr><td>Object storage</td><td>Per config</td></tr>
+              </tbody>
+            </table>
           </div>
-        </div>
-      </section>
-
-      <section id="evals">
-        <div class="section-head">
-          <p class="kicker">Quality system</p>
-          <h2>Evals, Observability, And Cost</h2>
-          <p class="lead">
-            The agent is only trustworthy if failures are measurable and regressions are caught.
-          </p>
-        </div>
-        <div class="grid">
-          <div class="card span-4">
-            <h3>LangSmith</h3>
-            <p>Graph/LLM traces with latency, token, cost, tool, and status metadata. No PHI bodies.</p>
-          </div>
-          <div class="card span-4">
-            <h3>Vitest evals</h3>
-            <p>Happy path, failure path, adversarial cases, and schema-drift smoke tests.</p>
-          </div>
-          <div class="card span-4">
-            <h3>Cost tracking</h3>
-            <p>Per-request token/cost metrics plus usage model for 100, 1K, 10K, and 100K users.</p>
-          </div>
-          <div class="card decision span-6">
-            <h3>Eval criteria</h3>
-            <p>
-              Tests must cover correctness, all claims source-attributed, no cross-patient leakage,
-              prompt-injection resistance, and graceful failure on missing data.
-            </p>
-          </div>
-          <div class="card decision span-6">
-            <h3>Cost criteria</h3>
-            <p>
-              Cost projection is not cost-per-token times users. It depends on patients per clinician,
-              follow-up rate, snapshot size, cache hit rate, retention, and audit volume.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="deployment">
-        <div class="section-head">
-          <p class="kicker">Operations</p>
-          <h2>Railway Deployment</h2>
-          <p class="lead">
-            A pragmatic deployment for the sprint: simple enough to ship, structured enough to defend.
-          </p>
-        </div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Resource</th>
-              <th>Visibility</th>
-              <th>Purpose</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>OpenEMR service</td>
-              <td>Public</td>
-              <td>EHR UI, auth, agent module, browser-origin proxy.</td>
-            </tr>
-            <tr>
-              <td>LangGraph service</td>
-              <td>Private</td>
-              <td>Self-hosted Node/TypeScript agent runtime.</td>
-            </tr>
-            <tr>
-              <td>MySQL</td>
-              <td>Private</td>
-              <td>OpenEMR database.</td>
-            </tr>
-            <tr>
-              <td>Postgres</td>
-              <td>Private</td>
-              <td>Agent state, claim ledgers, metadata, costs.</td>
-            </tr>
-            <tr>
-              <td>Object storage</td>
-              <td>Private/public by config</td>
-              <td>OpenEMR documents.</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="grid" style="margin-top: 1rem;">
-          <div class="card decision span-6">
-            <h3>Why Railway</h3>
-            <p>
-              Presearch prioritized simple infra over DevOps complexity. Railway gives managed MySQL,
-              Postgres, object storage, variables, environments, and deploys in one place.
-            </p>
-          </div>
-          <div class="card decision span-6">
-            <h3>Why Postgres for agent state</h3>
-            <p>
-              LangGraph has first-party Postgres checkpointing, and separate storage reduces the blast
-              radius if the agent service is compromised.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="scale">
-        <div class="section-head">
-          <p class="kicker">Production thinking</p>
-          <h2>Scale And Performance</h2>
-          <p class="lead">
-            The MVP targets a family practice, while documenting the changes needed for a 500-bed hospital.
-          </p>
-        </div>
-        <div class="grid">
-          <div class="card span-4">
-            <h3>MVP target</h3>
+          <div class="card span-6">
+            <h3>Evals, observability, scale posture</h3>
             <ul>
-              <li>5-15 concurrent users</li>
-              <li>5-8s P50 response</li>
-              <li>30s hard ceiling</li>
-              <li>SSE streaming</li>
+              <li>LangSmith traces — latency, tokens, cost, tool status. No PHI bodies.</li>
+              <li>Vitest evals — happy path, failure path, prompt-injection, schema drift.</li>
+              <li>MVP: 5-15 concurrent users, 5-8s P50, 30s hard ceiling, SSE streaming.</li>
+              <li>Hospital scale path: streaming outside PHP-FPM, background precomputation, app cache, rate limits.</li>
             </ul>
-          </div>
-          <div class="card span-4">
-            <h3>Hospital changes</h3>
-            <ul>
-              <li>Streaming outside PHP-FPM</li>
-              <li>Background precomputation</li>
-              <li>Application cache</li>
-              <li>Rate limits</li>
-            </ul>
-          </div>
-          <div class="card span-4">
-            <h3>Data operations</h3>
-            <ul>
-              <li>Retention jobs</li>
-              <li>Audit export</li>
-              <li>Operational indexes</li>
-              <li>Anomaly detection</li>
-            </ul>
-          </div>
-          <div class="card decision span-12">
-            <h3>Scale criteria</h3>
-            <p>
-              We are not building for hospital scale in week one, but we avoid choices that foreclose it:
-              private service boundary, separate state store, explicit audit, and eval-driven model changes.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="tradeoffs">
-        <div class="section-head">
-          <p class="kicker">Tradeoffs</p>
-          <h2>Rejected Alternatives</h2>
-          <p class="lead">
-            These options were simpler in one dimension but weaker against the clinical, security, or maintainability criteria.
-          </p>
-        </div>
-        <div class="grid">
-          <div class="card span-6">
-            <h3>Direct Node-to-MySQL reads</h3>
-            <p>Rejected because it bypasses OpenEMR authorization and audit and exposes the agent to legacy schema hazards.</p>
-          </div>
-          <div class="card span-6">
-            <h3>Raw FHIR bundle prompting</h3>
-            <p>Rejected as model input because raw bundles are too broad and PHI-heavy. FHIR remains useful inside adapters.</p>
-          </div>
-          <div class="card span-6">
-            <h3>Standalone public SPA</h3>
-            <p>Rejected because it creates a second origin, token handling, and worse workflow fit.</p>
-          </div>
-          <div class="card span-6">
-            <h3>Third-party SMART app flow</h3>
-            <p>Rejected for MVP because this is an internal OpenEMR feature, not a cross-EHR marketplace app.</p>
-          </div>
-          <div class="card span-6">
-            <h3>Self-hosted open-weight LLM</h3>
-            <p>Rejected for MVP because GPU/model operations add too much delivery risk for the sprint.</p>
-          </div>
-          <div class="card decision span-6">
-            <h3>Defense summary</h3>
-            <p>
-              The chosen architecture is intentionally narrow: OpenEMR-native, read-only, source-cited,
-              minimized, audited, eval-gated, and deployable in the project timeline.
-            </p>
           </div>
         </div>
       </section>
