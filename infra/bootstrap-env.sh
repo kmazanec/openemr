@@ -48,7 +48,10 @@ ENV_NAME="${1:?usage: $(basename "$0") <environment-name>}"
 
 OPENEMR_SERVICE="openemr-${ENV_NAME}"
 MOUNT_PATH="/var/www/localhost/htdocs/openemr/sites"
-FLEX_IMAGE="openemr/openemr:flex"
+# Thin overlay on the upstream openemr/openemr:flex image that adds
+# Apache configuration for Railway's TLS-terminating edge proxy. Built
+# from docker/railway/Dockerfile and pushed to Docker Hub.
+FLEX_IMAGE="kmazanec/openemr-railway:flex"
 
 GITLAB_HOST="${GITLAB_HOST:-labs.gauntletai.com}"
 GITLAB_REPO_PATH="${GITLAB_REPO_PATH:-keithmazanec/openemr}"
@@ -102,6 +105,24 @@ find_mysql_service() {
         | jq -r '[.[] | select(.source.image // "" | startswith("mysql:"))] | .[0].name // empty'
 }
 
+# Poll find_mysql_service until it returns a name, or timeout. Railway
+# operations are asynchronous: a service created by `railway add` may
+# not be visible in `railway service list` immediately. Prints the
+# discovered name on stdout, or empty string after the timeout.
+wait_for_mysql_service() {
+    local deadline=$(($(date +%s) + 30))
+    local name=""
+    while [[ "$(date +%s)" -lt "$deadline" ]]; do
+        name=$(find_mysql_service)
+        if [[ -n "$name" ]]; then
+            echo "$name"
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+
 # ---------------------------------------------------------------------------
 # 0. Sanity: authenticated and inside the linked project
 # ---------------------------------------------------------------------------
@@ -148,9 +169,10 @@ else
     # `railway add --database mysql` is interactive even with the flag.
     # Driving it with `</dev/null` accepts defaults at every prompt.
     railway add --database mysql </dev/null >/dev/null
-    MYSQL_SERVICE=$(find_mysql_service)
+    # Railway operations are async; poll for the new service to appear.
+    MYSQL_SERVICE=$(wait_for_mysql_service)
     if [[ -z "$MYSQL_SERVICE" ]]; then
-        echo "error: provisioned MySQL but could not discover its service name" >&2
+        echo "error: provisioned MySQL but could not discover its service name within 30s" >&2
         exit 1
     fi
     info "provisioned managed MySQL as '$MYSQL_SERVICE'"

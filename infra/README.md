@@ -4,9 +4,27 @@ Deployment scripts for the Railway-hosted OpenEMR project.
 
 ## How deploys work
 
-The OpenEMR service runs the upstream `openemr/openemr:flex` image directly. The flex image clones the OpenEMR source from our GitLab server at container startup using `FLEX_REPOSITORY` env vars. There is no Dockerfile, no Railway build, and no repository upload — Railway pulls a published image from Docker Hub and the image clones our code at boot.
+The OpenEMR service runs `kmazanec/openemr-railway:flex` — a thin overlay built from `docker/railway/Dockerfile` that adds Railway-specific Apache configuration on top of the upstream `openemr/openemr:flex` image. The flex base clones the OpenEMR source from our GitLab server at container startup using `FLEX_REPOSITORY` env vars. There is no Railway-side build and no repository upload — Railway pulls the published image from Docker Hub and the image clones our code at boot.
 
-To deploy a new version: push to the tracked branch (`master` by default), then restart the Railway service. The container reclones, runs composer/npm install, and serves the new code.
+To deploy a new version of OpenEMR: push to the tracked branch (`master` by default), then restart the Railway service. The container reclones, runs composer/npm install, and serves the new code.
+
+## Building the deploy image
+
+The deploy image is built locally and pushed to Docker Hub. It only needs to be rebuilt when `docker/railway/Dockerfile` or `docker/railway/zz-railway.conf` changes.
+
+```bash
+docker login -u kmazanec
+docker buildx build --platform linux/amd64 -t kmazanec/openemr-railway:flex --push docker/railway/
+```
+
+Note `--platform linux/amd64`: Railway runs amd64. If you build natively on Apple Silicon without specifying the platform, the resulting image will be arm64 and Railway will refuse to run it.
+
+After pushing, restart the Railway services to pick up the new image:
+
+```bash
+railway service redeploy --service openemr-dev --environment dev -y
+railway service redeploy --service openemr-production --environment production -y
+```
 
 ## Layout
 
