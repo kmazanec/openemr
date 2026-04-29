@@ -79,24 +79,45 @@ Three things to do once the script returns the Droplet's IP:
 
 ### Deploying code changes
 
-Pushes to `master` trigger `.gitlab-ci.yml`'s `deploy` job, which SSHes to
-the Droplet and runs `infra/deploy.sh`. The script does an in-place
-rolling recreate of the `openemr` container only — `mysql` and `caddy`
-stay up across the deploy. Caddy holds in-flight connections to the old
-container until it exits, so the switchover window is the few seconds
-between the new container becoming healthy and the old one being torn
-down. Not true blue/green (a single MariaDB is shared and only one
-openemr container runs at a time), but no scheduled downtime.
+Pushes to `master` trigger `.gitlab-ci.yml`'s `deploy` job, which runs
+on a project-specific GitLab runner installed on the Droplet itself.
+The job invokes `infra/runner-bootstrap.sh`, which:
 
-The deploy job aborts if `/meta/health/readyz` doesn't pass within five
+1. `git fetch && git reset --hard origin/master` in `/opt/openemr`.
+2. `exec`s into `infra/deploy.sh` from the freshly-pulled commit.
+
+`deploy.sh` then does an in-place rolling recreate of the `openemr`
+container only — `mysql` and `caddy` stay up across the deploy. Caddy
+holds in-flight connections to the old container until it exits, so
+the switchover window is the few seconds between the new container
+becoming healthy and the old one being torn down. Not true blue/green
+(a single MariaDB is shared and only one openemr container runs at a
+time), but no scheduled downtime.
+
+The deploy job aborts if `/meta/health/readyz` doesn't pass within ten
 minutes, leaving the container up so its logs are inspectable.
+
+#### Why the two-script split
+
+Bash reads a script into memory at invocation. If a single script
+both pulled the repo *and* ran the deploy, every fix to the deploy
+logic would only take effect on the deploy *after* the one that
+landed it — because the runner re-invokes the on-disk copy from the
+*previous* deploy. The split (`runner-bootstrap.sh` for the pull,
+`deploy.sh` for everything else) lets us `exec` into the new
+deploy.sh after the pull, so changes apply immediately.
+
+Consequence: `runner-bootstrap.sh` is effectively immutable — any
+change to it only takes effect on the deploy after the one that
+lands the change. Keep it small. Put new logic in `deploy.sh`.
 
 #### Runner setup
 
 A project-specific GitLab runner lives on the Droplet itself with the
 shell executor and tag `openemr-droplet`. The CI job has the matching
 `tags:` clause, so jobs on `master` schedule onto this runner and run
-`infra/deploy.sh` natively — no SSH, no secrets, no nested Docker.
+`infra/runner-bootstrap.sh` natively — no SSH, no secrets, no nested
+Docker.
 
 To install (one-time, on the Droplet, as root):
 
@@ -138,9 +159,14 @@ sudo -u gitlab-runner git -C /opt/openemr pull # writable
 #### Manual deploy (fallback)
 
 If the CI job is broken or you need to push a hotfix without going
-through GitLab, SSH in and run the same script directly:
+through GitLab, SSH in and run either script directly:
 
 ```bash
+# Same as what CI runs — pulls master, then deploys.
+ssh root@emr.biograph.dev bash /opt/openemr/infra/runner-bootstrap.sh
+
+# Skip the pull and just redeploy whatever is currently checked out
+# (useful for testing local changes on the Droplet before pushing).
 ssh root@emr.biograph.dev bash /opt/openemr/infra/deploy.sh
 ```
 

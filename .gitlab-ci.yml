@@ -1,10 +1,10 @@
 # GitLab CI: deploy master to the DigitalOcean Droplet on every push.
 #
 # Strategy: a project-specific shell-executor runner installed on the
-# Droplet itself runs infra/deploy.sh directly. No SSH, no secrets — the
-# runner is already on the target host. The deploy script does an
-# in-place rolling recreate of the openemr container; MariaDB and Caddy
-# stay up across the deploy.
+# Droplet itself runs infra/runner-bootstrap.sh, which pulls the latest
+# master and exec's into infra/deploy.sh from the new commit. The split
+# is so that fixes to deploy.sh take effect on the deploy that lands
+# them, not the one after — see header in runner-bootstrap.sh.
 #
 # Runner setup is documented in infra/README.md.
 
@@ -18,7 +18,7 @@ deploy:
   rules:
   - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
   script:
-  - bash /opt/openemr/infra/deploy.sh
+  - bash /opt/openemr/infra/runner-bootstrap.sh
   environment:
     name: production
     url: https://emr.biograph.dev

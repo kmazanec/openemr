@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 #
-# Droplet-side deploy script. Invoked over SSH from GitLab CI on every
-# push to master. Idempotent and safe to re-run.
+# Droplet-side deploy script. NOT invoked directly by CI — the runner
+# calls infra/runner-bootstrap.sh, which updates the working tree and
+# then exec's into this file from the new commit. See the header in
+# runner-bootstrap.sh for why we split.
 #
 # Strategy: rolling recreate of the openemr container only. MariaDB and
 # Caddy stay up across the deploy. Caddy holds in-flight connections to
 # the old container until it exits, so the switchover window is the few
 # seconds between the new container becoming healthy and the old one
 # being torn down.
+#
+# Safe to invoke manually (e.g. `bash infra/deploy.sh`) for a hotfix
+# without going through CI — in that case we derive the deployed SHA
+# from HEAD, since there's no bootstrap to pass it in.
 
 set -euo pipefail
 
 REPO_DIR=${REPO_DIR:-/opt/openemr}
 COMPOSE_DIR="${REPO_DIR}/docker/digitalocean"
-BRANCH=${DEPLOY_BRANCH:-master}
 HEALTH_URL=${HEALTH_URL:-https://localhost/meta/health/readyz}
 HEALTH_TIMEOUT=${HEALTH_TIMEOUT:-600}
 
@@ -21,32 +26,24 @@ log() { echo "[deploy] $*"; }
 
 log "starting at $(date -Iseconds)"
 
+# When invoked via runner-bootstrap.sh we get OLD/NEW from env. When
+# invoked manually, fall back to "we don't know what was running before"
+# and use HEAD for the new SHA.
+NEW_SHA=${DEPLOY_NEW_SHA:-$(git -C "${REPO_DIR}" rev-parse HEAD)}
+OLD_SHA=${DEPLOY_OLD_SHA:-unknown}
+log "deploying ${OLD_SHA} -> ${NEW_SHA}"
+
 # Pre-flight: docker compose silently treats an unreadable .env as
 # "all variables empty" during `pull`/`up` while hard-failing on
 # `exec`/`logs`. That asymmetry once produced a deploy that recreated
 # the container with empty env vars and timed out the healthcheck for
 # unrelated-looking reasons. Fail loud here instead.
-ENV_FILE="${REPO_DIR}/docker/digitalocean/.env"
+ENV_FILE="${COMPOSE_DIR}/.env"
 if [[ ! -r "${ENV_FILE}" ]]; then
     log "FATAL: cannot read ${ENV_FILE} as $(whoami)"
     ls -la "${ENV_FILE}" || true
     exit 1
 fi
-
-cd "${REPO_DIR}"
-log "fetching origin/${BRANCH}"
-git fetch --quiet origin "${BRANCH}"
-
-OLD_SHA=$(git rev-parse HEAD)
-NEW_SHA=$(git rev-parse "origin/${BRANCH}")
-
-if [[ "${OLD_SHA}" == "${NEW_SHA}" ]]; then
-    log "already at ${NEW_SHA}; nothing to do"
-    exit 0
-fi
-
-log "deploying ${OLD_SHA} -> ${NEW_SHA}"
-git reset --hard "origin/${BRANCH}"
 
 cd "${COMPOSE_DIR}"
 log "pulling images"
