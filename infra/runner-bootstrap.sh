@@ -39,9 +39,12 @@ KEEP_RELEASES=${KEEP_RELEASES:-2}
 
 log() { echo "[bootstrap] $*"; }
 
-log "fetching origin/${BRANCH}"
-git -C "${REPO_GIT}" fetch --quiet origin "${BRANCH}"
-NEW_SHA=$(git -C "${REPO_GIT}" rev-parse "origin/${BRANCH}")
+log "fetching ${BRANCH}"
+# A --mirror clone keeps remote refs as local refs (refs/heads/*), not
+# refs/remotes/origin/*. So we ask for ${BRANCH} directly, not
+# origin/${BRANCH}, and `fetch` updates refs/heads/${BRANCH} in place.
+git -C "${REPO_GIT}" fetch --quiet origin "${BRANCH}:${BRANCH}"
+NEW_SHA=$(git -C "${REPO_GIT}" rev-parse "${BRANCH}")
 
 # Resolve current release (may not exist on first deploy).
 if [[ -L "${CURRENT_LINK}" ]]; then
