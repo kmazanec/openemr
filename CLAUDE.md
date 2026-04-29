@@ -464,28 +464,51 @@ container (locally via `docker compose exec openemr ...`, in Railway via
 
 ```sh
 # 1. Restore baseline (upstream demo: 3 patients, 9 users, ACLs, list_options).
-#    Refuses to run if patient_data is non-empty.
+#    Refuses to run if patient_data is non-empty (--force overrides).
 db/seeds/restore-baseline.sh
 
-# 2. Generate Faker patients with light clinical scaffolding (encounters,
-#    problems, meds). Pure-additive — re-running adds more patients.
+# 2. Generate Faker patients with archetype-driven clinical scaffolding
+#    (problems, meds, encounters, vitals, allergies). Pure-additive.
 php bin/console seed:patients --count=100
 php bin/console seed:patients --count=20      # add 20 more later
 
-# 3. Verify state.
+# 3. Populate the calendar with appointments (yesterday + N business days).
+php bin/console seed:schedule --days=10
+
+# 4. Verify state — coverage, PCP panels, schedule window.
 php bin/console seed:status
 ```
 
-Layout:
+### Patient archetypes
+
+`seed:patients` picks a `PatientArchetype` per patient first, then drives
+every downstream generator off that archetype so the data shape is coherent
+(a `Diabetic` patient is guaranteed an E11.9 problem and a metformin
+prescription, with vitals clustered around the diabetic baseline).
+Distribution: `HealthyAdult` 40%, `Hypertensive` 20%, `Diabetic` 15%,
+`DiabeticUncontrolled` 5%, `ComplexElderly` 15%, `RecentEdVisit` 5%.
+
+### PCP assignment
+
+~70% of newly seeded patients are assigned to the baseline `physician`
+user (Donna Lee, id 6) as their PCP via `patient_data.providerID`; the rest
+spread across other authorized providers. `seed:schedule` then biases each
+provider's calendar toward their own panel but swaps in coverage patients
+~30% of the time, mirroring the partner-coverage workflow USERS.md describes.
+
+### Layout
+
 - `db/seeds/baseline.sql.gz` — committed dump (regenerate via
   `db/seeds/regenerate-baseline.sh`)
+- `bin/seed/PatientArchetype.php` — archetype enum + clinical profile
 - `bin/seed/Generators/` — Faker generators (autoloaded as `OpenEMR\Seed\*`)
 - `bin/seed/data/*.json` — curated condition/medication/encounter lists
 - `src/Common/Command/Seed*Command.php` — Symfony Console commands
 
-`seed:patients` inserts via `PatientService`, `EncounterService`,
-`ListService`, `PrescriptionService` — the same code paths the application
-uses, so seed data exercises the real validation and event-dispatch flow.
+Seed commands insert via `PatientService`, `EncounterService`,
+`ListService`, `PrescriptionService`, `VitalsService`, and
+`AppointmentService` — the same code paths the application uses, so seed
+data exercises the real validation and event-dispatch flow.
 
 ## Key Documentation
 

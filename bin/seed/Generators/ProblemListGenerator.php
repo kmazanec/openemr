@@ -3,8 +3,11 @@
 /**
  * ProblemListGenerator builds 'lists' table entries of type 'medical_problem'.
  *
- * Each call returns one problem-list row. The caller decides how many to
- * generate per patient (typically 0–3 per Level-2 patient).
+ * Returns one problem-list row per call. The caller drives count from the
+ * patient's archetype: archetype-required problems first (e.g. a diabetic
+ * patient always gets E11.9), then extra weighted picks from the curated
+ * pool. Required entries take precedence so the deterministic shape needed
+ * by the briefing scenarios is guaranteed.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -12,6 +15,8 @@
  * @copyright Copyright (c) 2026 Keith Mazanec
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
+
+declare(strict_types=1);
 
 namespace OpenEMR\Seed\Generators;
 
@@ -32,20 +37,40 @@ final readonly class ProblemListGenerator
     }
 
     /**
+     * Build a problem-list row for an archetype-required condition.
+     *
      * @return array<string, string|int>
      */
-    public function generate(int $pid): array
+    public function generateRequired(int $pid, string $code, string $title): array
+    {
+        return $this->buildRow($pid, $code, $title);
+    }
+
+    /**
+     * Build a problem-list row for a randomly-picked condition.
+     *
+     * @return array<string, string|int>
+     */
+    public function generateRandom(int $pid): array
     {
         $condition = $this->weightedPickCondition();
+        return $this->buildRow($pid, $condition['code'], $condition['title']);
+    }
+
+    /**
+     * @return array<string, string|int>
+     */
+    private function buildRow(int $pid, string $code, string $title): array
+    {
         $begdate = $this->faker->dateTimeBetween('-5 years', '-1 month')->format('Y-m-d');
 
         return [
             'pid'       => $pid,
             'type'      => 'medical_problem',
-            'title'     => $condition['title'],
+            'title'     => $title,
             'begdate'   => $begdate,
             'enddate'   => '',
-            'diagnosis' => 'ICD10:' . $condition['code'],
+            'diagnosis' => 'ICD10:' . $code,
         ];
     }
 

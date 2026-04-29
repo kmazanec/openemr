@@ -15,9 +15,12 @@
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
+declare(strict_types=1);
+
 namespace OpenEMR\Seed\Generators;
 
 use Faker\Generator as Faker;
+use OpenEMR\Seed\PatientArchetype;
 
 final readonly class PatientGenerator
 {
@@ -54,9 +57,9 @@ final readonly class PatientGenerator
     /**
      * Build one patient_data field array suitable for PatientService::insert().
      *
-     * @return array<string, string>
+     * @return array<string, string|int>
      */
-    public function generate(): array
+    public function generate(PatientArchetype $archetype, int $pcpUserId): array
     {
         $sex = $this->weightedPick(self::SEX_DISTRIBUTION);
         $fname = match ($sex) {
@@ -65,9 +68,10 @@ final readonly class PatientGenerator
             default => $this->faker->firstName(),
         };
 
-        // Adults skew our distribution — most demo patients are adult primary-care.
-        // Range: 18–88 years old, biased toward 35–70.
-        $dob = $this->faker->dateTimeBetween('-88 years', '-18 years')->format('Y-m-d');
+        [$minAge, $maxAge] = $archetype->ageRange();
+        $dob = $this->faker
+            ->dateTimeBetween('-' . $maxAge . ' years', '-' . $minAge . ' years')
+            ->format('Y-m-d');
 
         return [
             'fname'     => $fname,
@@ -88,6 +92,7 @@ final readonly class PatientGenerator
             'ethnicity' => $this->weightedPick(self::ETHNICITY_DISTRIBUTION),
             'status'    => $this->weightedPick(self::STATUS_DISTRIBUTION),
             'occupation'  => $this->faker->boolean(60) ? $this->faker->jobTitle() : '',
+            'providerID'  => $pcpUserId,
         ];
     }
 

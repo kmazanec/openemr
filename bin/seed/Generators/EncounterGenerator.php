@@ -5,7 +5,7 @@
  *
  * Encounters are dated within the last ~3 years, biased toward more recent
  * dates so timelines look realistic without all visits clustering on one
- * day. The caller passes the result to EncounterService::insertEncounter().
+ * day. Reasons come from VisitReasonPicker (archetype-biased).
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -14,57 +14,36 @@
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
+declare(strict_types=1);
+
 namespace OpenEMR\Seed\Generators;
 
 use Faker\Generator as Faker;
+use OpenEMR\Seed\PatientArchetype;
 
 final readonly class EncounterGenerator
 {
-    /**
-     * @var list<array{reason: string, pc_catid: int, weight: int}>
-     */
-    private array $templates;
-
-    public function __construct(private Faker $faker)
-    {
-        $path = __DIR__ . '/../data/encounter-templates.json';
-        $payload = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
-        $this->templates = $payload['templates'];
+    public function __construct(
+        private Faker $faker,
+        private VisitReasonPicker $reasonPicker,
+    ) {
     }
 
     /**
      * @return array<string, string|int>
      */
-    public function generate(int $providerId): array
+    public function generate(int $providerId, PatientArchetype $archetype): array
     {
-        $template = $this->weightedPickTemplate();
-        $date = $this->faker->dateTimeBetween('-3 years', 'now')->format('Y-m-d H:i:s');
-
         return [
-            'date'        => $date,
-            'reason'      => $template['reason'],
-            'pc_catid'    => $template['pc_catid'],
+            'date'        => $this->faker->dateTimeBetween('-3 years', '-1 day')->format('Y-m-d H:i:s'),
+            'reason'      => $this->reasonPicker->pick($archetype),
+            'pc_catid'    => 1,
             'class_code'  => 'AMB',
             'provider_id' => $providerId,
             'facility_id' => 3,
             'sensitivity' => 'normal',
+            'user'        => '',
+            'group'       => '',
         ];
-    }
-
-    /**
-     * @return array{reason: string, pc_catid: int, weight: int}
-     */
-    private function weightedPickTemplate(): array
-    {
-        $total = array_sum(array_column($this->templates, 'weight'));
-        $roll = $this->faker->numberBetween(1, $total);
-        $cumulative = 0;
-        foreach ($this->templates as $template) {
-            $cumulative += $template['weight'];
-            if ($roll <= $cumulative) {
-                return $template;
-            }
-        }
-        return $this->templates[0];
     }
 }

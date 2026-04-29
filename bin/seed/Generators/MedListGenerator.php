@@ -3,7 +3,10 @@
 /**
  * MedListGenerator builds prescription field arrays.
  *
- * The caller passes each result to PrescriptionService::insert().
+ * Returns one med per call. Like ProblemListGenerator, callers can request
+ * a specific medication (archetype-required, e.g. metformin for diabetics)
+ * or a weighted random pick from the curated pool. The caller passes each
+ * result to PrescriptionService::insert().
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -11,6 +14,8 @@
  * @copyright Copyright (c) 2026 Keith Mazanec
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
+
+declare(strict_types=1);
 
 namespace OpenEMR\Seed\Generators;
 
@@ -23,19 +28,51 @@ final readonly class MedListGenerator
      */
     private array $medications;
 
+    /** @var array<string, array{rxcui: string, name: string, dose: string, unit: string, freq: string, weight: int}> */
+    private array $medsByRxcui;
+
     public function __construct(private Faker $faker)
     {
         $path = __DIR__ . '/../data/common-meds.json';
         $payload = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
         $this->medications = $payload['medications'];
+
+        $byRxcui = [];
+        foreach ($this->medications as $med) {
+            $byRxcui[$med['rxcui']] = $med;
+        }
+        $this->medsByRxcui = $byRxcui;
     }
 
     /**
+     * Build a prescription row for an archetype-required medication.
+     *
      * @return array<string, string|int>
      */
-    public function generate(int $pid, int $providerId): array
+    public function generateByRxcui(int $pid, int $providerId, string $rxcui): array
     {
-        $med = $this->weightedPickMed();
+        if (!isset($this->medsByRxcui[$rxcui])) {
+            throw new \InvalidArgumentException("Unknown rxcui '{$rxcui}' in seed med catalog");
+        }
+        return $this->buildRow($pid, $providerId, $this->medsByRxcui[$rxcui]);
+    }
+
+    /**
+     * Build a prescription row for a randomly-picked medication.
+     *
+     * @return array<string, string|int>
+     */
+    public function generateRandom(int $pid, int $providerId): array
+    {
+        return $this->buildRow($pid, $providerId, $this->weightedPickMed());
+    }
+
+    /**
+     * @param array{rxcui: string, name: string, dose: string, unit: string, freq: string, weight: int} $med
+     * @return array<string, string|int>
+     */
+    private function buildRow(int $pid, int $providerId, array $med): array
+    {
         $startDate = $this->faker->dateTimeBetween('-2 years', '-1 week')->format('Y-m-d');
 
         return [
