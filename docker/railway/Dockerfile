@@ -24,6 +24,17 @@
 
 FROM openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
 
+# Revert the upstream flex Dockerfile's IPv4-only port-80 binding back
+# to the bare `Listen 80` form. Apache treats bare `Listen 80` as
+# dual-stack on Linux (binds both IPv4 and IPv6 via the kernel's
+# default IPV6_V6ONLY=0), which is required for Railway's IPv6 edge
+# proxy to reach the container.
+#
+# The upstream Dockerfile runs:
+#     sed -i 's/^Listen 80$/Listen 0.0.0.0:80/' /etc/apache2/httpd.conf
+# which we undo here.
+RUN sed -i 's/^Listen 0\.0\.0\.0:80$/Listen 80/' /etc/apache2/httpd.conf
+
 # Drop the Railway-specific Apache config into the conf.d directory.
 # The "zz-" prefix ensures it loads alphabetically after upstream's
 # own configs, so any directives we set here override theirs.
