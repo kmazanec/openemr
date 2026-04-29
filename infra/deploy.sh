@@ -91,16 +91,38 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
+# Run a command inside openemr, retrying for up to 5 minutes. The flex
+# entrypoint copies the source tree from /openemr (ro) to the runtime
+# path concurrently with Apache startup, so an `exec` that arrives
+# before the copy finishes can see partial state — a previous deploy
+# died on `composer install` because library/classes/ wasn't on disk
+# yet. Retry until the file tree is complete or we give up.
+retry_in_container() {
+    local desc=$1
+    shift
+    local cmd="$*"
+    local deadline=$(( $(date +%s) + 300 ))
+    while (( $(date +%s) < deadline )); do
+        if docker compose exec -T openemr sh -c "${cmd}"; then
+            return 0
+        fi
+        log "${desc} failed; retrying in 10s"
+        sleep 10
+    done
+    log "${desc} did not succeed within 5 minutes"
+    return 1
+}
+
 log "running composer install"
-docker compose exec -T openemr sh -c \
+retry_in_container "composer install" \
     "cd /var/www/localhost/htdocs/openemr && composer install --no-dev --no-interaction --no-progress"
 
 log "running npm install + build"
-docker compose exec -T openemr sh -c \
+retry_in_container "npm install + build" \
     "cd /var/www/localhost/htdocs/openemr && npm install --unsafe-perm --no-audit --no-fund && npm run build"
 
 log "optimizing autoloader"
-docker compose exec -T openemr sh -c \
+retry_in_container "composer dump-autoload" \
     "cd /var/www/localhost/htdocs/openemr && composer dump-autoload --optimize --apcu --no-interaction"
 
 # ---------------------------------------------------------------------
