@@ -55,6 +55,7 @@
         "doctrine/orm": "^3.6",
         "dompdf/dompdf": "^3.1.4",
         "ezyang/htmlpurifier": "^4.19.0",
+        "fakerphp/faker": "^1.24",
         "firehed/container": "^1.0",
         "giggsey/libphonenumber-for-php": "^9.0",
         "google/apiclient": "^2.18.4",
@@ -164,7 +165,8 @@
     ],
     "autoload": {
         "psr-4": {
-            "OpenEMR\\": "src"
+            "OpenEMR\\": "src",
+            "OpenEMR\\Seed\\": "bin/seed"
         },
         "classmap": [
             "library/classes"

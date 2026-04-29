@@ -1,0 +1,255 @@
+{
+  "_comment": "Common primary-care conditions for Faker-generated patients. ICD-10 codes are real. 'weight' is a relative likelihood \u2014 higher = more common. The generator picks 0-3 conditions per patient using these weights. Curated for plausibility, not epidemiological accuracy.",
+  "conditions": [
+    {
+      "code": "I10",
+      "title": "Essential (primary) hypertension",
+      "weight": 30
+    },
+    {
+      "code": "E78.5",
+      "title": "Hyperlipidemia, unspecified",
+      "weight": 25
+    },
+    {
+      "code": "E11.9",
+      "title": "Type 2 diabetes mellitus without complications",
+      "weight": 18
+    },
+    {
+      "code": "E66.9",
+      "title": "Obesity, unspecified",
+      "weight": 18
+    },
+    {
+      "code": "K21.9",
+      "title": "Gastro-esophageal reflux disease without esophagitis",
+      "weight": 15
+    },
+    {
+      "code": "F41.9",
+      "title": "Anxiety disorder, unspecified",
+      "weight": 14
+    },
+    {
+      "code": "F32.9",
+      "title": "Major depressive disorder, single episode, unspecified",
+      "weight": 13
+    },
+    {
+      "code": "M54.5",
+      "title": "Low back pain",
+      "weight": 12
+    },
+    {
+      "code": "J45.909",
+      "title": "Unspecified asthma, uncomplicated",
+      "weight": 10
+    },
+    {
+      "code": "G47.00",
+      "title": "Insomnia, unspecified",
+      "weight": 10
+    },
+    {
+      "code": "M19.90",
+      "title": "Osteoarthritis, unspecified site",
+      "weight": 10
+    },
+    {
+      "code": "E03.9",
+      "title": "Hypothyroidism, unspecified",
+      "weight": 9
+    },
+    {
+      "code": "J30.9",
+      "title": "Allergic rhinitis, unspecified",
+      "weight": 9
+    },
+    {
+      "code": "Z79.4",
+      "title": "Long term (current) use of insulin",
+      "weight": 7
+    },
+    {
+      "code": "Z79.899",
+      "title": "Other long term (current) drug therapy",
+      "weight": 7
+    },
+    {
+      "code": "I25.10",
+      "title": "Atherosclerotic heart disease of native coronary artery without angina",
+      "weight": 6
+    },
+    {
+      "code": "N39.0",
+      "title": "Urinary tract infection, site not specified",
+      "weight": 6
+    },
+    {
+      "code": "M25.561",
+      "title": "Pain in right knee",
+      "weight": 6
+    },
+    {
+      "code": "M25.562",
+      "title": "Pain in left knee",
+      "weight": 6
+    },
+    {
+      "code": "R51.9",
+      "title": "Headache, unspecified",
+      "weight": 6
+    },
+    {
+      "code": "F33.0",
+      "title": "Major depressive disorder, recurrent, mild",
+      "weight": 5
+    },
+    {
+      "code": "I48.91",
+      "title": "Unspecified atrial fibrillation",
+      "weight": 5
+    },
+    {
+      "code": "E11.65",
+      "title": "Type 2 diabetes mellitus with hyperglycemia",
+      "weight": 5
+    },
+    {
+      "code": "J44.9",
+      "title": "Chronic obstructive pulmonary disease, unspecified",
+      "weight": 5
+    },
+    {
+      "code": "I50.9",
+      "title": "Heart failure, unspecified",
+      "weight": 4
+    },
+    {
+      "code": "N18.3",
+      "title": "Chronic kidney disease, stage 3 (moderate)",
+      "weight": 4
+    },
+    {
+      "code": "N18.4",
+      "title": "Chronic kidney disease, stage 4 (severe)",
+      "weight": 2
+    },
+    {
+      "code": "G43.909",
+      "title": "Migraine, unspecified, not intractable, without status migrainosus",
+      "weight": 5
+    },
+    {
+      "code": "L40.9",
+      "title": "Psoriasis, unspecified",
+      "weight": 4
+    },
+    {
+      "code": "K58.9",
+      "title": "Irritable bowel syndrome without diarrhea",
+      "weight": 4
+    },
+    {
+      "code": "M81.0",
+      "title": "Age-related osteoporosis without current pathological fracture",
+      "weight": 4
+    },
+    {
+      "code": "B35.1",
+      "title": "Tinea unguium",
+      "weight": 3
+    },
+    {
+      "code": "H52.13",
+      "title": "Myopia, bilateral",
+      "weight": 3
+    },
+    {
+      "code": "H40.11X0",
+      "title": "Primary open-angle glaucoma, stage unspecified",
+      "weight": 3
+    },
+    {
+      "code": "Z00.00",
+      "title": "Encounter for general adult medical examination without abnormal findings",
+      "weight": 30
+    },
+    {
+      "code": "Z23",
+      "title": "Encounter for immunization",
+      "weight": 12
+    },
+    {
+      "code": "Z12.31",
+      "title": "Encounter for screening mammogram for malignant neoplasm of breast",
+      "weight": 6
+    },
+    {
+      "code": "Z12.11",
+      "title": "Encounter for screening for malignant neoplasm of colon",
+      "weight": 6
+    },
+    {
+      "code": "F17.210",
+      "title": "Nicotine dependence, cigarettes, uncomplicated",
+      "weight": 5
+    },
+    {
+      "code": "Z71.3",
+      "title": "Dietary counseling and surveillance",
+      "weight": 5
+    },
+    {
+      "code": "R10.9",
+      "title": "Unspecified abdominal pain",
+      "weight": 5
+    },
+    {
+      "code": "R05.9",
+      "title": "Cough, unspecified",
+      "weight": 5
+    },
+    {
+      "code": "J06.9",
+      "title": "Acute upper respiratory infection, unspecified",
+      "weight": 5
+    },
+    {
+      "code": "M79.10",
+      "title": "Myalgia, unspecified site",
+      "weight": 5
+    },
+    {
+      "code": "R53.83",
+      "title": "Other fatigue",
+      "weight": 5
+    },
+    {
+      "code": "Z51.81",
+      "title": "Encounter for therapeutic drug level monitoring",
+      "weight": 4
+    },
+    {
+      "code": "E11.40",
+      "title": "Type 2 diabetes mellitus with diabetic neuropathy, unspecified",
+      "weight": 3
+    },
+    {
+      "code": "I63.9",
+      "title": "Cerebral infarction, unspecified",
+      "weight": 2
+    },
+    {
+      "code": "C50.919",
+      "title": "Malignant neoplasm of breast of unspecified site, unspecified side",
+      "weight": 1
+    },
+    {
+      "code": "C61",
+      "title": "Malignant neoplasm of prostate",
+      "weight": 1
+    }
+  ]
+}

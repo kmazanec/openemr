@@ -1,0 +1,405 @@
+{
+  "_comment": "Common primary-care medications for Faker-generated patients. RXCUI codes are real RxNorm clinical-drug or generic-name identifiers. Doses are typical adult starting/maintenance values. The generator picks 0-4 medications per patient using these weights.",
+  "medications": [
+    {
+      "rxcui": "314076",
+      "name": "Lisinopril 10 MG Oral Tablet",
+      "dose": "10",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 30
+    },
+    {
+      "rxcui": "104375",
+      "name": "Atorvastatin 20 MG Oral Tablet",
+      "dose": "20",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 28
+    },
+    {
+      "rxcui": "860975",
+      "name": "Metformin hydrochloride 500 MG Oral Tablet",
+      "dose": "500",
+      "unit": "mg",
+      "freq": "twice daily",
+      "weight": 22
+    },
+    {
+      "rxcui": "313782",
+      "name": "Acetaminophen 325 MG Oral Tablet",
+      "dose": "325",
+      "unit": "mg",
+      "freq": "every 6 hours as needed",
+      "weight": 25
+    },
+    {
+      "rxcui": "5640",
+      "name": "Ibuprofen 200 MG Oral Tablet",
+      "dose": "200",
+      "unit": "mg",
+      "freq": "every 6 hours as needed",
+      "weight": 22
+    },
+    {
+      "rxcui": "197361",
+      "name": "Amlodipine 5 MG Oral Tablet",
+      "dose": "5",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 18
+    },
+    {
+      "rxcui": "316672",
+      "name": "Hydrochlorothiazide 25 MG Oral Tablet",
+      "dose": "25",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 14
+    },
+    {
+      "rxcui": "198211",
+      "name": "Levothyroxine 50 MCG Oral Tablet",
+      "dose": "50",
+      "unit": "mcg",
+      "freq": "once daily, before breakfast",
+      "weight": 13
+    },
+    {
+      "rxcui": "284635",
+      "name": "Sertraline 50 MG Oral Tablet",
+      "dose": "50",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 12
+    },
+    {
+      "rxcui": "212033",
+      "name": "Citalopram 20 MG Oral Tablet",
+      "dose": "20",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 10
+    },
+    {
+      "rxcui": "206766",
+      "name": "Omeprazole 20 MG Oral Capsule",
+      "dose": "20",
+      "unit": "mg",
+      "freq": "once daily, before breakfast",
+      "weight": 14
+    },
+    {
+      "rxcui": "898346",
+      "name": "Albuterol 0.09 MG/ACTUAT Inhalation Aerosol",
+      "dose": "2",
+      "unit": "puffs",
+      "freq": "every 4-6 hours as needed",
+      "weight": 11
+    },
+    {
+      "rxcui": "966222",
+      "name": "Metoprolol succinate 25 MG Extended Release Oral Tablet",
+      "dose": "25",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 10
+    },
+    {
+      "rxcui": "352848",
+      "name": "Aspirin 81 MG Oral Tablet",
+      "dose": "81",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 18
+    },
+    {
+      "rxcui": "855332",
+      "name": "Warfarin 5 MG Oral Tablet",
+      "dose": "5",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 4
+    },
+    {
+      "rxcui": "311040",
+      "name": "Gabapentin 300 MG Oral Capsule",
+      "dose": "300",
+      "unit": "mg",
+      "freq": "three times daily",
+      "weight": 8
+    },
+    {
+      "rxcui": "596926",
+      "name": "Tramadol hydrochloride 50 MG Oral Tablet",
+      "dose": "50",
+      "unit": "mg",
+      "freq": "every 6 hours as needed",
+      "weight": 5
+    },
+    {
+      "rxcui": "856987",
+      "name": "Cetirizine hydrochloride 10 MG Oral Tablet",
+      "dose": "10",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 9
+    },
+    {
+      "rxcui": "1010600",
+      "name": "Fluticasone propionate 50 MCG/ACTUAT Nasal Spray",
+      "dose": "2",
+      "unit": "sprays per nostril",
+      "freq": "once daily",
+      "weight": 8
+    },
+    {
+      "rxcui": "197518",
+      "name": "Loratadine 10 MG Oral Tablet",
+      "dose": "10",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 8
+    },
+    {
+      "rxcui": "311671",
+      "name": "Furosemide 40 MG Oral Tablet",
+      "dose": "40",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 7
+    },
+    {
+      "rxcui": "476345",
+      "name": "Amoxicillin 500 MG Oral Capsule",
+      "dose": "500",
+      "unit": "mg",
+      "freq": "three times daily for 10 days",
+      "weight": 9
+    },
+    {
+      "rxcui": "847232",
+      "name": "Azithromycin 250 MG Oral Tablet",
+      "dose": "250",
+      "unit": "mg",
+      "freq": "once daily for 5 days",
+      "weight": 7
+    },
+    {
+      "rxcui": "835603",
+      "name": "Cephalexin 500 MG Oral Capsule",
+      "dose": "500",
+      "unit": "mg",
+      "freq": "four times daily for 10 days",
+      "weight": 6
+    },
+    {
+      "rxcui": "311700",
+      "name": "Glipizide 5 MG Oral Tablet",
+      "dose": "5",
+      "unit": "mg",
+      "freq": "once daily, before breakfast",
+      "weight": 6
+    },
+    {
+      "rxcui": "861007",
+      "name": "Insulin glargine 100 UNT/ML Injectable Solution",
+      "dose": "20",
+      "unit": "units",
+      "freq": "once daily at bedtime",
+      "weight": 4
+    },
+    {
+      "rxcui": "200345",
+      "name": "Losartan 50 MG Oral Tablet",
+      "dose": "50",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 12
+    },
+    {
+      "rxcui": "317541",
+      "name": "Simvastatin 20 MG Oral Tablet",
+      "dose": "20",
+      "unit": "mg",
+      "freq": "once daily, in the evening",
+      "weight": 9
+    },
+    {
+      "rxcui": "646250",
+      "name": "Tamsulosin 0.4 MG Oral Capsule",
+      "dose": "0.4",
+      "unit": "mg",
+      "freq": "once daily, 30 min after the same meal each day",
+      "weight": 5
+    },
+    {
+      "rxcui": "313988",
+      "name": "Allopurinol 100 MG Oral Tablet",
+      "dose": "100",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 4
+    },
+    {
+      "rxcui": "603259",
+      "name": "Trazodone 50 MG Oral Tablet",
+      "dose": "50",
+      "unit": "mg",
+      "freq": "at bedtime as needed for sleep",
+      "weight": 5
+    },
+    {
+      "rxcui": "856769",
+      "name": "Bupropion 150 MG Extended Release Oral Tablet",
+      "dose": "150",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 5
+    },
+    {
+      "rxcui": "856792",
+      "name": "Duloxetine 30 MG Delayed Release Oral Capsule",
+      "dose": "30",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 5
+    },
+    {
+      "rxcui": "315098",
+      "name": "Pantoprazole 40 MG Delayed Release Oral Tablet",
+      "dose": "40",
+      "unit": "mg",
+      "freq": "once daily, before breakfast",
+      "weight": 7
+    },
+    {
+      "rxcui": "608813",
+      "name": "Methylphenidate 10 MG Oral Tablet",
+      "dose": "10",
+      "unit": "mg",
+      "freq": "twice daily",
+      "weight": 3
+    },
+    {
+      "rxcui": "892527",
+      "name": "Tiotropium 18 MCG Inhalation Powder",
+      "dose": "1",
+      "unit": "capsule",
+      "freq": "once daily",
+      "weight": 4
+    },
+    {
+      "rxcui": "1191",
+      "name": "Aspirin 325 MG Oral Tablet",
+      "dose": "325",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 6
+    },
+    {
+      "rxcui": "1551300",
+      "name": "Apixaban 5 MG Oral Tablet",
+      "dose": "5",
+      "unit": "mg",
+      "freq": "twice daily",
+      "weight": 4
+    },
+    {
+      "rxcui": "857005",
+      "name": "Clopidogrel 75 MG Oral Tablet",
+      "dose": "75",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 4
+    },
+    {
+      "rxcui": "1545999",
+      "name": "Liraglutide 18 MG/3ML Pen Injector",
+      "dose": "0.6",
+      "unit": "mg",
+      "freq": "subcutaneously once daily",
+      "weight": 3
+    },
+    {
+      "rxcui": "402696",
+      "name": "Prednisone 20 MG Oral Tablet",
+      "dose": "20",
+      "unit": "mg",
+      "freq": "once daily for 5 days, then taper",
+      "weight": 5
+    },
+    {
+      "rxcui": "1992428",
+      "name": "Empagliflozin 10 MG Oral Tablet",
+      "dose": "10",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 3
+    },
+    {
+      "rxcui": "1551291",
+      "name": "Sitagliptin 100 MG Oral Tablet",
+      "dose": "100",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 3
+    },
+    {
+      "rxcui": "151392",
+      "name": "Diazepam 5 MG Oral Tablet",
+      "dose": "5",
+      "unit": "mg",
+      "freq": "as needed for anxiety",
+      "weight": 3
+    },
+    {
+      "rxcui": "596928",
+      "name": "Hydrocodone-Acetaminophen 5-325 MG Oral Tablet",
+      "dose": "1",
+      "unit": "tab",
+      "freq": "every 4-6 hours as needed for pain",
+      "weight": 3
+    },
+    {
+      "rxcui": "104894",
+      "name": "Atenolol 50 MG Oral Tablet",
+      "dose": "50",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 7
+    },
+    {
+      "rxcui": "316067",
+      "name": "Folic Acid 1 MG Oral Tablet",
+      "dose": "1",
+      "unit": "mg",
+      "freq": "once daily",
+      "weight": 5
+    },
+    {
+      "rxcui": "315996",
+      "name": "Cholecalciferol 1000 UNT Oral Tablet",
+      "dose": "1000",
+      "unit": "units",
+      "freq": "once daily",
+      "weight": 8
+    },
+    {
+      "rxcui": "905395",
+      "name": "Cyanocobalamin 1000 MCG Oral Tablet",
+      "dose": "1000",
+      "unit": "mcg",
+      "freq": "once daily",
+      "weight": 4
+    },
+    {
+      "rxcui": "996742",
+      "name": "Montelukast 10 MG Oral Tablet",
+      "dose": "10",
+      "unit": "mg",
+      "freq": "once daily, in the evening",
+      "weight": 5
+    }
+  ]
+}

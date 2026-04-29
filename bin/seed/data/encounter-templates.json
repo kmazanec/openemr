@@ -1,0 +1,95 @@
+{
+  "_comment": "Encounter templates the seed generator picks from. 'reason' becomes the chief complaint / encounter reason. 'pc_catid' is OpenEMR's calendar category id (1 = 'In Office' which is fine for everything we generate). 'weight' tunes how often each kind appears.",
+  "templates": [
+    {
+      "reason": "Annual wellness exam",
+      "pc_catid": 1,
+      "weight": 25
+    },
+    {
+      "reason": "Follow-up: hypertension",
+      "pc_catid": 1,
+      "weight": 18
+    },
+    {
+      "reason": "Follow-up: diabetes type 2",
+      "pc_catid": 1,
+      "weight": 15
+    },
+    {
+      "reason": "Acute upper respiratory infection",
+      "pc_catid": 1,
+      "weight": 12
+    },
+    {
+      "reason": "Lower back pain evaluation",
+      "pc_catid": 1,
+      "weight": 10
+    },
+    {
+      "reason": "Medication review",
+      "pc_catid": 1,
+      "weight": 12
+    },
+    {
+      "reason": "Follow-up: hyperlipidemia",
+      "pc_catid": 1,
+      "weight": 9
+    },
+    {
+      "reason": "Follow-up: anxiety / depression",
+      "pc_catid": 1,
+      "weight": 9
+    },
+    {
+      "reason": "Pre-operative clearance",
+      "pc_catid": 1,
+      "weight": 5
+    },
+    {
+      "reason": "Acute musculoskeletal injury",
+      "pc_catid": 1,
+      "weight": 6
+    },
+    {
+      "reason": "Refill request \u2014 chronic medications",
+      "pc_catid": 1,
+      "weight": 8
+    },
+    {
+      "reason": "Lab review \u2014 abnormal results",
+      "pc_catid": 1,
+      "weight": 6
+    },
+    {
+      "reason": "Sinusitis / allergic rhinitis",
+      "pc_catid": 1,
+      "weight": 7
+    },
+    {
+      "reason": "Knee or joint pain",
+      "pc_catid": 1,
+      "weight": 7
+    },
+    {
+      "reason": "Headache evaluation",
+      "pc_catid": 1,
+      "weight": 5
+    },
+    {
+      "reason": "Skin lesion / rash evaluation",
+      "pc_catid": 1,
+      "weight": 5
+    },
+    {
+      "reason": "Counseling: lifestyle / weight management",
+      "pc_catid": 1,
+      "weight": 5
+    },
+    {
+      "reason": "GI symptoms \u2014 abdominal pain",
+      "pc_catid": 1,
+      "weight": 5
+    }
+  ]
+}

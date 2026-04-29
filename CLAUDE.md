@@ -455,6 +455,38 @@ Preserve existing authors/copyrights when editing files.
   (forbidden globals, forbidden direct instantiations, namespace rules, etc.)
 - Commit messages are validated against Conventional Commits format in CI
 
+## Database Seeding
+
+The repo ships a hybrid seed pipeline used to populate dev and Railway
+environments with synthetic data. All commands run *inside* the OpenEMR
+container (locally via `docker compose exec openemr ...`, in Railway via
+`railway ssh`).
+
+```sh
+# 1. Restore baseline (upstream demo: 3 patients, 9 users, ACLs, list_options).
+#    Refuses to run if patient_data is non-empty.
+db/seeds/restore-baseline.sh
+
+# 2. Generate Faker patients with light clinical scaffolding (encounters,
+#    problems, meds). Pure-additive — re-running adds more patients.
+php bin/console seed:patients --count=100
+php bin/console seed:patients --count=20      # add 20 more later
+
+# 3. Verify state.
+php bin/console seed:status
+```
+
+Layout:
+- `db/seeds/baseline.sql.gz` — committed dump (regenerate via
+  `db/seeds/regenerate-baseline.sh`)
+- `bin/seed/Generators/` — Faker generators (autoloaded as `OpenEMR\Seed\*`)
+- `bin/seed/data/*.json` — curated condition/medication/encounter lists
+- `src/Common/Command/Seed*Command.php` — Symfony Console commands
+
+`seed:patients` inserts via `PatientService`, `EncounterService`,
+`ListService`, `PrescriptionService` — the same code paths the application
+uses, so seed data exercises the real validation and event-dispatch flow.
+
 ## Key Documentation
 
 - `CONTRIBUTING.md` - Contributing guidelines
