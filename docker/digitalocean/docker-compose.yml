@@ -1,7 +1,13 @@
 # DigitalOcean deploy stack for OpenEMR.
 #
-# Three services on a single Droplet:
+# Four services on a single Droplet:
 #   - mysql:    MariaDB, internal network only.
+#   - redis:    PHP session store + general-purpose cache. Internal
+#               network only. Set REDIS_SERVER on the openemr service
+#               and the flex entrypoint configures PHP to use Redis as
+#               its session handler — sessions then survive
+#               --force-recreate openemr (otherwise PHP file sessions
+#               in /tmp get wiped, logging users out on every deploy).
 #   - openemr:  Upstream openemr/openemr:flex image. Source code is
 #               bind-mounted READ-ONLY from /srv/openemr/current — a
 #               symlink that infra/runner-bootstrap.sh atomically
@@ -53,11 +59,29 @@ services:
       timeout: 5s
       retries: 3
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Light persistence: snapshot to disk if at least 1 key changed in
+    # the last 60s. Sessions are the primary use case, so we don't need
+    # AOF; an occasional snapshot is enough that a redis crash doesn't
+    # log everyone out.
+    command: ['redis-server', '--save', '60', '1']
+    volumes:
+    - redisvolume:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
   openemr:
     image: openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
     restart: unless-stopped
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       # Source mount: read-only, so the container's chown logic can't
@@ -87,6 +111,12 @@ services:
       MYSQL_DATABASE: openemr
       OE_USER: ${OE_USER}
       OE_PASS: ${OE_PASS}
+      # Routes PHP sessions through Redis instead of the in-container
+      # /tmp filesystem (which gets wiped on every container recreate).
+      # Recognized by the flex entrypoint, which configures the PHP
+      # session handler accordingly. host:port form; port defaults to
+      # 6379 if omitted.
+      REDIS_SERVER: redis
       EASY_DEV_MODE: 'yes'
       EASY_DEV_MODE_NEW: 'yes'
     healthcheck:
@@ -130,6 +160,7 @@ volumes:
   nodemodules: {}
   vendordir: {}
   logvolume: {}
+  redisvolume: {}
   couchdbstub: {}
   caddydata: {}
   caddyconfig: {}
