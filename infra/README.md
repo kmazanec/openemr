@@ -91,26 +91,48 @@ openemr container runs at a time), but no scheduled downtime.
 The deploy job aborts if `/meta/health/readyz` doesn't pass within five
 minutes, leaving the container up so its logs are inspectable.
 
-#### Required GitLab CI/CD variables
+#### Runner setup
 
-Set these under the project's **Settings → CI/CD → Variables**. Mark
-all four **Protected** so only jobs on protected branches (master by
-default) see them.
+A project-specific GitLab runner lives on the Droplet itself with the
+shell executor and tag `openemr-droplet`. The CI job has the matching
+`tags:` clause, so jobs on `master` schedule onto this runner and run
+`infra/deploy.sh` natively — no SSH, no secrets, no nested Docker.
 
-| Variable                 | Type     | Value                                                   |
-| ------------------------ | -------- | ------------------------------------------------------- |
-| `DEPLOY_SSH_PRIVATE_KEY` | File     | Private key whose public half is in the Droplet's `~root/.ssh/authorized_keys`. |
-| `SSH_KNOWN_HOSTS`        | Variable | Output of `ssh-keyscan <droplet-ip>` — pins the host key so the runner never prompts. |
-| `DEPLOY_HOST`            | Variable | Droplet IP or hostname (e.g. `emr.biograph.dev`).       |
-| `DEPLOY_USER`            | Variable | SSH user on the Droplet. Default `root` if unset.       |
-
-Generate a dedicated deploy keypair (don't reuse a personal key):
+To install (one-time, on the Droplet, as root):
 
 ```bash
-ssh-keygen -t ed25519 -f /tmp/openemr-deploy -C 'gitlab-ci-deploy' -N ''
-# Append /tmp/openemr-deploy.pub to ~root/.ssh/authorized_keys on the Droplet,
-# then upload /tmp/openemr-deploy as the DEPLOY_SSH_PRIVATE_KEY file variable.
-ssh-keyscan "$DROPLET_IP"   # paste output into SSH_KNOWN_HOSTS
+# 1. Install the runner package from GitLab's apt repo.
+curl -L "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh" | bash
+apt-get install -y gitlab-runner
+
+# 2. Let the runner drive docker compose and write to the repo.
+usermod -aG docker gitlab-runner
+chown -R gitlab-runner:gitlab-runner /opt/openemr
+
+# 3. Register. Get <TOKEN> from GitLab → Settings → CI/CD → Runners →
+#    "New project runner" (the glrt-... value is shown once).
+gitlab-runner register \
+    --non-interactive \
+    --url 'https://labs.gauntletai.com/' \
+    --token '<TOKEN>' \
+    --executor shell \
+    --description 'openemr-droplet'
+
+# 4. Pick up the new docker group membership.
+systemctl restart gitlab-runner
+```
+
+When creating the runner in the UI, set tag `openemr-droplet`, leave
+"Lock to current projects" enabled, and leave "Run untagged jobs"
+**unchecked** so unrelated jobs can never accidentally run on the
+production Droplet.
+
+Verify:
+
+```bash
+gitlab-runner verify
+sudo -u gitlab-runner docker ps                # no permission error
+sudo -u gitlab-runner git -C /opt/openemr pull # writable
 ```
 
 #### Manual deploy (fallback)
