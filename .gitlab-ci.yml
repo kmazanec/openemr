@@ -18,7 +18,7 @@ deploy:
   rules:
   - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
   script:
-  - bash /opt/openemr/infra/runner-bootstrap.sh
+  - bash /srv/openemr/current/infra/runner-bootstrap.sh
   environment:
     name: production
     url: https://emr.biograph.dev
