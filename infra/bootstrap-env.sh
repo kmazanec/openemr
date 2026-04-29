@@ -260,6 +260,20 @@ railway variable delete --service "$OPENEMR_SERVICE" --yes BOOTSTRAP_PLACEHOLDER
 info "variables set (referencing MySQL service '$MYSQL_SERVICE')"
 info "FLEX_REPOSITORY_BRANCH=$GITLAB_BRANCH"
 
+# When a service is created with `railway add --service --image ...`,
+# Railway starts it before we've set the application env vars (because
+# `variable set` happens after `add`). The first deployment crashes with
+# missing config and Railway gets stuck trying to restart that broken
+# deployment. Forcing a fresh redeploy ensures the new container starts
+# with the full env-var set we just configured.
+#
+# This runs unconditionally. It's a no-op (just a redeploy of an already-
+# good deployment) when the service was already healthy on a previous
+# bootstrap run.
+step "Forcing fresh deployment of $OPENEMR_SERVICE so it picks up the env vars"
+railway service redeploy --service "$OPENEMR_SERVICE" --yes >/dev/null 2>&1 || true
+info "redeploy triggered"
+
 # ---------------------------------------------------------------------------
 # 6. Public domain
 # ---------------------------------------------------------------------------
