@@ -80,7 +80,10 @@ verification, audit, and rate limiting all build on a stable substrate.
   via `app.request()`. Side effect: added `tsconfig.test.json` so
   type-aware lint and `npm run typecheck` cover `tests/` + `evals/` without
   including them in the production build.)
-- [ ] Pino logger with redaction for PHI fields configured up front
+- [x] Pino logger with redaction for PHI fields configured up front
+  (Redaction covers PHI-shaped leaves up to 2 levels deep through objects
+  and arrays. If Phase 2 snapshot DTOs nest PHI 3+ levels deep, expand the
+  path-pattern set in `agent/src/observability/logger.ts`.)
 - [ ] `Dockerfile` (multi-stage, Node 22, non-root)
 - [ ] `agent/README.md` — how to run locally, env vars, deploy target
 
