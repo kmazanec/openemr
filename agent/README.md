@@ -54,13 +54,15 @@ Coming in later phases (placeholder — not yet read by any code):
 
 - `ANTHROPIC_API_KEY` — Sonnet 4 calls (phase 3)
 - `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_TRACING` — observability (phase 6.1)
-- `OPENEMR_JWKS_URL` _or_ `AGENT_JWT_PUBLIC_KEY` — bearer-token verification (phase 1.5)
 
 In addition, the service requires:
 
-| Variable       | Purpose                                                         |
-| -------------- | --------------------------------------------------------------- |
-| `DATABASE_URL` | Postgres conn string for the LangGraph checkpointer (required). |
+| Variable                                        | Purpose                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `DATABASE_URL`                                  | Postgres conn string for the LangGraph checkpointer (required).                                                                                                                                                                                                                                        |
+| `AGENT_JWT_ISSUER`                              | Expected `iss` claim — OpenEMR's oauth2 base URL, e.g. `https://emr.biograph.dev/oauth2/default` (required).                                                                                                                                                                                           |
+| `AGENT_JWT_AUDIENCE`                            | Expected `aud` claim. Default `openemr-clinical-copilot-agent` — matches `AgentTokenMinter::AGENT_CLIENT_ID`.                                                                                                                                                                                          |
+| `OPENEMR_JWKS_URL` _or_ `AGENT_JWT_PUBLIC_KEY`  | Where to fetch the verification key. Set `OPENEMR_JWKS_URL` to OpenEMR's public JWKS endpoint (e.g. `http://openemr/oauth2/default/jwk`) for the standard SMART/FHIR pattern; the agent caches keys in-process and refetches on cache miss. Or set `AGENT_JWT_PUBLIC_KEY` to a single JWK as JSON for offline/test deployments. Exactly one is required. |
 
 In dev (`docker/development-easy/`) the value is
 `postgresql://agent:agent@agent-postgres:5432/agent`. In prod
@@ -96,6 +98,24 @@ evals/
   runners/        LangSmith dataset/experiment helpers (phase 3.6)
 tests/            Vitest unit + integration tests
 ```
+
+## Authentication
+
+Every `/v1/*` route requires a Bearer JWT minted by the OpenEMR proxy
+controller (`AgentTokenMinter`, in
+[`interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentTokenMinter.php`](../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentTokenMinter.php)).
+`/health` is intentionally open so Docker can probe it.
+
+The verifier (`src/auth/verify.ts`) checks RS256 signature, `iss`,
+`aud`, `exp`, and `nbf`, then exposes the principal on the Hono context
+as `{ sub, fhirUser, scopes, jti, audience, issuer, expiresAt, raw }`.
+`fhirUser` is the `sub` claim (League OAuth2 puts the user identifier
+there; the minter uses the practitioner's fhirUser uuid). Verification
+keys come from OpenEMR's JWKS endpoint by default (`OPENEMR_JWKS_URL`)
+with in-process caching; a single static JWK can be supplied via
+`AGENT_JWT_PUBLIC_KEY` for tests or offline deployments. Defense in
+depth: requests without a valid token are rejected with `401` even
+though the service listens only on the private Docker network.
 
 ## Logging
 

@@ -193,12 +193,41 @@ verification, audit, and rate limiting all build on a stable substrate.
   `src/Auth/` so the structural shape can't regress silently.)
 
 ### 1.5 Agent service auth middleware
-- [ ] JWT verification middleware against OpenEMR's JWKS (or shared signing
+- [x] JWT verification middleware against OpenEMR's JWKS (or shared signing
   key — confirm during implementation)
-- [ ] Reject any request without a valid bearer token, even on private
+  (Verifier in `agent/src/auth/{verify.ts,jwks.ts,middleware.ts}`. Decision:
+  JWKS over shared key — OpenEMR already exposes `/oauth2/{site}/jwk`
+  publicly, so the agent stays stateless and follows SMART/FHIR convention.
+  `AGENT_JWT_PUBLIC_KEY` (single JWK as JSON) is kept as an offline/test
+  override; exactly one of the two env vars must be set. Algorithms locked
+  to `['RS256']` to match League's `Lcobucci\JWT\Signer\Rsa\Sha256`. Token
+  contract drawn from `AccessTokenEntity::convertToJWT()`: `aud =
+  client.identifier` (`openemr-clinical-copilot-agent`), `iss = issuer`,
+  `sub = userIdentifier`, `scopes` (array), `jti`. Required claims `sub`,
+  `exp`, `iat`, `jti` are enforced at verify time. New dep: `jose@5.10.0`
+  — modern JOSE library, no native deps; chosen for `createRemoteJWKSet`
+  with built-in caching and rotation.)
+- [x] Reject any request without a valid bearer token, even on private
   network (defense in depth)
-- [ ] Extract `fhirUser` claim → attach to request context for tool calls
+  (`createBearerAuthMiddleware` mounted on `/v1/*` only — `/health` stays
+  open for the Docker healthcheck. Missing header, non-Bearer scheme,
+  empty token, malformed token, wrong issuer/audience, expired token,
+  bad signature, and HS256-substitution attempts all return `401
+  unauthorized` with `WWW-Authenticate: Bearer realm="agent"`. Error
+  messages are intentionally opaque so the response shape doesn't leak
+  why a particular token was rejected.)
+- [x] Extract `fhirUser` claim → attach to request context for tool calls
   and trace tags
+  (`AgentPrincipal.fhirUser` aliased from `sub` — the minter sets
+  `userIdentifier = fhirUserUuid ?? authUserId` so `sub` carries the
+  fhirUser uuid when available. Principal also exposes `sub`, `scopes`,
+  `jti`, `audience`, `issuer`, `expiresAt`, and the raw payload for
+  diagnostics. Routes pull it via `getPrincipal(c)` which throws if the
+  middleware didn't run — runtime guard against accidentally exposing an
+  unauthenticated handler. The auth logger emits `{fhirUser, jti,
+  scopes}` at debug level on every authenticated request; raw token
+  contents are never logged. The principal is the seat for future
+  trace-tag enrichment in §6.1.)
 
 ### 1.6 End-to-end smoke
 - [ ] Hit `/agent/echo` from the browser while logged into OpenEMR with a
