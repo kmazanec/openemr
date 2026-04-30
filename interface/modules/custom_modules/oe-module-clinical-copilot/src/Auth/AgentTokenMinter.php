@@ -15,32 +15,32 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Auth;
 
 use DateInterval;
-use DateTimeImmutable;
-use League\OAuth2\Server\CryptKey;
-use OpenEMR\Common\Auth\OAuth2KeyConfig;
-use OpenEMR\Common\Auth\OpenIDConnect\Entities\AccessTokenEntity;
-use OpenEMR\Common\Auth\OpenIDConnect\Entities\ClientEntity;
-use OpenEMR\Common\Auth\OpenIDConnect\Entities\ScopeEntity;
+use Lcobucci\JWT\Configuration;
+use Lcobucci\JWT\Signer\Key\InMemory;
+use Lcobucci\JWT\Signer\Rsa\Sha256;
 
 /**
- * Mints a short-lived RS-signed JWT for the Agent service.
+ * Mints a short-lived RS256 JWT for the Agent service.
  *
- * PRESEARCH §18 commits to invoking OpenEMR's existing League OAuth2 server
+ * PRESEARCH §18 commits to invoking OpenEMR's existing OAuth2 key material
  * "directly" — i.e. without a self-loopback HTTP call to /oauth2/{site}/token.
  * The full grant pipeline (CustomClientCredentialsGrant et al.) requires a
  * registered oauth_clients row and a PSR-7 token request, neither of which
- * is appropriate for an in-process internal hop. Instead this class uses
- * League's AccessTokenEntity + CryptKey directly — same library, same key
- * material, same RSA signing — and produces a JWT the agent service can
- * verify with the matching public key.
+ * is appropriate for an in-process internal hop. We use OpenEMR's same RSA
+ * private key + passphrase, then build the token directly with `Lcobucci\JWT`
+ * so we can attach the `fhirUser` SMART claim and a stable `kid` header that
+ * the agent service can match against the JWKS.
  *
  * Token contract:
- *   - sub: the acting user's fhirUser uuid (Practitioner/{uuid})
- *   - aud: the agent client identifier ("openemr-clinical-copilot-agent")
- *   - iss: this OpenEMR site's base URL
- *   - scope: the per-action allowlist resolved by PolicyGate
- *   - 5-minute TTL — does not outlive a single agent request (PRESEARCH §18)
- *   - jti: per-mint UUID
+ *   - sub: bare `users.uuid` of the acting practitioner
+ *   - fhirUser: `{baseUrl}/Practitioner/{uuid}` (SMART convention)
+ *   - aud: agent client identifier (`openemr-clinical-copilot-agent`)
+ *   - iss: OpenEMR site's oauth2 base URL
+ *   - scopes: per-action SMART scope list resolved by PolicyGate
+ *   - exp: 5 minutes after `iat`
+ *   - jti: per-mint random hex
+ *   - header.kid: SHA-256 of the public-key SPKI PEM (S1)
+ *   - header.alg: RS256
  */
 final readonly class AgentTokenMinter
 {
@@ -48,18 +48,19 @@ final readonly class AgentTokenMinter
 
     private const TOKEN_TTL = 'PT5M';
 
-    private OAuth2KeyConfig $keyConfig;
+    public function __construct(
+        private AgentSigningKey $signingKey,
+        private ClockInterface $clock = new SystemClock(),
+        private JtiGenerator $jtiGenerator = new RandomJtiGenerator(),
+    ) {
+    }
 
-    public function __construct(?OAuth2KeyConfig $keyConfig = null)
+    /**
+     * Production factory — reads OpenEMR's OAuth2 keys via `OAuth2KeyConfig`.
+     */
+    public static function fromOpenEmr(): self
     {
-        try {
-            // OAuth2KeyConfig::__construct() creates the keys on first use
-            // if missing, matching the AuthorizationController bootstrap.
-            $this->keyConfig = $keyConfig ?? new OAuth2KeyConfig();
-            $this->keyConfig->configKeyPairs();
-        } catch (\Throwable $e) {
-            throw new AgentTokenMintException('OAuth2 key material unavailable', 0, $e);
-        }
+        return new self(AgentSigningKey::fromOAuth2KeyConfig());
     }
 
     /**
@@ -67,45 +68,43 @@ final readonly class AgentTokenMinter
      *
      * @throws AgentTokenMintException
      */
-    public function mint(SessionContext $session, array $scopes, string $issuer): string
-    {
-        $client = new ClientEntity();
-        $client->setIdentifier(self::AGENT_CLIENT_ID);
-
-        $token = new AccessTokenEntity();
-        $token->setIdentifier(self::generateJti());
-        $token->setClient($client);
-        $token->setUserIdentifier($session->fhirUserUuid ?? $session->authUserId);
-        $token->setIssuer($issuer);
-
-        $now = new DateTimeImmutable();
-        $token->setExpiryDateTime($now->add(new DateInterval(self::TOKEN_TTL)));
-
-        foreach ($scopes as $scopeString) {
-            $scope = new ScopeEntity();
-            $scope->setIdentifier($scopeString);
-            $token->addScope($scope);
-        }
-
-        $privateKeyPath = $this->keyConfig->getPrivateKeyLocation();
-        $passphrase = $this->keyConfig->getPassPhrase();
-        if (!is_string($privateKeyPath) || $privateKeyPath === '') {
-            throw new AgentTokenMintException('OAuth2 private key path is not configured');
-        }
-        if ($passphrase !== null && !is_string($passphrase)) {
-            throw new AgentTokenMintException('OAuth2 passphrase is malformed');
-        }
-
+    public function mint(
+        ResolvedFhirUser $fhirUser,
+        array $scopes,
+        string $issuer,
+    ): string {
         try {
-            $token->setPrivateKey(new CryptKey($privateKeyPath, $passphrase));
-            return (string) $token;
+            $kid = JwksKeyId::fromPublicKey($this->signingKey->publicKeyPem);
+
+            $config = Configuration::forAsymmetricSigner(
+                new Sha256(),
+                InMemory::plainText(
+                    $this->signingKey->privateKeyPem,
+                    $this->signingKey->passphrase ?? '',
+                ),
+                InMemory::plainText('empty', 'empty'),
+            );
+
+            $now = $this->clock->now();
+            $builder = $config->builder()
+                ->withHeader('kid', $kid)
+                ->permittedFor(self::AGENT_CLIENT_ID)
+                ->issuedBy($issuer)
+                ->relatedTo($fhirUser->uuid)
+                ->identifiedBy($this->jtiGenerator->generate())
+                ->issuedAt($now)
+                ->canOnlyBeUsedAfter($now)
+                ->expiresAt($now->add(new DateInterval(self::TOKEN_TTL)))
+                ->withClaim('fhirUser', $fhirUser->fhirUserUri)
+                ->withClaim('scopes', $scopes);
+
+            return $builder
+                ->getToken($config->signer(), $config->signingKey())
+                ->toString();
+        } catch (AgentTokenMintException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             throw new AgentTokenMintException('Failed to sign agent JWT', 0, $e);
         }
-    }
-
-    private static function generateJti(): string
-    {
-        return bin2hex(random_bytes(16));
     }
 }

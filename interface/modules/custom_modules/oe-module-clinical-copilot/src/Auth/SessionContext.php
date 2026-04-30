@@ -20,6 +20,10 @@ namespace OpenEMR\Modules\ClinicalCopilot\Auth;
  * The proxy controller builds one of these from the active OpenEMR session
  * and hands it to PolicyGate. Keeping the value object pure (no superglobals,
  * no DB) is what makes the gate testable without bootstrapping OpenEMR.
+ *
+ * `fhirUser` is populated by `FhirUserResolver` *before* the gate runs, so
+ * the gate can assume the identity has already been verified to belong to
+ * a staff (or system) user.
  */
 final readonly class SessionContext
 {
@@ -28,7 +32,7 @@ final readonly class SessionContext
         public string $authUser,
         public string $siteId,
         public ?string $patientPid,
-        public ?string $fhirUserUuid,
+        public ?ResolvedFhirUser $fhirUser,
     ) {
     }
 }

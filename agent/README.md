@@ -110,13 +110,36 @@ controller (`AgentTokenMinter`, in
 The verifier (`src/auth/verify.ts`) checks RS256 signature, `iss`,
 `aud`, `exp`, and `nbf`, then exposes the principal on the Hono context
 as `{ sub, fhirUser, scopes, jti, audience, issuer, expiresAt, raw }`.
-`fhirUser` is the `sub` claim (League OAuth2 puts the user identifier
-there; the minter uses the practitioner's fhirUser uuid). Verification
-keys come from OpenEMR's JWKS endpoint by default (`OPENEMR_JWKS_URL`)
-with in-process caching; a single static JWK can be supplied via
+`sub` is the practitioner's bare `users.uuid`; `fhirUser` is the SMART
+URI claim (`{baseUrl}/Practitioner/{uuid}`) that the proxy mints
+alongside `sub`. If a token arrives without the `fhirUser` claim (older
+mint, regression) the verifier falls back to `sub` so downstream code
+keeps working but the missing claim is logged. Verification keys come
+from OpenEMR's JWKS endpoint by default (`OPENEMR_JWKS_URL`) and are
+selected by `kid`; a single static JWK can be supplied via
 `AGENT_JWT_PUBLIC_KEY` for tests or offline deployments. Defense in
 depth: requests without a valid token are rejected with `401` even
 though the service listens only on the private Docker network.
+
+### Error envelope
+
+The proxy and the agent share a single error shape but two transports,
+chosen by whether the SSE stream has started:
+
+- **Pre-stream errors** — auth failure, policy gate denial, mint
+  failure, validation. HTTP status code (`401` / `403` / `503`) +
+  `Content-Type: application/json` + body `{"error": "<code>"}`.
+- **In-stream errors** — upstream connection drop, mid-stream tool
+  failure. After SSE headers have flushed the response is locked into
+  `text/event-stream`, so the same JSON payload is wrapped in
+  `event: error\ndata: <json>\n\n`.
+
+A browser `EventSource` consumer should subscribe to the `error` event
+and parse `event.data` with the same decoder used for the JSON variant.
+The proxy guards the boundary with `headers_sent()`; if a future
+refactor moves a deny check inside `streamUpstream`, the error still
+reaches the client as a typed SSE frame instead of a half-written HTTP
+response.
 
 ## Logging
 

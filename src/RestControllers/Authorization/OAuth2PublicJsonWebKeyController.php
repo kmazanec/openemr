@@ -30,12 +30,23 @@ class OAuth2PublicJsonWebKeyController
         if ($keyPublic === false) {
             throw OAuthServerException::serverError("Failed to parse public key");
         }
+        // Stable kid derived from the SPKI hash so verifiers can pin a key
+        // and rotation produces a new kid automatically. Required by RFC 7517
+        // §4.5 for any deployment that may publish more than one key.
+        $publicKeyPem = $keyPublic['key'] ?? null;
+        if (!is_string($publicKeyPem) || $publicKeyPem === '') {
+            throw OAuthServerException::serverError("Public key details missing PEM body");
+        }
+        $kid = rtrim(strtr(base64_encode(hash('sha256', $publicKeyPem, true)), '+/', '-_'), '=');
+
         $key_info = [
             'kty' => 'RSA',
             'n' => HttpUtils::base64url_encode($keyPublic['rsa']['n']),
             'e' => HttpUtils::base64url_encode($keyPublic['rsa']['e']),
+            'alg' => 'RS256',
+            'use' => 'sig',
+            'kid' => $kid,
         ];
-        $key_info['use'] = 'sig';
 
         $jsonData = ['keys' => [$key_info]];
 

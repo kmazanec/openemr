@@ -69,7 +69,7 @@ final readonly class AgentProxyController
     {
         return new self(
             policyGate: new PolicyGate(),
-            tokenMinter: new AgentTokenMinter(),
+            tokenMinter: AgentTokenMinter::fromOpenEmr(),
             httpClient: new Client([
                 RequestOptions::CONNECT_TIMEOUT => 5.0,
                 // No total request timeout — SSE streams are long-lived.
@@ -90,8 +90,17 @@ final readonly class AgentProxyController
             return;
         }
 
+        // PolicyGate has already enforced that fhirUser is non-null before
+        // we reach this point. The PHPStan-narrow assertion makes the
+        // contract explicit; if it ever fails it means the gate's invariant
+        // was broken.
+        if ($session->fhirUser === null) {
+            $this->respondError(500, 'fhir_user_unresolved');
+            return;
+        }
+
         try {
-            $bearer = $this->tokenMinter->mint($session, $request->requestedScopes, $this->issuer);
+            $bearer = $this->tokenMinter->mint($session->fhirUser, $request->requestedScopes, $this->issuer);
         } catch (AgentTokenMintException $e) {
             $this->logger->error('Agent token mint failed', [
                 'action' => $request->action,
@@ -142,7 +151,8 @@ final readonly class AgentProxyController
                 'action' => $request->action,
                 'exception' => $e,
             ]);
-            echo "event: error\ndata: {\"error\":\"upstream_unavailable\"}\n\n";
+            // SSE headers already flushed above — use the in-stream envelope.
+            $this->emitStreamError('upstream_unavailable');
             return;
         }
 
@@ -170,13 +180,38 @@ final readonly class AgentProxyController
         ]);
 
         $status = $reasonName === 'MissingSession' ? 401 : 403;
-        $this->respondError($status, strtolower($reasonName));
+        $this->respondError($status, strtolower((string) $reasonName));
     }
 
+    /**
+     * Pre-stream errors: HTTP status + JSON body. Once any SSE byte has
+     * gone out, this will not produce a valid response — the stream is
+     * already open and the browser is in `EventSource` mode. Use
+     * {@see emitStreamError()} after `streamUpstream` has flushed headers.
+     */
     private function respondError(int $status, string $code): void
     {
+        if (headers_sent()) {
+            // We are mid-stream and the client is consuming SSE. Switch to
+            // the in-stream envelope so the UI sees a typed error rather
+            // than a hung connection.
+            $this->emitStreamError($code);
+            return;
+        }
         http_response_code($status);
         header('Content-Type: application/json');
         echo json_encode(['error' => $code], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * In-stream errors (after SSE headers have flushed). The browser's
+     * EventSource will fire a typed `error` event; the data payload
+     * matches the JSON shape used pre-stream so consumers can share a
+     * single decoder.
+     */
+    private function emitStreamError(string $code): void
+    {
+        $payload = json_encode(['error' => $code], JSON_THROW_ON_ERROR);
+        echo "event: error\ndata: {$payload}\n\n";
     }
 }

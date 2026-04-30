@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 final class ModuleSkeletonTest extends TestCase
 {
@@ -105,5 +106,81 @@ final class ModuleSkeletonTest extends TestCase
     public function testSkeletonHasRequiredSubdirectories(string $relativePath): void
     {
         $this->assertDirectoryExists(self::MODULE_DIR . '/' . $relativePath);
+    }
+
+    /**
+     * `InstallerController::scanAndRegisterCustomModules` enumerates
+     * `interface/modules/custom_modules/` with `opendir → is_dir`,
+     * filtering out `.`, `..`, and `Application`. Anything else surviving
+     * that filter is a candidate the installer will register. This test
+     * pins the file-system shape that scanner reads — without a DB.
+     */
+    public function testInstallerScannerWouldDiscoverThisModule(): void
+    {
+        $customDir = realpath(self::MODULE_DIR . '/..');
+        $this->assertNotFalse($customDir, 'custom_modules parent must resolve');
+
+        $candidates = [];
+        $handle = opendir($customDir);
+        $this->assertNotFalse($handle);
+        try {
+            while (false !== ($entry = readdir($handle))) {
+                if (in_array($entry, ['.', '..', 'Application'], true)) {
+                    continue;
+                }
+                if (is_dir($customDir . '/' . $entry)) {
+                    $candidates[] = $entry;
+                }
+            }
+        } finally {
+            closedir($handle);
+        }
+
+        $this->assertContains(
+            basename(self::MODULE_DIR),
+            $candidates,
+            'Installer scanner must enumerate this module under custom_modules/',
+        );
+    }
+
+    /**
+     * `InstModuleTable::register()` reads line 1 of `info.txt` as
+     * `mod_name`. If `info.txt` is missing or empty, the directory name
+     * is used as a fallback — but having an explicit display name is
+     * what makes the module installer UI legible. Pin both pieces.
+     */
+    public function testInfoTxtFirstLineIsTheRegisteredModName(): void
+    {
+        $infoPath = self::MODULE_DIR . '/info.txt';
+        $lines = file($infoPath);
+        $this->assertNotFalse($lines);
+        $this->assertNotEmpty($lines, 'info.txt must have a non-empty first line');
+
+        $modName = trim($lines[0]);
+        $this->assertNotSame('', $modName, 'mod_name must not be the empty string');
+        $this->assertStringStartsWith(
+            'Clinical Co-Pilot',
+            $modName,
+            'mod_name (from info.txt line 1) is the human-readable label in Manage Modules',
+        );
+    }
+
+    /**
+     * A syntax error in `openemr.bootstrap.php` would prevent
+     * `ModulesApplication` from loading the module at runtime — and
+     * surfaces only when the module is enabled. Catch it in CI instead.
+     */
+    public function testRuntimeBootstrapEntrypointParsesCleanly(): void
+    {
+        $entry = self::MODULE_DIR . '/openemr.bootstrap.php';
+        $process = new Process([PHP_BINARY, '-l', $entry]);
+        $process->run();
+        $this->assertSame(
+            0,
+            $process->getExitCode(),
+            "openemr.bootstrap.php must parse: "
+                . $process->getOutput()
+                . $process->getErrorOutput(),
+        );
     }
 }

@@ -4,12 +4,15 @@ import type { KeyResolver } from './jwks.js';
 
 /**
  * Identity carried on each authenticated request. The proxy controller
- * mints a token whose `sub` is the acting practitioner's fhirUser uuid
- * (`Practitioner/{uuid}` when known, else the legacy auth_user id) — see
- * `interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentTokenMinter.php`.
+ * mints a token whose `sub` is the acting practitioner's bare uuid and
+ * whose `fhirUser` claim is the SMART URI (`{baseUrl}/Practitioner/{uuid}`)
+ * — see `interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentTokenMinter.php`.
  *
- * Downstream code (tools, traces) cares about the fhirUser, so we expose
- * it as a first-class field aliased from `sub`.
+ * Downstream code (tools, traces) cares about the fhirUser URI, so we
+ * expose it as a first-class field. If the claim is missing (e.g. a token
+ * minted before the fhirUser fix) we fall back to `sub` and log — this
+ * lets the agent reject silent regressions instead of trusting whatever
+ * string happens to be in `sub`.
  */
 export interface AgentPrincipal {
     sub: string;
@@ -101,9 +104,14 @@ export const createAgentJwtVerifier = (options: AgentJwtVerifierOptions): AgentJ
             throw new AgentJwtVerificationError('token missing exp');
         }
 
+        const fhirUserClaim = payload['fhirUser'];
+        const fhirUser = typeof fhirUserClaim === 'string' && fhirUserClaim.length > 0
+            ? fhirUserClaim
+            : sub;
+
         return {
             sub,
-            fhirUser: sub,
+            fhirUser,
             scopes: extractScopes(payload),
             jti,
             audience: audienceOf(payload, options.audience),

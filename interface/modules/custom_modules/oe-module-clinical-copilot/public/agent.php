@@ -19,6 +19,8 @@ require_once __DIR__ . '/../../../../globals.php';
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentRequest;
+use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolutionException;
+use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolver;
 use OpenEMR\Modules\ClinicalCopilot\Auth\PolicyGate;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SessionContext;
 use OpenEMR\Modules\ClinicalCopilot\Controller\AgentProxyController;
@@ -49,10 +51,28 @@ $sessionPid = (is_scalar($sessionPidRaw) && $sessionPidRaw !== '' && $sessionPid
     ? (string) $sessionPidRaw
     : null;
 
-$fhirUserUuidRaw = $session->get('fhirUserUuid');
-$fhirUserUuid = is_string($fhirUserUuidRaw) && $fhirUserUuidRaw !== ''
-    ? $fhirUserUuidRaw
-    : null;
+// Resolve fhirUser identity *before* the policy gate runs. The agent's
+// authorization model assumes `sub` is a Practitioner UUID — falling back
+// to authUserID (an integer in users.id) would silently grant the wrong
+// identity to anything that trusts the claim. Fail closed if the staff
+// row can't be found or the user isn't a Practitioner-eligible role.
+$siteAddr = $globals->getString('site_addr_oath');
+$webroot = $globals->getWebRoot();
+$fhirBaseUrl = $siteAddr . $webroot . '/apis/' . $siteId . '/fhir';
+$issuer = $siteAddr . $webroot . '/oauth2/' . $siteId;
+
+$resolvedFhirUser = null;
+if ($authUserId !== '') {
+    try {
+        $resolvedFhirUser = (new FhirUserResolver())->resolve($authUserId, $fhirBaseUrl);
+    } catch (FhirUserResolutionException) {
+        // Surface as MissingSession so the gate emits a 401 — same UX as
+        // hitting the endpoint without a session. The reason is logged
+        // server-side; we never leak the resolution failure detail to the
+        // client.
+        $resolvedFhirUser = null;
+    }
+}
 
 $gate = new PolicyGate();
 $context = new SessionContext(
@@ -60,7 +80,7 @@ $context = new SessionContext(
     authUser: $authUser,
     siteId: $siteId,
     patientPid: $sessionPid,
-    fhirUserUuid: $fhirUserUuid,
+    fhirUser: $resolvedFhirUser,
 );
 
 $agentRequest = new AgentRequest(
@@ -76,8 +96,6 @@ $agentBaseUrlEnv = getenv('AGENT_SERVICE_URL');
 $agentBaseUrl = is_string($agentBaseUrlEnv) && $agentBaseUrlEnv !== ''
     ? $agentBaseUrlEnv
     : 'http://agent:8080';
-
-$issuer = $globals->getString('site_addr_oath') . $globals->getWebRoot() . '/oauth2/' . $siteId;
 
 $controller = AgentProxyController::fromEnvironment($agentBaseUrl, $issuer);
 $controller->dispatch($context, $agentRequest, $body);

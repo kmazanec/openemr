@@ -68,6 +68,18 @@ final readonly class PolicyGate
             );
         }
 
+        // The proxy must have resolved the session user to a Practitioner
+        // fhirUser before reaching the gate. A null here means the session
+        // user is not a staff/system user, or their `users.uuid` row could
+        // not be read — either way the agent would receive a token with no
+        // verifiable identity, so fail closed.
+        if ($session->fhirUser === null) {
+            return PolicyDecision::deny(
+                PolicyDenyReason::MissingSession,
+                'Session user could not be resolved to a Practitioner identity',
+            );
+        }
+
         if ($session->siteId !== $request->siteId) {
             return PolicyDecision::deny(
                 PolicyDenyReason::SiteMismatch,
