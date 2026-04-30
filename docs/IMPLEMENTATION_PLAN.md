@@ -84,7 +84,12 @@ verification, audit, and rate limiting all build on a stable substrate.
   (Redaction covers PHI-shaped leaves up to 2 levels deep through objects
   and arrays. If Phase 2 snapshot DTOs nest PHI 3+ levels deep, expand the
   path-pattern set in `agent/src/observability/logger.ts`.)
-- [ ] `Dockerfile` (multi-stage, Node 22, non-root)
+- [x] `Dockerfile` (multi-stage, Node 22, non-root)
+  (4 stages: deps → build → prod-deps → runtime. Base image
+  `node:22-alpine` pinned by digest, runs as `node` (uid 1000), 318 MB
+  final image. Healthcheck hits `/health`. Verified: `docker build` +
+  `docker run` smoke-test confirms routes work and the process is
+  non-root.)
 - [ ] `agent/README.md` — how to run locally, env vars, deploy target
 
 ### 1.2 Agent Postgres (state store)
