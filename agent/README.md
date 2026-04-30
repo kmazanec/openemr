@@ -55,7 +55,18 @@ Coming in later phases (placeholder — not yet read by any code):
 - `ANTHROPIC_API_KEY` — Sonnet 4 calls (phase 3)
 - `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_TRACING` — observability (phase 6.1)
 - `OPENEMR_JWKS_URL` _or_ `AGENT_JWT_PUBLIC_KEY` — bearer-token verification (phase 1.5)
-- `DATABASE_URL` — agent Postgres for the LangGraph checkpointer (phase 1.2)
+
+In addition, the service requires:
+
+| Variable       | Purpose                                                         |
+| -------------- | --------------------------------------------------------------- |
+| `DATABASE_URL` | Postgres conn string for the LangGraph checkpointer (required). |
+
+In dev (`docker/development-easy/`) the value is
+`postgresql://agent:agent@agent-postgres:5432/agent`. In prod
+(`docker/digitalocean/`) the password comes from `AGENT_PG_PASSWORD` in
+`/etc/openemr/.env` and the host is the same `agent-postgres` service
+on the internal Docker network.
 
 ## Docker
 
@@ -106,7 +117,30 @@ when phase 1.2 wires it in.
 
 ## Schema init
 
-Agent state lives in a sibling Postgres container (phase 1.2, not yet
-provisioned). Once wired, LangGraph's first-party Postgres
-checkpointer applies its own migrations on boot — this README will get
-the exact bring-up steps when that work lands.
+Agent state lives in a sibling `agent-postgres` container declared in
+[`docker/development-easy/docker-compose.yml`](../docker/development-easy/docker-compose.yml)
+and [`docker/digitalocean/docker-compose.yml`](../docker/digitalocean/docker-compose.yml).
+The Postgres image starts empty; LangGraph's first-party Postgres
+checkpointer (`@langchain/langgraph-checkpoint-postgres`) creates and
+migrates its own tables.
+
+Bring-up flow on every boot of the agent service:
+
+1. `start()` in [`src/server/index.ts`](src/server/index.ts) reads
+   `DATABASE_URL` and aborts with a non-zero exit if it isn't set.
+2. [`createCheckpointer()`](src/state/checkpointer.ts) constructs a
+   `PostgresSaver` from the conn string.
+3. `await checkpointer.setup()` runs the LangGraph migrations. This is
+   idempotent — first boot creates the `checkpoints`, `checkpoint_blobs`,
+   `checkpoint_writes`, and `checkpoint_migrations` tables; subsequent
+   boots are no-ops once `checkpoint_migrations` is at the latest
+   version.
+4. The HTTP listener starts only after `setup()` resolves, so a broken
+   migration shows up as a failed boot, not a half-up service.
+
+Because LangGraph owns the schema, there are no hand-written migrations
+in this repo for agent state. To inspect the schema in dev:
+
+```sh
+psql 'postgresql://agent:agent@127.0.0.1:8330/agent' -c '\dt'
+```

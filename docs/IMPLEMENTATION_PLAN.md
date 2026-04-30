@@ -93,11 +93,23 @@ verification, audit, and rate limiting all build on a stable substrate.
 - [x] `agent/README.md` — how to run locally, env vars, deploy target
 
 ### 1.2 Agent Postgres (state store)
-- [ ] Add `agent-postgres` service to `docker/digitalocean/docker-compose.yml`
+- [x] Add `agent-postgres` service to `docker/digitalocean/docker-compose.yml`
   (internal-only, named volume, healthcheck)
-- [ ] Add the same service to `docker/development-easy/docker-compose.yml`
-- [ ] Wire LangGraph's first-party Postgres checkpointer at agent startup
-- [ ] Document schema-init flow in `agent/README.md` (LangGraph migrations
+  (`postgres:16-alpine` pinned by digest; password sourced from
+  `AGENT_PG_PASSWORD` in `/etc/openemr/.env`. Bootstrap script
+  `infra/bootstrap-do.sh` and `infra/cloud-init.sh.template` updated to
+  mint and ship the secret.)
+- [x] Add the same service to `docker/development-easy/docker-compose.yml`
+  (Host port `${WT_AGENT_PG_PORT:-8330}` for psql access; static
+  `agent`/`agent` creds matching the rest of the dev-easy stack.)
+- [x] Wire LangGraph's first-party Postgres checkpointer at agent startup
+  (`src/state/checkpointer.ts` exposes `createCheckpointer(connString)`.
+  `start()` in `src/server/index.ts` reads `DATABASE_URL`, calls
+  `PostgresSaver.setup()`, and only then starts the HTTP listener;
+  missing `DATABASE_URL` is a hard boot failure. New dep:
+  `@langchain/langgraph-checkpoint-postgres@1.0.1` — the LangGraph
+  first-party checkpointer; pulls in `pg` transitively.)
+- [x] Document schema-init flow in `agent/README.md` (LangGraph migrations
   on boot)
 
 ### 1.3 OpenEMR module: `oe-module-clinical-copilot`
