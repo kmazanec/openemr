@@ -65,7 +65,7 @@ verification, audit, and rate limiting all build on a stable substrate.
 - [x] `package.json` with TypeScript, tsx, Vitest, Pino, LangGraph, LangChain,
   `@langchain/anthropic`, LangSmith SDK, `@hono/node-server` + Hono
   (chosen for streaming-friendly minimal HTTP)
-- [ ] `tsconfig.json` (strict, NodeNext, ES2022)
+- [x] `tsconfig.json` (strict, NodeNext, ES2024)
 - [ ] `eslint.config.mjs` + `.prettierrc` matching repo's TS conventions
 - [ ] Folder layout: `src/{server,graph,tools,verify,state,observability,config}/`,
   `evals/{fixtures,cases,runners}/`, `tests/`
