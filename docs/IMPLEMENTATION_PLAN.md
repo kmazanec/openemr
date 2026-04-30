@@ -573,13 +573,16 @@ tests in Docker.
   content here.)
 
 ### 2.5b Services-suite adapter coverage (deferred to Phase 3.1)
-- [ ] PHPUnit (services suite, runs in Docker) for each production
+- [x] ~~PHPUnit (services suite, runs in Docker) for each production
   `*DataSource` implementation written in §2.6, exercised against
-  seeded patients (one per archetype). The §2.6 controller-level tests
-  cover wiring with the in-memory factory; this checkbox covers the
-  Docker integration path that the literal "services suite" reading
-  asked for. Defers to Phase 3.1 because the agent-side tools landing
-  there are the first real consumers and naturally drive these tests.
+  seeded patients (one per archetype).~~ **Skipped for now.** The
+  isolated `ArchetypeAdapterTest` covers adapter mapping logic and the
+  §2.6 controller-level tests cover wiring; the live SQL path is
+  exercised end-to-end by the Phase 3.6 eval suite hitting
+  `snapshot.php` against seeded archetypes. A focused services-suite
+  test would catch a broken column projection faster than a red eval,
+  but isn't worth the Docker-suite cost on the 7-week timeline.
+  Revisit if eval failures start pointing at adapter SQL drift.
 
 ### 2.6 Agent-callback snapshot endpoint
 Trust direction: the **Node agent** calls OpenEMR with the JWT it
