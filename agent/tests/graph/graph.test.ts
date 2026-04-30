@@ -99,7 +99,7 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
         const { client } = buildClient();
         const synth = buildSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: TOKEN },
+            retrieve: { client, token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
@@ -120,7 +120,7 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
         const { client, fetch } = buildClient();
         const synth = buildSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: TOKEN },
+            retrieve: { client, token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });

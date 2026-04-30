@@ -19,6 +19,13 @@ export interface SnapshotFetchInput {
     readonly pid: number;
     readonly categories: readonly SnapshotCategory[];
     readonly token: string;
+    /**
+     * Site the snapshot endpoint must run against. Becomes `?site=…` on
+     * the request URL — OpenEMR's `globals.php` resolves the site from
+     * that query param when no session cookie is present (the agent has
+     * no session). Comes from the verified JWT issuer in production.
+     */
+    readonly siteId: string;
 }
 
 export interface SnapshotClient {
@@ -79,8 +86,13 @@ export const createSnapshotClient = (options: SnapshotClientOptions): SnapshotCl
     const retryDelayMs = options.retryDelayMs ?? 250;
     const logger = createLogger('snapshotClient');
 
-    const buildUrl = (pid: number, categories: readonly SnapshotCategory[]): string => {
+    const buildUrl = (
+        pid: number,
+        categories: readonly SnapshotCategory[],
+        siteId: string,
+    ): string => {
         const params = new URLSearchParams({
+            site: siteId,
             pid: String(pid),
             categories: categories.join(','),
         });
@@ -105,8 +117,11 @@ export const createSnapshotClient = (options: SnapshotClientOptions): SnapshotCl
             if (input.categories.length === 0) {
                 throw new Error('categories list is required');
             }
+            if (input.siteId.length === 0) {
+                throw new Error('siteId is required');
+            }
 
-            const url = buildUrl(input.pid, input.categories);
+            const url = buildUrl(input.pid, input.categories, input.siteId);
             const startedAt = Date.now();
 
             let lastNetworkError: unknown;

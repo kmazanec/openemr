@@ -28,26 +28,24 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/JtiGenerator.php';
 
 /**
- * Writes a freshly-minted token + matching JWK + expected-claim manifest
- * into `agent/tests/fixtures/contract/` so the Vitest verifier can run
- * the *real* PHP minter's output through the *real* TS verifier.
+ * Smoke-checks the PHP-side minter end-to-end: generates an RSA keypair,
+ * mints a token, derives the matching JWK, and writes the manifest to a
+ * tmp file. The agent's Vitest contract test reads a *committed* fixture
+ * at `agent/tests/fixtures/contract/token.json`, not whatever this test
+ * produces — the two are independent.
  *
- * This is the smoking-gun test for I1 (issuer string contract), S1
- * (kid alignment), S3 (audience string), and F1 (scopes round-trip):
- * if any of those drift between the two sides, this test passes locally
- * (PHPUnit succeeds at writing the fixture) but the Vitest contract test
- * fails to verify the token, and CI fails loudly with a precise diff.
+ * The temp-file output is purely a developer aid for refreshing the
+ * committed fixture by hand. The path is logged at the end of the test
+ * so you can find it after a run.
  *
- * Regenerate manually:
- *   composer phpunit-isolated -- --filter ContractFixture
+ * To refresh the committed agent fixture:
+ *   composer phpunit-isolated -- --filter AgentTokenContractFixture
+ *   cp <printed-temp-path> agent/tests/fixtures/contract/token.json
  */
 final class AgentTokenContractFixtureTest extends TestCase
 {
     private const MODULE_AUTH_DIR = __DIR__
         . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth';
-
-    private const FIXTURE_DIR = __DIR__
-        . '/../../../../../../agent/tests/fixtures/contract';
 
     public static function setUpBeforeClass(): void
     {
@@ -60,12 +58,8 @@ final class AgentTokenContractFixtureTest extends TestCase
         require_once self::MODULE_AUTH_DIR . '/AgentTokenMinter.php';
     }
 
-    public function testWriteCrossBoundaryFixture(): void
+    public function testMinterProducesAVerifiableManifest(): void
     {
-        if (!is_dir(self::FIXTURE_DIR)) {
-            $this->assertTrue(mkdir(self::FIXTURE_DIR, 0o755, true));
-        }
-
         $resource = openssl_pkey_new([
             'private_key_bits' => 2048,
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
@@ -118,11 +112,13 @@ final class AgentTokenContractFixtureTest extends TestCase
             'generatedAt' => (new DateTimeImmutable())->format(DATE_ATOM),
         ];
 
+        $tmpPath = tempnam(sys_get_temp_dir(), 'agent-contract-') . '.json';
         $bytes = file_put_contents(
-            self::FIXTURE_DIR . '/token.json',
+            $tmpPath,
             json_encode($manifest, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n",
         );
-        $this->assertNotFalse($bytes, 'Fixture must write successfully');
+        $this->assertNotFalse($bytes, 'Manifest must write successfully');
+        fwrite(STDERR, "agent contract manifest written to: {$tmpPath}\n");
     }
 
     /**

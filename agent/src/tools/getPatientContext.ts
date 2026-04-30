@@ -19,6 +19,7 @@ import type { SnapshotClient } from './snapshotClient.js';
 export interface GetPatientContextInput {
     readonly client: SnapshotClient;
     readonly token: string;
+    readonly siteId: string;
     readonly pid: number;
 }
 
@@ -33,6 +34,7 @@ const impl = async (input: GetPatientContextInput): Promise<PatientContext> => {
         pid: input.pid,
         categories: ['diagnosis', 'allergy'],
         token: input.token,
+        siteId: input.siteId,
     });
     const snapshot = decodeChartSnapshot(raw);
     return {

@@ -21,6 +21,15 @@ export interface AgentPrincipal {
     jti: string;
     audience: string;
     issuer: string;
+    /**
+     * Site this token is scoped to. Derived from the issuer URL's last
+     * path segment — OpenEMR's OAuth2 issuer follows
+     * `{baseUrl}/oauth2/{siteId}`, and the agent verifier already pins
+     * the issuer string against `AGENT_JWT_ISSUER`, so the segment is
+     * tamper-proof. Used by tool calls back into OpenEMR to set the
+     * `site` query param the snapshot endpoint requires.
+     */
+    siteId: string;
     expiresAt: Date;
     /** Raw decoded payload — for diagnostics, not for routing logic. */
     raw: JWTPayload;
@@ -46,6 +55,13 @@ export interface AgentJwtVerifierOptions {
     algorithms?: string[];
     /** Clock skew tolerance in seconds. Default: 30. */
     clockToleranceSeconds?: number;
+    /**
+     * Pin the verifier's clock for time-based claim checks (`exp`, `iat`,
+     * `nbf`). Production leaves this unset so jose falls back to wall
+     * time; tests use it to make a committed contract fixture verify
+     * deterministically regardless of when CI runs.
+     */
+    currentDate?: Date;
 }
 
 export type AgentJwtVerifier = (token: string) => Promise<AgentPrincipal>;
@@ -85,6 +101,7 @@ export const createAgentJwtVerifier = (options: AgentJwtVerifierOptions): AgentJ
                 algorithms,
                 clockTolerance,
                 requiredClaims: ['sub', 'exp', 'iat', 'jti'],
+                ...(options.currentDate !== undefined ? { currentDate: options.currentDate } : {}),
             });
         } catch (err) {
             throw new AgentJwtVerificationError('JWT verification failed', err);
@@ -109,15 +126,41 @@ export const createAgentJwtVerifier = (options: AgentJwtVerifierOptions): AgentJ
             ? fhirUserClaim
             : sub;
 
+        const issuer = payload.iss ?? options.issuer;
+        const siteId = parseSiteFromIssuer(issuer);
+        if (siteId === null) {
+            throw new AgentJwtVerificationError('issuer does not contain a site segment');
+        }
+
         return {
             sub,
             fhirUser,
             scopes: extractScopes(payload),
             jti,
             audience: audienceOf(payload, options.audience),
-            issuer: payload.iss ?? options.issuer,
+            issuer,
+            siteId,
             expiresAt: new Date(exp * 1000),
             raw: payload,
         };
     };
+};
+
+/**
+ * OpenEMR's OAuth2 issuer follows `{baseUrl}/oauth2/{siteId}`. The agent
+ * verifier pins the issuer string against `AGENT_JWT_ISSUER`, so the
+ * `oauth2/{siteId}` segment is already trusted by the time we reach this
+ * point. We just extract it.
+ */
+const parseSiteFromIssuer = (issuer: string): string | null => {
+    try {
+        const url = new URL(issuer);
+        const segments = url.pathname.split('/').filter((s) => s.length > 0);
+        const oauth2Index = segments.indexOf('oauth2');
+        if (oauth2Index === -1 || oauth2Index === segments.length - 1) return null;
+        const site = segments[oauth2Index + 1] ?? '';
+        return /^[A-Za-z0-9._-]+$/.test(site) ? site : null;
+    } catch {
+        return null;
+    }
 };

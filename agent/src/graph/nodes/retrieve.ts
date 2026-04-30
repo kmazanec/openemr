@@ -21,6 +21,13 @@ import type { BriefingSnapshot } from '../types.js';
 export interface RetrieveDeps {
     readonly client: SnapshotClient;
     readonly token: string;
+    /**
+     * Site the snapshot endpoint must be called against — derived from
+     * the verified JWT in the route handler. Threaded through every tool
+     * call so OpenEMR's `globals.php` can resolve the site without
+     * relying on a session cookie (the agent has none).
+     */
+    readonly siteId: string;
 }
 
 export const createRetrieve = (
@@ -28,7 +35,7 @@ export const createRetrieve = (
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
     return async (state) => {
         const pid = state.envelope.patient.pid;
-        const args = { client: deps.client, token: deps.token, pid };
+        const args = { client: deps.client, token: deps.token, siteId: deps.siteId, pid };
 
         const [patientContext, medications, labsResult, encountersResult] = await Promise.all([
             getPatientContext(args),

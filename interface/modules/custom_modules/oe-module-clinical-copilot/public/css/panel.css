@@ -1,0 +1,111 @@
+/* Clinical Co-Pilot panel — vanilla CSS, no preprocessor. */
+
+.copilot-panel {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 1.5em 2em 3em;
+    font-family: inherit;
+    color: #222;
+}
+
+.copilot-panel__header {
+    margin-bottom: 1.5em;
+    padding-bottom: 0.6em;
+    border-bottom: 1px solid #ddd;
+}
+
+.copilot-panel__title {
+    margin: 0 0 0.2em;
+    font-size: 1.4em;
+}
+
+.copilot-panel__subtitle {
+    margin: 0;
+    font-size: 0.95em;
+    color: #555;
+}
+
+.copilot-panel__subtitle[data-kind="error"] {
+    color: #b03028;
+    font-weight: 600;
+}
+
+.copilot-panel__subtitle[data-kind="ready"] {
+    color: #2c7a3a;
+}
+
+.copilot-panel__section {
+    margin: 1.4em 0;
+    padding: 0.8em 1em;
+    background: #f9fafb;
+    border: 1px solid #e7e9ec;
+    border-radius: 6px;
+}
+
+.copilot-panel__section h2 {
+    font-size: 1.05em;
+    margin: 0 0 0.5em;
+    color: #333;
+}
+
+.copilot-list {
+    margin: 0;
+    padding-left: 1.4em;
+}
+
+.copilot-list li {
+    margin: 0.3em 0;
+    line-height: 1.45;
+}
+
+.copilot-entry {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.copilot-empty {
+    margin: 0;
+    color: #888;
+    font-style: italic;
+}
+
+.copilot-source {
+    display: inline-block;
+    margin-left: 0.4em;
+    padding: 0 0.4em;
+    font-size: 0.78em;
+    color: #2058a8;
+    text-decoration: none;
+    border: 1px solid #c7d4e8;
+    border-radius: 3px;
+    background: #eef3fb;
+    vertical-align: 0.05em;
+}
+
+.copilot-source:hover {
+    background: #dfe9f7;
+    text-decoration: none;
+}
+
+.copilot-source--inert {
+    color: #555;
+    background: #eee;
+    border-color: #d4d4d4;
+    cursor: help;
+}
+
+.copilot-gap,
+.copilot-error {
+    margin: 0;
+    padding: 0.5em 0.75em;
+    background: #fff7e1;
+    border-left: 3px solid #c79610;
+    color: #6a4e0a;
+    font-size: 0.95em;
+}
+
+.copilot-error {
+    background: #fdecea;
+    border-left-color: #b03028;
+    color: #7a1f1a;
+}

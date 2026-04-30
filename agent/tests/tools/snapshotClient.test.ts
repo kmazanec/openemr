@@ -9,6 +9,7 @@ import {
 
 const TEST_BASE_URL = 'http://openemr.test';
 const TEST_TOKEN = 'fake-bearer-token-for-tests';
+const TEST_SITE = 'default';
 const TEST_PID = 42;
 
 describe('createSnapshotClient', () => {
@@ -41,12 +42,13 @@ describe('createSnapshotClient', () => {
             pid: TEST_PID,
             categories: ['diagnosis', 'allergy'],
             token: TEST_TOKEN,
+            siteId: TEST_SITE,
         });
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const call = fetchMock.mock.calls[0] as [string, RequestInit];
         expect(call[0]).toBe(
-            `${TEST_BASE_URL}/interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot.php?pid=42&categories=diagnosis%2Callergy`,
+            `${TEST_BASE_URL}/interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot.php?site=default&pid=42&categories=diagnosis%2Callergy`,
         );
         expect(call[1]).toMatchObject({
             method: 'GET',
@@ -70,6 +72,7 @@ describe('createSnapshotClient', () => {
             pid: TEST_PID,
             categories: ['diagnosis'],
             token: TEST_TOKEN,
+            siteId: TEST_SITE,
         });
 
         expect(out).toEqual(body);
@@ -89,6 +92,7 @@ describe('createSnapshotClient', () => {
             pid: TEST_PID,
             categories: ['diagnosis'],
             token: TEST_TOKEN,
+            siteId: TEST_SITE,
         });
 
         expect(out).toEqual({ patient: {} });
@@ -109,6 +113,7 @@ describe('createSnapshotClient', () => {
             pid: TEST_PID,
             categories: ['diagnosis'],
             token: TEST_TOKEN,
+            siteId: TEST_SITE,
         });
 
         expect(out).toEqual({ patient: {} });
@@ -123,6 +128,7 @@ describe('createSnapshotClient', () => {
                 pid: TEST_PID,
                 categories: ['diagnosis'],
                 token: TEST_TOKEN,
+                siteId: TEST_SITE,
             }),
         ).rejects.toBeInstanceOf(SnapshotHttpError);
         expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -136,6 +142,7 @@ describe('createSnapshotClient', () => {
                 pid: TEST_PID,
                 categories: ['diagnosis'],
                 token: TEST_TOKEN,
+                siteId: TEST_SITE,
             }),
         ).rejects.toMatchObject({
             name: 'SnapshotHttpError',
@@ -152,6 +159,7 @@ describe('createSnapshotClient', () => {
                 pid: TEST_PID,
                 categories: ['diagnosis'],
                 token: TEST_TOKEN,
+                siteId: TEST_SITE,
             }),
         ).rejects.toMatchObject({
             name: 'SnapshotHttpError',
@@ -168,6 +176,7 @@ describe('createSnapshotClient', () => {
                 pid: TEST_PID,
                 categories: ['diagnosis'],
                 token: TEST_TOKEN,
+                siteId: TEST_SITE,
             }),
         ).rejects.toMatchObject({
             name: 'SnapshotHttpError',
@@ -184,6 +193,7 @@ describe('createSnapshotClient', () => {
                 pid: TEST_PID,
                 categories: ['diagnosis'],
                 token: TEST_TOKEN,
+                siteId: TEST_SITE,
             }),
         ).rejects.toBeInstanceOf(SnapshotNetworkError);
         expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -191,14 +201,14 @@ describe('createSnapshotClient', () => {
 
     it('rejects an empty categories list at the call site', async () => {
         await expect(
-            client.fetchSnapshot({ pid: TEST_PID, categories: [], token: TEST_TOKEN }),
+            client.fetchSnapshot({ pid: TEST_PID, categories: [], token: TEST_TOKEN, siteId: TEST_SITE }),
         ).rejects.toThrow(/categories.*required/i);
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('rejects a non-positive pid at the call site', async () => {
         await expect(
-            client.fetchSnapshot({ pid: 0, categories: ['diagnosis'], token: TEST_TOKEN }),
+            client.fetchSnapshot({ pid: 0, categories: ['diagnosis'], token: TEST_TOKEN, siteId: TEST_SITE }),
         ).rejects.toThrow(/pid.*positive/i);
         expect(fetchMock).not.toHaveBeenCalled();
     });

@@ -5,6 +5,7 @@ import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapsho
 import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
+const SITE = 'default';
 const PID = 42;
 
 const baseSnapshot = {
@@ -43,12 +44,13 @@ describe('getPatientContext', () => {
     it('requests identity, diagnosis, and allergy categories from the snapshot endpoint', async () => {
         const { client, fetch } = mockClientResolving(baseSnapshot);
 
-        const out = await getPatientContext({ client, token: TOKEN, pid: PID });
+        const out = await getPatientContext({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(fetch).toHaveBeenCalledWith({
             pid: PID,
             categories: ['diagnosis', 'allergy'],
             token: TOKEN,
+            siteId: SITE,
         });
         expect(out.patient.displayName).toBe('Mrs. Patel');
         expect(out.diagnoses).toHaveLength(1);
@@ -57,14 +59,14 @@ describe('getPatientContext', () => {
 
     it('fails closed when the snapshot endpoint returns an HTTP error', async () => {
         const { client } = mockClientRejecting(new SnapshotHttpError(503, 'overloaded'));
-        await expect(getPatientContext({ client, token: TOKEN, pid: PID })).rejects.toBeInstanceOf(
+        await expect(getPatientContext({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
             SnapshotHttpError,
         );
     });
 
     it('fails closed when the snapshot endpoint is unreachable', async () => {
         const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
-        await expect(getPatientContext({ client, token: TOKEN, pid: PID })).rejects.toBeInstanceOf(
+        await expect(getPatientContext({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
             SnapshotNetworkError,
         );
     });
@@ -75,12 +77,12 @@ describe('getPatientContext', () => {
         // automatically a failure (a patient may genuinely have no allergies),
         // but a missing key is — the snapshot contract requires the field.
         const { client } = mockClientResolving({ ...baseSnapshot, allergies: undefined });
-        await expect(getPatientContext({ client, token: TOKEN, pid: PID })).rejects.toThrow();
+        await expect(getPatientContext({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toThrow();
     });
 
     it('returns an empty allergies array as a real result (NKDA case)', async () => {
         const { client } = mockClientResolving({ ...baseSnapshot, allergies: [] });
-        const out = await getPatientContext({ client, token: TOKEN, pid: PID });
+        const out = await getPatientContext({ client, token: TOKEN, siteId: SITE, pid: PID });
         expect(out.allergies).toEqual([]);
     });
 });

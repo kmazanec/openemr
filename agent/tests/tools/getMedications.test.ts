@@ -5,6 +5,7 @@ import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapsho
 import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
+const SITE = 'default';
 const PID = 42;
 
 const baseSnapshot = {
@@ -39,12 +40,13 @@ describe('getMedications', () => {
     it('requests only the medication category from the snapshot endpoint', async () => {
         const { client, fetch } = mockClientResolving(baseSnapshot);
 
-        const out = await getMedications({ client, token: TOKEN, pid: PID });
+        const out = await getMedications({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(fetch).toHaveBeenCalledWith({
             pid: PID,
             categories: ['medication'],
             token: TOKEN,
+            siteId: SITE,
         });
         expect(out).toHaveLength(1);
         expect(out[0]!.name).toBe('Metformin');
@@ -52,14 +54,14 @@ describe('getMedications', () => {
 
     it('fails closed on HTTP error', async () => {
         const { client } = mockClientRejecting(new SnapshotHttpError(503, ''));
-        await expect(getMedications({ client, token: TOKEN, pid: PID })).rejects.toBeInstanceOf(
+        await expect(getMedications({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
             SnapshotHttpError,
         );
     });
 
     it('fails closed on network error', async () => {
         const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
-        await expect(getMedications({ client, token: TOKEN, pid: PID })).rejects.toBeInstanceOf(
+        await expect(getMedications({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
             SnapshotNetworkError,
         );
     });

@@ -5,6 +5,7 @@ import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapsho
 import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
+const SITE = 'default';
 const PID = 42;
 
 const baseSnapshot = {
@@ -38,12 +39,13 @@ describe('getRecentLabs', () => {
     it('requests only the lab category from the snapshot endpoint', async () => {
         const { client, fetch } = mockClientResolving(baseSnapshot);
 
-        const result = await getRecentLabs({ client, token: TOKEN, pid: PID });
+        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(fetch).toHaveBeenCalledWith({
             pid: PID,
             categories: ['lab'],
             token: TOKEN,
+            siteId: SITE,
         });
         expect(result.kind).toBe('ok');
         if (result.kind === 'ok') {
@@ -55,7 +57,7 @@ describe('getRecentLabs', () => {
     it('returns an explicit gap when the snapshot endpoint returns 5xx', async () => {
         const { client } = mockClientRejecting(new SnapshotHttpError(503, ''));
 
-        const result = await getRecentLabs({ client, token: TOKEN, pid: PID });
+        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -67,7 +69,7 @@ describe('getRecentLabs', () => {
     it('returns an explicit gap when the snapshot endpoint is unreachable', async () => {
         const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
 
-        const result = await getRecentLabs({ client, token: TOKEN, pid: PID });
+        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -79,7 +81,7 @@ describe('getRecentLabs', () => {
         // 401/403 indicates a misconfigured token, not a transient data
         // problem. Surfacing it as a gap would hide a real failure.
         const { client } = mockClientRejecting(new SnapshotHttpError(401, ''));
-        await expect(getRecentLabs({ client, token: TOKEN, pid: PID })).rejects.toBeInstanceOf(
+        await expect(getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
             SnapshotHttpError,
         );
     });
@@ -87,7 +89,7 @@ describe('getRecentLabs', () => {
     it('returns an empty list as a real result, not a gap', async () => {
         const { client } = mockClientResolving({ ...baseSnapshot, labs: [] });
 
-        const result = await getRecentLabs({ client, token: TOKEN, pid: PID });
+        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(result.kind).toBe('ok');
         if (result.kind === 'ok') {

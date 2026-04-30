@@ -15,6 +15,7 @@ import type { SnapshotClient } from './snapshotClient.js';
 export interface GetRecentEncountersInput {
     readonly client: SnapshotClient;
     readonly token: string;
+    readonly siteId: string;
     readonly pid: number;
 }
 
@@ -26,6 +27,7 @@ const impl = async (input: GetRecentEncountersInput): Promise<RecentEncountersRe
             pid: input.pid,
             categories: ['encounter'],
             token: input.token,
+            siteId: input.siteId,
         });
         return { kind: 'ok', encounters: decodeChartSnapshot(raw).encounters };
     } catch (err) {

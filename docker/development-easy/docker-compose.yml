@@ -150,6 +150,14 @@ services:
       # both. We use HTTP over the docker network to avoid the self-signed
       # cert dance — the JWKS is public anyway.
       OPENEMR_JWKS_URL: http://openemr/oauth2/default/jwk
+      # Base URL the agent uses for callbacks (snapshot endpoint, etc).
+      # Same docker-network hostname as JWKS — avoids the self-signed cert.
+      OPENEMR_BASE_URL: http://openemr
+      # Required for the §3.4 briefing graph's Synthesize node. Local-dev
+      # default is a placeholder so the route can boot even without an API
+      # key; the graph will fail-fast at the synthesize step rather than
+      # hang. Override in your shell or `.env` for live LLM calls.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8080/health']
       start_period: 30s

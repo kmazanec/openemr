@@ -1,0 +1,56 @@
+{# Clinical Co-Pilot panel — rendered by public/panel.php. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ 'Clinical Co-Pilot'|xlt }}</title>
+    {{ commonHeader|raw }}
+    <link rel="stylesheet" href="{{ cssUrl }}" />
+</head>
+<body>
+    <main class="copilot-panel" data-pid="{{ pid }}" data-site-id="{{ siteId }}" data-proxy-url="{{ proxyUrl }}">
+        <header class="copilot-panel__header">
+            <h1 class="copilot-panel__title">{{ 'Clinical Co-Pilot Briefing'|xlt }}</h1>
+            <p class="copilot-panel__subtitle" data-role="status">{{ 'Loading briefing…'|xlt }}</p>
+        </header>
+
+        <section class="copilot-panel__section" data-section="appointment">
+            <h2>{{ 'Appointment'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+
+        <section class="copilot-panel__section" data-section="demographics">
+            <h2>{{ 'Patient'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+
+        <section class="copilot-panel__section" data-section="activeDiagnoses">
+            <h2>{{ 'Active diagnoses'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+
+        <section class="copilot-panel__section" data-section="currentMedications">
+            <h2>{{ 'Current medications'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+
+        <section class="copilot-panel__section" data-section="allergies">
+            <h2>{{ 'Allergies'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+
+        <section class="copilot-panel__section" data-section="recentLabs">
+            <h2>{{ 'Recent labs'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+
+        <section class="copilot-panel__section" data-section="recentEncounters">
+            <h2>{{ 'Recent encounters'|xlt }}</h2>
+            <div data-role="content"></div>
+        </section>
+    </main>
+
+    <script src="{{ jsUrl }}" defer></script>
+</body>
+</html>

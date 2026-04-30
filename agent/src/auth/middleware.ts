@@ -4,10 +4,12 @@ import { createLogger } from '../observability/logger.js';
 import { AgentJwtVerificationError, type AgentJwtVerifier, type AgentPrincipal } from './verify.js';
 
 const PRINCIPAL_KEY = 'agentPrincipal' as const;
+const RAW_TOKEN_KEY = 'agentRawToken' as const;
 
 declare module 'hono' {
     interface ContextVariableMap {
         [PRINCIPAL_KEY]: AgentPrincipal;
+        [RAW_TOKEN_KEY]: string;
     }
 }
 
@@ -43,6 +45,10 @@ export const createBearerAuthMiddleware = (
         try {
             const principal = await options.verify(token);
             c.set(PRINCIPAL_KEY, principal);
+            // Stash the raw token so routes that need to forward the
+            // physician's bearer (e.g. snapshot fetch) don't re-parse the
+            // Authorization header. Treated as sensitive — never logged.
+            c.set(RAW_TOKEN_KEY, token);
             logger.debug(
                 {
                     fhirUser: principal.fhirUser,
@@ -73,4 +79,17 @@ export const getPrincipal = (c: Context): AgentPrincipal => {
         throw new Error('agent principal missing — route is not behind bearer auth');
     }
     return principal;
+};
+
+/**
+ * Read the raw bearer token off a Hono context. Used by routes that need
+ * to forward the physician's identity to OpenEMR (e.g. snapshot fetch).
+ * Throws if the auth middleware did not run — same guard as getPrincipal.
+ */
+export const getRawToken = (c: Context): string => {
+    const token = c.get(RAW_TOKEN_KEY);
+    if (!token) {
+        throw new Error('agent raw token missing — route is not behind bearer auth');
+    }
+    return token;
 };

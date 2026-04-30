@@ -26,6 +26,25 @@
 
 declare(strict_types=1);
 
+// TODO(§6.x — production hardening): migrate this endpoint under /apis/
+// where every other bearer-authenticated surface in OpenEMR already
+// lives. Today snapshot.php sits beside agent.php (a browser entry
+// using a session cookie) but uses a different trust model (server-to-
+// server bearer JWT). That mix is why we have to set $ignoreAuth here
+// AND ship a sibling .htaccess to preserve the Authorization header —
+// mod_php strips it from $_SERVER before PHP sees it, and the existing
+// apis/.htaccess already applies the same workaround there. Moving
+// snapshot.php under /apis (or behind a thin dispatch.php routing rule)
+// would inherit the existing .htaccess, the rate-limit middleware, and
+// the audit trail that wraps the FHIR/REST surface. Tracked alongside
+// the §6.3 production-readiness checklist.
+//
+// Tell globals.php to skip its auth.inc.php redirect — this endpoint is
+// authenticated by the bearer token, not a session cookie. The agent
+// service has no OpenEMR session of its own; the JWT verifier below is
+// the only trust anchor. Without this flag, globals.php sees no session
+// and serves the HTML login page instead of letting our handler run.
+$ignoreAuth = true; // phpcs:ignore SlevomatCodingStandard.Variables.UnusedVariable -- read by globals.php
 require_once __DIR__ . '/../../../../globals.php';
 
 use OpenEMR\BC\ServiceContainer;

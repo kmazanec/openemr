@@ -1,0 +1,9 @@
+# The agent calls `snapshot.php` server-to-server with a `Authorization:
+# Bearer …` header. Apache's mod_php strips the Authorization header
+# before PHP sees it unless we explicitly republish it as
+# `HTTP_AUTHORIZATION` in the environment. Symfony's
+# `Request::createFromGlobals()` then reads it back and the snapshot
+# endpoint can authenticate the bearer. The repo's own `apis/.htaccess`
+# applies the same rule for the FHIR/REST surface; this is the same idea
+# narrowed to this module's public entry points.
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1

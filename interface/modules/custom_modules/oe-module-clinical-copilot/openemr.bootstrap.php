@@ -4,9 +4,9 @@
  * Clinical Co-Pilot module entrypoint.
  *
  * Loaded by OpenEMR's ModulesApplication when the module is enabled in
- * the modules table. Phase 1.3 just registers the module's PSR-4
- * namespace; Phase 1.4 starts instantiating Bootstrap and wiring
- * listeners here.
+ * the modules table. Registers the module's PSR-4 namespace and
+ * subscribes its event listeners — today, the patient-summary card entry
+ * point and the Twig templates path needed to render it.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 use OpenEMR\Core\ModulesClassLoader;
 use OpenEMR\Core\OEGlobalsBag;
+use OpenEMR\Modules\ClinicalCopilot\Bootstrap;
 
 $classLoader = new ModulesClassLoader(OEGlobalsBag::getInstance()->getProjectDir());
 $classLoader->registerNamespaceIfNotExists(
@@ -26,6 +27,7 @@ $classLoader->registerNamespaceIfNotExists(
     __DIR__ . DIRECTORY_SEPARATOR . 'src',
 );
 
-// Phase 1.3 skeleton: PSR-4 autoload registered, no event listeners
-// yet. Phase 1.4 instantiates Bootstrap with the event dispatcher and
-// calls subscribeToEvents() when the proxy controller lands.
+if (isset($eventDispatcher)) {
+    /** @var \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher */
+    (new Bootstrap($eventDispatcher))->subscribeToEvents();
+}

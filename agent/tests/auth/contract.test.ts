@@ -24,23 +24,24 @@ interface ContractFixture {
 }
 
 /**
- * The fixture below is written by the PHP minter
- * (`tests/Tests/Isolated/Modules/ClinicalCopilot/Auth/AgentTokenContractFixtureTest.php`).
- * Running that PHPUnit test produces `agent/tests/fixtures/contract/token.json`
- * by exercising the *real* `AgentTokenMinter` class with a freshly generated
- * RSA keypair, then writing the output token + matching public JWK + the
- * expected claim manifest.
+ * Hand-curated cross-boundary contract fixture: a real PHP-minted token,
+ * its matching public JWK, and the claims the agent's verifier should
+ * extract. Committed at `agent/tests/fixtures/contract/token.json`; no
+ * real secret (disposable RSA keypair, fake issuer).
  *
- * This Vitest then loads that fixture and runs it through the *real*
- * `createAgentJwtVerifier` middleware. If the two sides disagree on
- *   - the `aud` (`openemr-clinical-copilot-agent`),
- *   - the `iss` shape,
- *   - the kid algorithm (SHA-256(SPKI PEM), base64url),
- *   - the `RS256` signing alg,
- *   - the `sub`/`fhirUser`/`scopes` claim shape,
- * verification fails here with a precise diff.
+ * This test loads the fixture and runs it through the *real*
+ * `createAgentJwtVerifier`. The fixture pins the wire format both sides
+ * have to agree on — `aud`, `iss` shape, `kid` algorithm, `RS256`,
+ * `sub`/`fhirUser`/`scopes` claim shape. Because the minted JWT carries
+ * a 5-minute `exp`, the verifier's clock is pinned to the `generatedAt`
+ * instant the fixture recorded so it remains valid regardless of when
+ * the test runs.
  *
- * Regenerate fixture: `composer phpunit-isolated -- --filter ContractFixture`.
+ * To refresh the fixture (e.g. after a contract change), run
+ * `tests/Tests/Isolated/Modules/ClinicalCopilot/Auth/AgentTokenContractFixtureTest.php`
+ * — it writes a fresh manifest to a temp path and prints the location;
+ * copy it over `token.json`. The PHP test does not write to the agent
+ * tree directly.
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = resolve(here, '../fixtures/contract/token.json');
@@ -52,12 +53,20 @@ const loadFixture = async (): Promise<ContractFixture> => {
     } catch (err) {
         throw new Error(
             `cross-boundary fixture missing at ${FIXTURE_PATH}\n` +
-                'regenerate it with: composer phpunit-isolated -- --filter ContractFixture',
+                'see file header for how to refresh from the PHP minter',
             { cause: err },
         );
     }
     return JSON.parse(raw) as ContractFixture;
 };
+
+/**
+ * Pin the verifier's clock to the moment the fixture was generated so the
+ * 5-minute `exp` claim still verifies even if the fixture is months old.
+ * This is the test-time analogue of clock injection — the fixture's own
+ * `generatedAt` is the canonical "now" for the contract check.
+ */
+const fixtureClock = (fixture: ContractFixture): Date => new Date(fixture.generatedAt);
 
 describe('cross-boundary token contract', () => {
     it('verifies a real PHP-minted token against the real TS verifier', async () => {
@@ -67,6 +76,7 @@ describe('cross-boundary token contract', () => {
             keyResolver: createLocalKeyResolver([fixture.jwk]),
             issuer: fixture.expected.issuer,
             audience: fixture.expected.audience,
+            currentDate: fixtureClock(fixture),
         });
 
         const principal = await verify(fixture.token);
@@ -76,7 +86,12 @@ describe('cross-boundary token contract', () => {
         expect(principal.audience).toBe(fixture.expected.audience);
         expect(principal.issuer).toBe(fixture.expected.issuer);
         expect(principal.scopes).toEqual(fixture.expected.scopes);
-        expect(principal.expiresAt.getTime()).toBeGreaterThan(Date.now());
+        // exp is populated; the verifier above already enforced it against
+        // the fixture's generatedAt. Asserting > now() would just couple
+        // the test to wall time without testing anything new.
+        expect(principal.expiresAt.getTime()).toBeGreaterThan(
+            fixtureClock(fixture).getTime(),
+        );
     });
 
     it('rejects the token when the audience contract drifts', async () => {
@@ -86,6 +101,7 @@ describe('cross-boundary token contract', () => {
             keyResolver: createLocalKeyResolver([fixture.jwk]),
             issuer: fixture.expected.issuer,
             audience: 'wrong-audience',
+            currentDate: fixtureClock(fixture),
         });
 
         await expect(verify(fixture.token)).rejects.toThrow(/JWT verification failed/);
@@ -98,6 +114,7 @@ describe('cross-boundary token contract', () => {
             keyResolver: createLocalKeyResolver([fixture.jwk]),
             issuer: 'https://wrong.issuer.test/oauth2/default',
             audience: fixture.expected.audience,
+            currentDate: fixtureClock(fixture),
         });
 
         await expect(verify(fixture.token)).rejects.toThrow(/JWT verification failed/);

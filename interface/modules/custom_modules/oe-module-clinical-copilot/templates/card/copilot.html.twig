@@ -1,0 +1,13 @@
+{% extends "patient/card/card_base.html.twig" %}
+
+{% block content %}
+    <p class="m-0">
+        {{ "Open the AI-assisted briefing for the current patient. Every claim is cited back to the chart record it came from."|xlt }}
+    </p>
+    <p class="mt-2 mb-0">
+        <a class="btn btn-primary btn-sm" href="{{ panelUrl|attr }}" onclick="top.restoreSession()">
+            <i class="fa fa-stethoscope"></i>
+            {{ "Open Co-Pilot"|xlt }}
+        </a>
+    </p>
+{% endblock %}

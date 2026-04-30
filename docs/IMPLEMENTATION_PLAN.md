@@ -853,15 +853,61 @@ follow-up questions yet.
   OpenEMR-side disclosure-audit retention.)
 
 ### 3.4 Streaming + UI
-- [ ] SSE stream from agent → OpenEMR proxy → browser, preserving
+- [x] SSE stream from agent → OpenEMR proxy → browser, preserving
   per-claim citation tags
-- [ ] Module page (`/interface/modules/.../templates/panel.html.twig`)
+  (`agent/src/server/briefingStream.ts` defines the typed event protocol:
+  `meta` → one `section` event per `FormattedBriefing` slot → `done`, with
+  `error` for hard failures. Each section payload carries `SourceReference`
+  objects untouched so the proxy and browser never re-parse citations.
+  The agent-side route lives in `/v1/agent/briefing`, wired via the new
+  `BriefingRunner` abstraction in `agent/src/server/briefingRunner.ts` —
+  prod builds construct it from env (`buildProductionBriefingRunner`),
+  tests inject a stub. The PHP proxy controller from §1.4 already pipes
+  SSE chunks through unbatched, so the wire path is unchanged on the PHP
+  side. Token forwarding consolidated through `getRawToken(c)` in the
+  auth middleware — routes don't re-parse the Authorization header.)
+- [x] Module page (`/interface/modules/.../templates/panel.html.twig`)
   with a small JS bundle that opens the SSE stream on patient-chart open
-- [ ] Citation rendering: every claim shows a `[source]` chip linking to
+  (`public/panel.php` (the entry point) hard-gates on
+  `patients/med` ACL and the requested pid matching the active session
+  pid, then renders `templates/panel.html.twig`. The panel hosts a
+  vanilla-JS bundle (`public/js/panel.js`) that streams the briefing via
+  `fetch` + `ReadableStream` — `EventSource` would have been simpler but
+  it's GET-only and the request envelope ships in a POST body. CSS
+  lives in `public/css/panel.css`. Render-test coverage in
+  `tests/Tests/Isolated/Modules/ClinicalCopilot/PanelTemplateTest.php`
+  pins the JS-readable anchors (`data-section`, `data-role`, `data-pid`)
+  so a template refactor that drifts the contract fails loudly.)
+- [x] Citation rendering: every claim shows a `[source]` chip linking to
   the OpenEMR record where practical
-- [ ] Failure-state UI: "Allergies could not be verified" / "Briefing
+  (`renderSourceChip` / `sourceLinkUrl` in `panel.js`. Patient,
+  Encounter, Condition, AllergyIntolerance, MedicationRequest, and
+  Observation map to existing OpenEMR record-view URLs; other recordTypes
+  fall through to a tooltip-only chip. Tooltip shows
+  `recordType recordId` so even unmappable types are auditable. Linking
+  is best-effort — chip remains visible regardless.)
+- [x] Failure-state UI: "Allergies could not be verified" / "Briefing
   unavailable" rendered explicitly, never silently hidden
-- [ ] Patient-chart button entry point (PRESEARCH decision #5)
+  (Two layers in `panel.js`. Per-section `Gap` payloads render through
+  `renderSection` as a yellow-bar `.copilot-gap` showing the verifier's
+  `message` ("Allergy data is unavailable; medication summary withheld",
+  etc.). Whole-stream errors call `renderFatalError`, which paints every
+  un-rendered section red with "Briefing unavailable (code: …)" so a
+  hung connection or upstream crash is visible at-a-glance instead of
+  silently empty. Both `error` SSE events from the agent and HTTP
+  failures from fetch route through the same handler.)
+- [x] Patient-chart button entry point (PRESEARCH decision #5)
+  (Module `Bootstrap` (`src/Bootstrap.php`) subscribes a
+  `SectionEvent::EVENT_HANDLE` listener that adds the
+  "Open Co-Pilot" `CardModel` to the patient summary's `primary` section
+  whenever it renders. The card template (`templates/card/copilot.html.twig`,
+  extending `card_base`) carries the link to `panel.php?pid=…` —
+  same-window navigation, OpenEMR session preserved. A second listener on
+  `TwigEnvironmentEvent::EVENT_CREATED` prepends the module's templates
+  path so the card template resolves through the standard `TwigContainer`
+  without polluting the upstream `/templates` tree. Wired into the
+  module's `openemr.bootstrap.php`. PHPUnit-isolated coverage in
+  `BootstrapTest` pins both listeners' contracts.)
 
 ### 3.5 Conversation persistence
 - [ ] On first chart open, agent creates a `conversation(user_id,
@@ -1016,6 +1062,14 @@ These are tracked separately but worked in parallel as each UC lands.
 - [ ] Runbook entry: "agent service down" → graceful degradation;
   briefing panel shows unavailable, OpenEMR remains usable
 - [ ] Secrets rotation procedure documented in `infra/README.md`
+- [ ] Migrate `snapshot.php` from `interface/modules/.../public/` to
+  `/apis/` (or a thin dispatch shim that lives under `/apis/`). Today it
+  sits next to `agent.php` (browser session cookie) but uses bearer-JWT
+  trust, which is why we ship a one-line `.htaccess` next to it to
+  preserve the `Authorization` header. Moving it inherits
+  `apis/.htaccess`, the rate-limit middleware, and the existing audit
+  trail. The current placement was a §1.4 expedience; this is the
+  follow-up.
 
 ### 6.4 Documentation
 - [ ] `README.md` — top-level project overview and demo-deploy URL (PDF
@@ -1176,6 +1230,14 @@ and `agent/README.md`. Phase 5 or the production-readiness checklist
 
 Phase 3+ tools that need similar deterministic time should reuse
 `ClockInterface` rather than introducing a parallel one.
+
+The cross-boundary contract fixture
+(`agent/tests/fixtures/contract/token.json`) is now committed to git as a
+stable artifact. The fixture is regenerated by the PHPUnit minter test on
+every isolated run; the agent-side Vitest pins its verifier clock to the
+fixture's `generatedAt` so the committed token verifies deterministically
+even when months have elapsed since the last regeneration. CI no longer
+needs the PHP isolated job to run before `test:agent`.
 
 ### A.5 ChartSnapshot DTO contract (wired in §3.1)
 

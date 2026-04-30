@@ -61,7 +61,7 @@ const buildClient = (
 describe('createRetrieve', () => {
     it('fans out to all four §3.1 tools and assembles the snapshot', async () => {
         const client = buildClient(() => baseSnapshot());
-        const retrieve = createRetrieve({ client, token: TOKEN });
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
         const out = await retrieve({
             envelope,
@@ -84,7 +84,7 @@ describe('createRetrieve', () => {
             }
             return baseSnapshot();
         });
-        const retrieve = createRetrieve({ client, token: TOKEN });
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
         const out = await retrieve({
             envelope,
@@ -105,7 +105,7 @@ describe('createRetrieve', () => {
             }
             return baseSnapshot();
         });
-        const retrieve = createRetrieve({ client, token: TOKEN });
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
         const out = await retrieve({
             envelope,
@@ -126,7 +126,7 @@ describe('createRetrieve', () => {
             }
             return baseSnapshot();
         });
-        const retrieve = createRetrieve({ client, token: TOKEN });
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
         await expect(
             retrieve({
@@ -144,7 +144,7 @@ describe('createRetrieve', () => {
             }
             return baseSnapshot();
         });
-        const retrieve = createRetrieve({ client, token: TOKEN });
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
         await expect(
             retrieve({

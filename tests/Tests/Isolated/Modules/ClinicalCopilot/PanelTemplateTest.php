@@ -1,0 +1,133 @@
+<?php
+
+/**
+ * Isolated render check for the Clinical Co-Pilot panel template.
+ *
+ * Doesn't go through the OpenEMR Twig stack — the panel template is
+ * deliberately self-contained (no `extends`, no app-specific filters), so
+ * we render it through a minimal `FilesystemLoader` and assert the
+ * structural anchors the JS bundle relies on. The browser renderer keys
+ * off `data-section` and `data-role` attributes; if those drift, the JS
+ * silently fails to populate sections — which is exactly the kind of
+ * regression this test catches.
+ *
+ * @package   OpenEMR
+ * @link      https://www.open-emr.org
+ * @author    Keith Mazanec <keith@devforward.com>
+ * @copyright Copyright (c) 2026 Keith Mazanec
+ * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
+ */
+
+declare(strict_types=1);
+
+namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot;
+
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
+use Twig\TwigFilter;
+
+#[Group('isolated')]
+final class PanelTemplateTest extends TestCase
+{
+    private static function buildTwig(): Environment
+    {
+        $loader = new FilesystemLoader([
+            __DIR__ . '/../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/templates',
+        ]);
+        $twig = new Environment($loader, ['autoescape' => 'html']);
+        // The template uses OpenEMR's `|xlt` (translate-and-escape) filter,
+        // which the production stack registers via TwigExtension. The
+        // isolated suite has no translator, so we pass through with the
+        // same HTML escaping `|xlt` would apply at runtime.
+        $twig->addFilter(new TwigFilter('xlt', static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES)));
+        return $twig;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function defaultParams(): array
+    {
+        return [
+            'cssUrl' => '/modules/copilot/panel.css',
+            'jsUrl' => '/modules/copilot/panel.js',
+            'proxyUrl' => '/modules/copilot/agent.php',
+            'pid' => 42,
+            'siteId' => 'default',
+            'commonHeader' => '<meta charset="utf-8" />',
+        ];
+    }
+
+    #[Test]
+    public function rendersAllSevenSectionsWithMatchingDataAttributes(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        $expectedSections = [
+            'appointment',
+            'demographics',
+            'activeDiagnoses',
+            'currentMedications',
+            'allergies',
+            'recentLabs',
+            'recentEncounters',
+        ];
+
+        foreach ($expectedSections as $section) {
+            self::assertStringContainsString(
+                'data-section="' . $section . '"',
+                $html,
+                "Panel template missing section anchor for '$section'",
+            );
+        }
+    }
+
+    #[Test]
+    public function rendersTheRootContainerWithProxyAndPidWiredForJs(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('class="copilot-panel"', $html);
+        self::assertStringContainsString('data-pid="42"', $html);
+        self::assertStringContainsString('data-site-id="default"', $html);
+        self::assertStringContainsString('data-proxy-url="/modules/copilot/agent.php"', $html);
+    }
+
+    #[Test]
+    public function emitsAStatusElementForFailureStateText(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('data-role="status"', $html);
+    }
+
+    #[Test]
+    public function loadsTheJsBundleWithDeferSoTheDomIsReadyOnInit(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('src="/modules/copilot/panel.js"', $html);
+        self::assertStringContainsString(' defer', $html);
+    }
+
+    #[Test]
+    public function escapesProxyUrlSoUntrustedConfigCannotInjectMarkup(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render(
+            'panel.html.twig',
+            array_merge(self::defaultParams(), [
+                'proxyUrl' => '" onclick="alert(1)" data-x="',
+            ]),
+        );
+
+        self::assertStringNotContainsString('onclick="alert(1)"', $html);
+    }
+}

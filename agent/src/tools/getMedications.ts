@@ -15,6 +15,7 @@ import type { SnapshotClient } from './snapshotClient.js';
 export interface GetMedicationsInput {
     readonly client: SnapshotClient;
     readonly token: string;
+    readonly siteId: string;
     readonly pid: number;
 }
 
@@ -23,6 +24,7 @@ const impl = async (input: GetMedicationsInput): Promise<readonly Medication[]> 
         pid: input.pid,
         categories: ['medication'],
         token: input.token,
+        siteId: input.siteId,
     });
     return decodeChartSnapshot(raw).medications;
 };

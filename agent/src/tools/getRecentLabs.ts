@@ -14,6 +14,7 @@ import type { SnapshotClient } from './snapshotClient.js';
 export interface GetRecentLabsInput {
     readonly client: SnapshotClient;
     readonly token: string;
+    readonly siteId: string;
     readonly pid: number;
 }
 
@@ -25,6 +26,7 @@ const impl = async (input: GetRecentLabsInput): Promise<RecentLabsResult> => {
             pid: input.pid,
             categories: ['lab'],
             token: input.token,
+            siteId: input.siteId,
         });
         return { kind: 'ok', labs: decodeChartSnapshot(raw).labs };
     } catch (err) {

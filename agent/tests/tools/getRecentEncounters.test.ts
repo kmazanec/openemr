@@ -5,6 +5,7 @@ import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapsho
 import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
+const SITE = 'default';
 const PID = 42;
 
 const baseSnapshot = {
@@ -35,12 +36,13 @@ describe('getRecentEncounters', () => {
     it('requests only the encounter category from the snapshot endpoint', async () => {
         const { client, fetch } = mockClientResolving(baseSnapshot);
 
-        const result = await getRecentEncounters({ client, token: TOKEN, pid: PID });
+        const result = await getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(fetch).toHaveBeenCalledWith({
             pid: PID,
             categories: ['encounter'],
             token: TOKEN,
+            siteId: SITE,
         });
         expect(result.kind).toBe('ok');
         if (result.kind === 'ok') {
@@ -52,7 +54,7 @@ describe('getRecentEncounters', () => {
     it('returns an explicit gap on 5xx', async () => {
         const { client } = mockClientRejecting(new SnapshotHttpError(503, ''));
 
-        const result = await getRecentEncounters({ client, token: TOKEN, pid: PID });
+        const result = await getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -64,7 +66,7 @@ describe('getRecentEncounters', () => {
     it('returns an explicit gap on network error', async () => {
         const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
 
-        const result = await getRecentEncounters({ client, token: TOKEN, pid: PID });
+        const result = await getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -75,7 +77,7 @@ describe('getRecentEncounters', () => {
     it('rethrows on auth errors', async () => {
         const { client } = mockClientRejecting(new SnapshotHttpError(403, ''));
         await expect(
-            getRecentEncounters({ client, token: TOKEN, pid: PID }),
+            getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID }),
         ).rejects.toBeInstanceOf(SnapshotHttpError);
     });
 });
