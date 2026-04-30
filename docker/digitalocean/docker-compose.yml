@@ -8,6 +8,10 @@
 #               its session handler — sessions then survive
 #               --force-recreate openemr (otherwise PHP file sessions
 #               in /tmp get wiped, logging users out on every deploy).
+#   - agent-postgres: Postgres 16 backing the LangGraph checkpointer
+#               for the Clinical Co-Pilot agent service. Internal-only,
+#               no host port. Schema migrations are applied by the agent
+#               at boot via PostgresSaver.setup() — no init scripts here.
 #   - openemr:  Upstream openemr/openemr:flex image. Source code is
 #               bind-mounted READ-ONLY from /srv/openemr/current — a
 #               symlink that infra/runner-bootstrap.sh atomically
@@ -34,6 +38,7 @@
 #   OE_USER                Initial OpenEMR admin username.
 #   OE_PASS                Initial OpenEMR admin password.
 #   MYSQL_ROOT_PASSWORD    MariaDB root password.
+#   AGENT_PG_PASSWORD      Password for the agent's Postgres user.
 
 # Pin the compose project name. Without this, compose derives the name
 # from the parent directory of the compose file — so moving the file
@@ -74,6 +79,23 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+
+  agent-postgres:
+    image: postgres:16-alpine@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${AGENT_PG_PASSWORD}
+      POSTGRES_DB: agent
+    volumes:
+    - agentpgvolume:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U agent -d agent']
+      start_period: 30s
+      start_interval: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   openemr:
     image: openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
@@ -161,6 +183,7 @@ volumes:
   vendordir: {}
   logvolume: {}
   redisvolume: {}
+  agentpgvolume: {}
   couchdbstub: {}
   caddydata: {}
   caddyconfig: {}
