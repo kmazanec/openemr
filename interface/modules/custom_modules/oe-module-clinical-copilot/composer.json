@@ -1,0 +1,33 @@
+{
+  "name": "openemr/oe-module-clinical-copilot",
+  "description": "Clinical Co-Pilot module: source-cited pre-visit briefings inside OpenEMR, backed by a sibling LangGraph agent service.",
+  "type": "openemr-module",
+  "license": "GPL-3.0-or-later",
+  "authors": [
+    {
+      "name": "Keith Mazanec",
+      "email": "keith@devforward.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "OpenEMR\\Modules\\ClinicalCopilot\\": "src/"
+    }
+  },
+  "extra": {
+    "openemr": {
+      "type": "custom-module",
+      "directory": "oe-module-clinical-copilot"
+    }
+  },
+  "keywords": [
+    "openemr",
+    "module",
+    "clinical-copilot",
+    "ai",
+    "langgraph"
+  ]
+}

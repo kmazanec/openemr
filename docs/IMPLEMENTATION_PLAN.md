@@ -113,15 +113,27 @@ verification, audit, and rate limiting all build on a stable substrate.
   on boot)
 
 ### 1.3 OpenEMR module: `oe-module-clinical-copilot`
-- [ ] Module skeleton at
+- [x] Module skeleton at
   `interface/modules/custom_modules/oe-module-clinical-copilot/`:
   `openemr.bootstrap.php`, `info.txt`, `Bootstrap.php`,
   `src/Controller/`, `src/Service/`, `templates/`, `public/js/`,
   `public/css/`
-- [ ] PSR-4 autoload entry under
+  (Empty subdirectories carry `.gitkeep` placeholders. Structural
+  invariants pinned in `tests/Tests/Isolated/Modules/ClinicalCopilot/
+  ModuleSkeletonTest.php`.)
+- [x] PSR-4 autoload entry under
   `OpenEMR\Modules\ClinicalCopilot\` in the module's own `composer.json`
-- [ ] Register the module via OpenEMR's module installer flow (verified by
+  (Mapped to `src/`. Runtime classloader is wired in
+  `openemr.bootstrap.php` via `ModulesClassLoader::registerNamespaceIfNotExists`,
+  matching the convention in `oe-module-dashboard-context`.)
+- [x] Register the module via OpenEMR's module installer flow (verified by
   visible toggle under Modules → Manage Modules)
+  (Verified empirically against `docker/development-easy/`: enabling
+  the row in the `modules` table causes "Clinical Co-Pilot" to render
+  on the Manage Modules page and the bootstrap loads with no errors
+  in `/var/log/apache2/error.log`. First-time admin registration is
+  one click — `interface/modules/custom_modules/oe-module-clinical-copilot/
+  README.md` documents the steps.)
 
 ### 1.4 Proxy controller + token mint
 - [ ] `AgentProxyController` registered for `/agent/{action}` routes in
