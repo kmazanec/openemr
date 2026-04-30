@@ -457,98 +457,17 @@ Preserve existing authors/copyrights when editing files.
 
 ## Database Seeding
 
-The repo ships a hybrid seed pipeline used to populate dev and Railway
-environments with synthetic data. All commands run *inside* the OpenEMR
-container (locally via `docker compose exec openemr ...`, in Railway via
-`railway ssh`).
+Synthetic chart-deep data for the USERS.md scenarios is produced by the
+seed pipeline under `db/seeds/` and `bin/seed/`. Run the whole thing
+inside the OpenEMR container with:
 
 ```sh
-# Quickstart: run the whole pipeline end-to-end.
 db/seeds/seed-all.sh --count=100 --days=10
-
-# Or step through manually:
-
-# 1. Restore baseline (upstream demo: 3 patients, 9 users, ACLs, list_options).
-#    Refuses to run if patient_data is non-empty (--force overrides).
-db/seeds/restore-baseline.sh
-
-# 2. Generate Faker patients with archetype-driven clinical scaffolding —
-#    problems, meds (with indications + stopped meds), encounters,
-#    SOAP notes, vitals, allergies, lab series, external encounters.
-#    Pure-additive: re-running adds more patients.
-php bin/console seed:patients --count=100
-php bin/console seed:patients --count=20      # add 20 more later
-
-# 3. Insert weekly In Office / Out Of Office blocks per provider.
-#    REQUIRED before seed:schedule — without these blocks OpenEMR treats
-#    every provider as unavailable and patient check-in fails.
-php bin/console seed:availability --weeks=26
-
-# 4. Populate the calendar with appointments (yesterday + N business days).
-php bin/console seed:schedule --days=10
-
-# 5. Verify state — coverage, PCP panels, schedule window.
-php bin/console seed:status
 ```
 
-### Patient archetypes
-
-`seed:patients` picks a `PatientArchetype` per patient first, then drives
-every downstream generator off that archetype so the data shape is coherent
-(a `Diabetic` patient is guaranteed an E11.9 problem and a metformin
-prescription, with vitals clustered around the diabetic baseline).
-Distribution: `HealthyAdult` 40%, `Hypertensive` 20%, `Diabetic` 15%,
-`DiabeticUncontrolled` 5%, `ComplexElderly` 15%, `RecentEdVisit` 5%.
-
-### PCP assignment
-
-~70% of newly seeded patients are assigned to the baseline `physician`
-user (Donna Lee, id 6) as their PCP via `patient_data.providerID`; the rest
-spread across other authorized providers. `seed:schedule` then biases each
-provider's calendar toward their own panel but swaps in coverage patients
-~30% of the time, mirroring the partner-coverage workflow USERS.md describes.
-
-### Clinical depth (PR2 generators)
-
-`seed:patients` produces enough chart depth for the USERS.md briefing
-scenarios to demo against:
-
-- **Lab series**: archetype-driven longitudinal labs via
-  `procedure_order` + `procedure_report` + `procedure_result`.
-  `DiabeticUncontrolled` patients get an A1c walking 7.0 → 7.6 → 8.2
-  (UC2's defining example). Hypertensive / elderly patients get lipid
-  panels and CMPs at annual cadence. ~15% of patients pick up an extra
-  recent abnormal result for UC1's "new abnormal labs" slot.
-- **SOAP notes** on every encounter via `form_soap`. Token substitution
-  (`{bp}`, `{a1c}`, `{weight}`) means notes reference the patient's
-  actual chart values rather than boilerplate.
-- **Prescribing encounters**: every archetype-required medication has
-  a dedicated initial-visit encounter dated 4-8 weeks ago whose SOAP
-  note explicitly names the drug and indication. The prescription's
-  `start_date` matches the encounter's date, giving UC3's
-  "when/why was lisinopril started" cite-able provenance.
-- **Stopped meds**: ~12% of random meds land as `active=0` with
-  `end_date` in last 90 days, so UC1's "deltas since last visit"
-  has stops to surface.
-- **Outside encounters** via `external_encounters`. The `RecentEdVisit`
-  archetype gets one ED visit + one specialty consult; ~10% of others
-  pick up an opportunistic recent ED visit. Drives UC4.
-
-### Layout
-
-- `db/seeds/baseline.sql.gz` — committed dump (regenerate via
-  `db/seeds/regenerate-baseline.sh`)
-- `db/seeds/seed-all.sh` — one-shot orchestrator (baseline → patients →
-  availability → schedule → status)
-- `bin/seed/PatientArchetype.php` — archetype enum + clinical profile
-- `bin/seed/Generators/` — Faker generators (autoloaded as `OpenEMR\Seed\*`)
-- `bin/seed/data/*.json` — curated condition/medication/encounter lists
-- `src/Common/Command/Seed*Command.php` — Symfony Console commands
-
-Seed commands insert via `PatientService`, `EncounterService`,
-`ListService`, `PrescriptionService`, `VitalsService`, and
-`AppointmentService` — the same code paths the application uses, so seed
-data exercises the real validation and event-dispatch flow.
+See [`db/seeds/README.md`](db/seeds/README.md) for the full reference —
+commands, archetype distribution, ordering constraints, verification,
+troubleshooting, and how to add new generators.
 
 ## Key Documentation
 
