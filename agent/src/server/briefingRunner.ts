@@ -1,8 +1,12 @@
+import type { BaseCheckpointSaver } from '@langchain/langgraph';
+
 import { createBriefingGraph, type BriefingGraphDeps } from '../graph/index.js';
 import { createAnthropicSynthesizer } from '../graph/nodes/synthesize.js';
 import type { Synthesizer } from '../graph/nodes/synthesize.js';
 import type { BriefingState } from '../graph/state.js';
 import type { RequestEnvelope } from '../graph/types.js';
+import { createLogger } from '../observability/logger.js';
+import type { ConversationStore } from '../state/conversationStore.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
 import type { UnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
@@ -24,30 +28,65 @@ export interface BriefingRunnerDeps {
     readonly snapshotClient: SnapshotClient;
     readonly synthesizer: Synthesizer;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
+    readonly conversationStore: ConversationStore;
+    /**
+     * §3.5: optional. Wired in production so LangGraph durably persists
+     * state under the canonical conversation id; tests omit it and run
+     * each invocation as a fresh thread.
+     */
+    readonly checkpointer?: BaseCheckpointSaver;
 }
 
 export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner => {
+    const logger = createLogger('briefingRunner');
     return async ({ envelope, token }) => {
+        // §3.5: resolve the canonical conversation for this (user, patient,
+        // appointment?) tuple before running the graph. Subsequent opens by
+        // the same actor on the same patient resume the same row, so the
+        // LangGraph checkpointer (keyed by thread_id below) replays prior
+        // turns instead of starting fresh. UC1 doesn't carry an appointment
+        // context — `appointmentId` is null for now; UC2/4 will plumb it.
+        const { conversation, created } = await deps.conversationStore.findOrCreate({
+            userId: envelope.actor.userId,
+            patientPid: envelope.patient.pid,
+            appointmentId: null,
+        });
+        if (created) {
+            logger.info(
+                { conversationId: conversation.id, userId: envelope.actor.userId, patientPid: envelope.patient.pid },
+                'created new conversation row',
+            );
+        }
+        const canonicalEnvelope: RequestEnvelope = {
+            ...envelope,
+            conversationId: conversation.id,
+        };
         const graphDeps: BriefingGraphDeps = {
             retrieve: { client: deps.snapshotClient, token, siteId: envelope.siteId },
             synthesize: { synthesizer: deps.synthesizer },
             verify: { unverifiedClaimsLog: deps.unverifiedClaimsLog },
+            ...(deps.checkpointer !== undefined ? { checkpointer: deps.checkpointer } : {}),
         };
         const graph = createBriefingGraph(graphDeps);
-        const out: BriefingState = await graph.invoke({ envelope });
+        const out: BriefingState = await graph.invoke(
+            { envelope: canonicalEnvelope },
+            { configurable: { thread_id: conversation.id } },
+        );
         if (out.formatted === null) {
             throw new Error('briefing graph completed without a formatted briefing');
         }
         if (out.persisted === null) {
             throw new Error('briefing graph completed without a persisted record');
         }
-        return eventsForBriefing(envelope, out.formatted, out.persisted);
+        return eventsForBriefing(canonicalEnvelope, out.formatted, out.persisted);
     };
 };
 
 export interface ProductionRunnerOptions {
     readonly openEmrBaseUrl: string;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
+    readonly conversationStore: ConversationStore;
+    readonly checkpointer: BaseCheckpointSaver;
 }
 
 /**
@@ -61,5 +100,7 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         snapshotClient,
         synthesizer,
         unverifiedClaimsLog: options.unverifiedClaimsLog,
+        conversationStore: options.conversationStore,
+        checkpointer: options.checkpointer,
     });
 };

@@ -14,6 +14,7 @@ import { createAgentJwtVerifier, type AgentJwtVerifier } from '../auth/verify.js
 import type { RequestEnvelope } from '../graph/types.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
+import { createPgConversationStore } from '../state/conversationStore.js';
 import { createPgUnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
 import type { JWK } from 'jose';
 
@@ -212,9 +213,15 @@ export const start = async (port: number): Promise<void> => {
     await unverifiedClaimsLog.setup();
     logger.info('unverified-claims log table ready');
 
+    const conversationStore = createPgConversationStore({ connectionString: databaseUrl });
+    await conversationStore.setup();
+    logger.info('conversations table ready');
+
     const briefingRunner = buildProductionBriefingRunner({
         openEmrBaseUrl,
         unverifiedClaimsLog,
+        conversationStore,
+        checkpointer,
     });
 
     const app = createApp({ auth: { verify }, briefingRunner });

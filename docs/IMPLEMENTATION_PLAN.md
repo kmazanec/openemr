@@ -910,11 +910,41 @@ follow-up questions yet.
   `BootstrapTest` pins both listeners' contracts.)
 
 ### 3.5 Conversation persistence
-- [ ] On first chart open, agent creates a `conversation(user_id,
+- [x] On first chart open, agent creates a `conversation(user_id,
   patient_id, appointment_id?)` row; subsequent opens resume it
-- [ ] Conversation table schema in agent Postgres; appointment FK is
+  (`BriefingRunner` (`agent/src/server/briefingRunner.ts`) calls
+  `conversationStore.findOrCreate({userId, patientPid, appointmentId})`
+  before invoking the graph. The store hands back a stable canonical id
+  per `(user, patient, appointment?)` tuple, which the runner then writes
+  back into the envelope so every downstream node — and the SSE `meta`
+  event the browser receives — sees the canonical id, not the
+  browser-supplied trace token. UC1 supplies `appointmentId: null`; UC2/4
+  will plumb a real appointment id when the panel opens from the
+  schedule. `created` is logged on first creation so resume vs. new is
+  observable in telemetry. Coverage in `tests/server/briefingRunner.test.ts`
+  pins both the create and the resume paths, plus per-user separation.)
+- [x] Conversation table schema in agent Postgres; appointment FK is
   nullable (UC1 may run outside an appointment context)
-- [ ] LangGraph checkpointer keyed by conversation ID
+  (`createPgConversationStore` owns the schema:
+  `conversations(id UUID PK, user_id TEXT, patient_pid INTEGER,
+  appointment_id TEXT NULL, created_at TIMESTAMPTZ)`. `appointment_id` is
+  a plain TEXT column with no foreign key — appointments live in
+  OpenEMR's MySQL, not in agent Postgres, so cross-DB FKs would be
+  fiction. Two partial unique indexes (`WHERE appointment_id IS NOT NULL`
+  / `WHERE appointment_id IS NULL`) make `findOrCreate` race-safe: the
+  null-side index NULL-coalesces correctly, which a single full-tuple
+  unique index can't do in standard SQL. Setup runs once at boot from
+  `start()` alongside the existing `unverified_claims` schema.)
+- [x] LangGraph checkpointer keyed by conversation ID
+  (`createBriefingGraph` now takes an optional `checkpointer` and passes
+  it through to `compile({ checkpointer })`. The runner invokes the graph
+  with `config.configurable.thread_id = conversation.id`, which is the
+  key LangGraph uses on every checkpoint write. `start()` wires the
+  Postgres saver from §1.2 into the production runner; tests omit the
+  checkpointer and run each invocation as a fresh thread. The
+  `briefingRunner.test.ts` thread-id observation test stubs a
+  `BaseCheckpointSaver` and asserts every `getTuple`/`put` call sees the
+  canonical id.)
 
 ### 3.6 Evals (UC1 only — golden set v1)
 - [ ] `agent/evals/fixtures/regenerate.ts` — runs seed pipeline with

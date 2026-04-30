@@ -1,4 +1,4 @@
-import { END, START, StateGraph } from '@langchain/langgraph';
+import { END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/langgraph';
 
 import { format } from './nodes/format.js';
 import { loadState } from './nodes/loadState.js';
@@ -13,6 +13,13 @@ export interface BriefingGraphDeps {
     readonly retrieve: RetrieveDeps;
     readonly synthesize: SynthesizeDeps;
     readonly verify: VerifyDeps;
+    /**
+     * §3.5: when set, the compiled graph persists state via this saver,
+     * keyed by the `thread_id` the caller passes on `invoke`. Production
+     * wires the LangGraph Postgres saver here; in-memory tests omit it
+     * (state lives only for the duration of the call).
+     */
+    readonly checkpointer?: BaseCheckpointSaver;
 }
 
 /**
@@ -20,14 +27,9 @@ export interface BriefingGraphDeps {
  * per invocation. The retrieve and synthesize deps are injected per-graph
  * so the bearer token (Retrieve) and the LLM client (Synthesize) can be
  * configured per request without baking them into module-level globals.
- *
- * The graph compiles without a checkpointer here. Production wiring
- * (Phase 3.5) supplies the LangGraph Postgres checkpointer at
- * `compile({ checkpointer })` time so conversation state durably
- * resumes across requests.
  */
 export const createBriefingGraph = (deps: BriefingGraphDeps) => {
-    return new StateGraph(BriefingStateAnnotation)
+    const builder = new StateGraph(BriefingStateAnnotation)
         .addNode('loadState', loadState)
         .addNode('planContext', planContext)
         .addNode('retrieve', createRetrieve(deps.retrieve))
@@ -42,6 +44,8 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addEdge('synthesize', 'verify')
         .addEdge('verify', 'format')
         .addEdge('format', 'persist')
-        .addEdge('persist', END)
-        .compile();
+        .addEdge('persist', END);
+    return deps.checkpointer
+        ? builder.compile({ checkpointer: deps.checkpointer })
+        : builder.compile();
 };
