@@ -42,6 +42,31 @@ export const createApp = ({ auth }: AppDeps): Hono => {
         });
     });
 
+    // Smoke-test endpoint paired with the proxy's `echo` action. End-to-end
+    // smoke verifies the trust boundary works before any real LLM lands.
+    app.post('/v1/agent/echo', async (c) => {
+        const principal = getPrincipal(c);
+        let received: unknown = null;
+        const raw = await c.req.text();
+        if (raw.length > 0) {
+            try {
+                received = JSON.parse(raw);
+            } catch {
+                received = raw;
+            }
+        }
+        return streamSSE(c, async (stream) => {
+            await stream.writeSSE({
+                data: JSON.stringify({
+                    ok: true,
+                    action: 'echo',
+                    fhirUser: principal.fhirUser,
+                    received,
+                }),
+            });
+        });
+    });
+
     return app;
 };
 

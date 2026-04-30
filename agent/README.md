@@ -21,11 +21,12 @@ curl http://localhost:8080/health
 
 Phase-1 skeletons (echo only — graph wiring lands in phase 3):
 
-| Method | Path                       | Returns                              |
-| ------ | -------------------------- | ------------------------------------ |
-| GET    | `/health`                  | `{ status: 'ok' }`                   |
-| POST   | `/v1/agent/respond`        | `{ received: <body> }` (JSON)        |
-| POST   | `/v1/agent/respond/stream` | `{ received: <body> }` framed as SSE |
+| Method | Path                       | Returns                                                                  |
+| ------ | -------------------------- | ------------------------------------------------------------------------ |
+| GET    | `/health`                  | `{ status: 'ok' }` (unauthenticated)                                     |
+| POST   | `/v1/agent/echo`           | `{ ok, action: 'echo', fhirUser, received }` framed as SSE — smoke probe |
+| POST   | `/v1/agent/respond`        | `{ received: <body>, fhirUser }` (JSON)                                  |
+| POST   | `/v1/agent/respond/stream` | `{ received: <body>, fhirUser }` framed as SSE                           |
 
 ## Scripts
 
@@ -125,6 +126,67 @@ PHI redaction (`firstName`, `dob`, `ssn`, `mrn`, `prompt`, `completion`,
 …) up to two levels deep through objects and arrays, censoring matched
 fields to `[REDACTED]`. Never concatenate PHI into the log message; pass
 it as structured context and let the redactor drop it.
+
+## End-to-end smoke
+
+The smoke action exercises the full trust boundary without any LLM:
+browser → OpenEMR session → proxy controller → minted JWT → agent
+service → SSE response.
+
+**Prerequisites:**
+
+1. Dev-easy stack up: `docker compose up -d` from
+   `docker/development-easy/` (brings up `agent` and `agent-postgres`
+   along with the rest).
+2. The Clinical Co-Pilot module is registered and enabled. First-time
+   registration via the admin UI is documented in the
+   [module README](../interface/modules/custom_modules/oe-module-clinical-copilot/README.md).
+   `agent.php` returns 500 (`Module … could not be initialized`) until
+   the row exists in `modules` with `mod_active=1` and `type=0`.
+3. OpenEMR's OAuth2 keys exist and decrypt cleanly. Symptoms of drift:
+   `https://localhost:9300/oauth2/default/jwk` returns 500 with `Key in
+   drive is not compatible (ie. can not be decrypted) with key in
+   database`. Recovery on dev-easy (destroys 295-ish rows of encrypted
+   audit-log content, no real PHI):
+   ```sh
+   # nuke the on-disk drive crypto + oauth2 keypair
+   docker compose exec openemr sh -c '
+       rm -rf /var/www/localhost/htdocs/openemr/sites/default/documents/logs_and_misc/methods/*
+       rm -f /var/www/localhost/htdocs/openemr/sites/default/documents/certificates/oa{public,private}.key'
+   # nuke the matching DB rows so OpenEMR regenerates the whole stack
+   docker compose exec mysql mariadb -uroot -proot -e \
+       "DELETE FROM openemr.\`keys\`"
+   # any HTTPS request triggers regeneration
+   docker compose exec openemr curl -sk -o /dev/null https://localhost/oauth2/default/jwk
+   ```
+
+**Verification:**
+
+1. Sign in to OpenEMR at `http://localhost:8300` (or the HTTPS variant).
+2. Visit `http://localhost:8300/interface/modules/custom_modules/oe-module-clinical-copilot/public/agent.php?action=echo`
+   in a new tab — or `curl` it with the session cookie. Expect a single
+   SSE frame:
+   ```
+   data: {"ok":true,"action":"echo","fhirUser":"<uuid-or-uid>","received":null}
+   ```
+3. Bad-state diagnostics:
+   - `500` with `Module … could not be initialized` → module not
+     registered (see prerequisite 2).
+   - `503` from the proxy with `token_mint_failed` → OpenEMR can't
+     decrypt its OAuth2 keys (see prerequisite 3).
+   - `401` with empty body and `text/html` content-type → upstream of
+     the proxy: usually a missing or expired session.
+   - `401` with `{"error":"unauthorized"}` and `text/event-stream` →
+     agent rejected the bearer. Check `docker compose logs agent` for
+     the verifier rejection reason (typical causes: JWKS fetch failed,
+     `iss`/`aud` mismatch).
+   - `event: error` SSE frame → proxy reached OpenEMR's session and
+     minted a token, but couldn't connect to the agent. Confirm the
+     `agent` container is healthy.
+
+The Vitest case at `tests/server/echo.test.ts` covers the agent half of
+this round-trip with a stubbed token; this section covers the half
+that's a deploy + login.
 
 ## Deploy target
 

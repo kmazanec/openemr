@@ -230,11 +230,40 @@ verification, audit, and rate limiting all build on a stable substrate.
   trace-tag enrichment in §6.1.)
 
 ### 1.6 End-to-end smoke
-- [ ] Hit `/agent/echo` from the browser while logged into OpenEMR with a
+- [x] Hit `/agent/echo` from the browser while logged into OpenEMR with a
   patient in scope; confirm the agent service receives the bearer, decodes
   the acting user, and echoes back through the SSE stream.
-- [ ] Add a Vitest case under `agent/tests/server/` that hits the same
+  (Agent service wired into both compose stacks — `docker/development-easy/
+  docker-compose.yml` (build context = `${OPENEMR_DIR}/agent`, host port
+  `WT_AGENT_PORT:-8340`) and `docker/digitalocean/docker-compose.yml`
+  (build context = `/srv/openemr/current/agent`, internal-only). Both pass
+  `AGENT_JWT_ISSUER` / `AGENT_JWT_AUDIENCE` / `OPENEMR_JWKS_URL` (the
+  internal `http://openemr/oauth2/default/jwk`) to the agent and
+  `AGENT_SERVICE_URL=http://agent:8080` to OpenEMR. Issuer mirrors what
+  PHP mints: `site_addr_oath + webroot + /oauth2/{site}`.
+  **Verified locally end-to-end:** authenticated session →
+  `/interface/modules/custom_modules/oe-module-clinical-copilot/public/
+  agent.php?action=echo` → SSE frame `data: {"ok":true,"action":"echo",
+  "fhirUser":"1","received":null}` with status 200; same with a JSON
+  body round-trips through both layers. Agent log confirms JWKS-backed
+  RS256 verification: `{component:"auth", fhirUser:"1", jti:..., msg:
+  "authenticated agent request"}`. Two prerequisites uncovered during
+  verification, both documented in `agent/README.md` "End-to-end smoke":
+  (a) the module must be registered in the `modules` table with
+  `mod_active=1` and `type=0` (otherwise `agent.php` 500s with
+  `Module … could not be initialized`); (b) on long-lived dev-easy
+  databases, the drive crypto stack (`sites/.../documents/logs_and_misc/
+  methods/`) and the encrypted DB `keys` rows can drift after volume
+  churn — recovery is to clear both plus the OAuth2 keypair on disk and
+  let OpenEMR regenerate. Verification on `emr.biograph.dev` is still
+  pending until the next deploy.)
+- [x] Add a Vitest case under `agent/tests/server/` that hits the same
   endpoint with a stubbed token and asserts shape.
+  (`tests/server/echo.test.ts` — three cases: 401 unauthenticated, happy
+  path with body asserts ok/action/fhirUser/received, empty-body request
+  echoes `received: null`. Test bootstrap factored into a shared
+  `tests/server/buildAuthedApp.ts` helper now also used by the existing
+  `index.test.ts` — second real caller justified the extract.)
 
 **Phase 1 done when:** the smoke test passes locally and on
 `emr.biograph.dev`, and the agent container is provisioned + reachable

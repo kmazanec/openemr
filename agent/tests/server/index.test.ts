@@ -1,23 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createApp, start } from '../../src/server/index.js';
-import { createLocalKeyResolver } from '../../src/auth/jwks.js';
-import { createAgentJwtVerifier } from '../../src/auth/verify.js';
-import { generateTestKey, mintTestToken } from '../auth/testKeys.js';
-
-const ISSUER = 'https://emr.test/oauth2/default';
-const AUDIENCE = 'openemr-clinical-copilot-agent';
-
-const buildAuthedApp = async () => {
-    const { privateKey, publicJwk } = await generateTestKey();
-    const verify = createAgentJwtVerifier({
-        keyResolver: createLocalKeyResolver([publicJwk]),
-        issuer: ISSUER,
-        audience: AUDIENCE,
-    });
-    const app = createApp({ auth: { verify } });
-    return { app, privateKey };
-};
+import { start } from '../../src/server/index.js';
+import { mintTestToken } from '../auth/testKeys.js';
+import { TEST_AUDIENCE, TEST_ISSUER, buildAuthedApp } from './buildAuthedApp.js';
 
 describe('agent server', () => {
     let originalDatabaseUrl: string | undefined;
@@ -59,8 +44,8 @@ describe('agent server', () => {
     it('POST /v1/agent/respond echoes the body and the authenticated fhirUser', async () => {
         const { app, privateKey } = await buildAuthedApp();
         const token = await mintTestToken(privateKey, {
-            issuer: ISSUER,
-            audience: AUDIENCE,
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
             subject: 'Practitioner/dr-patel',
         });
         const body = { conversationId: 'conv-1', message: 'hello' };
@@ -82,8 +67,8 @@ describe('agent server', () => {
     it('POST /v1/agent/respond/stream returns an SSE stream that echoes the body', async () => {
         const { app, privateKey } = await buildAuthedApp();
         const token = await mintTestToken(privateKey, {
-            issuer: ISSUER,
-            audience: AUDIENCE,
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
             subject: 'Practitioner/dr-patel',
         });
         const body = { conversationId: 'conv-1', message: 'hello' };

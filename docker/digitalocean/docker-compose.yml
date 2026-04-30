@@ -12,6 +12,12 @@
 #               for the Clinical Co-Pilot agent service. Internal-only,
 #               no host port. Schema migrations are applied by the agent
 #               at boot via PostgresSaver.setup() — no init scripts here.
+#   - agent:    Clinical Co-Pilot agent service. Built from /agent in
+#               the deploy tree. Internal-only — the OpenEMR proxy at
+#               /interface/modules/custom_modules/oe-module-clinical-copilot/
+#               public/agent.php is the only intended caller. Verifies
+#               every request's bearer JWT against OpenEMR's public
+#               JWKS (OPENEMR_JWKS_URL → http://openemr/oauth2/default/jwk).
 #   - openemr:  Upstream openemr/openemr:flex image. Source code is
 #               bind-mounted READ-ONLY from /srv/openemr/current — a
 #               symlink that infra/runner-bootstrap.sh atomically
@@ -97,6 +103,34 @@ services:
       timeout: 5s
       retries: 5
 
+  agent:
+    build:
+      context: /srv/openemr/current/agent
+    restart: unless-stopped
+    depends_on:
+      agent-postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: '8080'
+      DATABASE_URL: postgresql://agent:${AGENT_PG_PASSWORD}@agent-postgres:5432/agent
+      # Issuer matches what the PHP proxy mints: site_addr_oath + webroot
+      # + /oauth2/{site}. Webroot is empty for the standard install.
+      AGENT_JWT_ISSUER: https://${OE_DOMAIN}/oauth2/default
+      AGENT_JWT_AUDIENCE: openemr-clinical-copilot-agent
+      # Public JWKS — fetched over the internal Docker network. OpenEMR
+      # ships /oauth2/{site}/jwk on its HTTP listener; that's port 80
+      # inside the container (Caddy fronts 80/443 only on the public
+      # interface, so we hit openemr directly).
+      OPENEMR_JWKS_URL: http://openemr/oauth2/default/jwk
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8080/health']
+      start_period: 30s
+      start_interval: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
   openemr:
     image: openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
     restart: unless-stopped
@@ -141,6 +175,7 @@ services:
       REDIS_SERVER: redis
       EASY_DEV_MODE: 'yes'
       EASY_DEV_MODE_NEW: 'yes'
+      AGENT_SERVICE_URL: http://agent:8080
     healthcheck:
       test:
       - CMD
