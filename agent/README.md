@@ -64,6 +64,7 @@ In addition, the service requires:
 | `AGENT_JWT_ISSUER`                              | Expected `iss` claim — OpenEMR's oauth2 base URL, e.g. `https://emr.biograph.dev/oauth2/default` (required).                                                                                                                                                                                           |
 | `AGENT_JWT_AUDIENCE`                            | Expected `aud` claim. Default `openemr-clinical-copilot-agent` — matches `AgentTokenMinter::AGENT_CLIENT_ID`.                                                                                                                                                                                          |
 | `OPENEMR_JWKS_URL` _or_ `AGENT_JWT_PUBLIC_KEY`  | Where to fetch the verification key. Set `OPENEMR_JWKS_URL` to OpenEMR's public JWKS endpoint (e.g. `http://openemr/oauth2/default/jwk`) for the standard SMART/FHIR pattern; the agent caches keys in-process and refetches on cache miss. Or set `AGENT_JWT_PUBLIC_KEY` to a single JWK as JSON for offline/test deployments. Exactly one is required. |
+| `OPENEMR_BASE_URL`                              | Base URL the §3.1 callback tools use to reach OpenEMR's `snapshot.php` endpoint, e.g. `http://openemr` (internal Docker DNS). Wired in §3.2 when the graph's `Retrieve` node is built; not required for `/health` or echo. |
 
 In dev (`docker/development-easy/`) the value is
 `postgresql://agent:agent@agent-postgres:5432/agent`. In prod

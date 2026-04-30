@@ -717,12 +717,16 @@ follow-up questions yet.
   (`agent/tests/tools/*.test.ts` — 26 tests across the four tools and
   the shared client. Plus `agent/tests/snapshot/decode.test.ts` (9
   tests) pinning the decoder against the @phpstan-typed JSON shape.
-  Shared mock helpers in `tests/tools/buildMockClient.ts`. The decoder
-  test is the agent-side anchor for the §A.5 cross-language fixture
-  contract — once the §2.5 thread emits a real `ChartSnapshot::toArray()`
-  fixture, that fixture replaces the inline JSON in
-  `decode.test.ts::"decodes a fully-populated snapshot"` and any drift
-  between PHP `toArray()` and the TS decoder fails CI here.)
+  Shared mock helpers in `tests/tools/buildMockClient.ts`. The §A.5
+  cross-language contract test is wired in
+  `agent/tests/snapshot/contract.test.ts` (11 tests): it loads every
+  per-archetype fixture written by the §2.5
+  `ChartSnapshotFixtureTest`, substitutes pinned dates for the
+  `<DATE>`/`<DATETIME>` placeholders, runs the real
+  `decodeChartSnapshot`, and asserts archetype invariants
+  (Diabetic→E11.9+metformin, Hypertensive→I10+lisinopril, healthy
+  adult→empty problem list). Drift in either `ChartSnapshot::toArray()`
+  or the TS decoder fails CI on the side that drifted.)
 
 ### 3.2 LangGraph graph (UC1 path only)
 - [ ] State shape: `{envelope, snapshot, draft, claimLedger, verified,
@@ -1064,14 +1068,28 @@ and `agent/README.md`. Phase 5 or the production-readiness checklist
 Phase 3+ tools that need similar deterministic time should reuse
 `ClockInterface` rather than introducing a parallel one.
 
-### A.5 ChartSnapshot DTO needs to ride alongside the trust-boundary contract
+### A.5 ChartSnapshot DTO contract (wired in §3.1)
 
-Phase 2 will introduce the `ChartSnapshot` DTO that the agent's tools
-consume. When that lands, add a contract test analogous to the JWT
-one: a PHP-side snapshot fixture written by `PatientAdapter` etc.,
-consumed by an agent-side TypeScript decoder, with drift on either
-side failing CI. Same fixture-regeneration pattern as
-`AgentTokenContractFixtureTest`.
+The `ChartSnapshot` DTO that the agent's tools consume now has a
+fixture-backed cross-language contract analogous to the JWT one:
+
+- **PHP side** writes per-archetype fixtures via
+  `tests/Tests/Isolated/Modules/ClinicalCopilot/Snapshot/
+  ChartSnapshotFixtureTest.php` →
+  `tests/.../Snapshot/fixtures/snapshot/{archetype}.json`.
+  Regenerate with
+  `UPDATE_FIXTURES=1 composer phpunit-isolated -- --filter ChartSnapshotFixtureTest`.
+- **TS side** loads those fixtures in
+  `agent/tests/snapshot/contract.test.ts` and runs them through the
+  real `decodeChartSnapshot`. Drift in either
+  `ChartSnapshot::toArray()`, the @phpstan-typed shape, or
+  `agent/src/snapshot/types.ts` + `decode.ts` fails CI on the side that
+  drifted, with a path-aware error pointing at the offending field.
+
+Same fixture-regeneration pattern as `AgentTokenContractFixtureTest`.
+Date fields are masked as `<DATE>`/`<DATETIME>` in the on-disk JSON
+because Faker's dates slide with the system clock; the TS test
+substitutes pinned ISO strings before decoding.
 
 ### A.6 Disclosure-logging architecture (decided in §2.4)
 
