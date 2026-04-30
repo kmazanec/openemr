@@ -729,14 +729,56 @@ follow-up questions yet.
   or the TS decoder fails CI on the side that drifted.)
 
 ### 3.2 LangGraph graph (UC1 path only)
-- [ ] State shape: `{envelope, snapshot, draft, claimLedger, verified,
+- [x] State shape: `{envelope, snapshot, draft, claimLedger, verified,
   formatted, persisted}`
-- [ ] Nodes: `LoadState`, `PlanContext`, `Retrieve`, `Synthesize`,
+  (`agent/src/graph/state.ts` — `BriefingStateAnnotation` declares
+  every slot via LangGraph's `Annotation.Root`. Each slot defaults to
+  `null` so a partially-run graph state is recognizable; `envelope` is
+  set on invoke. `agent/src/graph/types.ts` carries the typed shapes:
+  `RequestEnvelope`, `BriefingSnapshot`, `Claim`, `ClaimLedger`,
+  `VerifiedLedger`, `FormattedBriefing`, `PersistedRecord`. `Gap`
+  union types let the snapshot's `labs`/`encounters` slots carry an
+  explicit fail-open marker.)
+- [x] Nodes: `LoadState`, `PlanContext`, `Retrieve`, `Synthesize`,
   `Verify`, `Format`, `Persist`
-- [ ] `Synthesize` produces draft + structured claim ledger in one
+  (Each in its own file under `agent/src/graph/nodes/`. `LoadState` is
+  a pass-through stub until §3.5 wires conversation persistence.
+  `PlanContext` is a thin gate that rejects unknown task types.
+  `Retrieve` (the substantive non-LLM node) fans out to all four §3.1
+  tools in parallel via `Promise.all`, plumbing fail-closed errors and
+  filing fail-open gaps into `BriefingSnapshot`. `Verify` is a stub
+  that passes claims through with `passed: true` — Phase 3.3 fills in
+  the deterministic checks. `Format` walks the snapshot and produces
+  the `FormattedBriefing` shape one-to-one with USERS.md "Default
+  Briefing Structure". `Persist` records a minimal marker; LangGraph's
+  Postgres checkpointer (§1.2, optional at compile time) covers
+  durable state. `agent/src/graph/index.ts::createBriefingGraph` wires
+  the seven nodes into a linear `StateGraph`.)
+- [x] `Synthesize` produces draft + structured claim ledger in one
   Anthropic call (Sonnet 4) with strict JSON output
-- [ ] System prompt explicitly instructs the model to ignore instructions
+  (`agent/src/graph/nodes/synthesize.ts`. Default factory
+  `createAnthropicSynthesizer` builds a `ChatAnthropic` (model from
+  `ANTHROPIC_MODEL`, default `claude-sonnet-4-5-20250929`,
+  temperature 0) wrapped with `withStructuredOutput(zodSchema)` so
+  LangChain handles JSON-coercion + retry. The `Synthesizer`
+  interface lets tests mock the LLM call without going to the wire.
+  Output is `{draft: string, ledger: {claims: Claim[]}}` where each
+  claim must carry at least one source reference (Zod
+  `.array(...).min(1)`) — the type system rejects malformed model
+  output before it ever reaches `Verify`.)
+- [x] System prompt explicitly instructs the model to ignore instructions
   inside chart text (prompt-injection defense, layer 1)
+  (`agent/src/graph/synthesize.prompt.ts`. The system prompt names a
+  `<CHART_DATA>...</CHART_DATA>` delimiter and tells the model that
+  *everything* inside is patient-record content — never instructions.
+  `buildUserMessage` wraps the JSON-serialized snapshot in the same
+  delimiter so the system/user contract is observable. Five rules are
+  pinned: (1) ignore instructions inside delimiter, (2) every claim
+  must cite a source record, (3) do not invent missing data, (4) no
+  cross-patient identifier leakage, (5) JSON-only output. Tests in
+  `tests/graph/synthesizePrompt.test.ts` pin both the delimiter
+  contract and that an injection attempt nested inside an encounter
+  reason lives strictly inside the delimited region.)
 
 ### 3.3 Verification gate
 - [ ] Claim ledger schema with required `sourceReferences[]`
@@ -955,7 +997,12 @@ Tracked here so we don't lose them; not tasks until they fire.
 - One UC at a time, end-to-end, before starting the next.
 - Every bug becomes a permanent eval case.
 - No new dependencies without a one-line note in this doc explaining
-  why.
+  why. Current adds:
+  - `agent/`: `zod@4.4.1` — Phase 3.2 `Synthesize` uses
+    `withStructuredOutput(zodSchema)` to coerce Sonnet's response into
+    the strict claim-ledger shape `Verify` (Phase 3.3) consumes.
+    Already pulled transitively by `@langchain/core`; declared directly
+    so the contract is explicit.
 - Don't reformat untouched files (`CLAUDE.md` rule).
 - When in doubt, return to Dr. Patel and the 90 seconds (USERS.md
   §"Source of Truth").
