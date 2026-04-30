@@ -482,12 +482,64 @@ tests in Docker.
   pin, not runtime stripping.)
 
 ### 2.4 Disclosure audit
-- [ ] `AGENT_PHI_DISCLOSURE` event class + event listener
-- [ ] DB table for the event (separate from OpenEMR's `log` /
+- [x] `AGENT_PHI_DISCLOSURE` event class + event listener
+  (Event class `AgentDisclosedEvent` (extends Symfony Contracts `Event`,
+  `EVENT_HANDLE = 'agent.phi.disclosed'`) carries an immutable
+  `AgentDisclosure`. The single `AgentDisclosureListener` dispatches to
+  two recorders: regulatory (`DisclosureRecorder` →
+  `ExtendedLogDisclosureRecorder` writes to OpenEMR's `extended_log`,
+  deduped per (actor, patient, day)) and engineering
+  (`AgentRequestLogRecorder` → `DbalAgentRequestLogRecorder` writes to
+  `agent_request_log`, one row per request). Each sink is invoked
+  independently — failure in one does not block the other. Listener
+  catches `Doctrine\DBAL\Exception | JsonException | RuntimeException`
+  and logs without re-throwing so a recorder failure never blocks the
+  proxy; narrowed types (not `\Throwable`/`\Exception`) comply with
+  `ForbiddenCatchTypeRule`. All under
+  `interface/modules/custom_modules/oe-module-clinical-copilot/src/RequestLog/`.)
+- [x] DB table for the event (separate from OpenEMR's `log` /
   `log_comment_encrypt`); migration committed
-- [ ] Emitted before any chart data leaves OpenEMR; records actor, site,
+  (Migration `db/Migrations/Version20260430000001.php` does two things:
+  (a) creates the **engineering** `agent_request_log` table — `id`
+  (BIGINT PK auto-inc), `disclosed_at`, `actor_user_id`,
+  `actor_fhir_user`, `site_id`, `patient_pid`, `patient_uuid`,
+  `conversation_id`, `action`, `request_id` (UNIQUE — derives from JWT
+  `jti`, idempotency seam), `categories` (JSON), `destination`. Indexes
+  on `(patient_pid, disclosed_at)` and `(actor_user_id, disclosed_at)`
+  for cost rollups and forensic queries. (b) Seeds
+  `list_options.disclosure_type` with `disclosure-ai-treatment` so the
+  regulatory rows the listener writes to OpenEMR's existing
+  `extended_log` render with a distinct, scannable type in the patient
+  summary's Disclosures view alongside upstream Treatment/Payment/HCO.
+  Migration uses `CreateTableTrait` and `INSERT … ON DUPLICATE KEY` so
+  reapply is a no-op; `down()` drops both. Renamed from `agent_phi_disclosure`
+  in-place — the table is engineering instrumentation, not the audit
+  trail; the regulatory trail is the existing `extended_log`.)
+- [x] Emitted before any chart data leaves OpenEMR; records actor, site,
   patient, conversation, request, categories, destination, timestamp
-- [ ] Never stores raw prompt or completion content
+  (Machinery in place: `AgentDisclosure` carries every named field; both
+  recorders persist them (with appropriate dedup for the regulatory
+  sink); dispatch seam is the Symfony `EventDispatcher`. The actual
+  *call site* — wiring the controller / Phase 2.5 debug snapshot route
+  to dispatch the event — lives in §2.5 alongside the integration tests,
+  since that's the earliest code path that actually has chart data to
+  disclose.)
+- [x] Never stores raw prompt or completion content
+  (Three layers of pin: (a) `AgentDisclosure`'s constructor accepts no
+  prompt/completion parameter and `AgentDisclosureTest::
+  testDisclosureHasNoPromptOrCompletionFields` reflects on the class to
+  forbid any field name containing `prompt`/`completion`/`request_body`/
+  `response_body`/`message`/`content`/`snapshot`; (b)
+  `DbalAgentRequestLogRecorder::COLUMN_NAMES` enumerates the writable
+  columns and `DbalAgentRequestLogRecorderTest::testWritesOnlyToDeclared
+  Columns` runs the same forbidden-substring check on it; (c)
+  `AgentRequestLogMigrationContractTest` greps the migration source for
+  forbidden `addColumn('prompt'…)` calls and asserts the migration's
+  full column set matches `COLUMN_NAMES`. The regulatory-side
+  `extended_log` row's `description` column is free-form text, but
+  `ExtendedLogDisclosureRecorder::describe()` hand-builds a category
+  summary string by code — it has no path to embed prompt or completion
+  content. Documented in the module's help panel.)
 
 ### 2.5 Tests
 - [ ] PHPUnit (services suite, runs in Docker) for each adapter against
@@ -870,7 +922,48 @@ consumed by an agent-side TypeScript decoder, with drift on either
 side failing CI. Same fixture-regeneration pattern as
 `AgentTokenContractFixtureTest`.
 
-### A.6 Outstanding things explicitly *not* solved in Phase 1
+### A.6 Disclosure-logging architecture (decided in §2.4)
+
+Two separate writes per agent request, by design:
+
+1. **Regulatory** — `extended_log` via `ExtendedLogDisclosureRecorder`.
+   One row per (actor, patient, day) with `event = 'disclosure-ai-treatment'`
+   (seeded by Migration 20260430000001) and `recipient = 'Clinical
+   Co-Pilot Agent'`. Surfaces in the patient summary's Disclosures
+   view and any HIPAA Accounting of Disclosures (§164.528) report.
+   We're using the existing OpenEMR mechanism — not building parallel
+   compliance plumbing.
+
+2. **Engineering** — `agent_request_log` via
+   `DbalAgentRequestLogRecorder`. One row per request, structured
+   `categories` JSON, indexed by patient and actor. Used for cost
+   analysis, idempotency (UNIQUE on `request_id`), and forensic
+   debugging. Not an audit table.
+
+The split exists because the two views have genuinely different
+needs: a compliance officer wants one legible row per patient-day to
+review §164.528 reports; an engineer wants per-request granularity
+for cost rollups and eval reproduction. Co-locating either need in
+the other's table makes both worse.
+
+The HIPAA classification (treatment under §164.506(c), so the
+disclosure is BAA-mediated TPO and would technically not require
+§164.528 accounting) is documented in the module's help panel
+(Modules → Manage Modules → ?). We log to `extended_log` anyway
+because OpenEMR's interpretive stance — the `disclosure_type` list
+ships with `disclosure-treatment` / `-payment` / `-healthcareoperations`
+already populated — is that even TPO disclosures should be
+patient-visible. Aligning with that posture is more defensible than
+quietly omitting AI use from the patient's accounting report.
+
+A future contributor adding a new agent action (Phase 4 follow-ups,
+Phase 5 morning prep) gets both writes for free: dispatch the same
+`AgentDisclosedEvent` from the new code path and the listener handles
+both sinks. The dedup means high-volume action types (e.g. UC2 lab
+trends, where a clinician might tap several follow-ups per chart
+visit) don't drown out the regulatory log.
+
+### A.7 Outstanding things explicitly *not* solved in Phase 1
 
 Captured here so Phase 2/3 don't assume they are:
 
