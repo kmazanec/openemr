@@ -46,6 +46,13 @@ final class ModuleSkeletonTest extends TestCase
         $this->assertFileExists(self::MODULE_DIR . '/openemr.bootstrap.php');
     }
 
+    public function testAgentProxyEntryFileExists(): void
+    {
+        // Phase 1.4 ships the browser entry at public/agent.php; it is the
+        // URL surface the in-OpenEMR JS bundle calls.
+        $this->assertFileExists(self::MODULE_DIR . '/public/agent.php');
+    }
+
     public function testComposerManifestDeclaresPsr4Namespace(): void
     {
         $composerPath = self::MODULE_DIR . '/composer.json';
@@ -86,6 +93,7 @@ final class ModuleSkeletonTest extends TestCase
      */
     public static function expectedSubdirectories(): iterable
     {
+        yield 'src/Auth' => ['src/Auth'];
         yield 'src/Controller' => ['src/Controller'];
         yield 'src/Service' => ['src/Service'];
         yield 'templates' => ['templates'];

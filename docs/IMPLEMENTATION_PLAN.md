@@ -136,16 +136,61 @@ verification, audit, and rate limiting all build on a stable substrate.
   README.md` documents the steps.)
 
 ### 1.4 Proxy controller + token mint
-- [ ] `AgentProxyController` registered for `/agent/{action}` routes in
+- [x] `AgentProxyController` registered for `/agent/{action}` routes in
   OpenEMR
-- [ ] Session validation → site/patient/scope policy gate
-- [ ] In-process JWT mint via League OAuth2 server (the path PRESEARCH §18
+  (Module entry at `interface/modules/custom_modules/oe-module-clinical-copilot/
+  public/agent.php` boots OpenEMR's session via `globals.php` and dispatches
+  to `AgentProxyController`. URL surface: `/interface/modules/custom_modules/
+  oe-module-clinical-copilot/public/agent.php?action=<name>&pid=<pid>` —
+  matches the faxsms module's entry-file pattern (chosen over a Symfony
+  KernelEvents listener to avoid kernel-level routing surgery this sprint).
+  Phase 3 UI calls this URL directly.)
+- [x] Session validation → site/patient/scope policy gate
+  (`src/Auth/PolicyGate.php` is a pure service: takes a `SessionContext`
+  + `AgentRequest`, returns `PolicyDecision::allow()` or
+  `PolicyDecision::deny(reason, detail)`. Closed-set deny reasons:
+  MissingSession, SiteMismatch, PatientMismatch, MissingPatient,
+  ScopeNotPermitted, UnknownAction. Per-action SMART scope allowlist
+  is the single source of truth — `defaultScopesFor()` lets the entry
+  .php resolve the scopes the proxy is willing to mint without
+  duplicating the list. `briefing` is wired with the Phase 3 scope set;
+  `echo` is the smoke-test action.)
+- [x] In-process JWT mint via League OAuth2 server (the path PRESEARCH §18
   commits to — no self-loopback HTTP). 5-minute TTL, scoped to the minimum
   needed for the in-progress task.
-- [ ] Stream proxy preserving SSE framing (chunked passthrough, no
+  (`src/Auth/AgentTokenMinter.php` constructs League's `AccessTokenEntity`
+  directly with OpenEMR's `OAuth2KeyConfig` private key + passphrase. The
+  full grant pipeline (`CustomClientCredentialsGrant`) needs a registered
+  oauth_clients row and a PSR-7 token request — neither is appropriate for
+  an in-process internal hop. Same library, same RSA key material, same
+  signing algorithm; just no PSR-7 round-trip. Token carries `sub`
+  (fhirUser uuid), `aud` (`openemr-clinical-copilot-agent`), `iss` (this
+  site's oauth2 base URL), `scope` (gate-resolved), 5-minute expiry, per-mint
+  jti. AgentTokenMintException wraps all key/signing failures so the
+  controller can fail closed with a 503.)
+- [x] Stream proxy preserving SSE framing (chunked passthrough, no
   buffering)
-- [ ] PHPUnit isolated test for the policy gate (denies wrong site, wrong
+  (`AgentProxyController::streamUpstream()` drains output buffers, sets
+  `text/event-stream` + `Cache-Control: no-cache` + `X-Accel-Buffering: no`,
+  opens a Guzzle request with `RequestOptions::STREAM => true`, and pumps
+  8 KB chunks with `flush()` between reads. Connect timeout 5s; no total
+  request timeout because SSE streams are long-lived. Upstream connection
+  failures emit a single `event: error\n...` SSE frame and close the
+  stream — the UI sees a typed error rather than a hung connection.
+  Chose Guzzle over raw cURL/fopen because it's already a project dep and
+  its streaming body API is the cleanest test surface. The controller
+  reads `AGENT_SERVICE_URL` from the env, defaulting to `http://agent:8080`
+  — the agent service container itself lands when Phase 1.5/1.6 wire it.)
+- [x] PHPUnit isolated test for the policy gate (denies wrong site, wrong
   patient, missing session)
+  (`tests/Tests/Isolated/Modules/ClinicalCopilot/Auth/PolicyGateTest.php`
+  — 8 cases: allow happy-path, deny on missing session, site mismatch,
+  patient mismatch, missing patient when one was requested, unknown
+  action, scope not in action allowlist, and the `echo` smoke-test
+  permitting null patient/empty scopes. The gate is pure (no DB, no
+  superglobals) so the test runs under `composer phpunit-isolated`
+  without Docker. Skeleton test now also pins `public/agent.php` and
+  `src/Auth/` so the structural shape can't regress silently.)
 
 ### 1.5 Agent service auth middleware
 - [ ] JWT verification middleware against OpenEMR's JWKS (or shared signing

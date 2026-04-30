@@ -3,10 +3,11 @@
 /**
  * Clinical Co-Pilot module Bootstrap.
  *
- * Phase 1.3 skeleton: just module-level constants. Phase 1.4 (proxy
- * controller) gives this class an EventDispatcher constructor parameter
- * and a subscribeToEvents() method, and openemr.bootstrap.php starts
- * instantiating it.
+ * Phase 1.4 ships the proxy controller as a public entry .php
+ * (`public/agent.php`); no module-level event subscriptions are needed
+ * for the proxy hop. This class will gain an EventDispatcher constructor
+ * parameter and a subscribeToEvents() method when Phase 3 lands the
+ * patient-chart button (UI hook into the chart render event).
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
