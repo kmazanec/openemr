@@ -63,6 +63,7 @@ final readonly class AppointmentAdapter
                 system: 'openemr',
                 recordType: 'Appointment',
                 recordId: $recordId,
+                recordedAt: $startAt,
             ),
         );
     }

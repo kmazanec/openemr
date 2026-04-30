@@ -27,4 +27,24 @@ enum DataCategory: string
     case Lab = 'lab';
     case Encounter = 'encounter';
     case Appointment = 'appointment';
+
+    /**
+     * SMART scope that gates this category. The agent's JWT must carry
+     * this scope for any request that asks for the category — see
+     * {@see \OpenEMR\Modules\ClinicalCopilot\Controller\AgentSnapshotController}.
+     *
+     * Exhaustive `match` (no `default`): a future case must declare its
+     * scope here, or PHPStan and the test suite both fail.
+     */
+    public function smartScope(): string
+    {
+        return match ($this) {
+            self::Diagnosis => 'user/Condition.rs',
+            self::Medication => 'user/MedicationRequest.rs',
+            self::Allergy => 'user/AllergyIntolerance.rs',
+            self::Lab => 'user/Observation.rs',
+            self::Encounter => 'user/Encounter.rs',
+            self::Appointment => 'user/Appointment.rs',
+        };
+    }
 }

@@ -30,6 +30,7 @@ final readonly class AllergyServiceDataSource implements AllergyDataSource
         return RowAssertion::listWithStringKeys(QueryUtils::fetchRecords(
             "SELECT lists.id,
                     lists.title,
+                    lists.`date`,
                     reaction.title AS reaction_title,
                     lists.severity_al
                FROM lists

@@ -58,18 +58,28 @@ final readonly class MedicationAdapter
             return null;
         }
 
+        $startDate = Normalize::toDateImmutable(Normalize::stringField($row, 'date_added'));
+
         return new Medication(
             name: $name,
             dose: Normalize::toOptionalString(Normalize::stringField($row, 'dosage')),
             route: Normalize::toOptionalString(Normalize::stringField($row, 'route_title')),
             frequency: Normalize::toOptionalString(Normalize::stringField($row, 'interval_title')),
-            startDate: Normalize::toDateImmutable(Normalize::stringField($row, 'date_added')),
-            stopDate: Normalize::toDateImmutable(Normalize::stringField($row, 'date_modified')),
+            startDate: $startDate,
+            // stopDate intentionally null: this adapter only surfaces
+            // active prescriptions (production query filters active = 1),
+            // and prescriptions has no explicit discontinuation column —
+            // date_modified is the last-edit timestamp, which is wrong
+            // for stopDate (a typo fix would falsely "stop" the med).
+            // When inactive meds are surfaced, source this from a real
+            // stop column.
+            stopDate: null,
             prescriber: Normalize::toOptionalString(Normalize::stringField($row, 'prescriber')),
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'MedicationRequest',
                 recordId: $recordId,
+                recordedAt: $startDate,
             ),
         );
     }

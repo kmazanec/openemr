@@ -5,16 +5,21 @@
  *
  *  1. {@see DisclosureRecorder} — regulatory trail in OpenEMR's `extended_log`,
  *     deduped per (actor, patient, day). Surfaces in the patient's HIPAA
- *     Accounting of Disclosures (§164.528) report.
+ *     Accounting of Disclosures (§164.528) report. **Fail-closed**: if this
+ *     write throws, the exception propagates so the controller can refuse to
+ *     emit chart data. The plan (§2.4) says "emitted before any chart data
+ *     leaves OpenEMR" — that means a failure here cannot be silently
+ *     swallowed.
  *  2. {@see AgentRequestLogRecorder} — engineering instrumentation in the
  *     `agent_request_log` table, one row per request, structured categories
- *     for cost / eval / debugging queries.
+ *     for cost / eval / debugging queries. **Best-effort**: failures here
+ *     are logged and absorbed; the regulatory trail is the audit anchor and
+ *     missing engineering rows shouldn't take a request offline.
  *
- * Each recorder is invoked independently. A failure in one does not block
- * the other or the request flow — the listener logs and keeps moving so a
- * single recorder bug can't take the proxy offline. Caught types are
- * narrowed (DBAL, JSON, runtime) so programmer errors still bubble — see
- * ForbiddenCatchTypeRule.
+ * The regulatory recorder runs first. If it succeeds, the engineering
+ * recorder runs and any failure there is swallowed-and-logged. Caught types
+ * for the engineering path are narrowed (DBAL, JSON, runtime) so programmer
+ * errors still bubble — see ForbiddenCatchTypeRule.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -45,26 +50,18 @@ final readonly class AgentDisclosureListener
     {
         $disclosure = $event->getDisclosure();
 
-        $this->safeRecord(
-            'extended_log',
-            fn() => $this->disclosureRecorder->record($disclosure),
-            $disclosure,
-        );
+        // Regulatory write is fail-closed: any throw propagates to the
+        // controller, which converts it into a 503 and refuses to emit
+        // chart data. This is the HIPAA accounting anchor.
+        $this->disclosureRecorder->record($disclosure);
 
-        $this->safeRecord(
-            'agent_request_log',
-            fn() => $this->requestLogRecorder->record($disclosure),
-            $disclosure,
-        );
-    }
-
-    private function safeRecord(string $sink, \Closure $write, AgentDisclosure $disclosure): void
-    {
+        // Engineering write is best-effort; absorb DBAL/JSON/runtime
+        // failures and keep the request alive.
         try {
-            $write();
+            $this->requestLogRecorder->record($disclosure);
         } catch (DbalException | JsonException | RuntimeException $e) {
-            $this->logger->error('Failed to persist agent disclosure row', [
-                'sink' => $sink,
+            $this->logger->error('Failed to persist agent_request_log row', [
+                'sink' => 'agent_request_log',
                 'action' => $disclosure->action,
                 'requestId' => $disclosure->requestId,
                 'exception' => $e,

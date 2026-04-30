@@ -1,17 +1,24 @@
 <?php
 
 /**
- * Drops chart-snapshot slices the request did not ask for.
+ * Architectural pin for demographic-level PHI that must never reach
+ * the snapshot.
  *
- * The §2.2 adapters already exclude SSN, full street address, phone,
- * email, and other sensitive demographic fields at the DTO level —
- * they're not carried into ChartSnapshot in the first place. This
- * minimizer adds the second layer: even among the categories the DTOs
- * do carry (diagnoses, meds, allergies, labs, encounters, appointment),
- * each request only sees the subset its envelope declared.
+ * The actual minimization happens in two places that this class does
+ * NOT need to mediate:
+ *  - {@see Demographics} simply does not declare the excluded fields,
+ *    so they cannot be carried even if a future contributor wires a
+ *    new column into the DataSource;
+ *  - {@see \OpenEMR\Modules\ClinicalCopilot\Controller\AgentSnapshotController::buildSnapshot}
+ *    gates each adapter call by `DataCategorySet`, so categories the
+ *    request did not declare are never even fetched.
  *
- * Patient identity is always carried — it is the trust anchor and
- * disclosure-audit key.
+ * What this class earns its keep on is the test pin against
+ * `EXCLUDED_FROM_DEMOGRAPHICS`: future contributors who try to widen
+ * Demographics with one of these column names trip the structural test
+ * before the change merges. Earlier versions also exposed a
+ * `withCategories()` runtime helper, but it duplicated the controller's
+ * gating with no added safety, so it was removed.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -53,17 +60,4 @@ final class PhiMinimizer
         'next_of_kin',
         'guardian',
     ];
-
-    public function withCategories(ChartSnapshot $snapshot, DataCategorySet $allowed): ChartSnapshot
-    {
-        return new ChartSnapshot(
-            patient: $snapshot->patient,
-            appointment: $allowed->contains(DataCategory::Appointment) ? $snapshot->appointment : null,
-            diagnoses: $allowed->contains(DataCategory::Diagnosis) ? $snapshot->diagnoses : [],
-            medications: $allowed->contains(DataCategory::Medication) ? $snapshot->medications : [],
-            allergies: $allowed->contains(DataCategory::Allergy) ? $snapshot->allergies : [],
-            labs: $allowed->contains(DataCategory::Lab) ? $snapshot->labs : [],
-            encounters: $allowed->contains(DataCategory::Encounter) ? $snapshot->encounters : [],
-        );
-    }
 }

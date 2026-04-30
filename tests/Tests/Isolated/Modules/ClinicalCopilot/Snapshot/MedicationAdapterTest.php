@@ -63,8 +63,13 @@ final class MedicationAdapterTest extends TestCase
         $this->assertSame('7001', $med->source->recordId);
     }
 
-    public function testStopDateCarriedWhenPresent(): void
+    public function testStopDateAlwaysNullForActiveRows(): void
     {
+        // Pins the fail-closed contract: this adapter only surfaces
+        // active prescriptions, and `prescriptions` has no real
+        // discontinuation column. We must never derive a stopDate from
+        // an edit timestamp like date_modified — that would falsely
+        // "stop" a med any time someone fixed a typo on it.
         $rows = [
             [
                 'id' => 7002,
@@ -78,8 +83,7 @@ final class MedicationAdapterTest extends TestCase
             ],
         ];
         $list = (new MedicationAdapter($this->source($rows)))->fetchActive(101);
-        $this->assertNotNull($list[0]->stopDate);
-        $this->assertSame('2026-04-01', $list[0]->stopDate->format('Y-m-d'));
+        $this->assertNull($list[0]->stopDate);
     }
 
     public function testEmptyOptionalFieldsNormalizeToNull(): void

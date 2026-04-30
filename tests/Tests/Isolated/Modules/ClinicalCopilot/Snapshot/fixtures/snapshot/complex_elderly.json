@@ -24,7 +24,7 @@
       "recordType": "Appointment",
       "recordId": "9001",
       "field": null,
-      "recordedAt": null
+      "recordedAt": "<DATE>"
     }
   },
   "diagnoses": [
@@ -38,7 +38,7 @@
         "recordType": "Condition",
         "recordId": "1",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -51,7 +51,7 @@
         "recordType": "Condition",
         "recordId": "2",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -64,7 +64,7 @@
         "recordType": "Condition",
         "recordId": "3",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -77,7 +77,7 @@
         "recordType": "Condition",
         "recordId": "4",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ],
@@ -95,7 +95,7 @@
         "recordType": "MedicationRequest",
         "recordId": "1",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -111,7 +111,7 @@
         "recordType": "MedicationRequest",
         "recordId": "2",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ],
@@ -125,7 +125,7 @@
         "recordType": "AllergyIntolerance",
         "recordId": "1",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ],
@@ -142,7 +142,7 @@
         "recordType": "Observation",
         "recordId": "1",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -157,7 +157,7 @@
         "recordType": "Observation",
         "recordId": "2",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -172,7 +172,7 @@
         "recordType": "Observation",
         "recordId": "3",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -187,7 +187,7 @@
         "recordType": "Observation",
         "recordId": "4",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -202,7 +202,7 @@
         "recordType": "Observation",
         "recordId": "5",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -217,7 +217,7 @@
         "recordType": "Observation",
         "recordId": "6",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -232,7 +232,7 @@
         "recordType": "Observation",
         "recordId": "7",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -247,7 +247,7 @@
         "recordType": "Observation",
         "recordId": "8",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -262,7 +262,7 @@
         "recordType": "Observation",
         "recordId": "9",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -277,7 +277,7 @@
         "recordType": "Observation",
         "recordId": "10",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -292,7 +292,7 @@
         "recordType": "Observation",
         "recordId": "11",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -307,7 +307,7 @@
         "recordType": "Observation",
         "recordId": "12",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -322,7 +322,7 @@
         "recordType": "Observation",
         "recordId": "13",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -337,7 +337,7 @@
         "recordType": "Observation",
         "recordId": "14",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -352,7 +352,7 @@
         "recordType": "Observation",
         "recordId": "15",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -367,7 +367,7 @@
         "recordType": "Observation",
         "recordId": "16",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -382,7 +382,7 @@
         "recordType": "Observation",
         "recordId": "17",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -397,7 +397,7 @@
         "recordType": "Observation",
         "recordId": "18",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ],
@@ -411,7 +411,7 @@
         "recordType": "Encounter",
         "recordId": "1000",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -423,7 +423,7 @@
         "recordType": "Encounter",
         "recordId": "1001",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -435,7 +435,7 @@
         "recordType": "Encounter",
         "recordId": "1002",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ]

@@ -28,11 +28,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../../globals.php';
 
+use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentSigningKey;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentTokenMinter;
 use OpenEMR\Modules\ClinicalCopilot\Auth\OpenEmrJwtVerifier;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SqlAgentActorResolver;
+use OpenEMR\Modules\ClinicalCopilot\Auth\SystemClock;
 use OpenEMR\Modules\ClinicalCopilot\Controller\AgentSnapshotController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
@@ -96,6 +98,7 @@ $webroot = $globals->getWebRoot();
 $issuer = $siteAddr . $webroot . '/oauth2/' . $siteId;
 
 $connection = AgentDbalConnection::get();
+$logger = ServiceContainer::getLogger();
 
 $dispatcher = new EventDispatcher();
 $dispatcher->addListener(
@@ -103,7 +106,7 @@ $dispatcher->addListener(
     new AgentDisclosureListener(
         new ExtendedLogDisclosureRecorder($connection),
         new DbalAgentRequestLogRecorder($connection),
-        new \Psr\Log\NullLogger(),
+        $logger,
     ),
 );
 
@@ -122,9 +125,9 @@ $controller = new AgentSnapshotController(
     encounterAdapter: new EncounterAdapter(new EncounterServiceDataSource()),
     appointmentAdapter: new AppointmentAdapter(new AppointmentServiceDataSource()),
     eventDispatcher: $dispatcher,
-    logger: new \Psr\Log\NullLogger(),
+    logger: $logger,
     siteId: $siteId,
-    now: new DateTimeImmutable(),
+    clock: new SystemClock(),
 );
 
 $controller->handle($bearer, $pid, $categories, $conversationId);

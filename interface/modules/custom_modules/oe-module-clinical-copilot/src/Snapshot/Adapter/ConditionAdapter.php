@@ -64,15 +64,18 @@ final readonly class ConditionAdapter
             return null;
         }
 
+        $onset = Normalize::toDateImmutable(Normalize::stringField($row, 'date'));
+
         return new Diagnosis(
             code: $coded['code'],
             codeSystem: $coded['codeSystem'],
             label: $label,
-            onsetDate: Normalize::toDateImmutable(Normalize::stringField($row, 'date')),
+            onsetDate: $onset,
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'Condition',
                 recordId: $recordId,
+                recordedAt: $onset,
             ),
         );
     }

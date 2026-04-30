@@ -14,6 +14,7 @@ namespace OpenEMR\Modules\ClinicalCopilot\Controller;
 
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentActorResolver;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentTokenVerificationException;
+use OpenEMR\Modules\ClinicalCopilot\Auth\ClockInterface;
 use OpenEMR\Modules\ClinicalCopilot\Auth\OpenEmrJwtVerifier;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedAgentActor;
 use OpenEMR\Modules\ClinicalCopilot\Auth\VerifiedAgentToken;
@@ -29,7 +30,6 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\ChartSnapshot;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategory;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategorySet;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\PhiMinimizer;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -54,22 +54,6 @@ final readonly class AgentSnapshotController
 {
     private const DEFAULT_LOOKBACK_DAYS = 365;
 
-    /**
-     * Maps each {@see DataCategory} to the SMART scope that authorizes
-     * it. The agent's JWT must carry the matching scope for any
-     * category it asks for; missing scope → 403.
-     *
-     * @var array<string, string>
-     */
-    private const CATEGORY_SCOPE = [
-        'diagnosis' => 'user/Condition.rs',
-        'medication' => 'user/MedicationRequest.rs',
-        'allergy' => 'user/AllergyIntolerance.rs',
-        'lab' => 'user/Observation.rs',
-        'encounter' => 'user/Encounter.rs',
-        'appointment' => 'user/Appointment.rs',
-    ];
-
     public function __construct(
         private OpenEmrJwtVerifier $verifier,
         private AgentActorResolver $actorResolver,
@@ -83,7 +67,7 @@ final readonly class AgentSnapshotController
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
-        private \DateTimeImmutable $now,
+        private ClockInterface $clock,
     ) {
     }
 
@@ -149,8 +133,12 @@ final readonly class AgentSnapshotController
             return;
         }
 
+        // Read the clock once per request so the appointment-window
+        // query and the disclosure event share a single instant.
+        $now = $this->clock->now();
+
         try {
-            $snapshot = $this->buildSnapshot($pid, $verified, $categories);
+            $snapshot = $this->buildSnapshot($pid, $verified, $categories, $now);
         } catch (\RuntimeException | \DomainException | \Doctrine\DBAL\Exception $e) {
             // Narrow catch (CLAUDE.md ForbiddenCatchTypeRule). RuntimeException
             // covers PatientAdapter's missing-row case + adapter fail-closed
@@ -164,7 +152,22 @@ final readonly class AgentSnapshotController
             return;
         }
 
-        $this->dispatchDisclosure($actor, $verified, $pid, $snapshot, $categories, $conversationId);
+        // The disclosure event must land in the regulatory audit trail
+        // BEFORE any chart data leaves the boundary. The listener writes
+        // extended_log fail-closed: if that throws, we refuse to emit the
+        // body. Engineering-side request log failures are absorbed inside
+        // the listener and don't reach here.
+        try {
+            $this->dispatchDisclosure($actor, $verified, $pid, $snapshot, $categories, $conversationId, $now);
+        } catch (\RuntimeException | \Doctrine\DBAL\Exception $e) {
+            $this->logger->error('Agent snapshot disclosure write failed', [
+                'pid' => $pid,
+                'exception' => $e,
+            ]);
+            $this->respondError(503, 'disclosure_unavailable');
+            return;
+        }
+
         $this->respondJson(200, $snapshot->toArray());
     }
 
@@ -181,11 +184,11 @@ final readonly class AgentSnapshotController
         );
 
         foreach ($categories as $category) {
-            $scope = self::CATEGORY_SCOPE[$category] ?? null;
-            if ($scope === null) {
+            $enumCase = DataCategory::tryFrom($category);
+            if ($enumCase === null) {
                 return null;
             }
-            if (!in_array($scope, $verified->scopes, strict: true)) {
+            if (!in_array($enumCase->smartScope(), $verified->scopes, strict: true)) {
                 return null;
             }
         }
@@ -197,6 +200,7 @@ final readonly class AgentSnapshotController
         int $pid,
         VerifiedAgentToken $verified,
         DataCategorySet $categories,
+        \DateTimeImmutable $now,
     ): ChartSnapshot {
         $patient = $this->patientAdapter->fetch($pid);
 
@@ -221,11 +225,16 @@ final readonly class AgentSnapshotController
             $appointment = $this->appointmentAdapter->fetchToday(
                 $pid,
                 $verified->subject,
-                $this->now,
+                $now,
             );
         }
 
-        $snapshot = new ChartSnapshot(
+        // The adapter calls above are already gated by the
+        // DataCategorySet — categories the request did not ask for are
+        // never fetched, so the snapshot we hand back already reflects
+        // exactly the categories named in the disclosure event. See
+        // {@see PhiMinimizer} for the demographic-level exclusion pin.
+        return new ChartSnapshot(
             patient: $patient,
             appointment: $appointment,
             diagnoses: $diagnoses,
@@ -234,13 +243,6 @@ final readonly class AgentSnapshotController
             labs: $labs,
             encounters: $encounters,
         );
-
-        // PhiMinimizer is the documentation pin: the categories chosen
-        // here are the categories the disclosure event will name. The
-        // adapters above already gated by category, so this call is
-        // primarily contract enforcement (and protection against an
-        // adapter that surfaces a category-bound DTO it shouldn't).
-        return (new PhiMinimizer())->withCategories($snapshot, $categories);
     }
 
     private function dispatchDisclosure(
@@ -250,9 +252,10 @@ final readonly class AgentSnapshotController
         ChartSnapshot $snapshot,
         DataCategorySet $categories,
         ?string $conversationId,
+        \DateTimeImmutable $now,
     ): void {
         $disclosure = new AgentDisclosure(
-            disclosedAt: $this->now,
+            disclosedAt: $now,
             actorUserId: $actor->userId,
             actorFhirUser: $verified->fhirUser,
             siteId: $this->siteId,

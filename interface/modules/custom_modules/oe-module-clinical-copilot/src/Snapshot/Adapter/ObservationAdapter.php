@@ -64,17 +64,20 @@ final readonly class ObservationAdapter
             return null;
         }
 
+        $observedAt = Normalize::toDateImmutable(Normalize::stringField($row, 'observed_at'));
+
         return new LabObservation(
             analyte: $analyte,
             value: $value,
             unit: Normalize::toOptionalString(Normalize::stringField($row, 'units')),
             referenceRange: Normalize::toOptionalString(Normalize::stringField($row, 'range')),
             abnormalFlag: Normalize::toOptionalString(Normalize::stringField($row, 'abnormal')),
-            observedAt: Normalize::toDateImmutable(Normalize::stringField($row, 'observed_at')),
+            observedAt: $observedAt,
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'Observation',
                 recordId: $recordId,
+                recordedAt: $observedAt,
             ),
         );
     }

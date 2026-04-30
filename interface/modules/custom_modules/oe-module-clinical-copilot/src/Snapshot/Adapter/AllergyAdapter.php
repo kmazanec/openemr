@@ -71,6 +71,7 @@ final readonly class AllergyAdapter
                 system: 'openemr',
                 recordType: 'AllergyIntolerance',
                 recordId: $recordId,
+                recordedAt: Normalize::toDateImmutable(Normalize::stringField($row, 'date')),
             ),
         );
     }

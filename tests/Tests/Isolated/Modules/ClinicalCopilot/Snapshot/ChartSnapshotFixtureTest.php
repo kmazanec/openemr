@@ -79,12 +79,14 @@ final class ChartSnapshotFixtureTest extends TestCase
             if (!is_dir(self::FIXTURE_DIR)) {
                 mkdir(self::FIXTURE_DIR, 0o755, true);
             }
+            // Match the pretty-format-json pre-commit hook's settings
+            // (.pre-commit-config.yaml: --indent=2, --no-sort-keys) so a
+            // fresh regen lands on disk in the exact form the hook would
+            // otherwise rewrite it to. Avoids spurious whitespace-only
+            // diffs after the next commit.
             file_put_contents(
                 $fixturePath,
-                json_encode(
-                    $actual,
-                    JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
-                ) . "\n",
+                self::encodeWithTwoSpaceIndent($actual) . "\n",
             );
             $this->assertFileExists($fixturePath);
             return;
@@ -106,6 +108,27 @@ final class ChartSnapshotFixtureTest extends TestCase
             $actual,
             "Snapshot diverged for {$archetype->value}. If the change is intended, "
             . 'regenerate with UPDATE_FIXTURES=1 and review the diff before committing.',
+        );
+    }
+
+    /**
+     * Pretty-print with 2-space indent. PHP's JSON_PRETTY_PRINT is
+     * hard-coded to 4 spaces, so we post-process the leading-whitespace
+     * runs. The pretty-format-json pre-commit hook would otherwise
+     * rewrite the file to this same shape on the next commit.
+     *
+     * @param array<int|string, mixed> $value
+     */
+    private static function encodeWithTwoSpaceIndent(array $value): string
+    {
+        $pretty = json_encode(
+            $value,
+            JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
+        );
+        return (string) preg_replace_callback(
+            '/^( {4})+/m',
+            static fn(array $m): string => str_repeat('  ', intdiv(strlen($m[0]), 4)),
+            $pretty,
         );
     }
 

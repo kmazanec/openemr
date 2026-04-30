@@ -56,14 +56,17 @@ final readonly class EncounterAdapter
             return null;
         }
 
+        $encounterDate = Normalize::toDateImmutable(Normalize::stringField($row, 'encounter_date'));
+
         return new Encounter(
-            encounterDate: Normalize::toDateImmutable(Normalize::stringField($row, 'encounter_date')),
+            encounterDate: $encounterDate,
             type: Normalize::toOptionalString(Normalize::stringField($row, 'encounter_type')),
             reason: Normalize::toOptionalString(Normalize::stringField($row, 'reason')),
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'Encounter',
                 recordId: $recordId,
+                recordedAt: $encounterDate,
             ),
         );
     }

@@ -32,7 +32,9 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedAgentActor;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedFhirUser;
 use OpenEMR\Modules\ClinicalCopilot\Controller\AgentSnapshotController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
+use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosureListener;
+use OpenEMR\Modules\ClinicalCopilot\RequestLog\DisclosureRecorder;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryAgentRequestLogRecorder;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryDisclosureRecorder;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
@@ -205,6 +207,26 @@ final class AgentSnapshotControllerTest extends TestCase
         );
     }
 
+    public function testRegulatoryDisclosureFailureReturns503AndOmitsBody(): void
+    {
+        // Plan §2.4: emit disclosure before any chart data leaves OpenEMR.
+        // A failure writing to extended_log must convert to a 503 with
+        // an error envelope — never the snapshot body.
+        $broken = new class implements DisclosureRecorder {
+            public function record(AgentDisclosure $disclosure): never
+            {
+                throw new \RuntimeException('extended_log unavailable');
+            }
+        };
+        [$status, $body] = $this->dispatch(
+            token: $this->validToken(),
+            pid: 4242,
+            disclosureRecorder: $broken,
+        );
+        $this->assertSame(503, $status);
+        $this->assertSame(['error' => 'disclosure_unavailable'], $body);
+    }
+
     public function testCategoryFilterMasksOmittedCategories(): void
     {
         // Request only diagnosis + medication — labs/encounters/appointment
@@ -242,6 +264,7 @@ final class AgentSnapshotControllerTest extends TestCase
         ?ResolvedAgentActor $actor = null,
         bool $actorMayRead = true,
         bool $forceUnresolvedActor = false,
+        ?DisclosureRecorder $disclosureRecorder = null,
     ): array {
         [$status, $body, ] = $this->runWithEventCapture(
             $token,
@@ -250,6 +273,7 @@ final class AgentSnapshotControllerTest extends TestCase
             $actor,
             $actorMayRead,
             $forceUnresolvedActor,
+            $disclosureRecorder,
         );
         return [$status, $body];
     }
@@ -265,6 +289,7 @@ final class AgentSnapshotControllerTest extends TestCase
         ?ResolvedAgentActor $actor = null,
         bool $actorMayRead = true,
         bool $forceUnresolvedActor = false,
+        ?DisclosureRecorder $disclosureRecorder = null,
     ): array {
         $chart = (new ArchetypeChartFactory(20260430))->build(PatientArchetype::Diabetic, pid: 4242);
         $resolverActor = $forceUnresolvedActor
@@ -272,7 +297,7 @@ final class AgentSnapshotControllerTest extends TestCase
             : ($actor ?? new ResolvedAgentActor(7, 'patel', $this->actorUuid()));
         $resolver = new SnapshotControllerStubResolver($resolverActor, $actorMayRead);
 
-        $disclosureSink = new InMemoryDisclosureRecorder();
+        $disclosureSink = $disclosureRecorder ?? new InMemoryDisclosureRecorder();
         $requestLogSink = new InMemoryAgentRequestLogRecorder();
         $dispatcher = new EventDispatcher();
         $dispatcher->addListener(
@@ -298,7 +323,7 @@ final class AgentSnapshotControllerTest extends TestCase
             eventDispatcher: $dispatcher,
             logger: new NullLogger(),
             siteId: 'default',
-            now: new DateTimeImmutable(self::FIXED_NOW),
+            clock: $this->fixedClock(),
         );
 
         ob_start();

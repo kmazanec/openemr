@@ -24,7 +24,7 @@
       "recordType": "Appointment",
       "recordId": "9001",
       "field": null,
-      "recordedAt": null
+      "recordedAt": "<DATE>"
     }
   },
   "diagnoses": [],
@@ -43,7 +43,7 @@
         "recordType": "Observation",
         "recordId": "1",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -58,7 +58,7 @@
         "recordType": "Observation",
         "recordId": "2",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -73,7 +73,7 @@
         "recordType": "Observation",
         "recordId": "3",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -88,7 +88,7 @@
         "recordType": "Observation",
         "recordId": "4",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     },
     {
@@ -103,7 +103,7 @@
         "recordType": "Observation",
         "recordId": "5",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ],
@@ -117,7 +117,7 @@
         "recordType": "Encounter",
         "recordId": "1000",
         "field": null,
-        "recordedAt": null
+        "recordedAt": "<DATE>"
       }
     }
   ]

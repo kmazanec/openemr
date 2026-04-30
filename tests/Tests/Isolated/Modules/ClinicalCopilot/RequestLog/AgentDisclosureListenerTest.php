@@ -73,10 +73,14 @@ final class AgentDisclosureListenerTest extends TestCase
         self::assertCount(1, $requestLogSink->all(), 'agent_request_log recorder should receive the disclosure');
     }
 
-    public function testDisclosureRecorderFailureDoesNotBlockRequestLog(): void
+    public function testRegulatoryRecorderFailurePropagates(): void
     {
-        // Each sink is independent. A DBAL failure in extended_log must not
-        // prevent agent_request_log from being written, and vice versa.
+        // Plan §2.4 + ARCHITECTURE.md: the regulatory disclosure must
+        // land before any chart data leaves OpenEMR. If extended_log is
+        // unavailable, the listener MUST throw so the controller can
+        // refuse to emit the snapshot. This is the audit anchor; we
+        // would rather fail the request than serve PHI without an
+        // accounting row.
         $broken = new class implements DisclosureRecorder {
             public function record(AgentDisclosure $disclosure): never
             {
@@ -84,19 +88,43 @@ final class AgentDisclosureListenerTest extends TestCase
             }
         };
         $requestLogSink = new InMemoryAgentRequestLogRecorder();
-        $logger = new RecordingLogger();
 
-        $listener = new AgentDisclosureListener($broken, $requestLogSink, $logger);
+        $listener = new AgentDisclosureListener($broken, $requestLogSink, $this->logger());
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('extended_log unavailable');
         $listener(new AgentDisclosedEvent($this->disclosure()));
-
-        self::assertCount(1, $requestLogSink->all(), 'request log must still write when disclosure recorder fails');
-        $errors = array_filter($logger->entries, static fn(array $e): bool => $e['level'] === 'error');
-        self::assertCount(1, $errors);
-        self::assertSame('extended_log', $errors[array_key_first($errors)]['context']['sink']);
     }
 
-    public function testRequestLogRecorderFailureDoesNotBlockDisclosure(): void
+    public function testRegulatoryFailureSkipsEngineeringWrite(): void
     {
+        // The regulatory write runs first. If it throws, the
+        // engineering recorder is not called — the request is on its
+        // way to a 503 and there's no useful "we attempted this" row.
+        $broken = new class implements DisclosureRecorder {
+            public function record(AgentDisclosure $disclosure): never
+            {
+                throw new \RuntimeException('extended_log unavailable');
+            }
+        };
+        $requestLogSink = new InMemoryAgentRequestLogRecorder();
+
+        $listener = new AgentDisclosureListener($broken, $requestLogSink, $this->logger());
+
+        try {
+            $listener(new AgentDisclosedEvent($this->disclosure()));
+            self::fail('expected listener to propagate the regulatory failure');
+        } catch (\RuntimeException) {
+            // expected
+        }
+        self::assertSame([], $requestLogSink->all(), 'engineering write must not run after regulatory failure');
+    }
+
+    public function testEngineeringRecorderFailureIsAbsorbed(): void
+    {
+        // The engineering recorder is best-effort: a missing row in
+        // agent_request_log can't take a request offline, since the
+        // regulatory trail is already in extended_log.
         $disclosureSink = new InMemoryDisclosureRecorder();
         $broken = new class implements AgentRequestLogRecorder {
             public function record(AgentDisclosure $disclosure): never
@@ -109,7 +137,7 @@ final class AgentDisclosureListenerTest extends TestCase
         $listener = new AgentDisclosureListener($disclosureSink, $broken, $logger);
         $listener(new AgentDisclosedEvent($this->disclosure()));
 
-        self::assertCount(1, $disclosureSink->all(), 'disclosure must still write when request log fails');
+        self::assertCount(1, $disclosureSink->all(), 'regulatory disclosure must still write when engineering log fails');
         $errors = array_filter($logger->entries, static fn(array $e): bool => $e['level'] === 'error');
         self::assertCount(1, $errors);
         self::assertSame('agent_request_log', $errors[array_key_first($errors)]['context']['sink']);
