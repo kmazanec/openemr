@@ -273,6 +273,15 @@ The "one clarifying question" rule is a balance — rejecting ambiguous queries 
 - Every query logged: who asked, what they asked, what tools were called, what was returned (verification status only, not content)
 - Every unverified claim logged in full for debugging — but in a separate, access-restricted log stream
 - HIPAA audit trail requirements documented in `AUDIT.md`
+- **Two-table disclosure logging**, decided after researching how HIPAA is being interpreted to apply to LLMs in healthcare:
+  - **OpenEMR's existing `extended_log`** is the regulatory trail. One row per (clinician, patient, day) with `event = 'disclosure-ai-treatment'` (a new entry seeded into the `disclosure_type` list), `recipient = 'Clinical Co-Pilot Agent'`, and a category-summary description. Surfaces in the patient summary's Disclosures view alongside Treatment / Payment / Health Care Operations entries OpenEMR already ships, and in any §164.528 Accounting of Disclosures report. Per-day dedup means a clinician opening a chart 30 times in one day produces one row, not 30.
+  - **A new `agent_request_log` table** is engineering instrumentation. One row per request, structured `categories` JSON, indexed on `(patient_pid, disclosed_at)` and `(actor_user_id, disclosed_at)`. Used for cost analysis, idempotency (UNIQUE on `request_id` derived from the JWT `jti`), and forensic debugging. Not an audit table; the regulatory trail is `extended_log`.
+  - Both writes fire from a single Symfony event (`AgentDisclosedEvent`) consumed by one listener that dispatches to two recorders. Independent failure handling — a DBAL hiccup in one sink does not block the other.
+  - **Neither table stores prompt or completion content.** The recorder DTO (`AgentDisclosure`) accepts no body parameter; structural tests pin the constructor signature, the recorder's column list, and the migration's `addColumn` calls against a forbidden-substring list (`prompt`, `completion`, `request_body`, `response_body`, `message`, `content`, `snapshot`).
+
+**Why two tables and not just `extended_log`:** `extended_log.description` is a free-form longtext, which loses structured-query ability for cost rollups and eval reproduction. The split keeps each table fit for its readers — compliance officers get one legible row per patient-day in the existing UI; engineers get per-request structured rows.
+
+**HIPAA classification in plain English (full analysis lives in the module's help panel — Modules → Manage Modules → ?):** Clinician-invoked AI on the current patient's own chart for the current encounter, with the LLM vendor under a BAA, is a *use for treatment* under 45 CFR §164.506(c). The transmission to the BA is excluded from §164.528 accounting by §164.528(a)(1)(i). We log to `extended_log` anyway because OpenEMR's interpretive stance — its `disclosure_type` list ships pre-populated with `disclosure-treatment` / `-payment` / `-healthcareoperations` — is that even TPO disclosures should be patient-visible. Aligning with that posture is more defensible than quietly omitting AI use from the patient's accounting report.
 
 **BAA implications:** The case study notes to "act as if you have a signed Business Associate Agreement with all LLM providers that no data will be used for training purposes." This shapes the architecture by allowing PHI to be sent to Anthropic in tool results, but in production the BAA must actually exist and the architecture must support providers that don't have one (e.g. by allowing PHI redaction at the tool layer).
 
@@ -332,9 +341,11 @@ The compose stack lives at `docker/digitalocean/docker-compose.yml`; reverse-pro
 
 **No real PHI in scope.** This is a demo with synthetic patient data, so HIPAA/BAA constraints do not gate the host choice. The architecture still treats data as if it were PHI (no PHI in logs, source-tagged claims, RBAC at the tool layer) so the production story remains defensible — the only deferred item is the actual BAA, which would need to be in place before any real patient data touched the system.
 
-**Code-deploy mechanism:** The flex image's `EASY_DEV_MODE_NEW=yes` runs OpenEMR from a host bind-mount instead of from code baked into the image. Our cloud-init clones this repo to `/opt/openemr` on the Droplet and bind-mounts that directory into the openemr container. To deploy code changes: push to GitLab `master`, SSH into the Droplet, `git pull`, `docker compose up -d`. A pull-based auto-deploy poller is a planned follow-up.
+**Code-deploy mechanism:** The flex image's `EASY_DEV_MODE_NEW=yes` runs OpenEMR from a host bind-mount instead of from code baked into the image. The release layout is `/srv/openemr/releases/<sha>/` per release with `/srv/openemr/current` as an atomic symlink that the openemr container bind-mounts read-only. `infra/runner-bootstrap.sh` fetches new commits, cuts a release dir, swaps the symlink, and exec's into the new release's `infra/deploy.sh`. `deploy.sh` recreates the openemr container, runs `composer install` / `npm install` / `npm run build` / `composer dump-autoload`, applies pending Doctrine migrations via `./cli migrations:migrate --no-interaction --allow-no-migration`, and polls `/meta/health/readyz`. A failed step (including a failed migration) rolls the symlink back to the previous release.
 
-**CI/CD:** Manual `git pull` for now (one SSH command). The architecture supports adding a tiny systemd timer that polls origin and pulls + restarts the stack on new commits, but we have not built it yet — out of scope for the initial prod deploy.
+**Database migrations** use upstream OpenEMR's two-system layout: legacy `sql/database.sql` + per-version `*_upgrade.sql` files driven by the flex entrypoint's `EASY_DEV_MODE=yes` for OpenEMR's own schema, and Doctrine Migrations under `db/Migrations/Version*.php` for new schema this project adds. Doctrine Migrations was merged upstream in PR #10704 (Feb 2026) as the planned successor; we use it for new tables (the first non-bootstrap migration is `Version20260430000001` for the `agent_request_log` table + `disclosure-ai-treatment` list seed). Both systems run automatically on every deploy — the flex entrypoint handles the legacy install/upgrade and `deploy.sh` runs `./cli migrations:migrate`. CI exercises Doctrine migrations on every push via `.github/workflows/database.yml`.
+
+**CI/CD:** GitLab CI/CD on master triggers `runner-bootstrap.sh` on a project-specific runner that lives on the Droplet itself (shell executor, tag `openemr-droplet`). The two-script split (bootstrap = symlink swap + exec; deploy = container recreate, build steps, migrations, healthcheck) means deploy-logic changes apply on the deploy that lands them. Manual fallback for hotfixes is `ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/runner-bootstrap.sh`.
 
 **Infrastructure as code:** `doctl` CLI + a checked-in `cloud-init.sh.template` (rendered with secrets at provision time by `infra/bootstrap-do.sh`). Terraform was considered and rejected: with one Droplet to provision, Terraform is overhead, not leverage. The cloud-init script is itself the source of truth for "what the box does on first boot," and it's in version control. The migration story to Terraform-on-ECS or similar at higher scale is documented as a future-cost-analysis bullet rather than built now.
 
@@ -471,14 +482,11 @@ Section 17 commits to an OpenEMR-rendered page hosting the agent panel, but does
 
 This decision shapes which OpenEMR navigation patterns and Twig templates we hook into. Defer until we touch the UI work.
 
-### Conversation lifecycle and "current patient" stickiness
+### ~~Conversation lifecycle and "current patient" stickiness~~ — RESOLVED
 
-Section 19 mentions a sticky "current patient context" but doesn't specify the lifecycle:
-- Is a conversation scoped to a single patient (new conversation when the patient changes)?
-- Is it scoped to a single physician-day (one rolling conversation per day, with patient context shifting inside it)?
-- Is it indefinite (one conversation per physician forever, with explicit "new conversation" controls)?
+**Resolved (2026-04-29) in `docs/IMPLEMENTATION_PLAN.md` "Locked Decisions" #6:** one conversation per `(user, patient)` pair. The conversation row is created on first chart open; if an appointment is in scope, the conversation is also linked to the appointment so the morning-prep view (UC5) can render without re-creating threads.
 
-Each shape has different implications for the verification agent (cross-patient leakage risk grows with conversation scope), the UI (does opening a chart resume a thread or start a new one?), and audit (one log entry per conversation vs. one per turn).
+This narrows cross-patient leakage risk (no patient context shifts inside a conversation) and makes the audit story simple — the disclosure log keys on patient and the engineering log keys on `request_id` (UNIQUE, derived from JWT `jti`) for idempotency.
 
 ### Proxy controller failure modes
 
@@ -537,4 +545,8 @@ Section 8 covers LLM-level observability via LangSmith. The agent service itself
 | RBAC | Delegated to OpenEMR's existing ACL — agent enforces nothing |
 | Deployment | DigitalOcean Droplet, docker-compose (mariadb + flex openemr with bind-mount + Caddy on Let's Encrypt), one environment for now, doctl + cloud-init as IaC (no Terraform) |
 | Conversation state | Postgres (separate from OpenEMR's MariaDB), LangGraph first-party Postgres checkpointer — host TBD when we add the agent service |
+| Conversation lifecycle | One conversation per `(user, patient)` pair; linked to an appointment when one is in scope (resolves §"Open Decisions") |
+| Disclosure logging | Two-table dual-write: OpenEMR's `extended_log` for the regulatory trail (deduped per actor/patient/day, surfaces in §164.528 reports) + a new `agent_request_log` table for engineering instrumentation. Single Symfony event, one listener, two recorders. Neither table stores prompt/completion content. |
+| HIPAA classification | TPO use under §164.506(c) with Anthropic BAA; we log to `extended_log` anyway because OpenEMR's interpretive stance is that TPO disclosures are patient-visible. Full analysis lives in the module's help panel. |
+| Schema migrations | Doctrine Migrations under `db/Migrations/` (new schema) + upstream's existing legacy `sql/*_upgrade.sql` system (OpenEMR's own schema). Both run automatically on every deploy. |
 | License | GPL-3.0 inherited from OpenEMR |
