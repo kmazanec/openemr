@@ -80,22 +80,47 @@ final readonly class SymfonyBackgroundServiceSpawner implements BackgroundServic
 
     private LoggerInterface $logger;
 
+    private string $phpBinary;
+
     /**
      * @param string      $projectDir Absolute path to the OpenEMR project
      *                                root (used to locate bin/console).
      * @param string      $phpBinary  Absolute path to the PHP binary the
      *                                child should run under. Defaults to
-     *                                PHP_BINARY, which matches the PHP
-     *                                currently running the parent,
-     *                                aligning FPM/CLI extensions, INI
-     *                                settings, and version.
+     *                                PHP_BINARY when defined (CLI/FPM
+     *                                SAPIs), falling back to PHP_BINDIR
+     *                                + "/php" under apache2handler where
+     *                                PHP_BINARY is empty. Without this
+     *                                fallback every API request from a
+     *                                browser hits proc_open with an
+     *                                empty argv[0] and 500s — which has
+     *                                a nasty knock-on of the request
+     *                                erroring before the auth strategy
+     *                                marks it `is_local_api`, so the
+     *                                terminate-time session-cleanup
+     *                                listener then destroys the user's
+     *                                session and logs them out.
      */
     public function __construct(
         private string $projectDir,
         ?LoggerInterface $logger = null,
-        private string $phpBinary = PHP_BINARY,
+        string $phpBinary = '',
     ) {
         $this->logger = $logger ?? ServiceContainer::getLogger();
+        // SAPI dispatch: PHP_BINARY is the running interpreter under
+        // CLI / FPM but is empty under apache2handler — calling
+        // proc_open with an empty argv[0] there 500s every request to
+        // /apis/.../background_service/$run. PHP_BINDIR is always
+        // populated and points at the install dir where the CLI binary
+        // lives next to the SAPI module, so the fallback runs the
+        // child under the same PHP installation.
+        if ($phpBinary !== '') {
+            $this->phpBinary = $phpBinary;
+        } elseif (php_sapi_name() === 'cli' || str_starts_with(php_sapi_name(), 'fpm')) {
+            $this->phpBinary = PHP_BINARY;
+        } else {
+            $this->phpBinary = PHP_BINDIR . '/php';
+        }
     }
 
     public function spawn(string $name, bool $force, int $timeoutSeconds): array
