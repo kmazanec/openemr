@@ -1,0 +1,124 @@
+{
+  "patient": {
+    "pid": 4242,
+    "uuid": "ec5e412c-53f6-455c-b94d-655bbe0c4d44",
+    "displayName": "Mante, Leanne",
+    "sex": "Female",
+    "dateOfBirth": "<DATE>",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "4242",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "9001",
+    "startAt": "<DATETIME>",
+    "durationMinutes": 15,
+    "type": "Established Patient",
+    "reason": "Annual wellness exam",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "9001",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [],
+  "medications": [],
+  "allergies": [],
+  "labs": [
+    {
+      "analyte": "Glucose, Fasting",
+      "value": "80",
+      "unit": "mg/dL",
+      "referenceRange": "70-99",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Creatinine",
+      "value": "0.68",
+      "unit": "mg/dL",
+      "referenceRange": "0.60-1.30",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "2",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Blood Urea Nitrogen",
+      "value": "16",
+      "unit": "mg/dL",
+      "referenceRange": "7-20",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "3",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Sodium",
+      "value": "140",
+      "unit": "mmol/L",
+      "referenceRange": "136-145",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "4",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Potassium",
+      "value": "5.3",
+      "unit": "mmol/L",
+      "referenceRange": "3.5-5.1",
+      "abnormalFlag": "high",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "5",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "encounters": [
+    {
+      "encounterDate": "<DATE>",
+      "type": "office-visit",
+      "reason": "Annual wellness exam",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "1000",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}

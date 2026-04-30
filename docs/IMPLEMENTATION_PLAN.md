@@ -542,16 +542,128 @@ tests in Docker.
   content. Documented in the module's help panel.)
 
 ### 2.5 Tests
-- [ ] PHPUnit (services suite, runs in Docker) for each adapter against
-  seeded patients (one per archetype)
-- [ ] Snapshot test for the full `ChartSnapshot` against a fixed seed
-- [ ] Audit-event test asserting the event fires with correct fields and
-  no PHI body content
+- [x] ~~PHPUnit (services suite, runs in Docker) for each adapter against
+  seeded patients (one per archetype)~~ — landed as
+  **isolated**, archetype-factory-driven coverage in
+  `ArchetypeAdapterTest` (48 cases × 7 adapters). Seed-suite generators
+  drive the fixture; ground-truth assertions derive from
+  `PatientArchetype::requiredProblems()` /
+  `requiredMedicationRxcuis()`. Production `*DataSource` wiring (which
+  the literal "Docker services suite" version needs) doesn't exist yet
+  — Phase 3.1's `getPatientContext` tool is the first real consumer, so
+  the Docker version lands there. Tracked as 2.5b below.
+- [x] Snapshot test for the full `ChartSnapshot` against a fixed seed
+  (`ChartSnapshotFixtureTest`; one fixture per archetype under
+  `tests/Tests/Isolated/Modules/ClinicalCopilot/Snapshot/fixtures/
+  snapshot/`. Date fields are masked because Faker's
+  `dateTimeBetween('-X years', 'now')` slides relative to the system
+  clock; structural shape and archetype-derived content (uuid, display
+  name, ICD codes, drug names, reasons, analytes) are pinned.
+  Regenerate with `UPDATE_FIXTURES=1 composer phpunit-isolated --
+  --filter ChartSnapshotFixtureTest`.)
+- [x] Audit-event test asserting the event fires with correct fields and
+  no PHI body content (`SnapshotDisclosureFlowTest`. End-to-end:
+  archetype factory → all adapters → real `ChartSnapshot` → dispatch
+  via Symfony `EventDispatcher` → both `InMemory*Recorder` sinks
+  capture. Pins (a) exactly one event per request, (b) every named
+  `AgentDisclosure` field round-trips, (c) snapshot PHI strings —
+  patient display name, diagnosis label, drug name, lab analyte —
+  never appear in either recorded row. Complements
+  `AgentDisclosureTest`'s forbidden-field-name reflection: shape there,
+  content here.)
 
-**Phase 2 done when:** running
-`/agent/snapshot/{pid}?categories=...` (an internal debug route, no LLM)
-returns a clean snapshot for any seeded patient and emits exactly one
-`AGENT_PHI_DISCLOSURE` event.
+### 2.5b Services-suite adapter coverage (deferred to Phase 3.1)
+- [ ] PHPUnit (services suite, runs in Docker) for each production
+  `*DataSource` implementation written in §2.6, exercised against
+  seeded patients (one per archetype). The §2.6 controller-level tests
+  cover wiring with the in-memory factory; this checkbox covers the
+  Docker integration path that the literal "services suite" reading
+  asked for. Defers to Phase 3.1 because the agent-side tools landing
+  there are the first real consumers and naturally drive these tests.
+
+### 2.6 Agent-callback snapshot endpoint
+Trust direction: the **Node agent** calls OpenEMR with the JWT it
+received from `AgentTokenMinter`. The browser never hits this endpoint.
+Per `ARCHITECTURE.md` §"Snapshot-First, With Restricted Tool Callbacks",
+this is the callback path Phase 3.1 tools build against — the browser
+flow is `agent.php` (existing), the agent flow is `snapshot.php` (new).
+
+Locked decisions:
+- **Token reuse.** Callbacks present the same JWT
+  `AgentTokenMinter` already issues (`aud =
+  openemr-clinical-copilot-agent`). Verifier treats the token as both
+  "issued for the agent to consume" and "presented by the agent to call
+  back" — same trust anchor, same identity claim. A separate
+  callback-audience token is a Phase 6 split if a reason emerges.
+- **Entry point.** New file `public/snapshot.php` parallel to
+  `public/agent.php`. Skips OpenEMR's session boot (not needed). The
+  long-term placement under OpenEMR's REST extension events at
+  `/apis/{site}/agent/snapshot` is §6 hardening — one entry-point file
+  ships now.
+- **Defense in depth.** Even though the proxy ran `PolicyGate`,
+  `AgentSnapshotController` re-checks: (a) JWT signature/claims, (b)
+  the actor's ACL right to read this pid, (c) the requested
+  `categories` are a subset of the JWT's scopes, (d) the JWT's
+  `fhirUser` resolves to a Practitioner (not Person/Patient).
+
+- [x] `OpenEmrJwtVerifier` — verifies tokens we minted ourselves
+  (RS256, OpenEMR's RSA key from `OAuth2KeyConfig`). Pinned `iss` =
+  site oauth2 base URL, `aud` = `openemr-clinical-copilot-agent`. Hard
+  rejection on missing `fhirUser`, `scopes`, `jti`, `exp`, `nbf`. Uses
+  `Lcobucci\JWT` validation constraints (`SignedWith`, `IssuedBy`,
+  `PermittedFor`, `StrictValidAt`). `VerifiedAgentToken` value object
+  surfaces the principal to the controller.
+- [x] Production `*DataSource` implementations under
+  `Snapshot/Adapter/Production/`. Seven classes —
+  `PatientServiceDataSource`, `ConditionServiceDataSource`,
+  `AllergyServiceDataSource`, `MedicationServiceDataSource`,
+  `ObservationServiceDataSource`, `EncounterServiceDataSource`,
+  `AppointmentServiceDataSource`. Direct `QueryUtils` reads with
+  narrow projections (column-level PHI minimization at the SQL
+  layer); `RowAssertion` helper narrows the legacy `array<mixed>`
+  return type to the `array<string, mixed>` adapters consume. Data
+  source exceptions propagate (fail-closed contract).
+- [x] `AgentActorResolver` seam + `SqlAgentActorResolver` production
+  impl: maps JWT `sub` → `users.uuid` → `(id, username, uuid)`, then
+  delegates the patient-access check to `AclMain::aclCheckCore`. The
+  controller depends on the interface; the production wiring is
+  injected at the entry point.
+- [x] `AgentSnapshotController` — verifies JWT, parses `pid` +
+  `categories` query params, resolves the actor + ACL re-check,
+  builds `ChartSnapshot` through every adapter, applies
+  `PhiMinimizer::withCategories(...)`, dispatches
+  `AgentDisclosedEvent` exactly once, returns JSON. Pre-stream JSON
+  error envelope matches the existing `AgentProxyController` shape;
+  closed-set error codes documented at `respondError`.
+- [x] `public/snapshot.php` entry point — loads `globals.php` for
+  site config (oauth2 keys, issuer derivation), wires the production
+  dependency graph, calls `AgentSnapshotController::handle`. The
+  session that `globals.php` boots is unused — the JWT is the trust
+  anchor.
+- [x] PHPUnit isolated tests for `OpenEmrJwtVerifier`
+  (`OpenEmrJwtVerifierTest`, 11 cases covering every reject path —
+  empty token, malformed JWT, wrong issuer/audience, expired, before
+  nbf, tampered signature, signed with different key, missing
+  required claims).
+- [x] PHPUnit isolated tests for `AgentSnapshotController`
+  (`AgentSnapshotControllerTest`, 9 cases — 401 on missing/invalid
+  JWT, 400 on missing pid, 403 on actor-unresolved /
+  ACL-denied / scope-not-permitted, 200 happy path with all
+  categories asserting structure + exactly one disclosure event,
+  category-mask happy path proving labs/encounters/appointment are
+  null/empty when not requested, sorted-categories on the recorded
+  event). Driven by the §2.5 archetype factory's in-memory
+  DataSources.
+- [x] Cross-boundary contract test (PHP minter → PHP verifier).
+  `PhpRoundTripContractTest` mints with `AgentTokenMinter`, verifies
+  with `OpenEmrJwtVerifier`, asserts the seven-claim contract round-
+  trips byte-for-byte. Mirrors the existing `AgentTokenContractFixtureTest`
+  for the callback direction.
+
+**Phase 2 done when:** the agent service can hit
+`/snapshot.php?pid=X&categories=...` with its minted JWT, receive a
+clean `ChartSnapshot` JSON for any seeded patient, and OpenEMR emits
+exactly one `AgentDisclosedEvent` per call.
 
 ---
 
@@ -564,14 +676,53 @@ allergies, recent encounters — with citations and explicit gaps. No
 follow-up questions yet.
 
 ### 3.1 Tools (Node side)
-- [ ] `getPatientContext` — wraps OpenEMR snapshot endpoint for
+- [x] `getPatientContext` — wraps OpenEMR snapshot endpoint for
   identity + diagnoses + allergies (fail-closed on allergies)
-- [ ] `getMedications` — fail-closed
-- [ ] `getRecentLabs` — fail-open with explicit gap
-- [ ] `getRecentEncounters` — fail-open with explicit gap
-- [ ] Common tool wrapper: retry-once on transient, structured error
+  (`agent/src/tools/getPatientContext.ts`. Calls `snapshot.php` with
+  `categories=diagnosis,allergy`, decodes via the new `decodeChartSnapshot`,
+  returns `{patient, diagnoses, allergies}`. Fail-closed on HTTP/network
+  error and on a snapshot missing the `allergies` key — the decoder pins
+  every top-level field as required so a contract drift surfaces here, not
+  silently downstream. An empty `allergies` array is a real result, not a
+  failure (the NKDA case). Wrapped in `traceable` so the tool shows up as a
+  named span in LangSmith when `LANGSMITH_TRACING` is enabled.)
+- [x] `getMedications` — fail-closed
+  (`agent/src/tools/getMedications.ts`. Same pattern as `getPatientContext`,
+  `categories=medication`. Errors propagate.)
+- [x] `getRecentLabs` — fail-open with explicit gap
+  (`agent/src/tools/getRecentLabs.ts`. Returns `RecentLabsResult` —
+  discriminated union: `{kind: 'ok', labs}` or
+  `{kind: 'gap', reason: 'endpoint-unavailable' | 'endpoint-unreachable',
+  message}`. 5xx and network errors become gaps; 401/403 propagate as
+  hard errors via shared `failOpen.ts` helpers, since auth failures
+  signal a misconfigured trust boundary that should not be hidden.)
+- [x] `getRecentEncounters` — fail-open with explicit gap
+  (`agent/src/tools/getRecentEncounters.ts`. Same shape and helpers as
+  `getRecentLabs`.)
+- [x] Common tool wrapper: retry-once on transient, structured error
   envelope, latency + outcome traced to LangSmith
-- [ ] Vitest unit tests per tool against a mocked OpenEMR HTTP client
+  (`agent/src/tools/snapshotClient.ts`. Single HTTP client all four
+  tools share. Retry-once on `5xx` and network errors with a 250ms
+  default delay; 4xx propagate immediately. Errors raised as
+  `SnapshotHttpError` (carries `status` + capped `bodyPreview`) or
+  `SnapshotNetworkError`. Per-call latency + outcome logged at info /
+  warn / error via Pino with no PHI. LangSmith spans come from the
+  per-tool `traceable` wrappers, so the tool name (`getPatientContext`
+  etc.) is visible in traces and the snapshot-client span sits beneath
+  it. Tools take `(client, token, pid)` so the bearer token is plumbed
+  per-request without storing it on `AgentPrincipal` — middleware sets
+  the token on a separate Hono context key (Phase 3.2's `Retrieve`
+  node will read it).)
+- [x] Vitest unit tests per tool against a mocked OpenEMR HTTP client
+  (`agent/tests/tools/*.test.ts` — 26 tests across the four tools and
+  the shared client. Plus `agent/tests/snapshot/decode.test.ts` (9
+  tests) pinning the decoder against the @phpstan-typed JSON shape.
+  Shared mock helpers in `tests/tools/buildMockClient.ts`. The decoder
+  test is the agent-side anchor for the §A.5 cross-language fixture
+  contract — once the §2.5 thread emits a real `ChartSnapshot::toArray()`
+  fixture, that fixture replaces the inline JSON in
+  `decode.test.ts::"decodes a fully-populated snapshot"` and any drift
+  between PHP `toArray()` and the TS decoder fails CI here.)
 
 ### 3.2 LangGraph graph (UC1 path only)
 - [ ] State shape: `{envelope, snapshot, draft, claimLedger, verified,

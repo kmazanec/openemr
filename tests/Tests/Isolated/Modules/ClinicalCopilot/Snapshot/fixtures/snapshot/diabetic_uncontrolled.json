@@ -1,0 +1,461 @@
+{
+  "patient": {
+    "pid": 4242,
+    "uuid": "33a00907-129b-421d-8c53-58089b46c276",
+    "displayName": "McKenzie, Edward",
+    "sex": "Male",
+    "dateOfBirth": "<DATE>",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "4242",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "9001",
+    "startAt": "<DATETIME>",
+    "durationMinutes": 15,
+    "type": "Established Patient",
+    "reason": "Lab review \u2014 abnormal results",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "9001",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "E11.9",
+      "codeSystem": "ICD-10",
+      "label": "Type 2 diabetes mellitus without complications",
+      "onsetDate": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "code": "Z00.00",
+      "codeSystem": "ICD-10",
+      "label": "Encounter for general adult medical examination without abnormal findings",
+      "onsetDate": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "2",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "medications": [
+    {
+      "name": "Metformin hydrochloride 500 MG Oral Tablet",
+      "dose": "500 mg",
+      "route": "Oral",
+      "frequency": "Twice a day",
+      "startDate": "<DATE>",
+      "stopDate": null,
+      "prescriber": "Patel, Maya",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "name": "Lisinopril 10 MG Oral Tablet",
+      "dose": "10 mg",
+      "route": "Oral",
+      "frequency": "Twice a day",
+      "startDate": "<DATE>",
+      "stopDate": null,
+      "prescriber": "Patel, Maya",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "2",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "Codeine",
+      "reaction": "Nausea",
+      "severity": "mild",
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [
+    {
+      "analyte": "Hemoglobin A1c",
+      "value": "6.9",
+      "unit": "%",
+      "referenceRange": "4.0-5.6",
+      "abnormalFlag": "high",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Hemoglobin A1c",
+      "value": "7.6",
+      "unit": "%",
+      "referenceRange": "4.0-5.6",
+      "abnormalFlag": "high",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "2",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Hemoglobin A1c",
+      "value": "8.4",
+      "unit": "%",
+      "referenceRange": "4.0-5.6",
+      "abnormalFlag": "high",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "3",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Cholesterol, Total",
+      "value": "170",
+      "unit": "mg/dL",
+      "referenceRange": "100-199",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "4",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "LDL Cholesterol (calculated)",
+      "value": "130",
+      "unit": "mg/dL",
+      "referenceRange": "0-99",
+      "abnormalFlag": "high",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "5",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "HDL Cholesterol",
+      "value": "55",
+      "unit": "mg/dL",
+      "referenceRange": "40-100",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "6",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Triglycerides",
+      "value": "54",
+      "unit": "mg/dL",
+      "referenceRange": "0-149",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "7",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Cholesterol, Total",
+      "value": "189",
+      "unit": "mg/dL",
+      "referenceRange": "100-199",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "8",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "LDL Cholesterol (calculated)",
+      "value": "131",
+      "unit": "mg/dL",
+      "referenceRange": "0-99",
+      "abnormalFlag": "high",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "9",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "HDL Cholesterol",
+      "value": "70",
+      "unit": "mg/dL",
+      "referenceRange": "40-100",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "10",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Triglycerides",
+      "value": "119",
+      "unit": "mg/dL",
+      "referenceRange": "0-149",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "11",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Glucose, Fasting",
+      "value": "78",
+      "unit": "mg/dL",
+      "referenceRange": "70-99",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "12",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Creatinine",
+      "value": "0.95",
+      "unit": "mg/dL",
+      "referenceRange": "0.60-1.30",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "13",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Blood Urea Nitrogen",
+      "value": "15",
+      "unit": "mg/dL",
+      "referenceRange": "7-20",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "14",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Sodium",
+      "value": "145",
+      "unit": "mmol/L",
+      "referenceRange": "136-145",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "15",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Potassium",
+      "value": "4.7",
+      "unit": "mmol/L",
+      "referenceRange": "3.5-5.1",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "16",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Glucose, Fasting",
+      "value": "89",
+      "unit": "mg/dL",
+      "referenceRange": "70-99",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "17",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Creatinine",
+      "value": "1.29",
+      "unit": "mg/dL",
+      "referenceRange": "0.60-1.30",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "18",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Blood Urea Nitrogen",
+      "value": "19",
+      "unit": "mg/dL",
+      "referenceRange": "7-20",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "19",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Sodium",
+      "value": "139",
+      "unit": "mmol/L",
+      "referenceRange": "136-145",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "20",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Potassium",
+      "value": "3.3",
+      "unit": "mmol/L",
+      "referenceRange": "3.5-5.1",
+      "abnormalFlag": "low",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "21",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "encounters": [
+    {
+      "encounterDate": "<DATE>",
+      "type": "office-visit",
+      "reason": "Lab review \u2014 abnormal results",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "1000",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "encounterDate": "<DATE>",
+      "type": "office-visit",
+      "reason": "Follow-up: diabetes type 2",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "1001",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "encounterDate": "<DATE>",
+      "type": "office-visit",
+      "reason": "Lab review \u2014 abnormal results",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "1002",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}

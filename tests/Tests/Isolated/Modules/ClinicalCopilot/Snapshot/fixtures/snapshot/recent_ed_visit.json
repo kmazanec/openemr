@@ -1,0 +1,151 @@
+{
+  "patient": {
+    "pid": 4242,
+    "uuid": "52d60c13-3c61-45ff-a830-876313b05265",
+    "displayName": "Abbott, Luciano",
+    "sex": "Male",
+    "dateOfBirth": "<DATE>",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "4242",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "9001",
+    "startAt": "<DATETIME>",
+    "durationMinutes": 15,
+    "type": "Established Patient",
+    "reason": "Medication review",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "9001",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "Z00.00",
+      "codeSystem": "ICD-10",
+      "label": "Encounter for general adult medical examination without abnormal findings",
+      "onsetDate": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "medications": [],
+  "allergies": [
+    {
+      "substance": "Shellfish",
+      "reaction": "Hives, swelling",
+      "severity": "severe",
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [
+    {
+      "analyte": "Glucose, Fasting",
+      "value": "97",
+      "unit": "mg/dL",
+      "referenceRange": "70-99",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Creatinine",
+      "value": "0.97",
+      "unit": "mg/dL",
+      "referenceRange": "0.60-1.30",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "2",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Blood Urea Nitrogen",
+      "value": "14",
+      "unit": "mg/dL",
+      "referenceRange": "7-20",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "3",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Sodium",
+      "value": "138",
+      "unit": "mmol/L",
+      "referenceRange": "136-145",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "4",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "analyte": "Potassium",
+      "value": "5.0",
+      "unit": "mmol/L",
+      "referenceRange": "3.5-5.1",
+      "abnormalFlag": "no",
+      "observedAt": "<DATE>",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "5",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "encounters": [
+    {
+      "encounterDate": "<DATE>",
+      "type": "office-visit",
+      "reason": "Follow-up: hyperlipidemia",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "1000",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}
