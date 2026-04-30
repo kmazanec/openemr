@@ -160,6 +160,12 @@ services:
       # link_stat — without this the container exits with code 23.
     - couchdbstub:/couchdb/data
     environment:
+      # Read by bootstrap.php via Firehed\Container\AutoDetect to pick
+      # between the dynamic Builder (dev) and the cached Compiler (any
+      # other value). Required — the CLI entrypoint (./cli, used by the
+      # deploy's `migrations:migrate` step) aborts at bootstrap if this
+      # is unset. AutoDetect's default envvar list is [ENVIRONMENT, ENV].
+      ENVIRONMENT: prod
       MYSQL_HOST: mysql
       MYSQL_ROOT_PASS: ${MYSQL_ROOT_PASSWORD}
       MYSQL_USER: openemr
