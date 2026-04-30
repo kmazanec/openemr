@@ -346,13 +346,38 @@ shape right and source-attributed first means every later eval has
 something to compare against.
 
 ### 2.1 DTOs
-- [ ] `ChartSnapshot` DTO with sub-DTOs for: `Appointment`,
+- [x] `ChartSnapshot` DTO with sub-DTOs for: `Appointment`,
   `Demographics`, `Diagnosis[]`, `Medication[]`, `Allergy[]`,
   `LabObservation[]`, `Encounter[]`
-- [ ] `SourceReference` value object
+  (Lives under `interface/modules/custom_modules/oe-module-clinical-copilot/
+  src/Snapshot/`. `ChartSnapshot` carries `patient`, optional
+  `appointment`, and five `list<>` collections; the constructor enforces
+  per-list element type with a manual `instanceof` guard that throws
+  `TypeError` (PHP's typed `array` parameters can't pin element types).
+  `appointment` is nullable so UC1 can run outside an appointment
+  context — matches the schema PRESEARCH §"Conversation lifecycle"
+  decision #6 anticipated.)
+- [x] `SourceReference` value object
   (`{system, recordType, recordId, field, recordedAt}`)
-- [ ] All DTOs `final readonly`, with `toArray(): array` for JSON encode
-- [ ] PHPStan-typed array shapes for the JSON serialization layer
+  (Constructor rejects empty `system`/`recordType`/`recordId` with
+  `DomainException` so adapters fail fast before the disclosure-audit
+  emit. `recordedAt` serializes as `Y-m-d` (date-only) to match the
+  resolution most OpenEMR audit timestamps actually carry; if Phase 3
+  needs sub-day precision on a specific source it can add a sibling
+  field rather than re-typing this one.)
+- [x] All DTOs `final readonly`, with `toArray(): array` for JSON encode
+  (Pinned structurally by `ChartSnapshotTest::testDtoIsFinalAndReadonly`
+  + `testDtoExposesToArray` — a future contributor who drops `final`
+  or `readonly`, or removes the `toArray(): array` signature, fails CI.
+  Date fields serialize as `Y-m-d`; `Appointment::startAt` is the only
+  full-datetime field, formatted as ISO-8601 atom.)
+- [x] PHPStan-typed array shapes for the JSON serialization layer
+  (Each DTO declares a `@phpstan-type {Name}Array` shape and uses it as
+  the `toArray()` return; the aggregate `ChartSnapshot` composes them via
+  `@phpstan-import-type`. PHPStan level 10 is clean. The shape
+  definitions are the source of truth Phase 3.1's TS decoder will
+  mirror — Appendix A.5's contract test is where the cross-language
+  pin will land.)
 
 ### 2.2 Adapters
 - [ ] `PatientAdapter` (display-safe demographics, `pid` + UUID, no SSN /
