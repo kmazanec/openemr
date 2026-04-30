@@ -29,8 +29,12 @@ class SeedStatusCommand extends Command
         'patient_data' => 'patients',
         'form_encounter' => 'encounters',
         'form_vitals' => 'vitals records',
+        'form_soap' => 'SOAP notes',
         'lists' => 'list items (problems/meds/allergies)',
         'prescriptions' => 'prescriptions',
+        'procedure_order' => 'lab orders',
+        'procedure_result' => 'lab results',
+        'external_encounters' => 'outside encounters (CCDA)',
         'openemr_postcalendar_events' => 'calendar appointments',
         'users' => 'users',
     ];
@@ -66,11 +70,28 @@ class SeedStatusCommand extends Command
             $patientsWithAllergies = $this->scalar("SELECT COUNT(DISTINCT pid) FROM lists WHERE type='allergy' AND activity=1");
             $patientsWithMeds = $this->scalar("SELECT COUNT(DISTINCT patient_id) FROM prescriptions WHERE active=1");
             $patientsWithVitals = $this->scalar('SELECT COUNT(DISTINCT pid) FROM form_vitals');
+            $patientsWithLabs = $this->scalar('SELECT COUNT(DISTINCT patient_id) FROM procedure_order');
+            $patientsWithSoap = $this->scalar('SELECT COUNT(DISTINCT pid) FROM form_soap');
+            $patientsWithExt = $this->scalar('SELECT COUNT(DISTINCT ee_pid) FROM external_encounters');
+            $patientsWithStoppedMeds = $this->scalar('SELECT COUNT(DISTINCT patient_id) FROM prescriptions WHERE active=0');
+            $patientsWithRecentAbnormal = $this->scalar(
+                "SELECT COUNT(DISTINCT po.patient_id)
+                 FROM procedure_order po
+                 JOIN procedure_report rep ON rep.procedure_order_id=po.procedure_order_id
+                 JOIN procedure_result pr ON pr.procedure_report_id=rep.procedure_report_id
+                 WHERE pr.abnormal IN ('high','low','yes')
+                   AND po.date_collected >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)"
+            );
             $io->table(['coverage', 'patients', '%'], [
                 ['has problem entry', $patientsWithProblems, $this->pct($patientsWithProblems, $patientCount)],
                 ['has allergy', $patientsWithAllergies, $this->pct($patientsWithAllergies, $patientCount)],
                 ['has prescription', $patientsWithMeds, $this->pct($patientsWithMeds, $patientCount)],
+                ['has stopped med', $patientsWithStoppedMeds, $this->pct($patientsWithStoppedMeds, $patientCount)],
                 ['has vitals record', $patientsWithVitals, $this->pct($patientsWithVitals, $patientCount)],
+                ['has lab order', $patientsWithLabs, $this->pct($patientsWithLabs, $patientCount)],
+                ['has recent abnormal lab (<90d)', $patientsWithRecentAbnormal, $this->pct($patientsWithRecentAbnormal, $patientCount)],
+                ['has SOAP note', $patientsWithSoap, $this->pct($patientsWithSoap, $patientCount)],
+                ['has outside encounter', $patientsWithExt, $this->pct($patientsWithExt, $patientCount)],
             ]);
         }
 

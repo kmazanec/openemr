@@ -94,6 +94,20 @@ enum PatientArchetype: string
     }
 
     /**
+     * Indication text for a required-med rxcui. UC3's "when/why was
+     * lisinopril started" drill-down reads this column on prescriptions.
+     */
+    public function indicationForRxcui(string $rxcui): ?string
+    {
+        return match ($rxcui) {
+            '314076' => 'Hypertension',
+            '860975' => 'Type 2 diabetes mellitus',
+            '104375' => 'Hyperlipidemia',
+            default => null,
+        };
+    }
+
+    /**
      * How many *additional* random problems on top of the required ones.
      */
     public function extraProblemRange(): array

@@ -472,8 +472,10 @@ db/seeds/seed-all.sh --count=100 --days=10
 #    Refuses to run if patient_data is non-empty (--force overrides).
 db/seeds/restore-baseline.sh
 
-# 2. Generate Faker patients with archetype-driven clinical scaffolding
-#    (problems, meds, encounters, vitals, allergies). Pure-additive.
+# 2. Generate Faker patients with archetype-driven clinical scaffolding —
+#    problems, meds (with indications + stopped meds), encounters,
+#    SOAP notes, vitals, allergies, lab series, external encounters.
+#    Pure-additive: re-running adds more patients.
 php bin/console seed:patients --count=100
 php bin/console seed:patients --count=20      # add 20 more later
 
@@ -505,6 +507,32 @@ user (Donna Lee, id 6) as their PCP via `patient_data.providerID`; the rest
 spread across other authorized providers. `seed:schedule` then biases each
 provider's calendar toward their own panel but swaps in coverage patients
 ~30% of the time, mirroring the partner-coverage workflow USERS.md describes.
+
+### Clinical depth (PR2 generators)
+
+`seed:patients` produces enough chart depth for the USERS.md briefing
+scenarios to demo against:
+
+- **Lab series**: archetype-driven longitudinal labs via
+  `procedure_order` + `procedure_report` + `procedure_result`.
+  `DiabeticUncontrolled` patients get an A1c walking 7.0 → 7.6 → 8.2
+  (UC2's defining example). Hypertensive / elderly patients get lipid
+  panels and CMPs at annual cadence. ~15% of patients pick up an extra
+  recent abnormal result for UC1's "new abnormal labs" slot.
+- **SOAP notes** on every encounter via `form_soap`. Token substitution
+  (`{bp}`, `{a1c}`, `{weight}`) means notes reference the patient's
+  actual chart values rather than boilerplate.
+- **Prescribing encounters**: every archetype-required medication has
+  a dedicated initial-visit encounter dated 4-8 weeks ago whose SOAP
+  note explicitly names the drug and indication. The prescription's
+  `start_date` matches the encounter's date, giving UC3's
+  "when/why was lisinopril started" cite-able provenance.
+- **Stopped meds**: ~12% of random meds land as `active=0` with
+  `end_date` in last 90 days, so UC1's "deltas since last visit"
+  has stops to surface.
+- **Outside encounters** via `external_encounters`. The `RecentEdVisit`
+  archetype gets one ED visit + one specialty consult; ~10% of others
+  pick up an opportunistic recent ED visit. Drives UC4.
 
 ### Layout
 

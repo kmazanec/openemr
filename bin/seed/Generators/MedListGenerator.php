@@ -46,15 +46,23 @@ final readonly class MedListGenerator
 
     /**
      * Build a prescription row for an archetype-required medication.
+     * Caller can pin start_date (e.g. to a synthesized prescribing
+     * encounter date) and indication text — both surface in UC3's
+     * "when/why was lisinopril started" drill-down.
      *
      * @return array<string, string|int>
      */
-    public function generateByRxcui(int $pid, int $providerId, string $rxcui): array
-    {
+    public function generateByRxcui(
+        int $pid,
+        int $providerId,
+        string $rxcui,
+        ?string $startDate = null,
+        ?string $indication = null,
+    ): array {
         if (!isset($this->medsByRxcui[$rxcui])) {
             throw new \InvalidArgumentException("Unknown rxcui '{$rxcui}' in seed med catalog");
         }
-        return $this->buildRow($pid, $providerId, $this->medsByRxcui[$rxcui]);
+        return $this->buildRow($pid, $providerId, $this->medsByRxcui[$rxcui], $startDate, $indication);
     }
 
     /**
@@ -64,28 +72,53 @@ final readonly class MedListGenerator
      */
     public function generateRandom(int $pid, int $providerId): array
     {
-        return $this->buildRow($pid, $providerId, $this->weightedPickMed());
+        return $this->buildRow($pid, $providerId, $this->weightedPickMed(), null, null);
+    }
+
+    /**
+     * Mutate a prescription row to represent a recently-stopped med —
+     * sets active=0 and end_date in the recent past so UC1's
+     * "deltas since last visit" briefing slot has stops to surface.
+     *
+     * @param array<string, string|int> $row
+     * @return array<string, string|int>
+     */
+    public function markStopped(array $row): array
+    {
+        $endDate = $this->faker->dateTimeBetween('-90 days', '-15 days')->format('Y-m-d');
+        $row['active'] = 0;
+        $row['end_date'] = $endDate;
+        return $row;
     }
 
     /**
      * @param array{rxcui: string, name: string, dose: string, unit: string, freq: string, weight: int} $med
      * @return array<string, string|int>
      */
-    private function buildRow(int $pid, int $providerId, array $med): array
-    {
-        $startDate = $this->faker->dateTimeBetween('-2 years', '-1 week')->format('Y-m-d');
+    private function buildRow(
+        int $pid,
+        int $providerId,
+        array $med,
+        ?string $startDate,
+        ?string $indication,
+    ): array {
+        $start = $startDate ?? $this->faker->dateTimeBetween('-2 years', '-1 week')->format('Y-m-d');
 
-        return [
+        $row = [
             'patient_id'       => $pid,
             'provider_id'      => $providerId,
             'drug'             => $med['name'],
             'dosage'           => $med['dose'] . ' ' . $med['unit'],
             'rxnorm_drugcode'  => $med['rxcui'],
             'note'             => $med['freq'],
-            'date_added'       => $startDate,
-            'start_date'       => $startDate,
+            'date_added'       => $start,
+            'start_date'       => $start,
             'active'           => 1,
         ];
+        if ($indication !== null) {
+            $row['indication'] = $indication;
+        }
+        return $row;
     }
 
     /**
