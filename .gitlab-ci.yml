@@ -29,7 +29,9 @@
 # Cache busting: when a lockfile changes, the next install step
 # refreshes the volume in place. The `cache-prune` job below is a
 # manual nuke for the named volumes if they ever get into a weird
-# state.
+# state. If the runner's checkout itself gets poisoned by a
+# pre-volume-isolation root-owned file, ssh in and rm -rf the
+# offending path under /home/gitlab-runner/builds/.
 
 stages:
 - test
