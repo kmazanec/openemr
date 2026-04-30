@@ -73,8 +73,13 @@ verification, audit, and rate limiting all build on a stable substrate.
   `pretty-format-json` hook so Prettier and the hook don't fight.)
 - [x] Folder layout: `src/{server,graph,tools,verify,state,observability,config}/`,
   `evals/{fixtures,cases,runners}/`, `tests/`
-- [ ] `src/server/index.ts` — Hono app with `/health`, `/v1/agent/respond`,
+- [x] `src/server/index.ts` — Hono app with `/health`, `/v1/agent/respond`,
   `/v1/agent/respond/stream` (SSE)
+  (Routes are skeletons that echo the request body; auth (1.5), tool calls,
+  graph wiring (Phase 3) replace the echoes. Vitest covers all three routes
+  via `app.request()`. Side effect: added `tsconfig.test.json` so
+  type-aware lint and `npm run typecheck` cover `tests/` + `evals/` without
+  including them in the production build.)
 - [ ] Pino logger with redaction for PHI fields configured up front
 - [ ] `Dockerfile` (multi-stage, Node 22, non-root)
 - [ ] `agent/README.md` — how to run locally, env vars, deploy target
