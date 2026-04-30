@@ -71,7 +71,7 @@ verification, audit, and rate limiting all build on a stable substrate.
   `agent/`, repo's existing JS-only ESLint stack at the root is untouched.
   JSON formatting is delegated to the repo's pre-commit
   `pretty-format-json` hook so Prettier and the hook don't fight.)
-- [ ] Folder layout: `src/{server,graph,tools,verify,state,observability,config}/`,
+- [x] Folder layout: `src/{server,graph,tools,verify,state,observability,config}/`,
   `evals/{fixtures,cases,runners}/`, `tests/`
 - [ ] `src/server/index.ts` — Hono app with `/health`, `/v1/agent/respond`,
   `/v1/agent/respond/stream` (SSE)
