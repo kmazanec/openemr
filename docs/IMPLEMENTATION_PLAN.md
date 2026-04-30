@@ -66,7 +66,11 @@ verification, audit, and rate limiting all build on a stable substrate.
   `@langchain/anthropic`, LangSmith SDK, `@hono/node-server` + Hono
   (chosen for streaming-friendly minimal HTTP)
 - [x] `tsconfig.json` (strict, NodeNext, ES2024)
-- [ ] `eslint.config.mjs` + `.prettierrc` matching repo's TS conventions
+- [x] `eslint.config.mjs` + `.prettierrc` matching repo's TS conventions
+  (deps: `eslint`, `typescript-eslint`, `@eslint/js`, `prettier` — added under
+  `agent/`, repo's existing JS-only ESLint stack at the root is untouched.
+  JSON formatting is delegated to the repo's pre-commit
+  `pretty-format-json` hook so Prettier and the hook don't fight.)
 - [ ] Folder layout: `src/{server,graph,tools,verify,state,observability,config}/`,
   `evals/{fixtures,cases,runners}/`, `tests/`
 - [ ] `src/server/index.ts` — Hono app with `/health`, `/v1/agent/respond`,

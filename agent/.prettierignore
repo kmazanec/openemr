@@ -1,0 +1,8 @@
+dist/
+node_modules/
+coverage/
+package-lock.json
+
+# JSON is owned by the repo-level pre-commit `pretty-format-json` hook,
+# not Prettier — keep formatters from fighting.
+*.json
