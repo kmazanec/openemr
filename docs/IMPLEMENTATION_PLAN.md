@@ -145,68 +145,100 @@ verification, audit, and rate limiting all build on a stable substrate.
   matches the faxsms module's entry-file pattern (chosen over a Symfony
   KernelEvents listener to avoid kernel-level routing surgery this sprint).
   Phase 3 UI calls this URL directly.)
+- [x] fhirUser resolution before token mint (fail-closed)
+  (`src/Auth/FhirUserResolver.php` maps the session's `authUserID`
+  (integer in `users.id`) onto the bare `users.uuid` via
+  `UuidRegistry::createMissingUuidForRow` + `QueryUtils::querySingleRow`,
+  then runs `FhirUserClaim::getFhirUser` to derive the SMART URI
+  (`{baseUrl}/Practitioner/{uuid}` for staff, `Person/{uuid}` for users
+  not registered as practitioners — see Appendix A.3). The resolution
+  happens once per request in `agent.php`, before the policy gate. If
+  the user can't be mapped to a staff/system role, `agent.php` catches
+  `FhirUserResolutionException` and the gate returns `MissingSession` —
+  no token is ever minted. `SqlUuidLookup` is the production
+  `UuidLookup` adapter; isolated tests inject their own.)
 - [x] Session validation → site/patient/scope policy gate
   (`src/Auth/PolicyGate.php` is a pure service: takes a `SessionContext`
   + `AgentRequest`, returns `PolicyDecision::allow()` or
   `PolicyDecision::deny(reason, detail)`. Closed-set deny reasons:
   MissingSession, SiteMismatch, PatientMismatch, MissingPatient,
-  ScopeNotPermitted, UnknownAction. Per-action SMART scope allowlist
+  ScopeNotPermitted, UnknownAction. The gate fails closed if `fhirUser`
+  is null on the session context, so a missing-resolution case can't
+  silently slip through to the minter. Per-action SMART scope allowlist
   is the single source of truth — `defaultScopesFor()` lets the entry
   .php resolve the scopes the proxy is willing to mint without
   duplicating the list. `briefing` is wired with the Phase 3 scope set;
   `echo` is the smoke-test action.)
-- [x] In-process JWT mint via League OAuth2 server (the path PRESEARCH §18
+- [x] In-process JWT mint with OpenEMR's OAuth2 keys (the path PRESEARCH §18
   commits to — no self-loopback HTTP). 5-minute TTL, scoped to the minimum
   needed for the in-progress task.
-  (`src/Auth/AgentTokenMinter.php` constructs League's `AccessTokenEntity`
-  directly with OpenEMR's `OAuth2KeyConfig` private key + passphrase. The
-  full grant pipeline (`CustomClientCredentialsGrant`) needs a registered
-  oauth_clients row and a PSR-7 token request — neither is appropriate for
-  an in-process internal hop. Same library, same RSA key material, same
-  signing algorithm; just no PSR-7 round-trip. Token carries `sub`
-  (fhirUser uuid), `aud` (`openemr-clinical-copilot-agent`), `iss` (this
-  site's oauth2 base URL), `scope` (gate-resolved), 5-minute expiry, per-mint
-  jti. AgentTokenMintException wraps all key/signing failures so the
-  controller can fail closed with a 503.)
-- [x] Stream proxy preserving SSE framing (chunked passthrough, no
-  buffering)
+  (`src/Auth/AgentTokenMinter.php` builds the JWT directly with
+  `Lcobucci\JWT` so we can attach the `fhirUser` SMART claim and a
+  stable `kid` header — League's `AccessTokenEntity::convertToJWT` is
+  `private` and doesn't surface either. Key material still comes from
+  OpenEMR via `OAuth2KeyConfig` (same RSA private key + passphrase),
+  wrapped in an `AgentSigningKey` value object so isolated tests can
+  pass fixture PEMs without standing up the encrypted DB.
+  `ClockInterface` and `JtiGenerator` are seams for deterministic
+  tests. Token contract: `sub` = bare `users.uuid`; `fhirUser` = SMART
+  URI; `aud` = `AGENT_CLIENT_ID` constant
+  (`openemr-clinical-copilot-agent`); `iss` = site oauth2 base URL;
+  `scopes` = gate-resolved list; `iat`/`nbf`/`exp` = now/now/now+5m;
+  `jti` = 16-byte hex; header carries `alg: RS256` and `kid` =
+  base64url(sha256(public-key PEM)). `AgentTokenMintException` wraps
+  all key/signing failures so the controller fails closed with 503.)
+- [x] JWKS endpoint emits `kid`/`alg`/`use` so verifiers can pin a key
+  (`src/RestControllers/Authorization/OAuth2PublicJsonWebKeyController.php`
+  hashes `openssl_pkey_get_details(...)['key']` (PEM SPKI) with
+  SHA-256 and base64url-encodes it as the `kid`. Both sides compute
+  the same value from the same input, so the agent's `jose`
+  `createRemoteJWKSet` resolver matches by `kid` even when multiple
+  keys live in the JWKS during rotation. `alg: RS256` and `use: sig`
+  match the SMART convention. This is core OpenEMR code; the change
+  is +5 lines and benefits every OAuth2 client of the server.)
+- [x] Stream proxy preserving SSE framing with a typed error envelope
   (`AgentProxyController::streamUpstream()` drains output buffers, sets
   `text/event-stream` + `Cache-Control: no-cache` + `X-Accel-Buffering: no`,
   opens a Guzzle request with `RequestOptions::STREAM => true`, and pumps
   8 KB chunks with `flush()` between reads. Connect timeout 5s; no total
-  request timeout because SSE streams are long-lived. Upstream connection
-  failures emit a single `event: error\n...` SSE frame and close the
-  stream — the UI sees a typed error rather than a hung connection.
+  request timeout because SSE streams are long-lived. Error envelope is
+  pinned: `respondError()` emits HTTP status + `Content-Type:
+  application/json` + `{"error": "<code>"}` *before* the stream opens,
+  and switches to `event: error\ndata: {...}` (same JSON body, in-stream
+  envelope) once `headers_sent()` returns true.
+  `emitStreamError()` is the single function for the in-stream form.
   Chose Guzzle over raw cURL/fopen because it's already a project dep and
   its streaming body API is the cleanest test surface. The controller
-  reads `AGENT_SERVICE_URL` from the env, defaulting to `http://agent:8080`
-  — the agent service container itself lands when Phase 1.5/1.6 wire it.)
-- [x] PHPUnit isolated test for the policy gate (denies wrong site, wrong
-  patient, missing session)
-  (`tests/Tests/Isolated/Modules/ClinicalCopilot/Auth/PolicyGateTest.php`
-  — 8 cases: allow happy-path, deny on missing session, site mismatch,
-  patient mismatch, missing patient when one was requested, unknown
-  action, scope not in action allowlist, and the `echo` smoke-test
-  permitting null patient/empty scopes. The gate is pure (no DB, no
-  superglobals) so the test runs under `composer phpunit-isolated`
-  without Docker. Skeleton test now also pins `public/agent.php` and
-  `src/Auth/` so the structural shape can't regress silently.)
+  reads `AGENT_SERVICE_URL` from the env, defaulting to `http://agent:8080`.)
+- [x] PHPUnit isolated tests for the auth surface
+  (Four isolated tests under
+  `tests/Tests/Isolated/Modules/ClinicalCopilot/Auth/`:
+  `PolicyGateTest` (10 cases — happy path, every deny reason, plus the
+  fhirUser-unresolved fail-closed path);
+  `AgentTokenMinterTest` (6 cases pinning every claim/header/kid bit
+  using a fixture RSA keypair generated at test time, deterministic
+  clock and jti);
+  `AgentTokenContractFixtureTest` (writes a real-minter token + JWK
+  manifest into `agent/tests/fixtures/contract/` for the cross-boundary
+  Vitest);
+  `AudienceConsistencyTest` (asserts `AGENT_CLIENT_ID`, both compose
+  files' `AGENT_JWT_AUDIENCE`, and the agent's `DEFAULT_AUDIENCE` all
+  match). Skeleton test additionally pins `InstallerController`'s
+  scanner shape and asserts `openemr.bootstrap.php` parses cleanly via
+  Symfony Process. All run under `composer phpunit-isolated` without
+  Docker.)
 
 ### 1.5 Agent service auth middleware
-- [x] JWT verification middleware against OpenEMR's JWKS (or shared signing
-  key — confirm during implementation)
+- [x] JWT verification middleware against OpenEMR's JWKS
   (Verifier in `agent/src/auth/{verify.ts,jwks.ts,middleware.ts}`. Decision:
   JWKS over shared key — OpenEMR already exposes `/oauth2/{site}/jwk`
   publicly, so the agent stays stateless and follows SMART/FHIR convention.
   `AGENT_JWT_PUBLIC_KEY` (single JWK as JSON) is kept as an offline/test
   override; exactly one of the two env vars must be set. Algorithms locked
-  to `['RS256']` to match League's `Lcobucci\JWT\Signer\Rsa\Sha256`. Token
-  contract drawn from `AccessTokenEntity::convertToJWT()`: `aud =
-  client.identifier` (`openemr-clinical-copilot-agent`), `iss = issuer`,
-  `sub = userIdentifier`, `scopes` (array), `jti`. Required claims `sub`,
-  `exp`, `iat`, `jti` are enforced at verify time. New dep: `jose@5.10.0`
-  — modern JOSE library, no native deps; chosen for `createRemoteJWKSet`
-  with built-in caching and rotation.)
+  to `['RS256']`. Required claims `sub`, `exp`, `iat`, `jti` are enforced
+  at verify time. With `kid` now on every minted JWT and every JWK in the
+  JWKS (1.4), `jose`'s remote-JWKS resolver pins by `kid` and tolerates
+  rotation cleanly. Dep: `jose@5.10.0`.)
 - [x] Reject any request without a valid bearer token, even on private
   network (defense in depth)
   (`createBearerAuthMiddleware` mounted on `/v1/*` only — `/health` stays
@@ -218,16 +250,32 @@ verification, audit, and rate limiting all build on a stable substrate.
   why a particular token was rejected.)
 - [x] Extract `fhirUser` claim → attach to request context for tool calls
   and trace tags
-  (`AgentPrincipal.fhirUser` aliased from `sub` — the minter sets
-  `userIdentifier = fhirUserUuid ?? authUserId` so `sub` carries the
-  fhirUser uuid when available. Principal also exposes `sub`, `scopes`,
-  `jti`, `audience`, `issuer`, `expiresAt`, and the raw payload for
-  diagnostics. Routes pull it via `getPrincipal(c)` which throws if the
-  middleware didn't run — runtime guard against accidentally exposing an
-  unauthenticated handler. The auth logger emits `{fhirUser, jti,
-  scopes}` at debug level on every authenticated request; raw token
-  contents are never logged. The principal is the seat for future
-  trace-tag enrichment in §6.1.)
+  (`AgentPrincipal.fhirUser` reads the dedicated `fhirUser` claim
+  emitted by the minter (full SMART URI) and falls back to `sub` if
+  the claim is missing — the fallback fires only on legacy/malformed
+  tokens, never on tokens minted by the current
+  `AgentTokenMinter`. `AgentPrincipal` exposes `sub` (bare uuid),
+  `fhirUser` (SMART URI), `scopes`, `jti`, `audience`, `issuer`,
+  `expiresAt`, and the raw payload for diagnostics. Routes pull it via
+  `getPrincipal(c)` which throws if the middleware didn't run — runtime
+  guard against accidentally exposing an unauthenticated handler. The
+  auth logger emits `{fhirUser, jti, scopes}` at debug level on every
+  authenticated request; raw token contents are never logged. The
+  principal is the seat for future trace-tag enrichment in §6.1.)
+- [x] Cross-boundary contract test (PHP minter ↔ TS verifier)
+  (`AgentTokenContractFixtureTest` writes a real-minter token + JWK +
+  expected-claims manifest into `agent/tests/fixtures/contract/` on
+  every isolated PHPUnit run. Vitest's
+  `agent/tests/auth/contract.test.ts` loads the fixture and exercises
+  the *real* `createAgentJwtVerifier` — happy-path verify plus
+  drift-detection cases for audience and issuer. If the two sides ever
+  disagree on `aud`, `iss`, kid algorithm, signing alg, or claim shape,
+  one of these tests fails with a precise diff. Fixture is gitignored
+  because it embeds a fresh keypair; regenerate with `composer
+  phpunit-isolated -- --filter ContractFixture`. A separate
+  `agent/tests/server/scopes.test.ts` round-trips the full briefing
+  scope set through the middleware so Phase 3's scoped routes can't
+  regress the shape.)
 
 ### 1.6 End-to-end smoke
 - [x] Hit `/agent/echo` from the browser while logged into OpenEMR with a
@@ -241,29 +289,44 @@ verification, audit, and rate limiting all build on a stable substrate.
   internal `http://openemr/oauth2/default/jwk`) to the agent and
   `AGENT_SERVICE_URL=http://agent:8080` to OpenEMR. Issuer mirrors what
   PHP mints: `site_addr_oath + webroot + /oauth2/{site}`.
-  **Verified locally end-to-end:** authenticated session →
+  **Verified locally end-to-end** with the trust-boundary hardening
+  in place (commit `ffe4e9885`): authenticated session →
   `/interface/modules/custom_modules/oe-module-clinical-copilot/public/
   agent.php?action=echo` → SSE frame `data: {"ok":true,"action":"echo",
-  "fhirUser":"1","received":null}` with status 200; same with a JSON
-  body round-trips through both layers. Agent log confirms JWKS-backed
-  RS256 verification: `{component:"auth", fhirUser:"1", jti:..., msg:
-  "authenticated agent request"}`. Two prerequisites uncovered during
-  verification, both documented in `agent/README.md` "End-to-end smoke":
-  (a) the module must be registered in the `modules` table with
-  `mod_active=1` and `type=0` (otherwise `agent.php` 500s with
-  `Module … could not be initialized`); (b) on long-lived dev-easy
-  databases, the drive crypto stack (`sites/.../documents/logs_and_misc/
-  methods/`) and the encrypted DB `keys` rows can drift after volume
-  churn — recovery is to clear both plus the OAuth2 keypair on disk and
-  let OpenEMR regenerate. Verification on `emr.biograph.dev` is still
-  pending until the next deploy.)
-- [x] Add a Vitest case under `agent/tests/server/` that hits the same
-  endpoint with a stubbed token and asserts shape.
-  (`tests/server/echo.test.ts` — three cases: 401 unauthenticated, happy
-  path with body asserts ok/action/fhirUser/received, empty-body request
-  echoes `received: null`. Test bootstrap factored into a shared
-  `tests/server/buildAuthedApp.ts` helper now also used by the existing
-  `index.test.ts` — second real caller justified the extract.)
+  "fhirUser":"https://localhost:9300/apis/default/fhir/Person/{uuid}",
+  "received":null}` with status 200. The `fhirUser` value is now the
+  full SMART URI minted by `AgentTokenMinter` (was the integer
+  `authUserID` before the fix). The same admin session also
+  round-tripped a `briefing` action with the full 10-scope set intact
+  through the verifier (the agent returned 404 because no briefing
+  route exists yet, which is correct — the trust boundary did its job
+  and the route layer rejected). Agent log confirms JWKS-backed RS256
+  verification with the new `kid` header:
+  `{component:"auth", fhirUser:"…/Person/{uuid}", jti:…, scopes:[10
+  briefing scopes], msg:"authenticated agent request"}`.
+
+  Error envelope verified: an unknown action returns HTTP 403 +
+  `Content-Type: application/json` + `{"error":"unknownaction"}`
+  (pre-stream form, F2).
+
+  Two prerequisites uncovered during verification, both documented in
+  `agent/README.md` "End-to-end smoke": (a) the module must be
+  registered in the `modules` table with `mod_active=1` and `type=0`
+  (otherwise `agent.php` 500s with `Module … could not be
+  initialized`); (b) on long-lived dev-easy databases, the drive
+  crypto stack (`sites/.../documents/logs_and_misc/methods/`) and the
+  encrypted DB `keys` rows can drift after volume churn — recovery is
+  to clear both plus the OAuth2 keypair on disk and let OpenEMR
+  regenerate. Verification on `emr.biograph.dev` is still pending
+  until the next deploy.)
+- [x] Vitest cases under `agent/tests/` that hit the same endpoint with
+  a stubbed token and assert shape.
+  (`tests/server/echo.test.ts` — three cases: 401 unauthenticated,
+  happy path, empty-body. `tests/server/scopes.test.ts` — non-empty
+  briefing-scopes round-trip through the middleware.
+  `tests/auth/contract.test.ts` — cross-boundary contract test
+  consuming the real-minter fixture (see 1.5). 31 tests total, runs
+  via `npm test` in `agent/`.)
 
 **Phase 1 done when:** the smoke test passes locally and on
 `emr.biograph.dev`, and the agent container is provisioned + reachable
@@ -587,3 +650,152 @@ Tracked here so we don't lose them; not tasks until they fire.
 - Don't reformat untouched files (`CLAUDE.md` rule).
 - When in doubt, return to Dr. Patel and the 90 seconds (USERS.md
   §"Source of Truth").
+
+---
+
+## Appendix — Things future phases need to know
+
+Captured here so Phase 2+ work can pick up without re-deriving them.
+
+### A.1 The trust-boundary contract (frozen)
+
+The Phase 1 hardening (commit `ffe4e9885`) locked the JWT and error
+envelope shapes that the rest of the system builds on. Don't change
+these without updating the contract test fixtures.
+
+**Token claims** (set by `AgentTokenMinter`, verified by
+`createAgentJwtVerifier`):
+
+| Claim | Value | Source |
+|---|---|---|
+| `sub` | bare `users.uuid` | `ResolvedFhirUser::uuid` |
+| `fhirUser` | `{baseUrl}/{ResourceType}/{uuid}` | `ResolvedFhirUser::fhirUserUri` (via `FhirUserClaim::getFhirUser`) |
+| `aud` | `openemr-clinical-copilot-agent` | `AgentTokenMinter::AGENT_CLIENT_ID` constant |
+| `iss` | `{site_addr_oath}{webroot}/oauth2/{site}` | computed in `agent.php` |
+| `scopes` | `string[]` | `PolicyGate::defaultScopesFor(action)` |
+| `iat`/`nbf` | now | `ClockInterface` |
+| `exp` | now + 5 min | TOKEN_TTL constant |
+| `jti` | 16-byte hex | `JtiGenerator` |
+| header.`alg` | `RS256` | hard-coded |
+| header.`kid` | base64url(sha256(public-key PEM)) | `JwksKeyId::fromPublicKey` |
+
+If any of those drift between PHP and TS,
+`AgentTokenContractFixtureTest` + `agent/tests/auth/contract.test.ts`
+fail in CI with a precise diff. Add a contract-test case alongside
+any new claim.
+
+**Error envelope** (set by `AgentProxyController`):
+
+- Pre-stream errors: HTTP status (`401`/`403`/`503`/`500`) +
+  `Content-Type: application/json` + body `{"error": "<code>"}`.
+- In-stream errors (after SSE headers flushed): same JSON body
+  wrapped as `event: error\ndata: <json>\n\n`.
+- Boundary enforced by `headers_sent()` guard in `respondError()`.
+  Phase 3 SSE consumers should subscribe to the `error` event and
+  parse `event.data` with the same decoder used for the JSON variant.
+
+**Audience consistency.** The string
+`openemr-clinical-copilot-agent` lives in four places:
+`AgentTokenMinter::AGENT_CLIENT_ID`, agent's `DEFAULT_AUDIENCE`, both
+compose files' `AGENT_JWT_AUDIENCE`. `AudienceConsistencyTest` runs
+on every isolated suite and asserts they match.
+
+### A.2 fhirUser resolution and the `Person` vs `Practitioner` question
+
+`FhirUserClaim::getFhirUser` (OpenEMR core) maps a uuid to one of
+three FHIR resource types:
+
+- `Practitioner` if `PractitionerService::isValidPractitionerUuid`
+  returns true,
+- `Patient` if the uuid lives in `patient_data`,
+- `Person` otherwise (the catch-all for staff users not registered as
+  practitioners).
+
+**Observation from the local smoke:** the `admin` user resolves to
+`Person/{uuid}` because OpenEMR's seed admin isn't registered in the
+practitioner table. Real practitioners (Dr. Patel and the seeded
+clinicians from `db/seeds/`) will resolve to `Practitioner/{uuid}` —
+verify when their seed lands.
+
+`FhirUserResolver` currently rejects only patient and unknown roles;
+it accepts both `users` and `system` roles, so a `Person`-resolved
+staff user does pass through. Three options when Phase 3 needs a
+clean Practitioner identity:
+
+1. **Tighten the resolver** to require `PractitionerService::isValidPractitionerUuid`
+   (fail closed if not). Cleanest, but the seed admin can't use the
+   agent until promoted to practitioner.
+2. **Tighten the gate**, not the resolver. Per-action: `briefing`
+   requires Practitioner; `echo` doesn't.
+3. **Auto-promote on first use** — make sure the seed pipeline
+   registers every staff user as a practitioner. Probably the right
+   long-term answer; lives in the seed scripts, not the agent.
+
+Decide before Phase 3 wires real briefing logic — write the chosen
+behavior into `PolicyGate` so it's enforced at the trust boundary.
+
+### A.3 Module registration is still manual
+
+The plan dropped the manual-registration concern explicitly, but to
+restate the operational reality: a fresh database needs the row
+inserted into `modules` with `mod_active=1, type=0` before
+`agent.php` will respond. Documented in
+`interface/modules/custom_modules/oe-module-clinical-copilot/README.md`
+and `agent/README.md`. Phase 5 or the production-readiness checklist
+(§6.3) is the right place to automate this if we ever care.
+
+### A.4 Test seams introduced for the minter
+
+`AgentTokenMinter` takes three injectable seams now:
+
+- `AgentSigningKey` — PEM bytes + passphrase. Production factory
+  `fromOAuth2KeyConfig()` reads OpenEMR's keys; tests pass fixture
+  PEMs they generate at test time.
+- `ClockInterface` — `SystemClock` in production; `FixedClock` in
+  tests so `iat`/`nbf`/`exp` are deterministic.
+- `JtiGenerator` — `RandomJtiGenerator` in production;
+  `FixedJtiGenerator` in tests so `jti` is comparable.
+
+Phase 3+ tools that need similar deterministic time should reuse
+`ClockInterface` rather than introducing a parallel one.
+
+### A.5 ChartSnapshot DTO needs to ride alongside the trust-boundary contract
+
+Phase 2 will introduce the `ChartSnapshot` DTO that the agent's tools
+consume. When that lands, add a contract test analogous to the JWT
+one: a PHP-side snapshot fixture written by `PatientAdapter` etc.,
+consumed by an agent-side TypeScript decoder, with drift on either
+side failing CI. Same fixture-regeneration pattern as
+`AgentTokenContractFixtureTest`.
+
+### A.6 Outstanding things explicitly *not* solved in Phase 1
+
+Captured here so Phase 2/3 don't assume they are:
+
+- **OpenEMR's `iss` derivation.** `agent.php` builds the issuer from
+  `site_addr_oath + webroot + /oauth2/{site}`. In dev-easy this
+  resolves to `https://localhost:9300/oauth2/default` and works. In
+  production (`emr.biograph.dev`) it depends on Caddy passing
+  `X-Forwarded-Host` correctly. If a future Caddy config strips
+  forwarded headers, every token starts failing 401 with
+  `JWT verification failed`. Worth pinning
+  `OPENEMR_SETTING_site_addr_oath: https://${OE_DOMAIN}` in
+  `docker/digitalocean/docker-compose.yml` before the next prod deploy.
+- **OpenEMR's discovery doc issuer mismatch.**
+  `OAuth2DiscoveryController` advertises a `…/apis/{site}/fhir`-shaped
+  issuer; the JWT's `iss` is `…/oauth2/{site}`. Functionally fine, but
+  anyone debugging by reading `.well-known/openid-configuration` will
+  be misled. Phase 6 docs is the right place to call this out.
+- **`mod_relative_link` points at a non-existent `index.php`.**
+  `InstallerController::scanAndRegisterCustomModules` registers every
+  custom module with `rel_path = "{dir}/index.php"`. The clinical-copilot
+  module has no `index.php`, so any module-menu hook that appends
+  `mod_relative_link` to a URL would 404. Phase 1 doesn't use module
+  menus; Phase 3 if it adds a top-level menu entry needs to either
+  ship `index.php` or override `mod_relative_link` in the module's
+  bootstrap.
+- **Audit-log JSON shape is not yet pinned.**
+  `AgentProxyController` calls `LoggerInterface::info`/`warning` with
+  ad-hoc keys. PRESEARCH §18/§19 commit to a structured per-request
+  audit; Phase 2.4 (`AGENT_PHI_DISCLOSURE` event) is when that shape
+  gets locked. The Phase 1 log lines are not the contract.
