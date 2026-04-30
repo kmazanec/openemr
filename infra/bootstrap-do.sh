@@ -26,6 +26,7 @@
 #   OE_DOMAIN              emr.biograph.dev
 #   OE_PASS                generated random 32-char if unset
 #   MYSQL_ROOT_PASSWORD    generated random 32-char if unset
+#   AGENT_PG_PASSWORD      generated random 32-char if unset
 
 set -euo pipefail
 
@@ -150,6 +151,13 @@ if [[ -z "${MYSQL_ROOT_PASSWORD:-}" ]]; then
     printf '\n    MYSQL_ROOT_PASSWORD: %s\n\n' "${MYSQL_ROOT_PASSWORD}"
 fi
 
+if [[ -z "${AGENT_PG_PASSWORD:-}" ]]; then
+    AGENT_PG_PASSWORD=$(gen_secret)
+    warn "AGENT_PG_PASSWORD was not set — generated a random 32-character password."
+    warn "SAVE THIS NOW:"
+    printf '\n    AGENT_PG_PASSWORD: %s\n\n' "${AGENT_PG_PASSWORD}"
+fi
+
 # ---------------------------------------------------------------------------
 # 4. Render cloud-init script from template
 # ---------------------------------------------------------------------------
@@ -193,6 +201,7 @@ substitute "OE_DOMAIN"                 "${OE_DOMAIN}"
 substitute "APEX_DOMAIN"               "${APEX_DOMAIN}"
 substitute "OE_PASS"                   "${OE_PASS}"
 substitute "MYSQL_ROOT_PASSWORD"       "${MYSQL_ROOT_PASSWORD}"
+substitute "AGENT_PG_PASSWORD"         "${AGENT_PG_PASSWORD}"
 
 info "rendered cloud-init: ${RENDERED}"
 

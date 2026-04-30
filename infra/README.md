@@ -281,3 +281,4 @@ ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/
 | `OE_DOMAIN`               | `emr.biograph.dev`            |
 | `OE_PASS`                 | randomly generated if unset   |
 | `MYSQL_ROOT_PASSWORD`     | randomly generated if unset   |
+| `AGENT_PG_PASSWORD`       | randomly generated if unset   |
