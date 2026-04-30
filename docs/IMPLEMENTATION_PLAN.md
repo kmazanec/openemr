@@ -454,10 +454,32 @@ tests in Docker.
   only normalizes the resolved label.)
 
 ### 2.3 PHI minimizer
-- [ ] `PhiMinimizer` service that drops fields not declared in the
+- [x] `PhiMinimizer` service that drops fields not declared in the
   request's data-category set
-- [ ] Default exclusion list matches `ARCHITECTURE.md` §"ChartSnapshot →
+  (`OpenEMR\Modules\ClinicalCopilot\Snapshot\PhiMinimizer::withCategories(
+  ChartSnapshot, DataCategorySet): ChartSnapshot`. Closed-set
+  `DataCategory` enum has six cases — `Diagnosis`, `Medication`,
+  `Allergy`, `Lab`, `Encounter`, `Appointment`; demographics is
+  deliberately not a category because patient identity is the trust
+  anchor and is always carried. `DataCategorySet` is a `final readonly`
+  value object that dedupes inputs and exposes `toStrings()` returning
+  alphabetically-sorted values so the disclosure-audit row in §2.4 can
+  use the category set as a stable fingerprint without re-sorting.)
+- [x] Default exclusion list matches `ARCHITECTURE.md` §"ChartSnapshot →
   Excluded by default"
+  (`PhiMinimizer::EXCLUDED_FROM_DEMOGRAPHICS` enumerates the
+  patient_data column names a future contributor is most likely to
+  reach for when widening Demographics: `ssn`, `drivers_license`,
+  `street`, `phone_{home,cell,biz}`, `email`, `pubpid`, `billing`,
+  `occupation`, `employer`, `mothersname`, `next_of_kin`, `guardian`.
+  Two structural tests pin the contract:
+  `testDemographicsCarriesNoExcludedFields` (asserts the JSON of every
+  Demographics never contains any excluded key) and
+  `testExcludedListCoversArchitectureBullets` (asserts every
+  architecture bullet has a corresponding entry). The actual
+  enforcement is at the DTO level — Demographics doesn't have those
+  properties — so the minimizer's job here is documentation + test
+  pin, not runtime stripping.)
 
 ### 2.4 Disclosure audit
 - [ ] `AGENT_PHI_DISCLOSURE` event class + event listener
