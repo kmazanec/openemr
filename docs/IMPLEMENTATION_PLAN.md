@@ -90,7 +90,7 @@ verification, audit, and rate limiting all build on a stable substrate.
   final image. Healthcheck hits `/health`. Verified: `docker build` +
   `docker run` smoke-test confirms routes work and the process is
   non-root.)
-- [ ] `agent/README.md` — how to run locally, env vars, deploy target
+- [x] `agent/README.md` — how to run locally, env vars, deploy target
 
 ### 1.2 Agent Postgres (state store)
 - [ ] Add `agent-postgres` service to `docker/digitalocean/docker-compose.yml`
