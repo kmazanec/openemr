@@ -126,7 +126,24 @@ retry_in_container "composer dump-autoload" \
     "cd /var/www/localhost/htdocs/openemr && composer dump-autoload --optimize --apcu --no-interaction"
 
 # ---------------------------------------------------------------------
-# 4. Healthcheck loop.
+# 4. Apply Doctrine migrations.
+# ---------------------------------------------------------------------
+# Doctrine Migrations is the upstream-supported successor to the legacy
+# sql_upgrade.php / database.sql flow (see PR #10704). The legacy system
+# still runs automatically via the flex entrypoint (EASY_DEV_MODE=yes);
+# this is for new schema added under db/Migrations/. Idempotent —
+# `migrations:migrate` is a no-op when the DB is already current.
+#
+# Runs *after* composer dump-autoload because the migration classes
+# autoload via the OpenEMR\Core\Migrations PSR-4 namespace, and *before*
+# the healthcheck so a failed migration aborts the deploy and triggers
+# the existing rollback path.
+log "applying Doctrine migrations"
+retry_in_container "doctrine migrations" \
+    "cd /var/www/localhost/htdocs/openemr && ./cli migrations:migrate --no-interaction --allow-no-migration"
+
+# ---------------------------------------------------------------------
+# 5. Healthcheck loop.
 # ---------------------------------------------------------------------
 log "waiting for ${HEALTH_URL} (timeout ${HEALTH_TIMEOUT}s)"
 deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
@@ -161,7 +178,7 @@ if (( $(date +%s) >= deadline )); then
 fi
 
 # ---------------------------------------------------------------------
-# 4. Prune old releases (keep the most recent KEEP_RELEASES).
+# 6. Prune old releases (keep the most recent KEEP_RELEASES).
 # ---------------------------------------------------------------------
 # Sort by mtime descending; the first N we keep, the rest get removed.
 # Always keep whatever the symlink currently points at, even if its

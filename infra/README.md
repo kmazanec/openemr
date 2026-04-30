@@ -127,9 +127,13 @@ and the gitlab-runner-uid-997 process outside.
    step is wrapped in a 5-min retry loop because the flex entrypoint
    copies the source tree into the runtime path concurrently with
    Apache startup; an `exec` arriving mid-copy can see partial state.
-4. Poll `/meta/health/readyz` for up to 10 minutes.
-5. **If healthy:** prune `/srv/openemr/releases/` to the 2 most recent.
-6. **If unhealthy:** roll back the symlink to the previous release,
+4. Run `./cli migrations:migrate --no-interaction --allow-no-migration`
+   inside the container to apply any pending Doctrine migration
+   (idempotent, no-op when the DB is current). See the
+   "Database migrations" section below for the dual-system context.
+5. Poll `/meta/health/readyz` for up to 10 minutes.
+6. **If healthy:** prune `/srv/openemr/releases/` to the 2 most recent.
+7. **If unhealthy:** roll back the symlink to the previous release,
    recreate the container from that, exit non-zero.
 
 Total deploy time runs ~10–15 minutes — the bulk is `npm install` +
@@ -264,6 +268,55 @@ ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/
 # Just redeploy the currently-symlinked release without fetching new
 # code (useful after `mv`-ing the symlink for a manual rollback).
 ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/deploy.sh
+```
+
+### Database migrations
+
+OpenEMR has two migration systems and we touch both.
+
+**Legacy (upstream):** `sql/database.sql` (full baseline) plus per-version
+diff files like `sql/8_1_0-to-8_1_1_upgrade.sql` driven by a custom DSL
+(`#IfNotTable`, `#IfMissingColumn`, …). The flex image's `EASY_DEV_MODE=yes`
+entrypoint auto-runs `setup.php` to load this on first boot. Existing
+installs upgrade via the in-app admin tool. This is what the `v_database`
+counter in `version.php` tracks — currently `538`. We don't add files
+here unless we're contributing back upstream.
+
+**Doctrine Migrations (newer, also upstream):** introduced by upstream PR
+[#10704](https://github.com/openemr/openemr/pull/10704) (merged
+2026-02-19) as the planned successor for new schema work. Lives in
+`db/Migrations/Version*.php`, configured by `db/migration-config.php`,
+invoked via the top-level `./cli` runner. **All new schema in this
+repo lands here**, per `CLAUDE.md`. The first non-bootstrap migration in
+this codebase is `Version20260430000001` (the clinical-copilot disclosure
+audit table).
+
+Both systems run automatically on each deploy:
+
+- The flex image's entrypoint runs the legacy install/upgrade as part
+  of container startup (`EASY_DEV_MODE=yes`, see `docker-compose.yml`).
+- `infra/deploy.sh` runs `./cli migrations:migrate --no-interaction`
+  inside the openemr container after `composer install` and before the
+  healthcheck. Idempotent — applies any pending Doctrine migration and
+  is a no-op when the DB is already current.
+
+Manual run (e.g. troubleshooting on the Droplet):
+
+```bash
+ssh root@emr.biograph.dev sudo -u gitlab-runner \
+  docker compose -f /etc/openemr/docker-compose.yml exec -T openemr \
+  ./cli migrations:status
+
+ssh root@emr.biograph.dev sudo -u gitlab-runner \
+  docker compose -f /etc/openemr/docker-compose.yml exec -T openemr \
+  ./cli migrations:migrate --no-interaction
+```
+
+For dev-easy locally:
+
+```bash
+docker compose -f docker/development-easy/docker-compose.yml \
+  exec openemr ./cli migrations:migrate --no-interaction
 ```
 
 ### Environment overrides
