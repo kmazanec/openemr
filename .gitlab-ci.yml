@@ -13,16 +13,23 @@
 # to 1 in /etc/gitlab-runner/config.toml so test pipelines don't
 # contend with a deploy on the 2-vCPU production Droplet.
 #
-# Caching: the runner has no distributed cache backend (S3/GCS), so
-# GitLab's `cache:` keyword is a no-op here. Instead we lean on the
-# fact that the shell executor reuses its build dir
-# (/home/gitlab-runner/builds/<runner>/0/<project>/) across runs, so
-# vendor/ and agent/node_modules/ persist naturally between pipelines.
-# Composer/npm install steps no-op when the lockfile hasn't changed.
-# When a lockfile *does* change, the install step refreshes the dirs
-# in place — there's no stale "old key" to clean up. The
-# `cache-prune` job below exists only as a manual nuke for vendor/
-# and node_modules/ if they ever get into a weird state.
+# File-ownership isolation: the test containers run as root (the flex
+# image's default), and bind-mounting $CI_PROJECT_DIR alone would have
+# the container drop root-owned vendor/, node_modules/, and PHPStan
+# cache files into the runner's checkout — which the next pipeline's
+# `git clean` (run as gitlab-runner) cannot remove. To avoid that, we
+# mount named Docker volumes directly at each path the container
+# writes to (vendor/, tmp-phpstan/, agent/node_modules/, plus a
+# tmpfs-backed file for .phpunit.result.cache). The container fully
+# owns those volumes; the runner's checkout only ever sees empty
+# mount-point dirs that gitlab-runner *can* rmdir because it owns the
+# parent. Named volumes also persist between pipelines on the same
+# Docker daemon, giving us composer/npm cache reuse for free.
+#
+# Cache busting: when a lockfile changes, the next install step
+# refreshes the volume in place. The `cache-prune` job below is a
+# manual nuke for the named volumes if they ever get into a weird
+# state.
 
 stages:
 - test
@@ -45,10 +52,22 @@ test:php-isolated:
   - |
     docker run --rm \
       -v "$CI_PROJECT_DIR:/work" \
+      -v openemr-ci-vendor:/work/vendor \
+      --tmpfs /work/.phpunit.result.cache \
       -w /work \
       -e COMPOSER_ALLOW_SUPERUSER=1 \
+      -e COMPOSER_HOME=/tmp/composer-home \
       openemr/openemr:flex \
-      sh -c 'composer install --no-interaction --no-progress --prefer-dist && composer phpunit-isolated'
+      sh -c '
+        # pdo_sqlite is required by the clinical-copilot DBAL isolated tests
+        # (in-memory SQLite). The flex image ships pdo_mysql only. Install
+        # the matching version against whatever PHP the image happens to
+        # ship (currently 8.5; tracks upstream).
+        php_ver=$(php --version | head -1 | awk "{print \$2}" | cut -d. -f1-2 | tr -d .) && \
+        apk add --no-cache "php${php_ver}-pdo_sqlite" && \
+        composer install --no-interaction --no-progress --prefer-dist && \
+        composer phpunit-isolated
+      '
 
 test:phpstan:
   <<: [*test-rules, *runner-tags]
@@ -57,8 +76,11 @@ test:phpstan:
   - |
     docker run --rm \
       -v "$CI_PROJECT_DIR:/work" \
+      -v openemr-ci-vendor:/work/vendor \
+      -v openemr-ci-phpstan-cache:/work/tmp-phpstan \
       -w /work \
       -e COMPOSER_ALLOW_SUPERUSER=1 \
+      -e COMPOSER_HOME=/tmp/composer-home \
       openemr/openemr:flex \
       sh -c 'composer install --no-interaction --no-progress --prefer-dist && composer phpstan'
 
@@ -69,6 +91,7 @@ test:agent:
   - |
     docker run --rm \
       -v "$CI_PROJECT_DIR/agent:/work" \
+      -v openemr-ci-node-modules:/work/node_modules \
       -w /work \
       node:22-alpine \
       sh -c 'npm ci --no-audit --no-fund && npm run lint && npm run typecheck && npm test'
@@ -84,11 +107,10 @@ deploy:
     name: production
     url: https://emr.biograph.dev
 
-# Manual nuke for the persistent build-dir vendor/ and node_modules/.
-# Run from the GitLab UI (CI/CD → Pipelines → "Run pipeline" on
-# master, then click "Play" on this job) if a lockfile-vs-installed
-# mismatch ever leaves the build dir in a weird state. The next test
-# pipeline will reinstall from scratch.
+# Manual nuke for the named CI volumes. Run from the GitLab UI
+# (CI/CD → Pipelines → "Run pipeline" on master, then click "Play" on
+# this job) if a lockfile-vs-installed mismatch leaves a volume in a
+# weird state. The next test pipeline reinstalls from scratch.
 cache-prune:
   <<: *runner-tags
   stage: test
@@ -97,5 +119,5 @@ cache-prune:
     when: manual
     allow_failure: true
   script:
-  - rm -rf "$CI_PROJECT_DIR/vendor" "$CI_PROJECT_DIR/agent/node_modules"
-  - du -sh "$CI_PROJECT_DIR" 2>/dev/null || true
+  - docker volume rm -f openemr-ci-vendor openemr-ci-phpstan-cache openemr-ci-node-modules
+  - docker volume ls --filter name=openemr-ci-
