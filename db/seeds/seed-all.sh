@@ -2,7 +2,7 @@
 #
 # Run the full seed pipeline end-to-end. Designed to run *inside* the OpenEMR
 # container (locally via `docker compose exec openemr db/seeds/seed-all.sh`
-# or in Railway via `railway ssh`).
+# or on a server via `ssh` + `docker compose exec`).
 #
 # Order matters:
 #   1. restore-baseline.sh   — clean slate (skip with --skip-baseline)
@@ -15,15 +15,27 @@
 # every provider as unavailable and patient check-in fails on appointments
 # created in step 4.
 #
+# Production safety:
+#   The baseline restore step is destructive — it replaces every table in
+#   the database, including the users table. On any environment where the
+#   real admin password and real users matter, pass --skip-baseline so the
+#   pipeline only runs the four additive/idempotent steps. The script
+#   prompts for confirmation before running the destructive step unless
+#   --yes is also passed (and refuses to proceed at all without --yes when
+#   stdin is not a terminal).
+#
 # Usage:
-#   db/seeds/seed-all.sh                       # 100 patients, 10 schedule days
-#   db/seeds/seed-all.sh --count=50 --days=14  # custom counts
-#   db/seeds/seed-all.sh --skip-baseline       # additive run on existing data
-#   db/seeds/seed-all.sh --seed=42             # deterministic Faker output
+#   db/seeds/seed-all.sh                          # 100 patients, 10 schedule days
+#   db/seeds/seed-all.sh --count=50 --days=14     # custom counts
+#   db/seeds/seed-all.sh --skip-baseline          # PRODUCTION: additive run
+#   db/seeds/seed-all.sh --seed=42                # deterministic Faker output
+#   db/seeds/seed-all.sh --yes                    # skip the confirmation prompt
 #
 # Exit codes:
 #   0 = success
-#   non-zero = whichever step failed (set -e propagates)
+#   1 = bad argument or refusal to overwrite without --yes in non-tty mode
+#   2 = user declined the confirmation prompt
+#   non-zero (other) = whichever step failed (set -e propagates)
 
 set -euo pipefail
 
@@ -37,6 +49,7 @@ WEEKS=26
 SEED=""
 SKIP_BASELINE=0
 FORCE_BASELINE=0
+ASSUME_YES=0
 
 for arg in "$@"; do
     case "$arg" in
@@ -46,8 +59,9 @@ for arg in "$@"; do
         --seed=*)          SEED="${arg#--seed=}" ;;
         --skip-baseline)   SKIP_BASELINE=1 ;;
         --force-baseline)  FORCE_BASELINE=1 ;;
+        -y|--yes)          ASSUME_YES=1 ;;
         -h|--help)
-            sed -n '2,30p' "${BASH_SOURCE[0]}"
+            sed -n '2,40p' "${BASH_SOURCE[0]}"
             exit 0
             ;;
         *)
@@ -60,6 +74,41 @@ done
 SEED_ARG=""
 if [[ -n "${SEED}" ]]; then
     SEED_ARG="--seed=${SEED}"
+fi
+
+# Confirm before the destructive step unless --skip-baseline was passed.
+if [[ "${SKIP_BASELINE}" -ne 1 ]]; then
+    cat >&2 <<'EOF'
+
+============================================================
+  WARNING — destructive operation about to run
+============================================================
+  Step 1 (restore-baseline.sh) will drop and replace every
+  table in the OpenEMR database. This includes the users
+  table, so your admin password and any real user accounts
+  will be replaced with the upstream demo accounts.
+
+  On a production-like environment, abort and re-run with
+  --skip-baseline so only the additive/idempotent steps run.
+============================================================
+EOF
+
+    if [[ "${ASSUME_YES}" -ne 1 ]]; then
+        if [[ ! -t 0 ]]; then
+            echo >&2
+            echo "Error: stdin is not a terminal — refusing to prompt." >&2
+            echo "       Pass --yes to confirm non-interactively, or" >&2
+            echo "       --skip-baseline to skip the destructive step." >&2
+            exit 1
+        fi
+        echo >&2
+        printf "Type 'yes' to proceed with the destructive baseline restore: " >&2
+        read -r confirm
+        if [[ "${confirm}" != "yes" ]]; then
+            echo "Aborted." >&2
+            exit 2
+        fi
+    fi
 fi
 
 if [[ "${SKIP_BASELINE}" -ne 1 ]]; then

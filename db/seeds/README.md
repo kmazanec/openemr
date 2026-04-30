@@ -11,15 +11,53 @@ clinically interesting to surface.
 ## Quickstart
 
 Inside the OpenEMR container (locally via `docker compose exec openemr ...`,
-on a server via `railway ssh` / `ssh`):
+on a server via `ssh` + `docker compose exec`):
 
 ```sh
-# One-shot: baseline → patients → availability → schedule → status
+# Local dev: full reset + seed
 db/seeds/seed-all.sh --count=100 --days=10
+
+# Production / any environment with real users: SKIP THE BASELINE.
+db/seeds/seed-all.sh --skip-baseline --count=100 --days=10
 ```
 
-That's it for the common case. Re-run with `--skip-baseline` to add more
-data on top of an existing dataset.
+The default invocation includes a destructive first step
+(`restore-baseline.sh`) that drops and replaces every table, including
+the `users` table. Always pass `--skip-baseline` on environments where
+the admin password and real users matter. The script prompts before
+running the destructive step and refuses to proceed in non-interactive
+contexts unless `--yes` is also passed.
+
+## Production usage
+
+For environments with real users (production, staging with real data):
+
+```sh
+ssh <server>
+cd /srv/openemr/current/docker/digitalocean   # or wherever compose lives
+docker compose exec openemr db/seeds/seed-all.sh --skip-baseline \
+    --count=100 --days=10
+```
+
+`--skip-baseline` runs only the four additive/idempotent steps:
+
+| Step                | Touches existing data           |
+|---------------------|----------------------------------|
+| `seed:patients`     | INSERT-only — adds new patients  |
+| `seed:availability` | Idempotent — skips covered providers |
+| `seed:schedule`     | Stacks — adds appointments       |
+| `seed:status`       | Read-only                        |
+
+None of these touch the `users` table, so admin credentials are safe.
+
+The `restore-baseline.sh` script itself has two layers of protection:
+
+1. Refuses to run if `patient_data` already has rows. Override with
+   `--force` (which means "you've thought about this").
+2. With `--force`, scans the existing `users` table. If any username is
+   present that's not in the upstream baseline dump, the operator is
+   prompted to confirm before proceeding. That's the strong tell of a
+   real environment. Pass `--yes` to bypass non-interactively.
 
 ## What you get
 
@@ -66,6 +104,7 @@ All commands take an optional `--seed=N` for deterministic Faker output.
 --seed=N            Faker seed for deterministic output
 --skip-baseline     Don't restore baseline first (additive run on existing data)
 --force-baseline    Pass --force to restore-baseline.sh (clobbers existing)
+-y, --yes           Skip the destructive-step confirmation prompt
 ```
 
 ## Patient archetypes
@@ -164,6 +203,24 @@ assign null to property ... $authUserId of type int`.
 Default behavior is to refuse if `patient_data` already has rows so we
 can't accidentally clobber a populated environment. Use `--force` if
 you genuinely want to replace it.
+
+### "WARNING — non-baseline users detected" prompt
+
+`restore-baseline.sh --force` scans the existing `users` table and
+prompts if it finds any username not in the upstream baseline dump.
+That's almost always the right behavior — it usually means you're
+about to wipe a real environment. If you really do want to proceed
+(rare), pass `--yes` along with `--force`. If running non-interactively
+(CI, script), `--yes` is required because the script refuses to hang
+on a prompt without a tty.
+
+### "stdin is not a terminal" error from `seed-all.sh`
+
+Means the destructive baseline step is in the plan but stdin can't
+prompt. Fix one of two ways:
+
+- Add `--skip-baseline` (correct on prod / any environment with real users).
+- Add `--yes` (only for fresh dev environments that should be wiped).
 
 ### Seed counts look low after a fresh run
 
