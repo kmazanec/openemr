@@ -1,20 +1,81 @@
-# GitLab CI: deploy master to the DigitalOcean Droplet on every push.
+# GitLab CI: test on MRs and master, deploy master to the DigitalOcean
+# Droplet on every push.
 #
 # Strategy: a project-specific shell-executor runner installed on the
-# Droplet itself runs infra/runner-bootstrap.sh, which pulls the latest
+# Droplet runs everything. The runner has Docker but no PHP/Node on the
+# host, so test jobs run inside containers via `docker run`. The deploy
+# job runs infra/runner-bootstrap.sh natively, which pulls the latest
 # master and exec's into infra/deploy.sh from the new commit. The split
 # is so that fixes to deploy.sh take effect on the deploy that lands
 # them, not the one after — see header in runner-bootstrap.sh.
 #
-# Runner setup is documented in infra/README.md.
+# Runner setup is documented in infra/README.md. Concurrency is pinned
+# to 1 in /etc/gitlab-runner/config.toml so test pipelines don't
+# contend with a deploy on the 2-vCPU production Droplet.
+#
+# Caching: the runner has no distributed cache backend (S3/GCS), so
+# GitLab's `cache:` keyword is a no-op here. Instead we lean on the
+# fact that the shell executor reuses its build dir
+# (/home/gitlab-runner/builds/<runner>/0/<project>/) across runs, so
+# vendor/ and agent/node_modules/ persist naturally between pipelines.
+# Composer/npm install steps no-op when the lockfile hasn't changed.
+# When a lockfile *does* change, the install step refreshes the dirs
+# in place — there's no stale "old key" to clean up. The
+# `cache-prune` job below exists only as a manual nuke for vendor/
+# and node_modules/ if they ever get into a weird state.
 
 stages:
+- test
 - deploy
 
-deploy:
-  stage: deploy
+# Run on MRs and on push to master. Used by all test jobs.
+.test-rules: &test-rules
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
+
+.runner-tags: &runner-tags
   tags:
   - openemr-droplet
+
+test:php-isolated:
+  <<: [*test-rules, *runner-tags]
+  stage: test
+  script:
+  - |
+    docker run --rm \
+      -v "$CI_PROJECT_DIR:/work" \
+      -w /work \
+      -e COMPOSER_ALLOW_SUPERUSER=1 \
+      openemr/openemr:flex \
+      sh -c 'composer install --no-interaction --no-progress --prefer-dist && composer phpunit-isolated'
+
+test:phpstan:
+  <<: [*test-rules, *runner-tags]
+  stage: test
+  script:
+  - |
+    docker run --rm \
+      -v "$CI_PROJECT_DIR:/work" \
+      -w /work \
+      -e COMPOSER_ALLOW_SUPERUSER=1 \
+      openemr/openemr:flex \
+      sh -c 'composer install --no-interaction --no-progress --prefer-dist && composer phpstan'
+
+test:agent:
+  <<: [*test-rules, *runner-tags]
+  stage: test
+  script:
+  - |
+    docker run --rm \
+      -v "$CI_PROJECT_DIR/agent:/work" \
+      -w /work \
+      node:22-alpine \
+      sh -c 'npm ci --no-audit --no-fund && npm run lint && npm run typecheck && npm test'
+
+deploy:
+  <<: *runner-tags
+  stage: deploy
   rules:
   - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
   script:
@@ -22,3 +83,19 @@ deploy:
   environment:
     name: production
     url: https://emr.biograph.dev
+
+# Manual nuke for the persistent build-dir vendor/ and node_modules/.
+# Run from the GitLab UI (CI/CD → Pipelines → "Run pipeline" on
+# master, then click "Play" on this job) if a lockfile-vs-installed
+# mismatch ever leaves the build dir in a weird state. The next test
+# pipeline will reinstall from scratch.
+cache-prune:
+  <<: *runner-tags
+  stage: test
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master"'
+    when: manual
+    allow_failure: true
+  script:
+  - rm -rf "$CI_PROJECT_DIR/vendor" "$CI_PROJECT_DIR/agent/node_modules"
+  - du -sh "$CI_PROJECT_DIR" 2>/dev/null || true
