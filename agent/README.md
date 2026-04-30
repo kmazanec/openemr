@@ -250,3 +250,26 @@ in this repo for agent state. To inspect the schema in dev:
 ```sh
 psql 'postgresql://agent:agent@127.0.0.1:8330/agent' -c '\dt'
 ```
+
+### Unverified-claims log (§3.3)
+
+Phase 3.3 adds an `unverified_claims` table on the same agent Postgres.
+Every claim the verification gate drops — missing source reference,
+unresolved record ID, content mismatch, safety hard stop — is recorded
+in full so a future contributor can replay why the verifier rejected
+it.
+
+The schema is created idempotently by
+[`createPgUnverifiedClaimsLog().setup()`](src/verify/unverifiedClaimsLog.ts)
+on first call. The table mirrors the LangGraph saver pattern: the
+agent owns it and runs `CREATE TABLE IF NOT EXISTS` itself rather
+than shipping a migration file.
+
+Retention is **TBD**. The §6.3 production-readiness checklist will
+pin the retention policy alongside the OpenEMR-side disclosure-audit
+retention.
+
+Direct dependency `pg` is added at this phase to support the
+`unverified_claims` writer; LangGraph already pulls it transitively
+for the checkpointer, but the verifier needs it directly so we make
+the dependency explicit.

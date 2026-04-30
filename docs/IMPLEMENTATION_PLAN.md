@@ -781,14 +781,73 @@ follow-up questions yet.
   reason lives strictly inside the delimited region.)
 
 ### 3.3 Verification gate
-- [ ] Claim ledger schema with required `sourceReferences[]`
-- [ ] Deterministic checks for each claim category (medication, lab,
+- [x] Claim ledger schema with required `sourceReferences[]`
+  (Schema lives across `agent/src/graph/types.ts` (`Claim`,
+  `ClaimLedger`, `VerifiedLedger`) and `agent/src/graph/nodes/synthesize.ts`
+  (the Zod schema fed to `withStructuredOutput`). The Zod
+  `sourceReferences: z.array(...).min(1)` constraint already rejected
+  malformed model output before §3.3; the verifier now enforces the
+  same boundary structurally so a bypass of `withStructuredOutput`
+  cannot launder a sourceless claim into the response. `VerifiedLedger`
+  carries `accepted`, `rejected: {claim, reason}[]`, and
+  `safetyHardStops: HardStop[]`.)
+- [x] Deterministic checks for each claim category (medication, lab,
   allergy, diagnosis, encounter, appointment)
-- [ ] Reject claims without source references; strip from response
-- [ ] Hard clinical rules: missing allergies → fail closed (no medication
+  (`agent/src/verify/verifier.ts::verifyLedger`. For each claim, the
+  verifier resolves at least one source reference against an indexed
+  `BriefingSnapshot`, then runs a per-category content check: medication
+  name appears in claim text; lab analyte AND value both appear (no
+  fabricated numbers); allergy substance appears; diagnosis ICD code OR
+  label appears; encounter date OR type appears. Appointment and
+  identity have no separate content check — resolution suffices because
+  their source records are identity-shaped, not free-text. Pure
+  function over `(snapshot, ledger)` so the deterministic logic is
+  unit-testable in isolation; 17 cases in `tests/verify/verifier.test.ts`
+  pin every accept/reject path.)
+- [x] Reject claims without source references; strip from response
+  (Two layers. First, the Zod schema in `synthesize.ts` rejects
+  zero-reference claims at LLM-output time. Second, `verifyLedger`
+  filters any claim with `sourceReferences.length === 0` into the
+  rejected list with reason `missing-source-references`. `Format` then
+  walks `verified.accepted` for the medication section so dropped
+  claims never reach the §3.4 UI. Other sections still render from
+  snapshot records directly — the per-claim filter only narrows what
+  was already there, and adding a verifier-driven filter for
+  diagnoses/labs/encounters is deferred until a §4.x follow-up has a
+  real reason to need it.)
+- [x] Hard clinical rules: missing allergies → fail closed (no medication
   summary shown); missing meds → fail closed
-- [ ] Unverified claims logged in full to a separate Postgres table for
+  (`computeHardStops` in `verifier.ts` flags
+  `allergies-unavailable` / `medications-unavailable` whenever the
+  snapshot's `allergies` / `medications` arrive as a `Gap` shape; the
+  verifier then drops every medication claim with reason
+  `safety-critical-data-unavailable`. Today the `BriefingSnapshot`
+  type pins both as concrete arrays — `Retrieve` fails the whole graph
+  if either fail-closed tool errors — so the rule's hot path is dormant
+  but the policy is in place ahead of a future widening. `Format`
+  observes `verified.safetyHardStops` and renders the medication
+  section as a typed `Gap` (`{kind: 'gap', reason, message}`) so the
+  §3.4 UI shows "Medication summary withheld" rather than an empty
+  list.)
+- [x] Unverified claims logged in full to a separate Postgres table for
   debugging, with retention TBD
+  (`agent/src/verify/unverifiedClaimsLog.ts`. `createPgUnverifiedClaimsLog`
+  writes one row per dropped claim to a new `unverified_claims` table
+  on the agent Postgres — `request_id`, `conversation_id`, `claim_id`,
+  full `claim_text`, `claim_category`, `source_references` (JSONB),
+  `rejection_reason`, `safety_critical`, `created_at`. Schema is
+  created idempotently via `setup()` (`CREATE TABLE / CREATE INDEX IF
+  NOT EXISTS`), mirroring the LangGraph checkpointer pattern — no
+  hand-written migration. `createNullUnverifiedClaimsLog` is the
+  test/no-store seam; both implement the same `UnverifiedClaimsLog`
+  interface. Failed writes are logged-and-swallowed so a Postgres
+  blip can never widen the user-facing failure surface — the
+  `verified.rejected` list still surfaces every dropped claim
+  through the graph state. New direct dep `pg@8.20.0` (was already
+  transitive via `@langchain/langgraph-checkpoint-postgres`); pinned
+  `@types/pg@8.20.0` as devDep. Retention is **TBD** — the §6.3
+  production-readiness checklist will pin it alongside the
+  OpenEMR-side disclosure-audit retention.)
 
 ### 3.4 Streaming + UI
 - [ ] SSE stream from agent → OpenEMR proxy → browser, preserving

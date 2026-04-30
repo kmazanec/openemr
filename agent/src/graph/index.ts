@@ -6,12 +6,13 @@ import { persist } from './nodes/persist.js';
 import { planContext } from './nodes/planContext.js';
 import { createRetrieve, type RetrieveDeps } from './nodes/retrieve.js';
 import { createSynthesize, type SynthesizeDeps } from './nodes/synthesize.js';
-import { verify } from './nodes/verify.js';
+import { createVerify, type VerifyDeps } from './nodes/verify.js';
 import { BriefingStateAnnotation } from './state.js';
 
 export interface BriefingGraphDeps {
     readonly retrieve: RetrieveDeps;
     readonly synthesize: SynthesizeDeps;
+    readonly verify: VerifyDeps;
 }
 
 /**
@@ -31,7 +32,7 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addNode('planContext', planContext)
         .addNode('retrieve', createRetrieve(deps.retrieve))
         .addNode('synthesize', createSynthesize(deps.synthesize))
-        .addNode('verify', verify)
+        .addNode('verify', createVerify(deps.verify))
         .addNode('format', format)
         .addNode('persist', persist)
         .addEdge(START, 'loadState')

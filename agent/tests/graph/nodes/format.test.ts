@@ -117,7 +117,9 @@ describe('format', () => {
         expect(f.appointment.text).toContain('Diabetes follow-up');
         expect(f.demographics.text).toContain('Patel, Maya');
         expect(f.activeDiagnoses[0]?.text).toContain('E11.9');
-        expect(f.currentMedications[0]?.text).toContain('Metformin');
+        expect(Array.isArray(f.currentMedications)).toBe(true);
+        const meds = f.currentMedications as readonly { text: string }[];
+        expect(meds[0]?.text).toContain('Metformin');
         expect(Array.isArray(f.recentLabs)).toBe(true);
         const labs = f.recentLabs as readonly { text: string }[];
         expect(labs[0]?.text).toContain('A1c');
@@ -176,6 +178,112 @@ describe('format', () => {
         const f = out.formatted;
         if (f === null || f === undefined) throw new Error('formatted missing');
         expect(f.allergies).toEqual([]);
+    });
+
+    it('renders the medication section as a Gap when the verifier reports allergies-unavailable', async () => {
+        // §3.3 hard rule: "missing allergies → no medication summary shown".
+        // Format honors the boundary by converting the medication section
+        // to an explicit gap so the §3.4 UI shows "Medication summary
+        // withheld" rather than an empty list (which would read as "no
+        // medications").
+        const verifiedWithStop: VerifiedLedger = {
+            passed: false,
+            accepted: [],
+            rejected: [],
+            safetyHardStops: ['allergies-unavailable'],
+        };
+        const out = await format({
+            envelope,
+            snapshot,
+            draft: '',
+            claimLedger: { claims: [] },
+            verified: verifiedWithStop,
+            formatted: null,
+            persisted: null,
+        });
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.currentMedications).toMatchObject({
+            kind: 'gap',
+            reason: 'allergies-unavailable',
+        });
+    });
+
+    it('renders the medication section as a Gap when medications themselves are unavailable', async () => {
+        const verifiedWithStop: VerifiedLedger = {
+            passed: false,
+            accepted: [],
+            rejected: [],
+            safetyHardStops: ['medications-unavailable'],
+        };
+        const out = await format({
+            envelope,
+            snapshot,
+            draft: '',
+            claimLedger: { claims: [] },
+            verified: verifiedWithStop,
+            formatted: null,
+            persisted: null,
+        });
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.currentMedications).toMatchObject({
+            kind: 'gap',
+            reason: 'medications-unavailable',
+        });
+    });
+
+    it('filters the medication section to only drugs cited by accepted claims', async () => {
+        // Two meds in the snapshot, one cited by an accepted claim, one
+        // not. The non-cited record must not be rendered — it would be
+        // surfacing data the verifier never blessed.
+        const snapshotWithTwoMeds: BriefingSnapshot = {
+            ...snapshot,
+            medications: [
+                {
+                    name: 'Metformin',
+                    dose: '500 mg',
+                    route: 'PO',
+                    frequency: 'BID',
+                    startDate: '2020-01-01',
+                    stopDate: null,
+                    prescriber: 'Dr. Patel',
+                    source: sourceRef('MedicationRequest', 'rx-1'),
+                },
+                {
+                    name: 'Lisinopril',
+                    dose: '10 mg',
+                    route: 'PO',
+                    frequency: 'QD',
+                    startDate: '2021-01-01',
+                    stopDate: null,
+                    prescriber: 'Dr. Patel',
+                    source: sourceRef('MedicationRequest', 'rx-2'),
+                },
+            ],
+        };
+        const acceptedMetformin: Claim = {
+            id: 'm-1',
+            text: 'Metformin 500 mg BID',
+            category: 'medication',
+            sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
+            safetyCritical: true,
+        };
+        const out = await format({
+            envelope,
+            snapshot: snapshotWithTwoMeds,
+            draft: '',
+            claimLedger: { claims: [acceptedMetformin] },
+            verified: { passed: true, accepted: [acceptedMetformin], rejected: [], safetyHardStops: [] },
+            formatted: null,
+            persisted: null,
+        });
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(Array.isArray(f.currentMedications)).toBe(true);
+        const meds = f.currentMedications as readonly { text: string }[];
+        expect(meds).toHaveLength(1);
+        expect(meds[0]?.text).toContain('Metformin');
     });
 
     it('uses unverified claims as a typed pass-through when supplied', async () => {

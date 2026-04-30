@@ -1,28 +1,72 @@
+import { createLogger } from '../../observability/logger.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
+import {
+    type UnverifiedClaimsLog,
+    type UnverifiedClaimRecord,
+} from '../../verify/unverifiedClaimsLog.js';
+import { verifyLedger } from '../../verify/verifier.js';
 import type { VerifiedLedger } from '../types.js';
 
 /**
- * §3.2 stub. Phase 3.3 fills this in:
- *   - claim ledger schema with required `sourceReferences[]`
- *   - deterministic checks per category
- *   - reject claims without source references; strip from response
- *   - hard clinical rules: missing allergies / meds → fail closed
- *   - unverified claims logged in full to a separate Postgres table
+ * §3.3 verification gate. Runs the deterministic checks in
+ * `verifyLedger`, and ships every dropped claim to the engineering
+ * unverified-claims log so a future contributor can replay why a claim
+ * was rejected.
  *
- * Today: pass every claim through untouched and report `passed: true`
- * so the graph runs end-to-end on synthetic happy-path data. This is a
- * trust-but-verify node; the trust window closes at §3.3 — do not let
- * production code skip past this stub before that lands.
+ * The log sink is injected so production wiring uses the Postgres
+ * recorder while tests use the null sink. Failures inside the recorder
+ * never block the response: the verifier's structured rejection list
+ * still reaches `Persist`, and the recorder logs and swallows
+ * (instrumentation should never widen the user-facing failure surface).
  */
-// eslint-disable-next-line @typescript-eslint/require-await -- async signature is the LangGraph node contract; stub body has no awaits yet (Phase 3.3 fills in deterministic checks).
-export const verify = async (state: BriefingState): Promise<BriefingStateUpdate> => {
-    const ledger = state.claimLedger;
-    const claims = ledger?.claims ?? [];
-    const verified: VerifiedLedger = {
-        passed: true,
-        accepted: claims,
-        rejected: [],
-        safetyHardStops: [],
+export interface VerifyDeps {
+    readonly unverifiedClaimsLog: UnverifiedClaimsLog;
+}
+
+export const createVerify = (
+    deps: VerifyDeps,
+): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
+    const logger = createLogger('verify');
+
+    return async (state) => {
+        if (state.snapshot === null) {
+            throw new Error('Verify called before Retrieve populated the snapshot');
+        }
+        const ledger = state.claimLedger ?? { claims: [] };
+        const verified: VerifiedLedger = verifyLedger(state.snapshot, ledger);
+
+        if (verified.rejected.length > 0) {
+            const records: UnverifiedClaimRecord[] = verified.rejected.map((r) => ({
+                context: {
+                    requestId: state.envelope.requestId,
+                    conversationId: state.envelope.conversationId,
+                },
+                claim: r.claim,
+                reason: r.reason,
+            }));
+            try {
+                await deps.unverifiedClaimsLog.record(records);
+            } catch (err: unknown) {
+                // Engineering instrumentation — a failed write must not
+                // widen the user-facing failure surface. The dropped
+                // claim is still surfaced through `verified.rejected`,
+                // and the formatter has already discarded it.
+                logger.error(
+                    { err, requestId: state.envelope.requestId, count: records.length },
+                    'failed to record unverified claims; continuing',
+                );
+            }
+            logger.info(
+                {
+                    requestId: state.envelope.requestId,
+                    accepted: verified.accepted.length,
+                    rejected: verified.rejected.length,
+                    hardStops: verified.safetyHardStops,
+                },
+                'verification gate dropped claims',
+            );
+        }
+
+        return { verified };
     };
-    return { verified };
 };

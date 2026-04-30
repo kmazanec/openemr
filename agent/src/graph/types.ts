@@ -90,7 +90,13 @@ export interface FormattedBriefing {
     readonly appointment: { readonly text: string; readonly source: SourceReference | null };
     readonly demographics: { readonly text: string; readonly source: SourceReference };
     readonly activeDiagnoses: readonly { readonly text: string; readonly source: SourceReference }[];
-    readonly currentMedications: readonly { readonly text: string; readonly source: SourceReference }[];
+    /**
+     * §3.3: the medication section becomes a `Gap` when the verifier
+     * reports a safety hard stop (allergies or medications unavailable).
+     * The §3.4 UI must render the gap as "Medication summary unavailable"
+     * — never as an empty list, which would read as "no medications".
+     */
+    readonly currentMedications: readonly { readonly text: string; readonly source: SourceReference }[] | Gap;
     readonly recentLabs: readonly { readonly text: string; readonly source: SourceReference }[] | Gap;
     readonly allergies: readonly { readonly text: string; readonly source: SourceReference }[];
     readonly recentEncounters: readonly { readonly text: string; readonly source: SourceReference }[] | Gap;

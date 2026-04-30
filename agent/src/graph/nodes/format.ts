@@ -7,20 +7,32 @@ import type {
     Medication,
     SourceReference,
 } from '../../snapshot/types.js';
-import type { FormattedBriefing, Gap } from '../types.js';
+import {
+    HARD_STOP_ALLERGIES_UNAVAILABLE,
+    HARD_STOP_MEDICATIONS_UNAVAILABLE,
+} from '../../verify/verifier.js';
+import type { Claim, FormattedBriefing, Gap, VerifiedLedger } from '../types.js';
 
 /**
- * §3.2 implementation. Walks the snapshot + the verified ledger and
- * produces the structured `FormattedBriefing` the §3.4 SSE renderer
+ * §3.2 + §3.3 implementation. Walks the snapshot + the verified ledger
+ * and produces the structured `FormattedBriefing` the §3.4 SSE renderer
  * will emit. The shape mirrors USERS.md "Default Briefing Structure"
  * one-to-one so a future renderer can walk sections without parsing.
  *
- * Format consumes the snapshot directly today because §3.2's `Verify`
- * stub passes claims through unchanged. Once §3.3 lands the
- * verification gate, this node should switch to building section text
- * from `state.verified.accepted` so unverified claims never reach the
- * UI. The function signature already takes `verified` so the swap is
- * small.
+ * §3.3 wired the verifier in. Format now honors two boundaries:
+ *   1. it filters the medication section to records that appear in
+ *      `verified.accepted` — claims dropped by the verifier never reach
+ *      the UI as cited fact.
+ *   2. it converts the medication section to a gap when the verifier
+ *      reported a safety hard stop (`allergies-unavailable` or
+ *      `medications-unavailable`), implementing "missing allergies →
+ *      no medication summary shown" from the plan.
+ *
+ * Other sections (diagnoses, labs, encounters, allergies, appointment,
+ * demographics) are walked from the snapshot directly because the
+ * verifier's per-claim filter only narrows what was already there.
+ * Future phases can promote them to claim-based filtering when there's
+ * a real reason to.
  */
 
 const isGap = (v: readonly unknown[] | Gap): v is Gap =>
@@ -58,6 +70,52 @@ const formatEncounter = (e: Encounter): { text: string; source: SourceReference 
     return { text: `${date}: ${type}${reason}`, source: e.source };
 };
 
+const medicationSection = (
+    medications: readonly Medication[],
+    verified: VerifiedLedger,
+): readonly { text: string; source: SourceReference }[] | Gap => {
+    if (verified.safetyHardStops.includes(HARD_STOP_MEDICATIONS_UNAVAILABLE)) {
+        return {
+            kind: 'gap',
+            reason: HARD_STOP_MEDICATIONS_UNAVAILABLE,
+            message: 'Medication data is unavailable.',
+        };
+    }
+    if (verified.safetyHardStops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) {
+        return {
+            kind: 'gap',
+            reason: HARD_STOP_ALLERGIES_UNAVAILABLE,
+            message: 'Allergy data is unavailable; medication summary withheld.',
+        };
+    }
+    // Filter to medications that appear in at least one accepted claim's
+    // source references. If the verifier ran on an empty ledger (e.g.
+    // synthesizer is mocked out), pass through unchanged so the §3.2
+    // happy-path tests that don't go through Synthesize still surface
+    // medications. This is the only place the per-claim filter applies
+    // today — other sections wait until a follow-up surfaces a real need.
+    const acceptedRecordIds = collectAcceptedRecordIds(verified.accepted, 'medication');
+    if (acceptedRecordIds === null) return medications.map(formatMedication);
+    return medications
+        .filter((m) => acceptedRecordIds.has(m.source.recordId))
+        .map(formatMedication);
+};
+
+const collectAcceptedRecordIds = (
+    accepted: readonly Claim[],
+    category: Claim['category'],
+): Set<string> | null => {
+    const claimsForCategory = accepted.filter((c) => c.category === category);
+    if (claimsForCategory.length === 0) return null;
+    const ids = new Set<string>();
+    for (const claim of claimsForCategory) {
+        for (const ref of claim.sourceReferences) {
+            ids.add(ref.recordId);
+        }
+    }
+    return ids;
+};
+
 // eslint-disable-next-line @typescript-eslint/require-await -- async signature is the LangGraph node contract; stub body has no awaits yet.
 export const format = async (state: BriefingState): Promise<BriefingStateUpdate> => {
     if (state.verified === null) {
@@ -67,6 +125,7 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
         throw new Error('Format called without a snapshot');
     }
     const s = state.snapshot;
+    const v = state.verified;
 
     const formatted: FormattedBriefing = {
         appointment: {
@@ -85,7 +144,7 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
             source: s.patient.source,
         },
         activeDiagnoses: s.diagnoses.map(formatDiagnosis),
-        currentMedications: s.medications.map(formatMedication),
+        currentMedications: medicationSection(s.medications, v),
         recentLabs: isGap(s.labs) ? s.labs : s.labs.map(formatLab),
         allergies: s.allergies.map(formatAllergy),
         recentEncounters: isGap(s.encounters) ? s.encounters : s.encounters.map(formatEncounter),

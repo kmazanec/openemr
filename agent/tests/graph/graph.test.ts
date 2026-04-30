@@ -4,6 +4,7 @@ import { createBriefingGraph } from '../../src/graph/index.js';
 import type { Synthesizer } from '../../src/graph/nodes/synthesize.js';
 import type { ClaimLedger, RequestEnvelope } from '../../src/graph/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
+import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaimsLog.js';
 
 const TOKEN = 'tok';
 const PID = 42;
@@ -100,6 +101,7 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
         const graph = createBriefingGraph({
             retrieve: { client, token: TOKEN },
             synthesize: { synthesizer: synth },
+            verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
 
         const out = await graph.invoke({ envelope });
@@ -120,6 +122,7 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
         const graph = createBriefingGraph({
             retrieve: { client, token: TOKEN },
             synthesize: { synthesizer: synth },
+            verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
 
         await graph.invoke({ envelope });
