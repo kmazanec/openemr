@@ -1,8 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { app } from '../../src/server/index.js';
+import { app, start } from '../../src/server/index.js';
 
 describe('agent server', () => {
+    let originalDatabaseUrl: string | undefined;
+
+    beforeEach(() => {
+        originalDatabaseUrl = process.env['DATABASE_URL'];
+    });
+
+    afterEach(() => {
+        if (originalDatabaseUrl === undefined) {
+            delete process.env['DATABASE_URL'];
+        } else {
+            process.env['DATABASE_URL'] = originalDatabaseUrl;
+        }
+    });
+
+    it('start() rejects when DATABASE_URL is unset', async () => {
+        delete process.env['DATABASE_URL'];
+        await expect(start(0)).rejects.toThrow(/DATABASE_URL/);
+    });
+
     it('GET /health returns ok', async () => {
         const res = await app.request('/health');
         expect(res.status).toBe(200);
