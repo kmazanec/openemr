@@ -380,23 +380,78 @@ something to compare against.
   pin will land.)
 
 ### 2.2 Adapters
-- [ ] `PatientAdapter` (display-safe demographics, `pid` + UUID, no SSN /
+
+Adapters live under `interface/modules/custom_modules/oe-module-clinical-copilot/
+src/Snapshot/Adapter/`. Each takes a thin per-adapter `*DataSource`
+interface seam so the normalization logic is unit-testable in
+isolation; Phase 2.5 wires the real OpenEMR services
+(`PatientService`, `ConditionService`, `AllergyIntoleranceService`,
+`PrescriptionService`, `ObservationLabService`, `EncounterService`,
+`AppointmentService`) behind those interfaces and runs the integration
+tests in Docker.
+
+- [x] `PatientAdapter` (display-safe demographics, `pid` + UUID, no SSN /
   full address / phone unless explicitly requested)
-- [ ] `ConditionAdapter` (active diagnoses with ICD codes, normalized
+  (`fetch(int $pid): Demographics`. Throws `RuntimeException` on
+  missing patient — fail-closed; the proxy returns 503. Test
+  `testNeverIncludesPhiFromExcludedColumns` pins the exclusion list
+  by feeding a row with SSN/phone/address/email and asserting they
+  never serialize.)
+- [x] `ConditionAdapter` (active diagnoses with ICD codes, normalized
   labels)
-- [ ] `AllergyAdapter` (substance + reaction, fail-closed if data layer
+  (`fetchActive(int $pid): list<Diagnosis>`. Parses OpenEMR's
+  `lists.diagnosis` prefix syntax (`ICD10:E11.9`, `ICD9:250.00`,
+  `SNOMED:...`) into `code` + canonical `codeSystem` (`ICD-10`,
+  `ICD-9`, `SNOMED-CT`). Free-text problem-list rows without a coded
+  diagnosis are stripped at the adapter — they can't carry a citation.)
+- [x] `AllergyAdapter` (substance + reaction, fail-closed if data layer
   errors)
-- [ ] `MedicationAdapter` (name, dose, route, frequency, start/stop dates,
+  (`fetchActive(int $pid): list<Allergy>`. The adapter is a pure
+  mapper — it does **not** catch data-layer exceptions. Per
+  ARCHITECTURE.md §"Safety Rules", a database error here must
+  propagate so the proxy fails closed. Verified by
+  `testDataLayerExceptionPropagates`.)
+- [x] `MedicationAdapter` (name, dose, route, frequency, start/stop dates,
   prescriber)
-- [ ] `ObservationAdapter` (labs in N-day window, value, unit, ref range,
+  (`fetchActive(int $pid): list<Medication>`. Reads pre-resolved
+  `route_title` / `interval_title` from the data source — production
+  wiring's `PrescriptionService` already joins `list_options`. Same
+  fail-closed exception semantics as Allergy.)
+- [x] `ObservationAdapter` (labs in N-day window, value, unit, ref range,
   abnormal flag)
-- [ ] `EncounterAdapter` (date, type, reason, source-backed summary fields
+  (`fetchRecent(int $pid, int $lookbackDays): list<LabObservation>`.
+  Lookback window is the caller's decision (Phase 3 tool wrapper
+  picks per-analyte windows). `value` is preserved as a string — text
+  qualifiers like `<0.01`, `>500`, `positive` survive normalization
+  because the verifier compares the displayed claim against the
+  source value, and coercion would lose information.)
+- [x] `EncounterAdapter` (date, type, reason, source-backed summary fields
   only — no full notes in v1)
-- [ ] `AppointmentAdapter` (today's slot for the patient + acting
+  (`fetchRecent(int $pid, int $lookbackDays): list<Encounter>`. v1
+  carries date / type / reason only; SOAP notes, vitals, and
+  free-text encounter content are deliberately not surfaced — Phase 4
+  can add an `EncounterNote` DTO if drill-down needs them.)
+- [x] `AppointmentAdapter` (today's slot for the patient + acting
   practitioner)
-- [ ] OpenEMR-specific normalizations: treat `0000-00-00` and empty
+  (`fetchToday(int $pid, string $practitionerUuid, DateTimeImmutable
+  $today): ?Appointment`. The caller supplies "today" so a `ClockInterface`
+  injected upstream stays the single source of time. Assembles
+  OpenEMR's split `pc_eventDate` + `pc_startTime` into ISO-8601 and
+  converts `pc_duration` (seconds) to minutes. Returns `null` for
+  partial / zero-date rows rather than synthesizing a wrong startAt.)
+- [x] OpenEMR-specific normalizations: treat `0000-00-00` and empty
   strings as unknown; resolve list option labels; preserve source IDs;
   return explicit missingness rather than empty strings
+  (Centralized in `OpenEMR\Modules\ClinicalCopilot\Snapshot\Normalize`:
+  `toDateString` / `toDateImmutable` (handles `0000-00-00`,
+  `1970-01-01 00:00:00`, datetime → date-only), `toOptionalString`
+  (trim + empty → null), `requireRecordId` (rejects null / `0` /
+  empty / string `'0'`), `stringField` / `intOrStringField` (typed
+  row-column reads). List-option *resolution* (the `list_options`
+  JOIN that maps `option_id` → human label) lives in the data-source
+  wiring, not the adapter — production data sources call the
+  existing OpenEMR services that already do this join. The adapter
+  only normalizes the resolved label.)
 
 ### 2.3 PHI minimizer
 - [ ] `PhiMinimizer` service that drops fields not declared in the
