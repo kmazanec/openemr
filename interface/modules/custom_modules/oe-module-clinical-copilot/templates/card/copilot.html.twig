@@ -1,11 +1,27 @@
 {% extends "patient/card/card_base.html.twig" %}
 
+{#
+    Click handler opens the panel as a peer tab in the OpenEMR shell
+    (alongside Calendar, Dashboard, Visit History, etc.) instead of
+    replacing the current iframe. `top.navigateTab` reuses the existing
+    `copilot` tab if one is already open, navigating it to the new pid
+    — that gives the right behavior on patient switch (the existing
+    Co-Pilot tab refreshes for the new patient rather than stacking up
+    one tab per patient).
+
+    `href` falls through to a same-window navigation only if the tab
+    system isn't loaded (e.g. card rendered outside the main tabs UI),
+    keeping the link useful in any context.
+#}
 {% block content %}
     <p class="m-0">
         {{ "Open the AI-assisted briefing for the current patient. Every claim is cited back to the chart record it came from."|xlt }}
     </p>
     <p class="mt-2 mb-0">
-        <a class="btn btn-primary btn-sm" href="{{ panelUrl|attr }}" onclick="top.restoreSession()">
+        <a class="btn btn-primary btn-sm"
+           data-role="open-copilot"
+           href="{{ panelUrl|attr }}"
+           onclick="top.restoreSession(); if (top.navigateTab && top.activateTabByName) { top.navigateTab(this.href, 'copilot', function () { top.activateTabByName('copilot', true); }); return false; }">
             <i class="fa fa-stethoscope"></i>
             {{ "Open Co-Pilot"|xlt }}
         </a>

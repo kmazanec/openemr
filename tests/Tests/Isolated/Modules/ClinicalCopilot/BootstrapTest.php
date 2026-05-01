@@ -29,7 +29,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Twig\Environment;
+use Twig\Loader\ArrayLoader;
+use Twig\Loader\ChainLoader;
 use Twig\Loader\FilesystemLoader;
+use Twig\TwigFilter;
 
 #[Group('isolated')]
 final class BootstrapTest extends TestCase
@@ -115,6 +118,53 @@ final class BootstrapTest extends TestCase
             '/interface/modules/custom_modules/oe-module-clinical-copilot/public/panel.php?pid=92',
             $panelUrl,
         );
+    }
+
+    #[Test]
+    public function copilotCardOpensPanelAsAPeerTabRatherThanReplacingTheIframe(): void
+    {
+        // The card lives inside the patient-data iframe but the
+        // OpenEMR tabs view-model is on the parent window. Clicking
+        // "Open Co-Pilot" must call top.navigateTab + activateTabByName
+        // so the panel opens as a peer tab (alongside Calendar,
+        // Dashboard, Visit History) instead of replacing the current
+        // iframe content. The href is preserved as a graceful
+        // fallback for contexts where the tab system isn't loaded.
+        $arrayLoader = new ArrayLoader([
+            // Stub parent that simply renders the child's content block
+            // — exercises the real copilot.html.twig without dragging
+            // in card_base's full filter chain.
+            'patient/card/card_base.html.twig' => '{% block content %}{% endblock %}',
+        ]);
+        $filesystemLoader = new FilesystemLoader([self::MODULE_DIR . '/templates']);
+        $loader = new ChainLoader([$filesystemLoader, $arrayLoader]);
+        $env = new Environment($loader, ['autoescape' => 'html']);
+        // OpenEMR's runtime registers `|xlt`, `|attr`, `|text` via
+        // TwigExtension; pass-through with HTML escaping here so the
+        // template compiles without the production stack.
+        $passthrough = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES);
+        $env->addFilter(new TwigFilter('xlt', $passthrough));
+        $env->addFilter(new TwigFilter('attr', $passthrough));
+        $env->addFilter(new TwigFilter('text', $passthrough));
+
+        $html = $env->render('card/copilot.html.twig', [
+            'panelUrl' => '/interface/modules/custom_modules/oe-module-clinical-copilot/public/panel.php?pid=92',
+        ]);
+
+        // Must call into the parent window's tab system.
+        self::assertStringContainsString('top.navigateTab', $html);
+        self::assertStringContainsString("'copilot'", $html);
+        self::assertStringContainsString('top.activateTabByName', $html);
+        self::assertStringContainsString('top.restoreSession()', $html);
+        // Onclick returns false so the anchor's same-window navigation
+        // is suppressed when the tab system is available; href stays
+        // present as a fallback.
+        self::assertStringContainsString('return false', $html);
+        self::assertStringContainsString(
+            'href="/interface/modules/custom_modules/oe-module-clinical-copilot/public/panel.php?pid=92"',
+            $html,
+        );
+        self::assertStringContainsString('data-role="open-copilot"', $html);
     }
 
     #[Test]
