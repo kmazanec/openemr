@@ -66,6 +66,35 @@ docker compose pull --quiet
 log "ensuring full stack is up"
 docker compose up --detach
 
+log "rebuilding and recreating agent container"
+# The agent's source lives in /srv/openemr/current/agent and is built from
+# the release tree on every deploy. Without an explicit rebuild + recreate
+# `compose up` is a no-op for a still-healthy agent and the running
+# container keeps serving stale code (and may be missing env vars added
+# in the new release's compose). Schema setup for the agent's Postgres
+# tables (LangGraph checkpointer, conversations, unverified-claims log)
+# runs in the agent's startup path, so the recreate doubles as the
+# agent-side migration step.
+docker compose up --detach --no-deps --build --force-recreate agent
+
+log "waiting for agent /health"
+agent_deadline=$(( $(date +%s) + 120 ))
+agent_healthy=0
+while (( $(date +%s) < agent_deadline )); do
+    if docker compose exec -T agent wget --quiet --tries=1 --spider \
+            http://127.0.0.1:8080/health 2>/dev/null; then
+        log "agent healthy"
+        agent_healthy=1
+        break
+    fi
+    sleep 3
+done
+if (( agent_healthy == 0 )); then
+    log "agent did not become healthy within 120s"
+    docker compose logs --tail=80 agent || true
+    exit 1
+fi
+
 log "recreating openemr container"
 docker compose up --detach --no-deps --force-recreate openemr
 

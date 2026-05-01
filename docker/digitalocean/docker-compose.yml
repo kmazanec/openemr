@@ -45,6 +45,9 @@
 #   OE_PASS                Initial OpenEMR admin password.
 #   MYSQL_ROOT_PASSWORD    MariaDB root password.
 #   AGENT_PG_PASSWORD      Password for the agent's Postgres user.
+#   ANTHROPIC_API_KEY      Anthropic API key used by the agent's
+#                          synthesizer (Claude). Never bake into the
+#                          image — only read from /etc/openemr/.env.
 
 # Pin the compose project name. Without this, compose derives the name
 # from the parent directory of the compose file — so moving the file
@@ -123,6 +126,12 @@ services:
       # inside the container (Caddy fronts 80/443 only on the public
       # interface, so we hit openemr directly).
       OPENEMR_JWKS_URL: http://openemr/oauth2/default/jwk
+      # Snapshot fetcher base URL — same internal-network openemr host.
+      # Required at agent boot; the service refuses to start without it.
+      OPENEMR_BASE_URL: http://openemr
+      # Anthropic API key for the synthesizer (Claude). Loaded from
+      # /etc/openemr/.env on the Droplet — never bake into the image.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8080/health']
       start_period: 30s
