@@ -178,6 +178,14 @@ services:
       # key; the graph will fail-fast at the synthesize step rather than
       # hang. Override in your shell or `.env` for live LLM calls.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # §6.1 LangSmith tracing. Off by default in dev — set
+      # LANGSMITH_TRACING=true and LANGSMITH_API_KEY in your shell to opt
+      # in. Project name is namespaced -dev so traces from local work
+      # don't pollute prod metrics. PHI suppression is enforced in code
+      # (server boot defaults LANGSMITH_HIDE_INPUTS/OUTPUTS=true).
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-openemr-clinical-copilot-dev}
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8080/health']
       start_period: 30s

@@ -48,6 +48,9 @@
 #   ANTHROPIC_API_KEY      Anthropic API key used by the agent's
 #                          synthesizer (Claude). Never bake into the
 #                          image — only read from /etc/openemr/.env.
+#   LANGSMITH_API_KEY      LangSmith API key for §6.1 trace upload.
+#                          Same handling as ANTHROPIC_API_KEY: secret,
+#                          read from /etc/openemr/.env, never baked.
 
 # Pin the compose project name. Without this, compose derives the name
 # from the parent directory of the compose file — so moving the file
@@ -132,6 +135,15 @@ services:
       # Anthropic API key for the synthesizer (Claude). Loaded from
       # /etc/openemr/.env on the Droplet — never bake into the image.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # §6.1 LangSmith tracing. API key loaded from /etc/openemr/.env
+      # alongside ANTHROPIC_API_KEY. Tracing is on in prod so per-tool
+      # latency, token cost, and verification metadata reach the
+      # dashboard for cost projection (Phase 6.2). PHI bodies are
+      # suppressed in code via LANGSMITH_HIDE_INPUTS/OUTPUTS=true at
+      # server boot — do not override those in this environment.
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      LANGSMITH_TRACING: 'true'
+      LANGSMITH_PROJECT: openemr-clinical-copilot-prod
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8080/health']
       start_period: 30s
