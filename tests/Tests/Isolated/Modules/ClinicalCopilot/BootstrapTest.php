@@ -168,6 +168,45 @@ final class BootstrapTest extends TestCase
     }
 
     #[Test]
+    public function copilotCardAutoOpensTheTabOncePerSessionWhenTheDashboardRenders(): void
+    {
+        // The card markup ships an inline script that opens the
+        // co-pilot panel as a peer tab in the background the first
+        // time the dashboard renders. Pin the contract:
+        //   - sessionStorage flag prevents repeat opens within a
+        //     session (so closing the tab on purpose is honored)
+        //   - early-return when an iframe[name=copilot] already
+        //     exists (so a patient switch doesn't yank focus into the
+        //     just-loaded co-pilot)
+        //   - top.navigateTab is called WITHOUT activateTabByName,
+        //     leaving the new tab in the background.
+        $arrayLoader = new ArrayLoader([
+            'patient/card/card_base.html.twig' => '{% block content %}{% endblock %}',
+        ]);
+        $filesystemLoader = new FilesystemLoader([self::MODULE_DIR . '/templates']);
+        $loader = new ChainLoader([$filesystemLoader, $arrayLoader]);
+        $env = new Environment($loader, ['autoescape' => 'html']);
+        $passthrough = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES);
+        $env->addFilter(new TwigFilter('xlt', $passthrough));
+        $env->addFilter(new TwigFilter('attr', $passthrough));
+        $env->addFilter(new TwigFilter('text', $passthrough));
+
+        $html = $env->render('card/copilot.html.twig', [
+            'panelUrl' => '/interface/modules/custom_modules/oe-module-clinical-copilot/public/panel.php?pid=92',
+        ]);
+
+        self::assertStringContainsString('copilot_autoopened', $html);
+        self::assertStringContainsString('iframe[name="copilot"]', $html);
+        self::assertStringContainsString('top.navigateTab(', $html);
+        // Must NOT call activateTabByName from auto-open (would foreground).
+        self::assertMatchesRegularExpression(
+            '/top\.navigateTab\([^)]*,\s*[\'"]copilot[\'"]\s*\)/',
+            $html,
+            'auto-open should call navigateTab without an afterLoad callback so the new tab stays in the background',
+        );
+    }
+
+    #[Test]
     public function prependsModuleTemplatesPathOnTwigEnvironmentCreate(): void
     {
         $loader = new FilesystemLoader([__DIR__]);
