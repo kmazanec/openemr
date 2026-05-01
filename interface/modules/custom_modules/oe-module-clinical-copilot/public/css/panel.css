@@ -1,15 +1,15 @@
-/* Clinical Co-Pilot panel — vanilla CSS, no preprocessor. */
+/* Clinical Co-Pilot panel — vanilla CSS, no preprocessor. Chat-thread shape. */
 
 .copilot-panel {
     max-width: 880px;
     margin: 0 auto;
-    padding: 1.5em 2em 3em;
+    padding: 1.25em 1.5em 7em;
     font-family: inherit;
     color: #222;
 }
 
 .copilot-panel__header {
-    margin-bottom: 1.5em;
+    margin-bottom: 1.25em;
     padding-bottom: 0.6em;
     border-bottom: 1px solid #ddd;
 }
@@ -21,7 +21,7 @@
 
 .copilot-panel__subtitle {
     margin: 0;
-    font-size: 0.95em;
+    font-size: 0.9em;
     color: #555;
 }
 
@@ -34,52 +34,90 @@
     color: #2c7a3a;
 }
 
-.copilot-panel__section {
-    margin: 1.4em 0;
-    padding: 0.8em 1em;
-    background: #f9fafb;
-    border: 1px solid #e7e9ec;
-    border-radius: 6px;
+.copilot-panel__subtitle[data-kind="connecting"],
+.copilot-panel__subtitle[data-kind="streaming"] {
+    color: #4a6fa5;
 }
 
-.copilot-panel__section h2 {
-    font-size: 1.05em;
-    margin: 0 0 0.5em;
-    color: #333;
+/* ───────── Thread ───────── */
+
+.copilot-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9em;
+    margin-top: 0.5em;
 }
 
-.copilot-list {
+.copilot-bubble {
+    max-width: 88%;
+    padding: 0.85em 1em;
+    border-radius: 12px;
+    line-height: 1.55;
+    font-size: 0.97em;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.copilot-bubble--assistant {
+    align-self: flex-start;
+    background: #f4f6f9;
+    border: 1px solid #e3e7ee;
+    border-top-left-radius: 4px;
+    color: #1c232e;
+}
+
+.copilot-bubble--user {
+    align-self: flex-end;
+    background: #2058a8;
+    border: 1px solid #1d4f95;
+    border-top-right-radius: 4px;
+    color: #fff;
+}
+
+.copilot-bubble--error {
+    background: #fdecea;
+    border-color: #f4c4c0;
+}
+
+.copilot-bubble__body {
     margin: 0;
-    padding-left: 1.4em;
 }
 
-.copilot-list li {
-    margin: 0.3em 0;
-    line-height: 1.45;
+.copilot-bubble__body > * + * {
+    margin-top: 0.55em;
 }
 
-.copilot-entry {
-    margin: 0;
-    line-height: 1.5;
+/* Segments flow inline so prose reads as one paragraph; chips inline with text. */
+.copilot-segment {
+    display: inline;
 }
 
-.copilot-empty {
-    margin: 0;
-    color: #888;
+.copilot-segment + .copilot-segment::before {
+    content: ' ';
+}
+
+.copilot-segment--redacted {
+    color: #6b6e74;
     font-style: italic;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 0 0.3em;
+    border-radius: 3px;
 }
+
+/* ───────── Source chips ───────── */
 
 .copilot-source {
     display: inline-block;
-    margin-left: 0.4em;
+    margin-left: 0.25em;
     padding: 0 0.4em;
     font-size: 0.78em;
+    line-height: 1.5;
     color: #2058a8;
     text-decoration: none;
     border: 1px solid #c7d4e8;
     border-radius: 3px;
     background: #eef3fb;
     vertical-align: 0.05em;
+    white-space: nowrap;
 }
 
 .copilot-source:hover {
@@ -94,18 +132,121 @@
     cursor: help;
 }
 
-.copilot-gap,
-.copilot-error {
-    margin: 0;
-    padding: 0.5em 0.75em;
+/* On a user-bubble (currently unused in this phase but reserved for follow-ups), the source chip needs lighter contrast. */
+.copilot-bubble--user .copilot-source {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.copilot-bubble--user .copilot-source:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+/* ───────── Gaps + errors inside bubbles ───────── */
+
+.copilot-gap {
+    margin: 0 0 0.7em;
+    padding: 0.45em 0.7em;
     background: #fff7e1;
     border-left: 3px solid #c79610;
     color: #6a4e0a;
-    font-size: 0.95em;
+    font-size: 0.9em;
+    border-radius: 3px;
 }
 
 .copilot-error {
-    background: #fdecea;
-    border-left-color: #b03028;
+    margin: 0;
     color: #7a1f1a;
+    font-size: 0.95em;
+}
+
+/* ───────── Suggestions rail (reserved for §4.1) ───────── */
+
+.copilot-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    margin: 0.8em 0 0.4em;
+}
+
+.copilot-suggestions[hidden] {
+    display: none;
+}
+
+.copilot-suggestion {
+    padding: 0.35em 0.75em;
+    font-size: 0.85em;
+    color: #2058a8;
+    background: #eef3fb;
+    border: 1px solid #c7d4e8;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.copilot-suggestion:hover {
+    background: #dfe9f7;
+}
+
+/* ───────── Composer ───────── */
+
+.copilot-composer {
+    position: sticky;
+    bottom: 0;
+    margin-top: 1.2em;
+    padding: 0.6em 0.6em 0.6em;
+    background: linear-gradient(to top, #ffffff 70%, rgba(255, 255, 255, 0));
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5em;
+    align-items: end;
+}
+
+.copilot-composer__input {
+    resize: vertical;
+    min-height: 2.4em;
+    max-height: 8em;
+    padding: 0.55em 0.7em;
+    border: 1px solid #c7d0d9;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.95em;
+    line-height: 1.4;
+    background: #fff;
+    color: #222;
+}
+
+.copilot-composer__input:focus {
+    outline: 2px solid #4a6fa5;
+    outline-offset: 1px;
+    border-color: #4a6fa5;
+}
+
+.copilot-composer__input:disabled {
+    background: #f6f7f9;
+    color: #8a8f97;
+    cursor: not-allowed;
+}
+
+.copilot-composer__submit {
+    padding: 0.55em 1.1em;
+    border-radius: 6px;
+    border: 1px solid #1d4f95;
+    background: #2058a8;
+    color: #fff;
+    font: inherit;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.copilot-composer__submit:hover:not(:disabled) {
+    background: #1d4f95;
+}
+
+.copilot-composer__submit:disabled {
+    background: #c5cdd7;
+    border-color: #b6bec8;
+    color: #fff;
+    cursor: not-allowed;
 }

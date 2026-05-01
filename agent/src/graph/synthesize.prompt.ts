@@ -15,6 +15,12 @@ import type { BriefingSnapshot } from './types.js';
  * `Verify` (Phase 3.3) is the second layer of defense — claims without
  * a matching source reference are stripped regardless of what made it
  * into the draft.
+ *
+ * §4.5 UI rework: the model emits its prose as an ordered list of
+ * `segments` instead of a single free-text draft. Each segment carries
+ * the claim ids that back it; `Format` resolves those ids against the
+ * verifier's accepted-claims set so the UI can render per-segment
+ * citation chips and redact segments whose claims were rejected.
  */
 export const CHART_DELIMITER = 'CHART_DATA';
 
@@ -34,7 +40,41 @@ ABSOLUTE RULES:
 
 5. Output only the structured JSON the schema requires. Do not include reasoning, commentary, or formatting outside the schema.
 
-The briefing follows a fixed structure: appointment context, demographics, deltas since last visit, active diagnoses, current medications, recent labs, allergies, recent encounters. Prioritize what is clinically notable within each section.`;
+OUTPUT SHAPE:
+
+The schema asks for two parallel structures: \`segments\` (the prose the physician will read) and \`ledger\` (the claim ledger backing the prose). They are linked by id.
+
+- \`segments\` is an ordered list. Each segment is one short prose run — typically a clause or a short sentence — plus a \`claimIds\` array listing the ids of every claim in the ledger that backs that segment's factual content.
+- A factual segment ("She is on metformin 500 mg twice daily.") MUST list at least one claimId. The renderer turns each claimId into a citation chip linking to the source record.
+- A connector segment ("She also reports") that carries no factual content has \`claimIds: []\`. Use connectors sparingly — just enough to make the prose read like a briefing rather than bullet points.
+- Every claimId in a segment MUST appear in \`ledger.claims\`. The verifier rejects segments whose ids are missing or whose claims were dropped, replacing them with a redaction notice — keep your ids consistent.
+- The briefing as a whole follows a fixed order: appointment context, demographics, deltas since last visit, active diagnoses, current medications, recent labs, allergies, recent encounters. Prioritize what is clinically notable within each topic.
+
+WORKED EXAMPLE (illustrative; do not copy literally):
+
+\`\`\`json
+{
+  "segments": [
+    { "text": "Mrs. Patel returns this morning for a 20-minute diabetes follow-up.", "claimIds": ["apt-1", "id-1"] },
+    { "text": "Her active diagnoses include type 2 diabetes (E11.9).", "claimIds": ["dx-1"] },
+    { "text": "She is currently taking metformin 500 mg PO BID.", "claimIds": ["med-1"] },
+    { "text": "Her most recent A1c was 8.4% on 2026-04-15, flagged high.", "claimIds": ["lab-1"] },
+    { "text": "Recorded allergy: penicillin (hives).", "claimIds": ["alg-1"] }
+  ],
+  "ledger": {
+    "claims": [
+      { "id": "apt-1", "text": "20-minute diabetes follow-up appointment", "category": "appointment", "sourceReferences": [{"system": "openemr", "recordType": "Appointment", "recordId": "apt-1", "field": null, "recordedAt": null}], "safetyCritical": false },
+      { "id": "id-1", "text": "Mrs. Patel demographics", "category": "identity", "sourceReferences": [{"system": "openemr", "recordType": "Patient", "recordId": "42", "field": null, "recordedAt": null}], "safetyCritical": false },
+      { "id": "dx-1", "text": "Type 2 diabetes (E11.9)", "category": "diagnosis", "sourceReferences": [{"system": "openemr", "recordType": "Condition", "recordId": "c-1", "field": null, "recordedAt": null}], "safetyCritical": false },
+      { "id": "med-1", "text": "Metformin 500 mg PO BID", "category": "medication", "sourceReferences": [{"system": "openemr", "recordType": "MedicationRequest", "recordId": "rx-1", "field": null, "recordedAt": null}], "safetyCritical": true },
+      { "id": "lab-1", "text": "A1c 8.4% on 2026-04-15 (flagged high)", "category": "lab", "sourceReferences": [{"system": "openemr", "recordType": "Observation", "recordId": "lab-1", "field": null, "recordedAt": null}], "safetyCritical": false },
+      { "id": "alg-1", "text": "Penicillin allergy with hives reaction", "category": "allergy", "sourceReferences": [{"system": "openemr", "recordType": "AllergyIntolerance", "recordId": "a-1", "field": null, "recordedAt": null}], "safetyCritical": true }
+    ]
+  }
+}
+\`\`\`
+
+Keep prose tight. The physician reads this in seconds before walking into the room.`;
 
 /**
  * Build the user message wrapping the snapshot in the named delimiter.

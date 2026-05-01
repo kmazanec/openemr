@@ -1,17 +1,26 @@
 /**
- * Clinical Co-Pilot panel renderer.
+ * Clinical Co-Pilot panel renderer (chat-thread shape).
  *
  * Opens a streaming POST to the agent proxy, parses SSE events, and
- * renders each `section` event into the matching `<section>` block. Source
- * references travel as structured `SourceReference` objects on every claim
- * — the renderer turns each one into a `[source]` chip with a tooltip and,
- * where possible, a deep link to the OpenEMR record.
+ * renders the resulting `assistantMessage` into a chat thread. Each
+ * segment of an assistant message is one inline run of prose; per-claim
+ * `[source]` chips link to the OpenEMR record where practical. Redacted
+ * segments — segments whose claims were rejected by the verifier or
+ * suppressed by a safety hard stop — render as a muted "[content
+ * withheld]" notice so the renderer never asserts an unverified fact.
  *
- * Failure-state policy (§3.4 plan):
- *   - Whole-stream errors render "Briefing unavailable."
- *   - A `Gap`-shaped section payload renders the gap message verbatim
- *     ("Allergies could not be verified", "Medication summary withheld",
- *     etc.). A section never silently disappears.
+ * Failure-state policy:
+ *   - Whole-stream errors render an error bubble using the typed error
+ *     code from the agent's `errorClassifier.ts`.
+ *   - Message-level `gaps` (allergies-unavailable, etc.) render as a
+ *     yellow warning banner inside the assistant bubble.
+ *   - Redactions stay visible — we never silently drop content.
+ *
+ * Composer (free-text follow-up input) is rendered disabled in this
+ * phase; the agent backend doesn't yet branch on `task: 'follow_up'`,
+ * so wiring submit would create a visibly broken interaction. The
+ * disabled state is set in HTML and intentionally not lifted here.
+ * That changes in the next phase, when the rest of §4.5 lands.
  */
 (function () {
     'use strict';
@@ -25,9 +34,20 @@
     const pid = Number.parseInt(root.dataset.pid, 10);
     const siteId = root.dataset.siteId || 'default';
     const statusEl = root.querySelector('[data-role="status"]');
+    const threadEl = root.querySelector('[data-role="thread"]');
 
     const conversationId = `conv-${pid}-${Date.now()}`;
     const requestId = `req-${pid}-${Date.now()}`;
+
+    /**
+     * In-memory thread. The renderer reconciles to the DOM from this
+     * array on every change so the DOM never holds state the model
+     * doesn't reflect. Each entry is one bubble.
+     *
+     *   { role: 'assistant', message: AssistantMessage }
+     *   { role: 'assistant', error: { code: string } }
+     */
+    const thread = [];
 
     const setStatus = (text, kind) => {
         if (!statusEl) return;
@@ -44,9 +64,9 @@
     /**
      * Map a SourceReference to a stable record-view URL where there is
      * one. "Where practical" per the plan — diagnoses, encounters, and
-     * patient demographics have well-known view pages; others render as a
-     * tooltip-only chip. The record-id is always shown in the tooltip so
-     * even unmappable types are auditable from the UI.
+     * patient demographics have well-known view pages; others render as
+     * a tooltip-only chip. The record-id is always shown in the tooltip
+     * so even unmappable types are auditable from the UI.
      */
     const sourceLinkUrl = (source) => {
         if (!source || !source.recordType || !source.recordId) return null;
@@ -80,53 +100,44 @@
         return `<span class="copilot-source copilot-source--inert" title="${escapeText(tooltip)}">[source]</span>`;
     };
 
-    const renderEntry = (entry) =>
-        `<li>${escapeText(entry.text)} ${renderSourceChip(entry.source)}</li>`;
-
-    const isGap = (payload) =>
-        payload && typeof payload === 'object' && payload.kind === 'gap';
-
-    const renderSection = (sectionEl, payload) => {
-        const content = sectionEl.querySelector('[data-role="content"]');
-        if (!content) return;
-        sectionEl.dataset.state = 'rendered';
-
-        if (isGap(payload)) {
-            sectionEl.dataset.state = 'gap';
-            const message = payload.message || 'Section unavailable.';
-            content.innerHTML = `<p class="copilot-gap" role="status">${escapeText(message)}</p>`;
-            return;
-        }
-
-        if (Array.isArray(payload)) {
-            if (payload.length === 0) {
-                content.innerHTML = `<p class="copilot-empty">${escapeText('None recorded.')}</p>`;
-                return;
+    /**
+     * Render every source reference on every claim attached to a
+     * segment. Each claim may carry multiple source references (a
+     * cross-cited fact); we render one chip per ref so the clinician
+     * can audit each provenance independently.
+     */
+    const renderSegmentChips = (claims) => {
+        if (!Array.isArray(claims) || claims.length === 0) return '';
+        const chips = [];
+        for (const claim of claims) {
+            const refs = (claim && claim.sourceReferences) || [];
+            for (const ref of refs) {
+                chips.push(renderSourceChip(ref));
             }
-            content.innerHTML = `<ul class="copilot-list">${payload.map(renderEntry).join('')}</ul>`;
-            return;
         }
-
-        // Single-entry payload (appointment, demographics).
-        if (payload && typeof payload === 'object' && 'text' in payload) {
-            content.innerHTML = `<p class="copilot-entry">${escapeText(payload.text)} ${renderSourceChip(payload.source)}</p>`;
-            return;
-        }
-
-        content.innerHTML = `<p class="copilot-empty">${escapeText('—')}</p>`;
+        return chips.join(' ');
     };
 
-    const handleSectionEvent = (data) => {
-        const sectionEl = root.querySelector(`[data-section="${data.section}"]`);
-        if (!sectionEl) return;
-        renderSection(sectionEl, data.payload);
+    const renderSegment = (segment) => {
+        if (!segment) return '';
+        if (segment.redacted) {
+            return `<span class="copilot-segment copilot-segment--redacted" title="${escapeText('Withheld by the verification gate')}">${escapeText(segment.text)}</span>`;
+        }
+        const chips = renderSegmentChips(segment.claims);
+        return `<span class="copilot-segment">${escapeText(segment.text)}${chips ? ' ' + chips : ''}</span>`;
+    };
+
+    const renderGapsBanner = (gaps) => {
+        if (!Array.isArray(gaps) || gaps.length === 0) return '';
+        return gaps
+            .map((g) => `<p class="copilot-gap" role="status">${escapeText(g.message || 'Section unavailable.')}</p>`)
+            .join('');
     };
 
     /**
-     * Map an SSE error code to a user-facing message. Codes are emitted by
-     * the agent's `errorClassifier.ts`; the user never sees the raw code or
-     * any provider name. Operators see the code in the network tab and the
-     * agent log if they need to drill in. Keep this map in sync with
+     * Map an SSE error code to a user-facing message. Codes are emitted
+     * by the agent's `errorClassifier.ts`; the user never sees the raw
+     * code or any provider name. Keep this map in sync with
      * `agent/src/server/errorClassifier.ts`.
      */
     const BRIEFING_ERROR_MESSAGES = {
@@ -148,17 +159,44 @@
     const messageForCode = (code) =>
         BRIEFING_ERROR_MESSAGES[code] || BRIEFING_ERROR_MESSAGES.briefing_failed;
 
+    const renderBubble = (entry) => {
+        if (!entry) return '';
+        if (entry.role === 'assistant' && entry.error) {
+            return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--error" data-role="bubble" data-state="error">
+                <p class="copilot-error" role="status">${escapeText(messageForCode(entry.error.code))}</p>
+            </article>`;
+        }
+        if (entry.role === 'assistant' && entry.message) {
+            const segments = (entry.message.segments || []).map(renderSegment).join(' ');
+            const gaps = renderGapsBanner(entry.message.gaps);
+            return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered">
+                ${gaps}
+                <div class="copilot-bubble__body">${segments}</div>
+            </article>`;
+        }
+        if (entry.role === 'user' && entry.text) {
+            return `<article class="copilot-bubble copilot-bubble--user" data-role="bubble">
+                <div class="copilot-bubble__body">${escapeText(entry.text)}</div>
+            </article>`;
+        }
+        return '';
+    };
+
+    const renderThread = () => {
+        if (!threadEl) return;
+        threadEl.innerHTML = thread.map(renderBubble).join('');
+    };
+
+    const handleAssistantMessage = (data) => {
+        if (!data || !data.message) return;
+        thread.push({ role: 'assistant', message: data.message });
+        renderThread();
+    };
+
     const renderFatalError = (code) => {
         setStatus('Briefing unavailable.', 'error');
-        const message = messageForCode(code);
-        root.querySelectorAll('[data-section]').forEach((sectionEl) => {
-            if (sectionEl.dataset.state) return;
-            const content = sectionEl.querySelector('[data-role="content"]');
-            if (content) {
-                sectionEl.dataset.state = 'error';
-                content.innerHTML = `<p class="copilot-error" role="status">${escapeText(message)}</p>`;
-            }
-        });
+        thread.push({ role: 'assistant', error: { code: code || 'briefing_failed' } });
+        renderThread();
     };
 
     const handleEvent = (data) => {
@@ -167,8 +205,8 @@
             case 'meta':
                 setStatus('Streaming briefing…', 'streaming');
                 break;
-            case 'section':
-                handleSectionEvent(data);
+            case 'assistantMessage':
+                handleAssistantMessage(data);
                 break;
             case 'done':
                 setStatus('Briefing ready.', 'ready');
@@ -204,15 +242,34 @@
                     handleEvent(JSON.parse(dataLine.slice('data: '.length)));
                 } catch (err) {
                     // Malformed payloads should not blow up the renderer.
-                    // Fall through; the fatal error handler below will catch
-                    // a permanently empty stream.
+                    // The fatal error path catches a permanently broken
+                    // stream below.
                     console.error('copilot: failed to parse SSE payload', err);
                 }
             }
         }
     };
 
+    /**
+     * Composer submit handler — stub for this phase.
+     *
+     * The textarea + button are rendered disabled, so this should never
+     * fire from a real user gesture. The handler exists so a phase-4.5
+     * follow-up can swap it out without re-wiring the form's event
+     * subscription.
+     */
+    const wireComposer = () => {
+        const form = root.querySelector('[data-role="composer"]');
+        if (!form) return;
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // Intentional no-op — see file header. The next phase routes
+            // the question to /v1/agent/briefing with task: 'follow_up'.
+        });
+    };
+
     const start = async () => {
+        wireComposer();
         setStatus('Connecting to Co-Pilot…', 'connecting');
         try {
             const response = await fetch(`${proxyUrl}?action=briefing&pid=${encodeURIComponent(pid)}`, {

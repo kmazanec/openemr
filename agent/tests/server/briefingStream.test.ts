@@ -5,7 +5,7 @@ import {
     eventsForBriefing,
     type BriefingStreamEvent,
 } from '../../src/server/briefingStream.js';
-import type { FormattedBriefing, PersistedRecord, RequestEnvelope } from '../../src/graph/types.js';
+import type { AssistantMessage, Claim, PersistedRecord, RequestEnvelope } from '../../src/graph/types.js';
 import type { SourceReference } from '../../src/snapshot/types.js';
 
 const sourceRef = (recordType: string, recordId: string): SourceReference => ({
@@ -25,18 +25,19 @@ const envelope: RequestEnvelope = {
     task: 'default_briefing',
 };
 
-const buildFormatted = (overrides: Partial<FormattedBriefing> = {}): FormattedBriefing => ({
-    appointment: { text: 'No appointment in scope', source: null },
-    demographics: { text: 'Patel, Maya (DOB 1958-03-15) F', source: sourceRef('Patient', '42') },
-    activeDiagnoses: [
-        { text: 'E11.9 (ICD-10) — Type 2 diabetes', source: sourceRef('Condition', 'c-1') },
+const dxClaim: Claim = {
+    id: 'dx-1',
+    text: 'Type 2 diabetes',
+    category: 'diagnosis',
+    sourceReferences: [sourceRef('Condition', 'c-1')],
+    safetyCritical: false,
+};
+
+const buildMessage = (overrides: Partial<AssistantMessage> = {}): AssistantMessage => ({
+    segments: [
+        { text: 'She has type 2 diabetes (E11.9).', claims: [dxClaim], redacted: false },
     ],
-    currentMedications: [
-        { text: 'Metformin 500 mg BID PO', source: sourceRef('MedicationRequest', 'rx-1') },
-    ],
-    allergies: [{ text: 'Penicillin (Hives)', source: sourceRef('AllergyIntolerance', 'a-1') }],
-    recentLabs: [],
-    recentEncounters: [],
+    gaps: [],
     ...overrides,
 });
 
@@ -47,56 +48,63 @@ const persisted: PersistedRecord = {
 };
 
 describe('eventsForBriefing', () => {
-    it('emits meta first, one event per section, done last', () => {
-        const events = eventsForBriefing(envelope, buildFormatted(), persisted);
-        expect(events[0]?.type).toBe('meta');
-        expect(events.at(-1)?.type).toBe('done');
-        const sectionNames = events.filter((e) => e.type === 'section').map((e) => e.section);
-        expect(sectionNames).toEqual([
-            'appointment',
-            'demographics',
-            'activeDiagnoses',
-            'currentMedications',
-            'allergies',
-            'recentLabs',
-            'recentEncounters',
-        ]);
+    it('emits meta first, one assistantMessage event, done last', () => {
+        const events = eventsForBriefing(envelope, buildMessage(), persisted);
+        expect(events.map((e) => e.type)).toEqual(['meta', 'assistantMessage', 'done']);
     });
 
-    it('preserves SourceReference structure on each section payload (citation tag intact)', () => {
-        const events = eventsForBriefing(envelope, buildFormatted(), persisted);
-        const dxEvent = events.find(
-            (e): e is Extract<BriefingStreamEvent, { type: 'section' }> =>
-                e.type === 'section' && e.section === 'activeDiagnoses',
+    it('preserves Claim + SourceReference structure on the assistant message (citation tag intact)', () => {
+        const events = eventsForBriefing(envelope, buildMessage(), persisted);
+        const msgEvent = events.find(
+            (e): e is Extract<BriefingStreamEvent, { type: 'assistantMessage' }> =>
+                e.type === 'assistantMessage',
         );
-        expect(dxEvent).toBeDefined();
-        expect(Array.isArray(dxEvent!.payload)).toBe(true);
-        const list = dxEvent!.payload as readonly { source: SourceReference }[];
-        expect(list[0]?.source).toEqual(sourceRef('Condition', 'c-1'));
+        expect(msgEvent).toBeDefined();
+        const segment = msgEvent!.message.segments[0];
+        expect(segment?.claims[0]?.sourceReferences[0]).toEqual(sourceRef('Condition', 'c-1'));
     });
 
-    it('passes through a Gap section unchanged so the UI can render the failure state', () => {
-        const formatted = buildFormatted({
-            currentMedications: {
+    it('passes message-level gaps through unchanged so the UI can render the failure-state banner', () => {
+        const message = buildMessage({
+            gaps: [
+                {
+                    kind: 'gap',
+                    reason: 'allergies-unavailable',
+                    message: 'Allergy data is unavailable; medication summary withheld.',
+                },
+            ],
+        });
+        const events = eventsForBriefing(envelope, message, persisted);
+        const msgEvent = events.find(
+            (e): e is Extract<BriefingStreamEvent, { type: 'assistantMessage' }> =>
+                e.type === 'assistantMessage',
+        );
+        expect(msgEvent?.message.gaps).toEqual([
+            {
                 kind: 'gap',
                 reason: 'allergies-unavailable',
                 message: 'Allergy data is unavailable; medication summary withheld.',
             },
+        ]);
+    });
+
+    it('preserves redacted segments verbatim — the agent never ships the original text', () => {
+        const message = buildMessage({
+            segments: [
+                { text: '[content withheld — could not be verified]', claims: [], redacted: true },
+            ],
         });
-        const events = eventsForBriefing(envelope, formatted, persisted);
-        const meds = events.find(
-            (e): e is Extract<BriefingStreamEvent, { type: 'section' }> =>
-                e.type === 'section' && e.section === 'currentMedications',
+        const events = eventsForBriefing(envelope, message, persisted);
+        const msgEvent = events.find(
+            (e): e is Extract<BriefingStreamEvent, { type: 'assistantMessage' }> =>
+                e.type === 'assistantMessage',
         );
-        expect(meds?.payload).toEqual({
-            kind: 'gap',
-            reason: 'allergies-unavailable',
-            message: 'Allergy data is unavailable; medication summary withheld.',
-        });
+        expect(msgEvent?.message.segments[0]?.redacted).toBe(true);
+        expect(msgEvent?.message.segments[0]?.claims).toEqual([]);
     });
 
     it('meta event carries envelope identifiers from the request envelope', () => {
-        const events = eventsForBriefing(envelope, buildFormatted(), persisted);
+        const events = eventsForBriefing(envelope, buildMessage(), persisted);
         const meta = events[0];
         expect(meta).toEqual({
             type: 'meta',

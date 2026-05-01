@@ -70,7 +70,12 @@ const buildClient = (): SnapshotClient => ({
 });
 
 const buildSynth = (): Synthesizer =>
-    vi.fn(() => Promise.resolve({ draft: 'Briefing.', ledger: cannedLedger }));
+    vi.fn(() =>
+        Promise.resolve({
+            draft: { segments: [{ text: 'Briefing.', claimIds: ['c-1'] }] },
+            ledger: cannedLedger,
+        }),
+    );
 
 describe('createBriefingRunner — §3.5 conversation persistence', () => {
     it('first invocation creates a canonical conversation id and overrides the browser-supplied one', async () => {

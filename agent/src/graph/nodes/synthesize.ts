@@ -4,13 +4,19 @@ import { z } from 'zod';
 
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import { SYSTEM_PROMPT, buildUserMessage } from '../synthesize.prompt.js';
-import type { BriefingSnapshot, ClaimLedger } from '../types.js';
+import type { BriefingSnapshot, ClaimLedger, DraftBriefing } from '../types.js';
 
 /**
- * Zod schema for the structured claim ledger the model must emit.
- * Mirrors `Claim` / `ClaimLedger` in `types.ts`. `withStructuredOutput`
- * coerces the model into this shape and retries on a malformed parse,
- * giving us strict-JSON behavior without hand-rolled repair logic.
+ * Zod schema for the structured output the model emits. Mirrors
+ * `DraftBriefing` (segmented prose) + `ClaimLedger` in `types.ts`.
+ * `withStructuredOutput` coerces the model into this shape and retries on
+ * a malformed parse, giving us strict-JSON behavior without hand-rolled
+ * repair logic.
+ *
+ * Cross-validation that every `claimIds` entry actually appears in the
+ * ledger lives in `format.ts`, not the schema. A model that names a
+ * missing id should produce a redacted segment, not a hard parse failure
+ * that costs a retry.
  */
 const sourceReferenceSchema = z.object({
     system: z.string().min(1),
@@ -36,21 +42,28 @@ const claimSchema = z.object({
     safetyCritical: z.boolean(),
 });
 
+const draftSegmentSchema = z.object({
+    text: z.string().min(1),
+    claimIds: z.array(z.string().min(1)),
+});
+
 const synthesisOutputSchema = z.object({
-    draft: z
-        .string()
+    segments: z
+        .array(draftSegmentSchema)
         .min(1)
-        .describe('Free-text briefing the physician will read. Must follow the fixed structure.'),
+        .describe(
+            'Ordered prose segments the physician will read. Each segment lists the ledger claim ids that back it; connector segments use an empty claimIds array.',
+        ),
     ledger: z
         .object({
             claims: z.array(claimSchema),
         })
-        .describe('Every factual claim in `draft`, with the source records that back it.'),
+        .describe('Every factual claim referenced by the segments, with the source records that back it.'),
 });
 
 export type Synthesizer = (input: {
     snapshot: BriefingSnapshot;
-}) => Promise<{ draft: string; ledger: ClaimLedger }>;
+}) => Promise<{ draft: DraftBriefing; ledger: ClaimLedger }>;
 
 export interface SynthesizeDeps {
     readonly synthesizer: Synthesizer;
@@ -94,6 +107,9 @@ export const createAnthropicSynthesizer = (options?: {
             new SystemMessage(SYSTEM_PROMPT),
             new HumanMessage(buildUserMessage(snapshot)),
         ]);
-        return { draft: out.draft, ledger: out.ledger };
+        return {
+            draft: { segments: out.segments },
+            ledger: out.ledger,
+        };
     };
 };

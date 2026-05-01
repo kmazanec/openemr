@@ -72,13 +72,16 @@ const ledger: ClaimLedger = {
     ],
 };
 
+const draft = {
+    segments: [
+        { text: 'Mrs. Patel, here for diabetes follow-up.', claimIds: ['c-1'] },
+    ],
+};
+
 describe('createSynthesize', () => {
     it('calls the synthesizer with the assembled prompt and returns its draft + ledger', async () => {
         const synth: Synthesizer = vi.fn(() =>
-            Promise.resolve({
-                draft: 'Mrs. Patel, here for diabetes follow-up.',
-                ledger,
-            }),
+            Promise.resolve({ draft, ledger }),
         );
         const node = createSynthesize({ synthesizer: synth });
 
@@ -89,7 +92,7 @@ describe('createSynthesize', () => {
         });
 
         expect(synth).toHaveBeenCalledTimes(1);
-        expect(out.draft).toBe('Mrs. Patel, here for diabetes follow-up.');
+        expect(out.draft).toEqual(draft);
         expect(out.claimLedger).toEqual(ledger);
     });
 

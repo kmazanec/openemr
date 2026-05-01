@@ -909,6 +909,20 @@ follow-up questions yet.
   module's `openemr.bootstrap.php`. PHPUnit-isolated coverage in
   `BootstrapTest` pins both listeners' contracts.)
 
+> §4.5 UI rework (landed alongside §4.5 free-text fallback planning):
+> the §3.4 panel was reshaped from a seven-section list view into a
+> chat-thread shape. The synthesizer now emits an ordered list of prose
+> `segments` (each tagged with the claim ids that back it) instead of a
+> single `draft` string. `Format` resolves segment claim ids against
+> the verifier's accepted set and replaces text with a redaction notice
+> when an id is missing or rejected — coherent fail-closed, the
+> renderer never sees an unverified fact. The SSE protocol drops the
+> seven `section` events for one `assistantMessage` event carrying an
+> `AssistantMessage = { segments: [{ text, claims, redacted }], gaps:
+> [...] }`. The browser renders one assistant bubble per message with
+> inline `[source]` chips per claim, plus a sticky composer that is
+> disabled until the rest of §4.5 (graph-side follow-up routing) lands.
+
 ### 3.5 Conversation persistence
 - [x] On first chart open, agent creates a `conversation(user_id,
   patient_id, appointment_id?)` row; subsequent opens resume it

@@ -105,7 +105,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
-            draft: 'irrelevant',
+            draft: null,
             claimLedger: { claims: [goodClaim] },
             verified: null,
             formatted: null,
@@ -125,7 +125,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
-            draft: '',
+            draft: null,
             claimLedger: { claims: [goodClaim, orphanClaim] },
             verified: null,
             formatted: null,
@@ -150,7 +150,7 @@ describe('createVerify', () => {
             node({
                 envelope,
                 snapshot: null,
-                draft: '',
+                draft: null,
                 claimLedger: { claims: [goodClaim] },
                 verified: null,
                 formatted: null,
@@ -166,7 +166,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
-            draft: '',
+            draft: null,
             claimLedger: null,
             verified: null,
             formatted: null,
@@ -189,7 +189,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
-            draft: '',
+            draft: null,
             claimLedger: { claims: [orphanClaim] },
             verified: null,
             formatted: null,

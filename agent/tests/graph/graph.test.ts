@@ -92,7 +92,14 @@ const cannedLedger: ClaimLedger = {
 };
 
 const buildSynth = (): Synthesizer =>
-    vi.fn(() => Promise.resolve({ draft: 'Synthesized briefing.', ledger: cannedLedger }));
+    vi.fn(() =>
+        Promise.resolve({
+            draft: {
+                segments: [{ text: 'Mrs. Patel has type 2 diabetes.', claimIds: ['c-1'] }],
+            },
+            ledger: cannedLedger,
+        }),
+    );
 
 describe('createBriefingGraph end-to-end (UC1 path)', () => {
     it('runs LoadState → PlanContext → Retrieve → Synthesize → Verify → Format → Persist', async () => {
@@ -108,11 +115,12 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
 
         expect(out.snapshot).toBeDefined();
         expect(out.snapshot?.patient.pid).toBe(PID);
-        expect(out.draft).toBe('Synthesized briefing.');
+        expect(out.draft?.segments).toHaveLength(1);
         expect(out.claimLedger).toEqual(cannedLedger);
         expect(out.verified?.passed).toBe(true);
         expect(out.formatted).toBeDefined();
-        expect(out.formatted?.demographics.text).toContain('Patel, Maya');
+        expect(out.formatted?.segments[0]?.text).toContain('Mrs. Patel');
+        expect(out.formatted?.segments[0]?.redacted).toBe(false);
         expect(out.persisted?.conversationId).toBe('c-1');
     });
 

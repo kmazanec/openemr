@@ -155,17 +155,32 @@ describe('POST /v1/agent/briefing', () => {
         const events: readonly BriefingStreamEvent[] = [
             { type: 'meta', conversationId: 'conv-1', requestId: 'req-1', siteId: 'default' },
             {
-                type: 'section',
-                section: 'demographics',
-                payload: {
-                    text: 'Patel, Maya',
-                    source: {
-                        system: 'openemr',
-                        recordType: 'Patient',
-                        recordId: '42',
-                        field: null,
-                        recordedAt: null,
-                    },
+                type: 'assistantMessage',
+                message: {
+                    segments: [
+                        {
+                            text: 'Patel, Maya is here for a follow-up.',
+                            claims: [
+                                {
+                                    id: 'id-1',
+                                    text: 'Patient demographics',
+                                    category: 'identity',
+                                    sourceReferences: [
+                                        {
+                                            system: 'openemr',
+                                            recordType: 'Patient',
+                                            recordId: '42',
+                                            field: null,
+                                            recordedAt: null,
+                                        },
+                                    ],
+                                    safetyCritical: false,
+                                },
+                            ],
+                            redacted: false,
+                        },
+                    ],
+                    gaps: [],
                 },
             },
             { type: 'done', persistedAt: '2026-04-30T12:00:00.000Z' },
@@ -189,7 +204,7 @@ describe('POST /v1/agent/briefing', () => {
         expect(res.headers.get('content-type')).toContain('text/event-stream');
         const text = await res.text();
         const eventLines = text.split('\n').filter((l) => l.startsWith('event: '));
-        expect(eventLines).toEqual(['event: meta', 'event: section', 'event: done']);
+        expect(eventLines).toEqual(['event: meta', 'event: assistantMessage', 'event: done']);
     });
 
     it('emits a typed error event when the runner throws (failure-state UI surface)', async () => {

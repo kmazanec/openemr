@@ -2,9 +2,10 @@ import { Annotation } from '@langchain/langgraph';
 import { LastValue } from '@langchain/langgraph/channels';
 
 import type {
+    AssistantMessage,
     BriefingSnapshot,
     ClaimLedger,
-    FormattedBriefing,
+    DraftBriefing,
     PersistedRecord,
     RequestEnvelope,
     VerifiedLedger,
@@ -13,9 +14,10 @@ import type {
 /**
  * Plan §3.2 state shape: `{envelope, snapshot, draft, claimLedger,
  * verified, formatted, persisted}`. Each downstream node populates its
- * own slot — the `draft` (free-text Sonnet output) is kept alongside
- * the structured `claimLedger` so `Verify` (Phase 3.3) can compare the
- * two. Defaults are null so a partially-run graph state is recognizable.
+ * own slot — `draft` carries the synthesizer's segmented prose and the
+ * structured `claimLedger` so `Verify` can score the latter and `Format`
+ * can resolve segment claim ids against the former. Defaults are null so
+ * a partially-run graph state is recognizable.
  *
  * Slots use `LastValue<T>` directly rather than `Annotation<T>({reducer,
  * default})`. The latter wraps the Update type as `T | OverwriteValue<T>`
@@ -29,10 +31,10 @@ const lastValueChannel = <T>(factory: () => T): (() => LastValue<T>) =>
 export const BriefingStateAnnotation = Annotation.Root({
     envelope: Annotation<RequestEnvelope>,
     snapshot: lastValueChannel<BriefingSnapshot | null>(() => null),
-    draft: lastValueChannel<string | null>(() => null),
+    draft: lastValueChannel<DraftBriefing | null>(() => null),
     claimLedger: lastValueChannel<ClaimLedger | null>(() => null),
     verified: lastValueChannel<VerifiedLedger | null>(() => null),
-    formatted: lastValueChannel<FormattedBriefing | null>(() => null),
+    formatted: lastValueChannel<AssistantMessage | null>(() => null),
     persisted: lastValueChannel<PersistedRecord | null>(() => null),
 });
 

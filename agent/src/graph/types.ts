@@ -81,25 +81,58 @@ export interface VerifiedLedger {
 }
 
 /**
- * Final clinician-facing payload `Format` produces. Sections mirror the
- * USERS.md "Default Briefing Structure" so a future renderer (§3.4) can
- * walk the structure without further parsing. Each section may be a
- * gap — the verifier and the failure-state UI honor that explicitly.
+ * Synthesizer output before `Format` resolves claim ids. Each segment is
+ * one prose run the model wants to say about the patient, plus the ledger
+ * ids of the claims that back it. Connector segments (transitions, signposts)
+ * carry an empty `claimIds` so the schema does not encourage the model to
+ * invent citations for grammatical glue.
  */
-export interface FormattedBriefing {
-    readonly appointment: { readonly text: string; readonly source: SourceReference | null };
-    readonly demographics: { readonly text: string; readonly source: SourceReference };
-    readonly activeDiagnoses: readonly { readonly text: string; readonly source: SourceReference }[];
+export interface DraftSegment {
+    readonly text: string;
+    readonly claimIds: readonly string[];
+}
+
+export interface DraftBriefing {
+    readonly segments: readonly DraftSegment[];
+}
+
+/**
+ * Final clinician-facing payload `Format` produces — a single ordered list
+ * of prose segments with their backing claims attached, plus message-level
+ * gaps for safety hard stops. The §3.4 UI renders this as a chat bubble:
+ * each segment becomes an inline run with `[source]` chips, redacted
+ * segments render as "[content withheld]", and gaps surface as warning
+ * banners at the top of the bubble.
+ *
+ * Replaces the seven-section `FormattedBriefing` shape used through §3.3.
+ * The verifier-driven fail-closed semantics (allergies-unavailable →
+ * suppress medication content) carry over: matching segments are redacted
+ * before they leave `Format`.
+ */
+export interface AssistantMessageSegment {
+    readonly text: string;
     /**
-     * §3.3: the medication section becomes a `Gap` when the verifier
-     * reports a safety hard stop (allergies or medications unavailable).
-     * The §3.4 UI must render the gap as "Medication summary unavailable"
-     * — never as an empty list, which would read as "no medications".
+     * Claims (post-verifier) that back the segment text. Empty for
+     * connector segments and for redacted segments.
      */
-    readonly currentMedications: readonly { readonly text: string; readonly source: SourceReference }[] | Gap;
-    readonly recentLabs: readonly { readonly text: string; readonly source: SourceReference }[] | Gap;
-    readonly allergies: readonly { readonly text: string; readonly source: SourceReference }[];
-    readonly recentEncounters: readonly { readonly text: string; readonly source: SourceReference }[] | Gap;
+    readonly claims: readonly Claim[];
+    /**
+     * True when at least one claim id named by the synthesizer was
+     * rejected by the verifier or missing from the ledger, OR the segment
+     * was suppressed by a safety hard stop. The renderer never asserts
+     * the original text in either case.
+     */
+    readonly redacted: boolean;
+}
+
+export interface AssistantMessage {
+    readonly segments: readonly AssistantMessageSegment[];
+    /**
+     * Safety hard stops surfaced once at message level rather than per
+     * section. UI renders as a yellow-bar warning at the top of the
+     * assistant bubble.
+     */
+    readonly gaps: readonly Gap[];
 }
 
 export interface PersistedRecord {

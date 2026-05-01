@@ -3,13 +3,19 @@
 /**
  * Isolated render check for the Clinical Co-Pilot panel template.
  *
- * Doesn't go through the OpenEMR Twig stack — the panel template is
- * deliberately self-contained (no `extends`, no app-specific filters), so
- * we render it through a minimal `FilesystemLoader` and assert the
- * structural anchors the JS bundle relies on. The browser renderer keys
- * off `data-section` and `data-role` attributes; if those drift, the JS
- * silently fails to populate sections — which is exactly the kind of
+ * The panel template is deliberately self-contained (no `extends`, no
+ * app-specific filters) so we render it through a minimal
+ * `FilesystemLoader` and assert the structural anchors the JS bundle
+ * relies on. The browser renderer keys off `data-role` attributes on the
+ * thread, suggestions rail, and composer; if those drift, the JS
+ * silently fails to populate the chat — which is exactly the kind of
  * regression this test catches.
+ *
+ * §4.5 update: the panel was reshaped from seven hard-coded sections
+ * into a chat thread + composer. The previous `data-section="…"`
+ * anchors are gone; the new contract is `data-role="thread"`,
+ * `data-role="suggestions"`, `data-role="composer"`, `data-role="input"`,
+ * `data-role="submit"` plus the existing root-container attributes.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -62,31 +68,6 @@ final class PanelTemplateTest extends TestCase
     }
 
     #[Test]
-    public function rendersAllSevenSectionsWithMatchingDataAttributes(): void
-    {
-        $twig = self::buildTwig();
-        $html = $twig->render('panel.html.twig', self::defaultParams());
-
-        $expectedSections = [
-            'appointment',
-            'demographics',
-            'activeDiagnoses',
-            'currentMedications',
-            'allergies',
-            'recentLabs',
-            'recentEncounters',
-        ];
-
-        foreach ($expectedSections as $section) {
-            self::assertStringContainsString(
-                'data-section="' . $section . '"',
-                $html,
-                "Panel template missing section anchor for '$section'",
-            );
-        }
-    }
-
-    #[Test]
     public function rendersTheRootContainerWithProxyAndPidWiredForJs(): void
     {
         $twig = self::buildTwig();
@@ -105,6 +86,52 @@ final class PanelTemplateTest extends TestCase
         $html = $twig->render('panel.html.twig', self::defaultParams());
 
         self::assertStringContainsString('data-role="status"', $html);
+    }
+
+    #[Test]
+    public function rendersTheChatThreadAnchorTheJsAppendsBubblesInto(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('class="copilot-thread"', $html);
+        self::assertStringContainsString('data-role="thread"', $html);
+    }
+
+    #[Test]
+    public function rendersTheSuggestionsRailReservedForFollowupSuggestions(): void
+    {
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        // §4.1 will populate this rail. It ships hidden so an empty rail
+        // doesn't show a stripe of unused space below the bubble.
+        self::assertMatchesRegularExpression(
+            '/data-role="suggestions"[^>]*hidden|hidden[^>]*data-role="suggestions"/',
+            $html,
+        );
+    }
+
+    #[Test]
+    public function rendersTheComposerFormWithDisabledInputAndSubmit(): void
+    {
+        // The composer is rendered in this phase so the chat shape is
+        // visible end-to-end, but submit is intentionally disabled until
+        // §4.5's agent-side routing lands. The disabled state is set
+        // here in HTML, not lifted by JS; that pin protects against an
+        // accidental enable in a future refactor.
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('data-role="composer"', $html);
+        self::assertMatchesRegularExpression(
+            '/<textarea[^>]*data-role="input"[^>]*disabled/',
+            $html,
+        );
+        self::assertMatchesRegularExpression(
+            '/<button[^>]*data-role="submit"[^>]*disabled/',
+            $html,
+        );
     }
 
     #[Test]

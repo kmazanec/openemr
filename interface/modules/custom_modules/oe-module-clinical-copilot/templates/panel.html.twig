@@ -1,4 +1,10 @@
-{# Clinical Co-Pilot panel — rendered by public/panel.php. #}
+{# Clinical Co-Pilot panel — rendered by public/panel.php.
+
+   Shell-only template. The thread, suggestions rail, and composer are
+   populated entirely by `public/js/panel.js` from the SSE stream — PHP
+   does not render any briefing content. The data attributes are the
+   contract the JS bundle reads; PanelTemplateTest pins them.
+#}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,44 +17,26 @@
 <body>
     <main class="copilot-panel" data-pid="{{ pid }}" data-site-id="{{ siteId }}" data-proxy-url="{{ proxyUrl }}">
         <header class="copilot-panel__header">
-            <h1 class="copilot-panel__title">{{ 'Clinical Co-Pilot Briefing'|xlt }}</h1>
+            <h1 class="copilot-panel__title">{{ 'Clinical Co-Pilot'|xlt }}</h1>
             <p class="copilot-panel__subtitle" data-role="status">{{ 'Loading briefing…'|xlt }}</p>
         </header>
 
-        <section class="copilot-panel__section" data-section="appointment">
-            <h2>{{ 'Appointment'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
+        <div class="copilot-thread" data-role="thread"></div>
 
-        <section class="copilot-panel__section" data-section="demographics">
-            <h2>{{ 'Patient'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
+        <div class="copilot-suggestions" data-role="suggestions" hidden></div>
 
-        <section class="copilot-panel__section" data-section="activeDiagnoses">
-            <h2>{{ 'Active diagnoses'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
-
-        <section class="copilot-panel__section" data-section="currentMedications">
-            <h2>{{ 'Current medications'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
-
-        <section class="copilot-panel__section" data-section="allergies">
-            <h2>{{ 'Allergies'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
-
-        <section class="copilot-panel__section" data-section="recentLabs">
-            <h2>{{ 'Recent labs'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
-
-        <section class="copilot-panel__section" data-section="recentEncounters">
-            <h2>{{ 'Recent encounters'|xlt }}</h2>
-            <div data-role="content"></div>
-        </section>
+        <form class="copilot-composer" data-role="composer">
+            <textarea class="copilot-composer__input"
+                      data-role="input"
+                      name="question"
+                      rows="2"
+                      placeholder="{{ 'Follow-up questions coming soon'|xlt }}"
+                      disabled></textarea>
+            <button class="copilot-composer__submit"
+                    type="submit"
+                    data-role="submit"
+                    disabled>{{ 'Ask'|xlt }}</button>
+        </form>
     </main>
 
     <script src="{{ jsUrl }}" defer></script>

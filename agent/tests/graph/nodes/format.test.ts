@@ -4,6 +4,7 @@ import { format } from '../../../src/graph/nodes/format.js';
 import type {
     BriefingSnapshot,
     Claim,
+    DraftBriefing,
     RequestEnvelope,
     VerifiedLedger,
 } from '../../../src/graph/types.js';
@@ -34,118 +35,190 @@ const snapshot: BriefingSnapshot = {
         dateOfBirth: '1958-03-15',
         source: sourceRef('Patient', '42'),
     },
-    appointment: {
-        appointmentId: 'apt-1',
-        startAt: '2026-04-30T09:00:00+00:00',
-        durationMinutes: 20,
-        type: 'Office Visit',
-        reason: 'Diabetes follow-up',
-        source: sourceRef('Appointment', 'apt-1'),
-    },
-    diagnoses: [
-        {
-            code: 'E11.9',
-            codeSystem: 'ICD-10',
-            label: 'Type 2 diabetes',
-            onsetDate: '2020-01-01',
-            source: sourceRef('Condition', 'c-1'),
-        },
-    ],
-    medications: [
-        {
-            name: 'Metformin',
-            dose: '500 mg',
-            route: 'PO',
-            frequency: 'BID',
-            startDate: '2020-01-01',
-            stopDate: null,
-            prescriber: 'Dr. Patel',
-            source: sourceRef('MedicationRequest', 'rx-1'),
-        },
-    ],
-    allergies: [
-        {
-            substance: 'Penicillin',
-            reaction: 'Hives',
-            severity: 'Moderate',
-            source: sourceRef('AllergyIntolerance', 'a-1'),
-        },
-    ],
-    labs: [
-        {
-            analyte: 'A1c',
-            value: '8.4',
-            unit: '%',
-            referenceRange: '<7.0',
-            abnormalFlag: 'H',
-            observedAt: '2026-04-15',
-            source: sourceRef('Observation', 'lab-1'),
-        },
-    ],
-    encounters: [
-        {
-            encounterDate: '2026-03-01',
-            type: 'Office Visit',
-            reason: 'Diabetes follow-up',
-            source: sourceRef('Encounter', 'enc-1'),
-        },
-    ],
+    appointment: null,
+    diagnoses: [],
+    medications: [],
+    allergies: [],
+    labs: [],
+    encounters: [],
 };
 
-const verified: VerifiedLedger = {
+const dxClaim: Claim = {
+    id: 'dx-1',
+    text: 'Type 2 diabetes (E11.9)',
+    category: 'diagnosis',
+    sourceReferences: [sourceRef('Condition', 'c-1')],
+    safetyCritical: false,
+};
+
+const medClaim: Claim = {
+    id: 'med-1',
+    text: 'Metformin 500 mg PO BID',
+    category: 'medication',
+    sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
+    safetyCritical: true,
+};
+
+const allergyClaim: Claim = {
+    id: 'alg-1',
+    text: 'Penicillin allergy',
+    category: 'allergy',
+    sourceReferences: [sourceRef('AllergyIntolerance', 'a-1')],
+    safetyCritical: true,
+};
+
+const labClaim: Claim = {
+    id: 'lab-1',
+    text: 'A1c 8.4%',
+    category: 'lab',
+    sourceReferences: [sourceRef('Observation', 'lab-1')],
+    safetyCritical: false,
+};
+
+const cleanVerified: VerifiedLedger = {
     passed: true,
-    accepted: [],
+    accepted: [dxClaim, medClaim, allergyClaim, labClaim],
     rejected: [],
     safetyHardStops: [],
 };
 
+const draftSegments = (
+    ...segments: { text: string; claimIds: string[] }[]
+): DraftBriefing => ({ segments });
+
+const baseState = (overrides: { draft?: DraftBriefing; verified?: VerifiedLedger } = {}) => ({
+    envelope,
+    snapshot,
+    draft: overrides.draft ?? draftSegments(),
+    claimLedger: { claims: [dxClaim, medClaim, allergyClaim, labClaim] },
+    verified: overrides.verified ?? cleanVerified,
+    formatted: null,
+    persisted: null,
+});
+
 describe('format', () => {
-    it('renders every section of the default briefing structure with citations', async () => {
-        const out = await format({
-            envelope,
-            snapshot,
-            draft: 'irrelevant — Format walks snapshot+verified directly',
-            claimLedger: { claims: [] },
-            verified,
-            formatted: null,
-            persisted: null,
-        });
-
-        const f = out.formatted;
-        expect(f).toBeDefined();
-        if (f === null || f === undefined) return;
-        expect(f.appointment.text).toContain('Diabetes follow-up');
-        expect(f.demographics.text).toContain('Patel, Maya');
-        expect(f.activeDiagnoses[0]?.text).toContain('E11.9');
-        expect(Array.isArray(f.currentMedications)).toBe(true);
-        const meds = f.currentMedications as readonly { text: string }[];
-        expect(meds[0]?.text).toContain('Metformin');
-        expect(Array.isArray(f.recentLabs)).toBe(true);
-        const labs = f.recentLabs as readonly { text: string }[];
-        expect(labs[0]?.text).toContain('A1c');
-        expect(f.allergies[0]?.text).toContain('Penicillin');
-        expect(Array.isArray(f.recentEncounters)).toBe(true);
-    });
-
-    it('passes labs/encounters gaps through unchanged', async () => {
-        const withGaps: BriefingSnapshot = {
-            ...snapshot,
-            labs: { kind: 'gap', reason: 'endpoint-unavailable', message: 'labs unavailable' },
-            encounters: { kind: 'gap', reason: 'endpoint-unreachable', message: 'enc unavailable' },
-        };
-        const out = await format({
-            envelope,
-            snapshot: withGaps,
-            draft: '',
-            claimLedger: { claims: [] },
-            verified,
-            formatted: null,
-            persisted: null,
-        });
+    it('passes accepted segments through with their resolved claims attached', async () => {
+        const draft = draftSegments(
+            { text: 'Mrs. Patel has type 2 diabetes (E11.9).', claimIds: ['dx-1'] },
+            { text: 'She takes metformin 500 mg BID.', claimIds: ['med-1'] },
+        );
+        const out = await format(baseState({ draft }));
         const f = out.formatted;
         if (f === null || f === undefined) throw new Error('formatted missing');
-        expect(f.recentLabs).toMatchObject({ kind: 'gap' });
-        expect(f.recentEncounters).toMatchObject({ kind: 'gap' });
+        expect(f.segments).toHaveLength(2);
+        expect(f.segments[0]?.text).toContain('type 2 diabetes');
+        expect(f.segments[0]?.redacted).toBe(false);
+        expect(f.segments[0]?.claims.map((c) => c.id)).toEqual(['dx-1']);
+        expect(f.segments[1]?.claims.map((c) => c.id)).toEqual(['med-1']);
+        expect(f.gaps).toEqual([]);
+    });
+
+    it('passes connector segments through with empty claims and not redacted', async () => {
+        const draft = draftSegments(
+            { text: 'Active diagnoses include:', claimIds: [] },
+            { text: 'Type 2 diabetes (E11.9).', claimIds: ['dx-1'] },
+        );
+        const out = await format(baseState({ draft }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.segments[0]?.text).toBe('Active diagnoses include:');
+        expect(f.segments[0]?.claims).toEqual([]);
+        expect(f.segments[0]?.redacted).toBe(false);
+    });
+
+    it('redacts a segment whose claim id was rejected by the verifier', async () => {
+        // Verifier accepted dx-1 but rejected med-1. The original prose
+        // ("She takes metformin 500 mg BID") asserts an unverified fact;
+        // coherent fail-closed means the renderer must NEVER see that
+        // text.
+        const verified: VerifiedLedger = {
+            passed: false,
+            accepted: [dxClaim],
+            rejected: [{ claim: medClaim, reason: 'source-record-not-in-snapshot' }],
+            safetyHardStops: [],
+        };
+        const draft = draftSegments(
+            { text: 'She has type 2 diabetes.', claimIds: ['dx-1'] },
+            { text: 'She takes metformin 500 mg BID.', claimIds: ['med-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.segments).toHaveLength(2);
+        expect(f.segments[0]?.redacted).toBe(false);
+        expect(f.segments[1]?.redacted).toBe(true);
+        expect(f.segments[1]?.text).not.toContain('metformin');
+        expect(f.segments[1]?.claims).toEqual([]);
+    });
+
+    it('redacts a segment whose claim id is missing from the verifier-accepted set entirely (marker-miss recovery)', async () => {
+        // Marker-miss recovery: the model emitted a segment citing a
+        // claimId that does not appear in the ledger at all (or in
+        // accepted). Treat exactly like a rejection — redact, do not
+        // pass the original text through, do not throw.
+        const draft = draftSegments(
+            { text: 'She has type 2 diabetes.', claimIds: ['dx-1'] },
+            { text: 'She is allergic to bees.', claimIds: ['phantom-id'] },
+        );
+        const out = await format(baseState({ draft }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.segments[1]?.redacted).toBe(true);
+        expect(f.segments[1]?.text).not.toContain('bees');
+    });
+
+    it('redacts every segment whose claim category is suppressed by an allergies-unavailable hard stop', async () => {
+        // Mirrors §3.3 hard rule: "missing allergies → no medication
+        // summary shown". The medication segment must not pass through,
+        // even though the claim itself is technically in `accepted`.
+        const verified: VerifiedLedger = {
+            passed: false,
+            accepted: [dxClaim, medClaim],
+            rejected: [],
+            safetyHardStops: ['allergies-unavailable'],
+        };
+        const draft = draftSegments(
+            { text: 'Type 2 diabetes (E11.9).', claimIds: ['dx-1'] },
+            { text: 'Metformin 500 mg BID.', claimIds: ['med-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.segments[0]?.redacted).toBe(false);
+        expect(f.segments[1]?.redacted).toBe(true);
+        expect(f.segments[1]?.text).not.toContain('Metformin');
+        // The hard stop also surfaces as a message-level gap.
+        expect(f.gaps).toEqual([
+            {
+                kind: 'gap',
+                reason: 'allergies-unavailable',
+                message: 'Allergy data is unavailable; medication summary withheld.',
+            },
+        ]);
+    });
+
+    it('surfaces a medications-unavailable hard stop as a message-level gap and redacts medication segments', async () => {
+        const verified: VerifiedLedger = {
+            passed: false,
+            accepted: [dxClaim, medClaim],
+            rejected: [],
+            safetyHardStops: ['medications-unavailable'],
+        };
+        const draft = draftSegments(
+            { text: 'Diabetes (E11.9).', claimIds: ['dx-1'] },
+            { text: 'On metformin BID.', claimIds: ['med-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.segments[1]?.redacted).toBe(true);
+        expect(f.gaps).toEqual([
+            {
+                kind: 'gap',
+                reason: 'medications-unavailable',
+                message: 'Medication data is unavailable.',
+            },
+        ]);
     });
 
     it('throws when called without verified state (verifier must run first)', async () => {
@@ -153,7 +226,7 @@ describe('format', () => {
             format({
                 envelope,
                 snapshot,
-                draft: '',
+                draft: draftSegments({ text: 'x', claimIds: [] }),
                 claimLedger: { claims: [] },
                 verified: null,
                 formatted: null,
@@ -162,151 +235,29 @@ describe('format', () => {
         ).rejects.toThrow(/verify/i);
     });
 
-    it('always surfaces the allergies section even when empty (NKDA)', async () => {
-        // USERS.md fixed structure: "Allergies — always surfaced, never omitted."
-        const noAllergies: BriefingSnapshot = { ...snapshot, allergies: [] };
-        const out = await format({
-            envelope,
-            snapshot: noAllergies,
-            draft: '',
-            claimLedger: { claims: [] },
-            verified,
-            formatted: null,
-            persisted: null,
-        });
-        // NKDA case: allergies field is present (non-undefined) and empty.
-        const f = out.formatted;
-        if (f === null || f === undefined) throw new Error('formatted missing');
-        expect(f.allergies).toEqual([]);
+    it('throws when called without a draft (synthesizer must run first)', async () => {
+        await expect(
+            format({
+                envelope,
+                snapshot,
+                draft: null,
+                claimLedger: { claims: [] },
+                verified: cleanVerified,
+                formatted: null,
+                persisted: null,
+            }),
+        ).rejects.toThrow(/draft|synthesi/i);
     });
 
-    it('renders the medication section as a Gap when the verifier reports allergies-unavailable', async () => {
-        // §3.3 hard rule: "missing allergies → no medication summary shown".
-        // Format honors the boundary by converting the medication section
-        // to an explicit gap so the §3.4 UI shows "Medication summary
-        // withheld" rather than an empty list (which would read as "no
-        // medications").
-        const verifiedWithStop: VerifiedLedger = {
-            passed: false,
-            accepted: [],
-            rejected: [],
-            safetyHardStops: ['allergies-unavailable'],
-        };
-        const out = await format({
-            envelope,
-            snapshot,
-            draft: '',
-            claimLedger: { claims: [] },
-            verified: verifiedWithStop,
-            formatted: null,
-            persisted: null,
-        });
+    it('produces an empty-segments message when the draft contains no segments', async () => {
+        // Edge case: the synthesizer should never emit zero segments
+        // (the schema enforces min(1)), but `format` should not assume
+        // it. An empty-segments message is preferable to a thrown error
+        // because the failure-state UI can still render a bubble.
+        const out = await format(baseState({ draft: { segments: [] } }));
         const f = out.formatted;
         if (f === null || f === undefined) throw new Error('formatted missing');
-        expect(f.currentMedications).toMatchObject({
-            kind: 'gap',
-            reason: 'allergies-unavailable',
-        });
-    });
-
-    it('renders the medication section as a Gap when medications themselves are unavailable', async () => {
-        const verifiedWithStop: VerifiedLedger = {
-            passed: false,
-            accepted: [],
-            rejected: [],
-            safetyHardStops: ['medications-unavailable'],
-        };
-        const out = await format({
-            envelope,
-            snapshot,
-            draft: '',
-            claimLedger: { claims: [] },
-            verified: verifiedWithStop,
-            formatted: null,
-            persisted: null,
-        });
-        const f = out.formatted;
-        if (f === null || f === undefined) throw new Error('formatted missing');
-        expect(f.currentMedications).toMatchObject({
-            kind: 'gap',
-            reason: 'medications-unavailable',
-        });
-    });
-
-    it('filters the medication section to only drugs cited by accepted claims', async () => {
-        // Two meds in the snapshot, one cited by an accepted claim, one
-        // not. The non-cited record must not be rendered — it would be
-        // surfacing data the verifier never blessed.
-        const snapshotWithTwoMeds: BriefingSnapshot = {
-            ...snapshot,
-            medications: [
-                {
-                    name: 'Metformin',
-                    dose: '500 mg',
-                    route: 'PO',
-                    frequency: 'BID',
-                    startDate: '2020-01-01',
-                    stopDate: null,
-                    prescriber: 'Dr. Patel',
-                    source: sourceRef('MedicationRequest', 'rx-1'),
-                },
-                {
-                    name: 'Lisinopril',
-                    dose: '10 mg',
-                    route: 'PO',
-                    frequency: 'QD',
-                    startDate: '2021-01-01',
-                    stopDate: null,
-                    prescriber: 'Dr. Patel',
-                    source: sourceRef('MedicationRequest', 'rx-2'),
-                },
-            ],
-        };
-        const acceptedMetformin: Claim = {
-            id: 'm-1',
-            text: 'Metformin 500 mg BID',
-            category: 'medication',
-            sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
-            safetyCritical: true,
-        };
-        const out = await format({
-            envelope,
-            snapshot: snapshotWithTwoMeds,
-            draft: '',
-            claimLedger: { claims: [acceptedMetformin] },
-            verified: { passed: true, accepted: [acceptedMetformin], rejected: [], safetyHardStops: [] },
-            formatted: null,
-            persisted: null,
-        });
-        const f = out.formatted;
-        if (f === null || f === undefined) throw new Error('formatted missing');
-        expect(Array.isArray(f.currentMedications)).toBe(true);
-        const meds = f.currentMedications as readonly { text: string }[];
-        expect(meds).toHaveLength(1);
-        expect(meds[0]?.text).toContain('Metformin');
-    });
-
-    it('uses unverified claims as a typed pass-through when supplied', async () => {
-        // Currently §3.2 stub Verify accepts every claim; once §3.3 lands,
-        // Format should consume verified.accepted instead of snapshot. Pin
-        // that the verified pipe exists so the next contributor doesn't
-        // accidentally bypass it.
-        const claim: Claim = {
-            id: 'c-1',
-            text: 'Patient has type 2 diabetes (E11.9)',
-            category: 'diagnosis',
-            sourceReferences: [sourceRef('Condition', 'c-1')],
-            safetyCritical: false,
-        };
-        const out = await format({
-            envelope,
-            snapshot,
-            draft: '',
-            claimLedger: { claims: [claim] },
-            verified: { ...verified, accepted: [claim] },
-            formatted: null,
-            persisted: null,
-        });
-        expect(out.formatted).toBeDefined();
+        expect(f.segments).toEqual([]);
+        expect(f.gaps).toEqual([]);
     });
 });
