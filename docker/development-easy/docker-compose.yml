@@ -131,13 +131,33 @@ services:
       retries: 5
   agent:
     restart: always
+    # Watch mode for the local-dev agent service. We build only through
+    # the `deps` stage of the multi-stage Dockerfile (which produces
+    # /app/node_modules with dev tooling, including `tsx`) and then bind-
+    # mount the host's `agent/` directory over /app so source edits are
+    # visible inside the container immediately. `npm run dev` runs
+    # `tsx watch src/server/index.ts`, which restarts the server in
+    # under a second when any .ts file under /app/src changes — no
+    # rebuild, no `docker compose up --build` cycle.
+    #
+    # The `agentnodemodules` named volume is mounted on top of
+    # /app/node_modules so the host's node_modules (which may have been
+    # installed for a different OS/arch — macOS host vs alpine container)
+    # never bleeds into the container. The container-installed deps from
+    # the `deps` stage stay intact.
     build:
       context: ${OPENEMR_DIR:-../..}/agent
+      target: deps
+    command: ["npm", "run", "dev"]
+    working_dir: /app
     ports:
     - "${WT_AGENT_PORT:-8340}:8080"
     depends_on:
       agent-postgres:
         condition: service_healthy
+    volumes:
+    - ${OPENEMR_DIR:-../..}/agent:/app
+    - agentnodemodules:/app/node_modules
     environment:
       NODE_ENV: development
       PORT: '8080'
@@ -250,3 +270,4 @@ volumes:
   couchdbvolume: {}
   mailpitvolume: {}
   agentpgvolume: {}
+  agentnodemodules: {}
