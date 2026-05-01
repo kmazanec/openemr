@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createVerify } from '../../../src/graph/nodes/verify.js';
 import type { BriefingSnapshot, Claim, RequestEnvelope } from '../../../src/graph/types.js';
+import { createInMemoryCounters } from '../../../src/observability/counters.js';
 import type {
     UnverifiedClaimRecord,
     UnverifiedClaimsLog,
@@ -201,5 +202,50 @@ describe('createVerify', () => {
         // engineering write was lost.
         expect(out.verified?.rejected).toHaveLength(1);
         expect(out.verified?.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+
+    it('records pass + claim counts on the counters sink when wired', async () => {
+        const counters = createInMemoryCounters();
+        const log = buildLog();
+        const node = createVerify({ unverifiedClaimsLog: log, counters });
+
+        await node({
+            envelope,
+            snapshot,
+            draft: null,
+            claimLedger: { claims: [goodClaim] },
+            verified: null,
+            formatted: null,
+            persisted: null,
+        });
+
+        const snap = counters.snapshot();
+        expect(snap.verification.passed).toBe(1);
+        expect(snap.verification.failed).toBe(0);
+        expect(snap.verification.acceptedClaims).toBe(1);
+        expect(snap.verification.rejectedClaims).toBe(0);
+        expect(snap.verification.promptInjections).toBe(0);
+    });
+
+    it('counts a fabricated source record reference as a prompt-injection failure', async () => {
+        const counters = createInMemoryCounters();
+        const log = buildLog();
+        const node = createVerify({ unverifiedClaimsLog: log, counters });
+
+        await node({
+            envelope,
+            snapshot,
+            draft: null,
+            claimLedger: { claims: [goodClaim, orphanClaim] },
+            verified: null,
+            formatted: null,
+            persisted: null,
+        });
+
+        const snap = counters.snapshot();
+        expect(snap.verification.failed).toBe(1);
+        expect(snap.verification.acceptedClaims).toBe(1);
+        expect(snap.verification.rejectedClaims).toBe(1);
+        expect(snap.verification.promptInjections).toBe(1);
     });
 });

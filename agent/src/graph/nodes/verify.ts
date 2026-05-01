@@ -1,4 +1,7 @@
+import type { Counters } from '../../observability/counters.js';
+import { createNoopCounters } from '../../observability/counters.js';
 import { createLogger } from '../../observability/logger.js';
+import { setRunMetadata } from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
     type UnverifiedClaimsLog,
@@ -21,12 +24,31 @@ import type { VerifiedLedger } from '../types.js';
  */
 export interface VerifyDeps {
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
+    /**
+     * §6.1 cost-projection counters. Verification pass/fail rate +
+     * prompt-injection counts get recorded here. Optional so existing
+     * tests can skip wiring it.
+     */
+    readonly counters?: Counters;
 }
+
+/**
+ * §6.1: a "prompt injection failure" is a model output that names a
+ * source record id which doesn't exist in the chart snapshot — that's
+ * the canonical signal that the model invented a citation rather than
+ * grounding a claim. We do *not* count claims rejected for missing
+ * source-references (those are sloppy outputs, not injection).
+ */
+const PROMPT_INJECTION_REASON = 'source-record-not-in-snapshot' as const;
+
+const countPromptInjections = (verified: VerifiedLedger): number =>
+    verified.rejected.filter((r) => r.reason === PROMPT_INJECTION_REASON).length;
 
 export const createVerify = (
     deps: VerifyDeps,
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
     const logger = createLogger('verify');
+    const counters = deps.counters ?? createNoopCounters();
 
     return async (state) => {
         if (state.snapshot === null) {
@@ -34,6 +56,22 @@ export const createVerify = (
         }
         const ledger = state.claimLedger ?? { claims: [] };
         const verified: VerifiedLedger = verifyLedger(state.snapshot, ledger);
+
+        const promptInjections = countPromptInjections(verified);
+        const passed = verified.rejected.length === 0 && verified.safetyHardStops.length === 0;
+        counters.recordVerification({
+            passed,
+            accepted: verified.accepted.length,
+            rejected: verified.rejected.length,
+            promptInjections,
+        });
+        setRunMetadata({
+            verification_passed: passed,
+            claims_accepted: verified.accepted.length,
+            claims_rejected: verified.rejected.length,
+            safety_hard_stops: verified.safetyHardStops.length,
+            prompt_injection_failures: promptInjections,
+        });
 
         if (verified.rejected.length > 0) {
             const records: UnverifiedClaimRecord[] = verified.rejected.map((r) => ({

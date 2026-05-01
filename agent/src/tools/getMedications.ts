@@ -1,5 +1,8 @@
 import { traceable } from 'langsmith/traceable';
 
+import type { Counters } from '../observability/counters.js';
+import { createNoopCounters } from '../observability/counters.js';
+import { setRunMetadata } from '../observability/traceMetadata.js';
 import { decodeChartSnapshot } from '../snapshot/decode.js';
 import type { Medication } from '../snapshot/types.js';
 import type { SnapshotClient } from './snapshotClient.js';
@@ -17,16 +20,27 @@ export interface GetMedicationsInput {
     readonly token: string;
     readonly siteId: string;
     readonly pid: number;
+    /** §6.1: optional counters sink. Production wires this from
+     * `briefingRunner`; tests omit it to fall back to a noop. */
+    readonly counters?: Counters;
 }
 
 const impl = async (input: GetMedicationsInput): Promise<readonly Medication[]> => {
-    const raw = await input.client.fetchSnapshot({
-        pid: input.pid,
-        categories: ['medication'],
-        token: input.token,
-        siteId: input.siteId,
-    });
-    return decodeChartSnapshot(raw).medications;
+    const counters = input.counters ?? createNoopCounters();
+    const started = performance.now();
+    try {
+        const raw = await input.client.fetchSnapshot({
+            pid: input.pid,
+            categories: ['medication'],
+            token: input.token,
+            siteId: input.siteId,
+        });
+        return decodeChartSnapshot(raw).medications;
+    } finally {
+        const latencyMs = performance.now() - started;
+        counters.recordToolCall({ tool: 'getMedications', latencyMs });
+        setRunMetadata({ latency_ms: latencyMs, tool: 'getMedications' });
+    }
 };
 
 export const getMedications = traceable(impl, { name: 'getMedications', run_type: 'tool' });

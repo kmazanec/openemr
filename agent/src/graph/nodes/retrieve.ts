@@ -1,3 +1,4 @@
+import type { Counters } from '../../observability/counters.js';
 import { getMedications } from '../../tools/getMedications.js';
 import { getPatientContext } from '../../tools/getPatientContext.js';
 import { getRecentEncounters } from '../../tools/getRecentEncounters.js';
@@ -28,6 +29,12 @@ export interface RetrieveDeps {
      * relying on a session cookie (the agent has none).
      */
     readonly siteId: string;
+    /**
+     * §6.1 cost-projection counters. Optional so existing tests that
+     * build a graph without observability wiring still work; production
+     * threads this from `briefingRunner`.
+     */
+    readonly counters?: Counters;
 }
 
 export const createRetrieve = (
@@ -35,7 +42,13 @@ export const createRetrieve = (
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
     return async (state) => {
         const pid = state.envelope.patient.pid;
-        const args = { client: deps.client, token: deps.token, siteId: deps.siteId, pid };
+        const args = {
+            client: deps.client,
+            token: deps.token,
+            siteId: deps.siteId,
+            pid,
+            ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+        };
 
         const [patientContext, medications, labsResult, encountersResult] = await Promise.all([
             getPatientContext(args),

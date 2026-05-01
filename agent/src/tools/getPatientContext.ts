@@ -1,5 +1,8 @@
 import { traceable } from 'langsmith/traceable';
 
+import type { Counters } from '../observability/counters.js';
+import { createNoopCounters } from '../observability/counters.js';
+import { setRunMetadata } from '../observability/traceMetadata.js';
 import { decodeChartSnapshot } from '../snapshot/decode.js';
 import type { Allergy, Demographics, Diagnosis } from '../snapshot/types.js';
 import type { SnapshotClient } from './snapshotClient.js';
@@ -21,6 +24,8 @@ export interface GetPatientContextInput {
     readonly token: string;
     readonly siteId: string;
     readonly pid: number;
+    /** §6.1: optional counters sink. */
+    readonly counters?: Counters;
 }
 
 export interface PatientContext {
@@ -30,18 +35,26 @@ export interface PatientContext {
 }
 
 const impl = async (input: GetPatientContextInput): Promise<PatientContext> => {
-    const raw = await input.client.fetchSnapshot({
-        pid: input.pid,
-        categories: ['diagnosis', 'allergy'],
-        token: input.token,
-        siteId: input.siteId,
-    });
-    const snapshot = decodeChartSnapshot(raw);
-    return {
-        patient: snapshot.patient,
-        diagnoses: snapshot.diagnoses,
-        allergies: snapshot.allergies,
-    };
+    const counters = input.counters ?? createNoopCounters();
+    const started = performance.now();
+    try {
+        const raw = await input.client.fetchSnapshot({
+            pid: input.pid,
+            categories: ['diagnosis', 'allergy'],
+            token: input.token,
+            siteId: input.siteId,
+        });
+        const snapshot = decodeChartSnapshot(raw);
+        return {
+            patient: snapshot.patient,
+            diagnoses: snapshot.diagnoses,
+            allergies: snapshot.allergies,
+        };
+    } finally {
+        const latencyMs = performance.now() - started;
+        counters.recordToolCall({ tool: 'getPatientContext', latencyMs });
+        setRunMetadata({ latency_ms: latencyMs, tool: 'getPatientContext' });
+    }
 };
 
 export const getPatientContext = traceable(impl, { name: 'getPatientContext', run_type: 'tool' });

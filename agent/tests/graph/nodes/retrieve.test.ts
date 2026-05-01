@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createRetrieve } from '../../../src/graph/nodes/retrieve.js';
+import { createInMemoryCounters } from '../../../src/observability/counters.js';
 import type { SnapshotClient } from '../../../src/tools/snapshotClient.js';
 import {
     SnapshotHttpError,
@@ -135,6 +136,31 @@ describe('createRetrieve', () => {
                 verified: null, formatted: null, persisted: null,
             }),
         ).rejects.toBeInstanceOf(SnapshotHttpError);
+    });
+
+    it('records per-tool latency on the counters sink when wired', async () => {
+        const counters = createInMemoryCounters();
+        const client = buildClient(() => baseSnapshot());
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default', counters });
+
+        await retrieve({
+            envelope,
+            snapshot: null, draft: null, claimLedger: null,
+            verified: null, formatted: null, persisted: null,
+        });
+
+        const snap = counters.snapshot();
+        for (const tool of [
+            'getPatientContext',
+            'getMedications',
+            'getRecentLabs',
+            'getRecentEncounters',
+        ]) {
+            const counter = snap.toolCalls[tool];
+            expect(counter, `missing counter for ${tool}`).toBeDefined();
+            expect(counter!.count).toBe(1);
+            expect(counter!.totalLatencyMs).toBeGreaterThanOrEqual(0);
+        }
     });
 
     it('propagates fail-closed errors from getMedications', async () => {

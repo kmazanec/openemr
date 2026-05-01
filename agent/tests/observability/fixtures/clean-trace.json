@@ -1,0 +1,26 @@
+{
+  "name": "briefing.synthesize",
+  "run_type": "llm",
+  "start_time": "2026-04-30T12:00:00Z",
+  "end_time": "2026-04-30T12:00:02Z",
+  "inputs": {
+    "_redacted": "[INPUTS HIDDEN BY LANGSMITH_HIDE_INPUTS=true]"
+  },
+  "outputs": {
+    "_redacted": "[OUTPUTS HIDDEN BY LANGSMITH_HIDE_OUTPUTS=true]"
+  },
+  "metadata": {
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 4321,
+    "output_tokens": 765,
+    "cost_usd": 0.0244,
+    "verification_passed": true,
+    "claims_accepted": 4,
+    "claims_rejected": 0,
+    "prompt_injection_failures": 0
+  },
+  "tags": [
+    "clinician:7c2a0f6e1b9d",
+    "patient:b1d4e5a9f312"
+  ]
+}

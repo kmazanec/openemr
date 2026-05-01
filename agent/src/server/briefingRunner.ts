@@ -5,7 +5,9 @@ import { createAnthropicSynthesizer } from '../graph/nodes/synthesize.js';
 import type { Synthesizer } from '../graph/nodes/synthesize.js';
 import type { BriefingState } from '../graph/state.js';
 import type { RequestEnvelope } from '../graph/types.js';
+import type { Counters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
+import { buildIdentityTags } from '../observability/traceMetadata.js';
 import type { ConversationStore } from '../state/conversationStore.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
@@ -35,6 +37,13 @@ export interface BriefingRunnerDeps {
      * each invocation as a fresh thread.
      */
     readonly checkpointer?: BaseCheckpointSaver;
+    /**
+     * §6.1: optional. Production wires an in-memory counters registry so
+     * tool latency, model usage, and verification outcomes all reach the
+     * same place per (clinician, patient) tuple. Tests can omit and the
+     * graph nodes fall back to a noop sink.
+     */
+    readonly counters?: Counters;
 }
 
 export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner => {
@@ -62,16 +71,45 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             conversationId: conversation.id,
         };
         const graphDeps: BriefingGraphDeps = {
-            retrieve: { client: deps.snapshotClient, token, siteId: envelope.siteId },
-            synthesize: { synthesizer: deps.synthesizer },
-            verify: { unverifiedClaimsLog: deps.unverifiedClaimsLog },
+            retrieve: {
+                client: deps.snapshotClient,
+                token,
+                siteId: envelope.siteId,
+                ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+            },
+            synthesize: {
+                synthesizer: deps.synthesizer,
+                ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+            },
+            verify: {
+                unverifiedClaimsLog: deps.unverifiedClaimsLog,
+                ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+            },
             ...(deps.checkpointer !== undefined ? { checkpointer: deps.checkpointer } : {}),
         };
         const graph = createBriefingGraph(graphDeps);
+        const tags = buildIdentityTags({
+            clinicianId: envelope.actor.userId,
+            patientId: envelope.patient.uuid,
+        });
         const out: BriefingState = await graph.invoke(
             { envelope: canonicalEnvelope },
-            { configurable: { thread_id: conversation.id } },
+            {
+                configurable: { thread_id: conversation.id },
+                tags: [`clinician:${tags.clinicianHash}`, `patient:${tags.patientHash}`],
+                metadata: {
+                    site_id: envelope.siteId,
+                    task: envelope.task,
+                    request_id: envelope.requestId,
+                },
+            },
         );
+        if (deps.counters !== undefined) {
+            deps.counters.recordBriefing({
+                clinicianId: envelope.actor.userId,
+                patientId: envelope.patient.uuid,
+            });
+        }
         if (out.formatted === null) {
             throw new Error('briefing graph completed without a formatted briefing');
         }
@@ -87,6 +125,7 @@ export interface ProductionRunnerOptions {
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
     readonly checkpointer: BaseCheckpointSaver;
+    readonly counters: Counters;
 }
 
 /**
@@ -102,5 +141,6 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         unverifiedClaimsLog: options.unverifiedClaimsLog,
         conversationStore: options.conversationStore,
         checkpointer: options.checkpointer,
+        counters: options.counters,
     });
 };

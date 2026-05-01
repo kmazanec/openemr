@@ -1,0 +1,30 @@
+{
+  "name": "briefing.synthesize",
+  "run_type": "llm",
+  "inputs": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a clinical briefing model."
+      },
+      {
+        "role": "user",
+        "content": "Patient Maya Patel, DOB 1958-03-15, SSN 123-45-6789, presents with..."
+      }
+    ]
+  },
+  "outputs": {
+    "segments": [
+      {
+        "text": "Maya Patel is here for diabetes follow-up.",
+        "claimIds": [
+          "c-1"
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "model": "claude-sonnet-4-6",
+    "mrn": "MRN-99887"
+  }
+}
