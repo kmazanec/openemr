@@ -7,6 +7,7 @@ import {
     RateLimitError,
 } from '@anthropic-ai/sdk';
 
+import { AgentHttpError, AgentNetworkError } from '../tools/agentHttp.js';
 import { SnapshotHttpError, SnapshotNetworkError } from '../tools/snapshotClient.js';
 
 /**
@@ -49,8 +50,16 @@ export const classifyBriefingError = (err: unknown): BriefingErrorCode => {
     // Snapshot fetch failed — the briefing can't even start because we
     // couldn't read the patient chart. Distinct from a model failure
     // because the user action ("try again") and the operator action
-    // (check OpenEMR vs check the LLM provider) differ.
-    if (err instanceof SnapshotHttpError || err instanceof SnapshotNetworkError) {
+    // (check OpenEMR vs check the LLM provider) differ. Both the
+    // legacy snapshot client (briefing path) and the narrow per-tool
+    // client (conversational path) surface the same condition under
+    // their own error types — both are classified the same way.
+    if (
+        err instanceof SnapshotHttpError
+        || err instanceof SnapshotNetworkError
+        || err instanceof AgentHttpError
+        || err instanceof AgentNetworkError
+    ) {
         return 'chart_unavailable';
     }
 

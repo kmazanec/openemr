@@ -1,27 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { AgentHttpError, AgentNetworkError } from '../../src/tools/agentHttp.js';
 import { getRecentEncounters } from '../../src/tools/getRecentEncounters.js';
-import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapshotClient.js';
-import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
+import { mockAgentHttpRejecting, mockAgentHttpResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
 const SITE = 'default';
 const PID = 42;
+const BASE = 'http://openemr';
 
-const baseSnapshot = {
-    patient: {
-        pid: PID,
-        uuid: 'u',
-        displayName: 'P',
-        sex: null,
-        dateOfBirth: null,
-        source: { system: 'openemr', recordType: 'Patient', recordId: '42' },
-    },
-    appointment: null,
-    diagnoses: [],
-    medications: [],
-    allergies: [],
-    labs: [],
+const narrowResponse = {
     encounters: [
         {
             encounterDate: '2026-03-01',
@@ -32,18 +20,19 @@ const baseSnapshot = {
     ],
 };
 
-describe('getRecentEncounters', () => {
-    it('requests only the encounter category from the snapshot endpoint', async () => {
-        const { client, fetch } = mockClientResolving(baseSnapshot);
+describe('getRecentEncounters (narrow conversational tool)', () => {
+    it('GETs the encounters endpoint with site + pid', async () => {
+        const { client, get } = mockAgentHttpResolving(narrowResponse);
 
-        const result = await getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID });
-
-        expect(fetch).toHaveBeenCalledWith({
-            pid: PID,
-            categories: ['encounter'],
-            token: TOKEN,
-            siteId: SITE,
+        const result = await getRecentEncounters({
+            client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
         });
+
+        expect(get).toHaveBeenCalledTimes(1);
+        const call = get.mock.calls[0]?.[0] as { url: string };
+        expect(call.url).toBe(
+            `${BASE}/interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot/encounters.php?site=${SITE}&pid=${String(PID)}`,
+        );
         expect(result.kind).toBe('ok');
         if (result.kind === 'ok') {
             expect(result.encounters).toHaveLength(1);
@@ -52,9 +41,11 @@ describe('getRecentEncounters', () => {
     });
 
     it('returns an explicit gap on 5xx', async () => {
-        const { client } = mockClientRejecting(new SnapshotHttpError(503, ''));
+        const { client } = mockAgentHttpRejecting(new AgentHttpError(503, ''));
 
-        const result = await getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID });
+        const result = await getRecentEncounters({
+            client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
+        });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -64,9 +55,11 @@ describe('getRecentEncounters', () => {
     });
 
     it('returns an explicit gap on network error', async () => {
-        const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
+        const { client } = mockAgentHttpRejecting(new AgentNetworkError('unreachable'));
 
-        const result = await getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID });
+        const result = await getRecentEncounters({
+            client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
+        });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -75,9 +68,11 @@ describe('getRecentEncounters', () => {
     });
 
     it('rethrows on auth errors', async () => {
-        const { client } = mockClientRejecting(new SnapshotHttpError(403, ''));
+        const { client } = mockAgentHttpRejecting(new AgentHttpError(403, ''));
         await expect(
-            getRecentEncounters({ client, token: TOKEN, siteId: SITE, pid: PID }),
-        ).rejects.toBeInstanceOf(SnapshotHttpError);
+            getRecentEncounters({
+                client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
+            }),
+        ).rejects.toBeInstanceOf(AgentHttpError);
     });
 });

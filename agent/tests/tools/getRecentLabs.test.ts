@@ -1,26 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { AgentHttpError, AgentNetworkError } from '../../src/tools/agentHttp.js';
 import { getRecentLabs } from '../../src/tools/getRecentLabs.js';
-import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapshotClient.js';
-import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
+import { mockAgentHttpRejecting, mockAgentHttpResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
 const SITE = 'default';
 const PID = 42;
+const BASE = 'http://openemr';
 
-const baseSnapshot = {
-    patient: {
-        pid: PID,
-        uuid: 'u',
-        displayName: 'P',
-        sex: null,
-        dateOfBirth: null,
-        source: { system: 'openemr', recordType: 'Patient', recordId: '42' },
-    },
-    appointment: null,
-    diagnoses: [],
-    medications: [],
-    allergies: [],
+const narrowResponse = {
     labs: [
         {
             analyte: 'A1c',
@@ -32,21 +21,25 @@ const baseSnapshot = {
             source: { system: 'openemr', recordType: 'Observation', recordId: 'lab-1' },
         },
     ],
-    encounters: [],
 };
 
-describe('getRecentLabs', () => {
-    it('requests only the lab category from the snapshot endpoint', async () => {
-        const { client, fetch } = mockClientResolving(baseSnapshot);
+describe('getRecentLabs (narrow conversational tool)', () => {
+    it('GETs the labs endpoint with site + pid', async () => {
+        const { client, get } = mockAgentHttpResolving(narrowResponse);
 
-        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
-
-        expect(fetch).toHaveBeenCalledWith({
-            pid: PID,
-            categories: ['lab'],
+        const result = await getRecentLabs({
+            client,
             token: TOKEN,
             siteId: SITE,
+            pid: PID,
+            openEmrBaseUrl: BASE,
         });
+
+        expect(get).toHaveBeenCalledTimes(1);
+        const call = get.mock.calls[0]?.[0] as { url: string };
+        expect(call.url).toBe(
+            `${BASE}/interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot/labs.php?site=${SITE}&pid=${String(PID)}`,
+        );
         expect(result.kind).toBe('ok');
         if (result.kind === 'ok') {
             expect(result.labs).toHaveLength(1);
@@ -54,10 +47,12 @@ describe('getRecentLabs', () => {
         }
     });
 
-    it('returns an explicit gap when the snapshot endpoint returns 5xx', async () => {
-        const { client } = mockClientRejecting(new SnapshotHttpError(503, ''));
+    it('returns an explicit gap when the endpoint returns 5xx', async () => {
+        const { client } = mockAgentHttpRejecting(new AgentHttpError(503, ''));
 
-        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
+        const result = await getRecentLabs({
+            client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
+        });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -66,10 +61,12 @@ describe('getRecentLabs', () => {
         }
     });
 
-    it('returns an explicit gap when the snapshot endpoint is unreachable', async () => {
-        const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
+    it('returns an explicit gap when the endpoint is unreachable', async () => {
+        const { client } = mockAgentHttpRejecting(new AgentNetworkError('unreachable'));
 
-        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
+        const result = await getRecentLabs({
+            client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
+        });
 
         expect(result.kind).toBe('gap');
         if (result.kind === 'gap') {
@@ -80,16 +77,18 @@ describe('getRecentLabs', () => {
     it('rethrows on auth errors (401/403) instead of returning a gap', async () => {
         // 401/403 indicates a misconfigured token, not a transient data
         // problem. Surfacing it as a gap would hide a real failure.
-        const { client } = mockClientRejecting(new SnapshotHttpError(401, ''));
-        await expect(getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
-            SnapshotHttpError,
-        );
+        const { client } = mockAgentHttpRejecting(new AgentHttpError(401, ''));
+        await expect(
+            getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE }),
+        ).rejects.toBeInstanceOf(AgentHttpError);
     });
 
     it('returns an empty list as a real result, not a gap', async () => {
-        const { client } = mockClientResolving({ ...baseSnapshot, labs: [] });
+        const { client } = mockAgentHttpResolving({ labs: [] });
 
-        const result = await getRecentLabs({ client, token: TOKEN, siteId: SITE, pid: PID });
+        const result = await getRecentLabs({
+            client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE,
+        });
 
         expect(result.kind).toBe('ok');
         if (result.kind === 'ok') {

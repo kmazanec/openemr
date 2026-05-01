@@ -1,24 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { AgentHttpError, AgentNetworkError } from '../../src/tools/agentHttp.js';
 import { getMedications } from '../../src/tools/getMedications.js';
-import { SnapshotHttpError, SnapshotNetworkError } from '../../src/tools/snapshotClient.js';
-import { mockClientRejecting, mockClientResolving } from './buildMockClient.js';
+import { mockAgentHttpRejecting, mockAgentHttpResolving } from './buildMockClient.js';
 
 const TOKEN = 'tok';
 const SITE = 'default';
 const PID = 42;
+const BASE = 'http://openemr';
 
-const baseSnapshot = {
-    patient: {
-        pid: PID,
-        uuid: 'u',
-        displayName: 'P',
-        sex: null,
-        dateOfBirth: null,
-        source: { system: 'openemr', recordType: 'Patient', recordId: '42' },
-    },
-    appointment: null,
-    diagnoses: [],
+const narrowResponse = {
     medications: [
         {
             name: 'Metformin',
@@ -31,38 +22,41 @@ const baseSnapshot = {
             source: { system: 'openemr', recordType: 'MedicationRequest', recordId: 'rx-1' },
         },
     ],
-    allergies: [],
-    labs: [],
-    encounters: [],
 };
 
-describe('getMedications', () => {
-    it('requests only the medication category from the snapshot endpoint', async () => {
-        const { client, fetch } = mockClientResolving(baseSnapshot);
+describe('getMedications (narrow conversational tool)', () => {
+    it('GETs the medications endpoint with site + pid', async () => {
+        const { client, get } = mockAgentHttpResolving(narrowResponse);
 
-        const out = await getMedications({ client, token: TOKEN, siteId: SITE, pid: PID });
-
-        expect(fetch).toHaveBeenCalledWith({
-            pid: PID,
-            categories: ['medication'],
+        const out = await getMedications({
+            client,
             token: TOKEN,
             siteId: SITE,
+            pid: PID,
+            openEmrBaseUrl: BASE,
         });
+
+        expect(get).toHaveBeenCalledTimes(1);
+        const call = get.mock.calls[0]?.[0] as { url: string; token: string };
+        expect(call.token).toBe(TOKEN);
+        expect(call.url).toBe(
+            `${BASE}/interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot/medications.php?site=${SITE}&pid=${String(PID)}`,
+        );
         expect(out).toHaveLength(1);
         expect(out[0]!.name).toBe('Metformin');
     });
 
     it('fails closed on HTTP error', async () => {
-        const { client } = mockClientRejecting(new SnapshotHttpError(503, ''));
-        await expect(getMedications({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
-            SnapshotHttpError,
-        );
+        const { client } = mockAgentHttpRejecting(new AgentHttpError(503, ''));
+        await expect(
+            getMedications({ client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE }),
+        ).rejects.toBeInstanceOf(AgentHttpError);
     });
 
     it('fails closed on network error', async () => {
-        const { client } = mockClientRejecting(new SnapshotNetworkError('unreachable'));
-        await expect(getMedications({ client, token: TOKEN, siteId: SITE, pid: PID })).rejects.toBeInstanceOf(
-            SnapshotNetworkError,
-        );
+        const { client } = mockAgentHttpRejecting(new AgentNetworkError('unreachable'));
+        await expect(
+            getMedications({ client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE }),
+        ).rejects.toBeInstanceOf(AgentNetworkError);
     });
 });

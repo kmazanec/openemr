@@ -177,6 +177,20 @@ const requireKey = (obj: Record<string, unknown>, key: string): unknown => {
     return obj[key];
 };
 
+/**
+ * Element decoders re-exported under stable names so the narrow
+ * conversational-path response decoders (`narrowResponseDecoders.ts`)
+ * can reuse the same field-by-field walks. Keeping decode logic in
+ * one place — there is exactly one way to interpret a Medication
+ * coming from OpenEMR, regardless of which endpoint emitted it.
+ */
+export const decodeDemographicsForNarrow = decodeDemographics;
+export const decodeDiagnosisForNarrow = decodeDiagnosis;
+export const decodeMedicationForNarrow = decodeMedication;
+export const decodeAllergyForNarrow = decodeAllergy;
+export const decodeLabForNarrow = decodeLab;
+export const decodeEncounterForNarrow = decodeEncounter;
+
 export const decodeChartSnapshot = (raw: unknown): ChartSnapshot => {
     const obj = expectObject('snapshot', raw);
 
