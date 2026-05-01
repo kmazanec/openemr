@@ -135,8 +135,11 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
 
         await graph.invoke({ envelope });
 
-        // Four §3.1 tools each fetch the snapshot once → 4 calls total.
-        expect(fetch).toHaveBeenCalledTimes(4);
+        // Phase B1: Retrieve calls `loadChartSnapshot` once for the full
+        // chart payload. The previous four-tool fan-out hit `snapshot.php`
+        // four times for the same data and was the largest non-model
+        // contribution to briefing latency.
+        expect(fetch).toHaveBeenCalledTimes(1);
         expect(synth).toHaveBeenCalledTimes(1);
     });
 });

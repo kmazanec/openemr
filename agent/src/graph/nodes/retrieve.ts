@@ -1,17 +1,20 @@
 import type { Counters } from '../../observability/counters.js';
-import { getMedications } from '../../tools/getMedications.js';
-import { getPatientContext } from '../../tools/getPatientContext.js';
-import { getRecentEncounters } from '../../tools/getRecentEncounters.js';
-import { getRecentLabs } from '../../tools/getRecentLabs.js';
+import { loadChartSnapshot } from '../../tools/loadChartSnapshot.js';
 import type { SnapshotClient } from '../../tools/snapshotClient.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import type { BriefingSnapshot } from '../types.js';
 
 /**
- * §3.2 `Retrieve` node. Fans out to the four §3.1 tools in parallel.
- * Fail-closed tools (`getPatientContext`, `getMedications`) propagate;
- * fail-open tools (`getRecentLabs`, `getRecentEncounters`) return gaps
- * so `Format` can surface them explicitly.
+ * §3.2 `Retrieve` node. Calls `loadChartSnapshot` once and distributes
+ * the decoded snapshot into the `BriefingSnapshot` shape.
+ *
+ * Trade-off vs the previous four-tool fan-out: a single network/5xx
+ * failure now fails the whole briefing instead of letting labs or
+ * encounters fail-open. That fail-open behavior was already thin in
+ * practice — the OpenEMR snapshot controller returns 503 for *any*
+ * adapter failure, so a labs-adapter blip already failed all four
+ * calls. The narrow per-category tools added in B2 restore real
+ * per-category isolation for the conversational path.
  *
  * Deps come in via the factory rather than `LangGraphRunnableConfig`
  * so the graph builder can wire the per-request bearer token before
@@ -41,31 +44,22 @@ export const createRetrieve = (
     deps: RetrieveDeps,
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
     return async (state) => {
-        const pid = state.envelope.patient.pid;
-        const args = {
+        const chart = await loadChartSnapshot({
             client: deps.client,
             token: deps.token,
             siteId: deps.siteId,
-            pid,
+            pid: state.envelope.patient.pid,
             ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
-        };
-
-        const [patientContext, medications, labsResult, encountersResult] = await Promise.all([
-            getPatientContext(args),
-            getMedications(args),
-            getRecentLabs(args),
-            getRecentEncounters(args),
-        ]);
+        });
 
         const snapshot: BriefingSnapshot = {
-            patient: patientContext.patient,
-            appointment: null,
-            diagnoses: patientContext.diagnoses,
-            medications,
-            allergies: patientContext.allergies,
-            labs: labsResult.kind === 'ok' ? labsResult.labs : labsResult,
-            encounters:
-                encountersResult.kind === 'ok' ? encountersResult.encounters : encountersResult,
+            patient: chart.patient,
+            appointment: chart.appointment,
+            diagnoses: chart.diagnoses,
+            medications: chart.medications,
+            allergies: chart.allergies,
+            labs: chart.labs,
+            encounters: chart.encounters,
         };
 
         return { snapshot };

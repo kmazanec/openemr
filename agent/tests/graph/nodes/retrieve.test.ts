@@ -46,22 +46,49 @@ const baseSnapshot = (overrides: Record<string, unknown> = {}): unknown => ({
     ...overrides,
 });
 
+type FetchSpy = ReturnType<typeof vi.fn<SnapshotClient['fetchSnapshot']>>;
+
 const buildClient = (
-    behavior: (categories: readonly string[]) => unknown,
-): SnapshotClient => ({
-    fetchSnapshot: vi.fn((input: { categories: readonly string[] }) =>
+    behavior: (input: { categories: readonly string[] }) => unknown,
+): { client: SnapshotClient; fetch: FetchSpy } => {
+    const fetch: FetchSpy = vi.fn((input) =>
         // Wrap in `new Promise` so synchronous throws inside `behavior`
         // become rejected promises — matches how real `fetchSnapshot` reports
-        // errors, and lets the fail-closed/fail-open tests stay synchronous.
+        // errors.
         new Promise<unknown>((resolve) => {
-            resolve(behavior(input.categories));
+            resolve(behavior(input));
         }),
-    ),
-});
+    );
+    return { client: { fetchSnapshot: fetch }, fetch };
+};
 
-describe('createRetrieve', () => {
-    it('fans out to all four §3.1 tools and assembles the snapshot', async () => {
-        const client = buildClient(() => baseSnapshot());
+describe('createRetrieve (Phase B1: single-fetch briefing path)', () => {
+    it('issues exactly one snapshot fetch with the full category set', async () => {
+        const { client, fetch } = buildClient(() => baseSnapshot());
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
+
+        await retrieve({
+            envelope,
+            snapshot: null, draft: null, claimLedger: null,
+            verified: null, formatted: null, persisted: null,
+        });
+
+        expect(fetch).toHaveBeenCalledTimes(1);
+        const [call] = fetch.mock.calls;
+        expect(call?.[0].categories).toEqual([
+            'diagnosis',
+            'medication',
+            'allergy',
+            'lab',
+            'encounter',
+        ]);
+        expect(call?.[0].pid).toBe(PID);
+        expect(call?.[0].token).toBe(TOKEN);
+        expect(call?.[0].siteId).toBe('default');
+    });
+
+    it('assembles the snapshot from the decoded payload', async () => {
+        const { client } = buildClient(() => baseSnapshot());
         const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
         const out = await retrieve({
@@ -78,54 +105,9 @@ describe('createRetrieve', () => {
         expect(Array.isArray(snap.encounters)).toBe(true);
     });
 
-    it('records labs as a gap when the labs tool fails open', async () => {
-        const client = buildClient((categories) => {
-            if (categories.includes('lab')) {
-                throw new SnapshotHttpError(503, '');
-            }
-            return baseSnapshot();
-        });
-        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
-
-        const out = await retrieve({
-            envelope,
-            snapshot: null, draft: null, claimLedger: null,
-            verified: null, formatted: null, persisted: null,
-        });
-
-        expect(out.snapshot?.labs).toMatchObject({
-            kind: 'gap',
-            reason: 'endpoint-unavailable',
-        });
-    });
-
-    it('records encounters as a gap when the encounters tool fails open', async () => {
-        const client = buildClient((categories) => {
-            if (categories.includes('encounter')) {
-                throw new SnapshotNetworkError('unreachable');
-            }
-            return baseSnapshot();
-        });
-        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
-
-        const out = await retrieve({
-            envelope,
-            snapshot: null, draft: null, claimLedger: null,
-            verified: null, formatted: null, persisted: null,
-        });
-
-        expect(out.snapshot?.encounters).toMatchObject({
-            kind: 'gap',
-            reason: 'endpoint-unreachable',
-        });
-    });
-
-    it('propagates fail-closed errors from getPatientContext (allergies fail-closed)', async () => {
-        const client = buildClient((categories) => {
-            if (categories.includes('allergy')) {
-                throw new SnapshotHttpError(503, '');
-            }
-            return baseSnapshot();
+    it('propagates HTTP errors from the snapshot endpoint', async () => {
+        const { client } = buildClient(() => {
+            throw new SnapshotHttpError(503, '');
         });
         const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
@@ -138,37 +120,9 @@ describe('createRetrieve', () => {
         ).rejects.toBeInstanceOf(SnapshotHttpError);
     });
 
-    it('records per-tool latency on the counters sink when wired', async () => {
-        const counters = createInMemoryCounters();
-        const client = buildClient(() => baseSnapshot());
-        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default', counters });
-
-        await retrieve({
-            envelope,
-            snapshot: null, draft: null, claimLedger: null,
-            verified: null, formatted: null, persisted: null,
-        });
-
-        const snap = counters.snapshot();
-        for (const tool of [
-            'getPatientContext',
-            'getMedications',
-            'getRecentLabs',
-            'getRecentEncounters',
-        ]) {
-            const counter = snap.toolCalls[tool];
-            expect(counter, `missing counter for ${tool}`).toBeDefined();
-            expect(counter!.count).toBe(1);
-            expect(counter!.totalLatencyMs).toBeGreaterThanOrEqual(0);
-        }
-    });
-
-    it('propagates fail-closed errors from getMedications', async () => {
-        const client = buildClient((categories) => {
-            if (categories.includes('medication')) {
-                throw new SnapshotNetworkError('unreachable');
-            }
-            return baseSnapshot();
+    it('propagates network errors from the snapshot endpoint', async () => {
+        const { client } = buildClient(() => {
+            throw new SnapshotNetworkError('unreachable');
         });
         const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default' });
 
@@ -179,5 +133,23 @@ describe('createRetrieve', () => {
                 verified: null, formatted: null, persisted: null,
             }),
         ).rejects.toBeInstanceOf(SnapshotNetworkError);
+    });
+
+    it('records loadChartSnapshot latency on the counters sink when wired', async () => {
+        const counters = createInMemoryCounters();
+        const { client } = buildClient(() => baseSnapshot());
+        const retrieve = createRetrieve({ client, token: TOKEN, siteId: 'default', counters });
+
+        await retrieve({
+            envelope,
+            snapshot: null, draft: null, claimLedger: null,
+            verified: null, formatted: null, persisted: null,
+        });
+
+        const snap = counters.snapshot();
+        const counter = snap.toolCalls['loadChartSnapshot'];
+        expect(counter).toBeDefined();
+        expect(counter!.count).toBe(1);
+        expect(counter!.totalLatencyMs).toBeGreaterThanOrEqual(0);
     });
 });
