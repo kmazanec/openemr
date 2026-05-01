@@ -1,0 +1,5 @@
+# Each narrow snapshot endpoint authenticates with `Authorization:
+# Bearer …` server-to-server. mod_php strips the Authorization header
+# from $_SERVER unless we re-publish it as HTTP_AUTHORIZATION here.
+# See ../.htaccess for the same workaround on snapshot.php.
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
