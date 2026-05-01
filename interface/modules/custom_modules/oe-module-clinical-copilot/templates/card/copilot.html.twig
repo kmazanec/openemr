@@ -15,10 +15,12 @@
 
     Auto-open: when the dashboard renders, prefetch the briefing in a
     background tab so it's already streaming by the time the clinician
-    looks at it. We open at most once per session (sessionStorage flag)
-    AND only when no `copilot` iframe already exists, so closing the
-    tab on purpose isn't undone by the next dashboard render and a
-    patient switch doesn't yank focus to the (just-loaded) co-pilot.
+    looks at it. The only gate is "no `copilot` iframe currently
+    mounted" — that's enough to keep a patient switch from yanking
+    focus into the just-loaded co-pilot (the existing tab gets
+    navigated to the new pid by `top.navigateTab` instead). This
+    matches Visit History and the other peer tabs that re-mount on
+    every patient open.
 #}
 {% block content %}
     <p class="m-0">
@@ -37,15 +39,11 @@
         (function () {
             try {
                 if (!top || !top.navigateTab) return;
-                var sessionFlag = 'copilot_autoopened';
-                var storage = top.sessionStorage;
-                if (storage && storage.getItem(sessionFlag)) return;
                 if (top.document.querySelector('iframe[name="copilot"]')) return;
-                if (storage) storage.setItem(sessionFlag, '1');
                 top.navigateTab({{ panelUrl|json_encode|raw }}, 'copilot');
             } catch (e) {
-                // Same-origin / sessionStorage / DOM access failures are
-                // benign here — auto-open is a convenience, not load-bearing.
+                // Same-origin / DOM access failures are benign here —
+                // auto-open is a convenience, not load-bearing.
             }
         })();
     </script>

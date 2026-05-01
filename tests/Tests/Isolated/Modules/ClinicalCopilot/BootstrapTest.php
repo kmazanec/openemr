@@ -168,18 +168,21 @@ final class BootstrapTest extends TestCase
     }
 
     #[Test]
-    public function copilotCardAutoOpensTheTabOncePerSessionWhenTheDashboardRenders(): void
+    public function copilotCardAutoOpensTheTabWhenTheDashboardRenders(): void
     {
         // The card markup ships an inline script that opens the
-        // co-pilot panel as a peer tab in the background the first
-        // time the dashboard renders. Pin the contract:
-        //   - sessionStorage flag prevents repeat opens within a
-        //     session (so closing the tab on purpose is honored)
+        // co-pilot panel as a peer tab in the background whenever the
+        // dashboard renders and no copilot tab is currently mounted.
+        // Pin the contract:
         //   - early-return when an iframe[name=copilot] already
-        //     exists (so a patient switch doesn't yank focus into the
-        //     just-loaded co-pilot)
+        //     exists (so a patient switch lets navigateTab refresh
+        //     the existing tab in place rather than double-opening,
+        //     and doesn't yank focus into the just-loaded co-pilot)
         //   - top.navigateTab is called WITHOUT activateTabByName,
-        //     leaving the new tab in the background.
+        //     leaving the new tab in the background
+        //   - no per-session "open once" gate — the panel re-mounts
+        //     on every patient open, matching Visit History and the
+        //     other peer tabs.
         $arrayLoader = new ArrayLoader([
             'patient/card/card_base.html.twig' => '{% block content %}{% endblock %}',
         ]);
@@ -195,7 +198,6 @@ final class BootstrapTest extends TestCase
             'panelUrl' => '/interface/modules/custom_modules/oe-module-clinical-copilot/public/panel.php?pid=92',
         ]);
 
-        self::assertStringContainsString('copilot_autoopened', $html);
         self::assertStringContainsString('iframe[name="copilot"]', $html);
         self::assertStringContainsString('top.navigateTab(', $html);
         // Must NOT call activateTabByName from auto-open (would foreground).
@@ -204,6 +206,10 @@ final class BootstrapTest extends TestCase
             $html,
             'auto-open should call navigateTab without an afterLoad callback so the new tab stays in the background',
         );
+        // No once-per-session gate — closing the tab and switching to
+        // a different patient (or the same patient) must reopen it.
+        self::assertStringNotContainsString('sessionStorage', $html);
+        self::assertStringNotContainsString('copilot_autoopened', $html);
     }
 
     #[Test]
