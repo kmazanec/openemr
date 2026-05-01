@@ -84,7 +84,7 @@ export const createSynthesize = (
 /**
  * Default `Synthesizer` backed by ChatAnthropic + structured output.
  * The model is read from `ANTHROPIC_MODEL` env (default
- * `claude-sonnet-4-5-20250929`). Strict JSON via
+ * `claude-sonnet-4-6`). Strict JSON via
  * `withStructuredOutput(zodSchema)` — LangChain handles JSON-coercion
  * and retry-on-parse-error.
  */
@@ -92,7 +92,7 @@ export const createAnthropicSynthesizer = (options?: {
     readonly model?: string;
     readonly apiKey?: string;
 }): Synthesizer => {
-    const model = options?.model ?? process.env['ANTHROPIC_MODEL'] ?? 'claude-sonnet-4-5-20250929';
+    const model = options?.model ?? process.env['ANTHROPIC_MODEL'] ?? 'claude-sonnet-4-6';
     const apiKey = options?.apiKey ?? process.env['ANTHROPIC_API_KEY'];
     if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('ANTHROPIC_API_KEY is required to build the default synthesizer');
