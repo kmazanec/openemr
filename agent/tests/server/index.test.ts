@@ -207,6 +207,65 @@ describe('POST /v1/agent/briefing', () => {
         expect(eventLines).toEqual(['event: meta', 'event: assistantMessage', 'event: done']);
     });
 
+    it('forwards the follow-up task and question into the envelope (§4.5)', async () => {
+        const seen: { task: string | null; question: string | undefined } = {
+            task: null,
+            question: undefined,
+        };
+        const runner: BriefingRunner = ({ envelope }) => {
+            seen.task = envelope.task;
+            seen.question = envelope.question;
+            return Promise.resolve([]);
+        };
+        const { app, privateKey } = await buildAuthedApp({ briefingRunner: runner });
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                ...briefingBody,
+                task: 'follow_up',
+                question: 'What was her last A1c?',
+            }),
+        });
+        expect(res.status).toBe(200);
+        await res.text();
+        expect(seen.task).toBe('follow_up');
+        expect(seen.question).toBe('What was her last A1c?');
+    });
+
+    it('rejects a follow-up envelope with an empty question string', async () => {
+        const { app, privateKey } = await buildAuthedApp();
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                ...briefingBody,
+                task: 'follow_up',
+                question: '',
+            }),
+        });
+        expect(res.status).toBe(200);
+        const text = await res.text();
+        expect(text).toContain('event: error');
+        expect(text).toContain('"code":"invalid_envelope"');
+    });
+
     it('emits a typed error event when the runner throws (failure-state UI surface)', async () => {
         const runner: BriefingRunner = () => Promise.reject(new Error('boom'));
         const { app, privateKey } = await buildAuthedApp({ briefingRunner: runner });

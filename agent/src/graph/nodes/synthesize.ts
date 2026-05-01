@@ -2,9 +2,22 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 
+import type { Counters } from '../../observability/counters.js';
+import { createNoopCounters } from '../../observability/counters.js';
+import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
-import { SYSTEM_PROMPT, buildUserMessage } from '../synthesize.prompt.js';
-import type { BriefingSnapshot, ClaimLedger, DraftBriefing } from '../types.js';
+import {
+    FOLLOW_UP_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    buildFollowUpUserMessage,
+    buildUserMessage,
+} from '../synthesize.prompt.js';
+import type {
+    BriefingSnapshot,
+    ClaimLedger,
+    DraftBriefing,
+    RequestEnvelope,
+} from '../types.js';
 
 /**
  * Zod schema for the structured output the model emits. Mirrors
@@ -61,22 +74,72 @@ const synthesisOutputSchema = z.object({
         .describe('Every factual claim referenced by the segments, with the source records that back it.'),
 });
 
+export interface SynthesizerUsage {
+    readonly model: string;
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+}
+
+export interface SynthesizerResult {
+    readonly draft: DraftBriefing;
+    readonly ledger: ClaimLedger;
+    /**
+     * Token + model identity for cost projection. Optional because
+     * tests inject a deterministic `Synthesizer` that doesn't go through
+     * a real model — they may omit it without affecting graph behavior.
+     */
+    readonly usage?: SynthesizerUsage;
+}
+
 export type Synthesizer = (input: {
     snapshot: BriefingSnapshot;
-}) => Promise<{ draft: DraftBriefing; ledger: ClaimLedger }>;
+    /**
+     * §4.5 free-text routing: the synthesizer reads `envelope.task` and
+     * `envelope.question` to choose between the briefing and follow-up
+     * prompts. Tests that don't care about routing can pass any envelope
+     * with `task: 'default_briefing'`; the production synthesizer
+     * inspects both fields.
+     */
+    envelope: RequestEnvelope;
+}) => Promise<SynthesizerResult>;
 
 export interface SynthesizeDeps {
     readonly synthesizer: Synthesizer;
+    /**
+     * §6.1 cost-projection counters. Token usage and dollar cost get
+     * recorded here per synthesizer call. Optional so existing tests can
+     * skip wiring it.
+     */
+    readonly counters?: Counters;
 }
 
 export const createSynthesize = (
     deps: SynthesizeDeps,
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
+    const counters = deps.counters ?? createNoopCounters();
     return async (state) => {
         if (state.snapshot === null) {
             throw new Error('Synthesize called before Retrieve populated the snapshot');
         }
-        const { draft, ledger } = await deps.synthesizer({ snapshot: state.snapshot });
+        const { draft, ledger, usage } = await deps.synthesizer({
+            snapshot: state.snapshot,
+            envelope: state.envelope,
+        });
+        if (usage !== undefined) {
+            const costUsd = costForUsage(usage);
+            counters.recordModelUsage({
+                model: usage.model,
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                costUsd,
+            });
+            setRunMetadata({
+                model: usage.model,
+                input_tokens: usage.inputTokens,
+                output_tokens: usage.outputTokens,
+                cost_usd: costUsd,
+            });
+        }
         return { draft, claimLedger: ledger };
     };
 };
@@ -100,16 +163,45 @@ export const createAnthropicSynthesizer = (options?: {
     const llm = new ChatAnthropic({ model, apiKey, temperature: 0 });
     const structured = llm.withStructuredOutput(synthesisOutputSchema, {
         name: 'briefing_with_claim_ledger',
+        includeRaw: true,
     });
 
-    return async ({ snapshot }) => {
-        const out = await structured.invoke([
-            new SystemMessage(SYSTEM_PROMPT),
-            new HumanMessage(buildUserMessage(snapshot)),
+    return async ({ snapshot, envelope }) => {
+        // §4.5: a free-text follow-up swaps both the system prompt and
+        // the user-message wrapper. A `follow_up` task without a
+        // `question` (a typed-suggestion follow-up planned for §4.1–4.4)
+        // still uses the briefing prompt for now — those branches will
+        // land their own prompts when those sub-phases ship.
+        const question =
+            envelope.task === 'follow_up' &&
+            typeof envelope.question === 'string' &&
+            envelope.question.length > 0
+                ? envelope.question
+                : null;
+        const systemPrompt = question !== null ? FOLLOW_UP_SYSTEM_PROMPT : SYSTEM_PROMPT;
+        const userMessage = question !== null
+            ? buildFollowUpUserMessage(snapshot, question)
+            : buildUserMessage(snapshot);
+        const result = await structured.invoke([
+            new SystemMessage(systemPrompt),
+            new HumanMessage(userMessage),
         ]);
+        const parsed = result.parsed;
+        const raw = result.raw;
+        const usageMeta = (raw as { usage_metadata?: { input_tokens?: number; output_tokens?: number } })
+            .usage_metadata;
+        const usage =
+            usageMeta !== undefined
+                ? {
+                      model,
+                      inputTokens: usageMeta.input_tokens ?? 0,
+                      outputTokens: usageMeta.output_tokens ?? 0,
+                  }
+                : undefined;
         return {
-            draft: { segments: out.segments },
-            ledger: out.ledger,
+            draft: { segments: parsed.segments },
+            ledger: parsed.ledger,
+            ...(usage !== undefined ? { usage } : {}),
         };
     };
 };

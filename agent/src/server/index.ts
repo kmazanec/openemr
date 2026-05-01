@@ -12,6 +12,7 @@ import {
 import { createLocalKeyResolver, createRemoteKeyResolver } from '../auth/jwks.js';
 import { createAgentJwtVerifier, type AgentJwtVerifier } from '../auth/verify.js';
 import type { RequestEnvelope } from '../graph/types.js';
+import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
 import { createPgConversationStore } from '../state/conversationStore.js';
@@ -42,6 +43,9 @@ const briefingRequestSchema = z.object({
         uuid: z.string().default(''),
     }),
     task: z.union([z.literal('default_briefing'), z.literal('follow_up')]).default('default_briefing'),
+    // §4.5 free-text follow-up. Bounded to keep the prompt + trace logs
+    // tractable; the panel composer enforces the same cap client-side.
+    question: z.string().min(1).max(2000).optional(),
 });
 
 export const createApp = ({ auth, briefingRunner }: AppDeps): Hono => {
@@ -113,6 +117,7 @@ export const createApp = ({ auth, briefingRunner }: AppDeps): Hono => {
                 actor: { userId: principal.sub, fhirUser: principal.fhirUser },
                 patient: parsed.data.patient,
                 task: parsed.data.task,
+                ...(parsed.data.question !== undefined ? { question: parsed.data.question } : {}),
             };
 
             try {
@@ -194,6 +199,14 @@ const buildVerifier = (): AgentJwtVerifier => {
 
 export const start = async (port: number): Promise<void> => {
     const logger = createLogger('server');
+    // §6.1: belt-and-braces PHI suppression for LangSmith. We default
+    // these to "true" if the operator did not set them — uploading a
+    // briefing prompt that contains the chart in the clear would defeat
+    // the rest of the trust boundary. An operator who knows what they
+    // are doing can override (`...HIDE_INPUTS=false`) for ad-hoc
+    // debugging in a non-PHI environment.
+    process.env['LANGSMITH_HIDE_INPUTS'] = process.env['LANGSMITH_HIDE_INPUTS'] ?? 'true';
+    process.env['LANGSMITH_HIDE_OUTPUTS'] = process.env['LANGSMITH_HIDE_OUTPUTS'] ?? 'true';
     const databaseUrl = process.env['DATABASE_URL'] ?? '';
     if (databaseUrl.length === 0) {
         logger.error('DATABASE_URL is not set; cannot boot agent state store');
@@ -217,12 +230,32 @@ export const start = async (port: number): Promise<void> => {
     await conversationStore.setup();
     logger.info('conversations table ready');
 
+    const counters = createInMemoryCounters();
     const briefingRunner = buildProductionBriefingRunner({
         openEmrBaseUrl,
         unverifiedClaimsLog,
         conversationStore,
         checkpointer,
+        counters,
     });
+    // §6.1: log the rolling cost-projection snapshot once a minute so the
+    // numbers are searchable in the agent's stdout without needing a
+    // metrics scrape. PHI keys (raw clinician/patient ids) stay in-process;
+    // only counts and totals reach the log line.
+    setInterval(() => {
+        const snap = counters.snapshot();
+        logger.info(
+            {
+                totalBriefings: snap.totalBriefings,
+                clinicians: Object.keys(snap.briefingsByClinician).length,
+                patients: Object.keys(snap.briefingsByPatient).length,
+                toolCalls: snap.toolCalls,
+                modelUsage: snap.modelUsage,
+                verification: snap.verification,
+            },
+            'agent counters snapshot',
+        );
+    }, 60_000).unref();
 
     const app = createApp({ auth: { verify }, briefingRunner });
     serve({ fetch: app.fetch, port });

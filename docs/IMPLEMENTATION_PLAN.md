@@ -1026,14 +1026,16 @@ target + golden cases.
   external records, malformed CCDA
 
 ### 4.5 Free-text fallback
-- [ ] Plain text input on the panel for questions the suggestions don't
+- [x] Plain text input on the panel for questions the suggestions don't
   cover
-- [ ] Graph routes to a generic "answer cited question about this
+- [x] Graph routes to a generic "answer cited question about this
   patient" path that uses the snapshot tools and the same verification
   gate
-- [ ] Adversarial eval cases: cross-patient leakage attempts ("what's
+- [x] Adversarial eval cases: cross-patient leakage attempts ("what's
   Maya's neighbor's A1c?"), authorization probes, hidden-data
-  extraction prompts
+  extraction prompts (landed as Vitest integration tests in
+  `agent/tests/graph/freeTextFollowUp.test.ts`; will migrate to the
+  `agent/evals/` harness when §3.6 ships it)
 
 **Phase 4 done when:** each of UC2/3/4 has a green golden set, the
 free-text fallback routes through the same verification gate as the
@@ -1086,11 +1088,30 @@ render cleanly.
 These are tracked separately but worked in parallel as each UC lands.
 
 ### 6.1 Observability
-- [ ] LangSmith trace metadata: per-tool latency, tokens, cost, claim
+- [x] LangSmith trace metadata: per-tool latency, tokens, cost, claim
   counts, verification pass/fail rate, prompt-injection failures
-- [ ] Per-clinician + per-patient counters (cost projection input)
-- [ ] No PHI in prompt/completion bodies stored to LangSmith — confirmed
+- [x] Per-clinician + per-patient counters (cost projection input)
+- [x] No PHI in prompt/completion bodies stored to LangSmith — confirmed
   by a test that scans recent traces
+
+  Implementation notes (2026-04-30):
+  - In-process counters live in `agent/src/observability/counters.ts`
+    (`createInMemoryCounters` / `createNoopCounters`). The production
+    runner threads a single registry through Retrieve, Synthesize,
+    Verify, and the per-briefing tally in `briefingRunner`.
+  - Per-tool latency, model token usage + dollar cost, and verification
+    pass/fail/prompt-injection counts are also written to the active
+    LangSmith run via `setRunMetadata`. Identity tags are HMAC-hashed
+    (`LANGSMITH_TAG_SALT`) before becoming run tags so the trace
+    surface stays PHI-free.
+  - Prompt-injection signal is the count of rejected claims with reason
+    `source-record-not-in-snapshot` — i.e. the model invented a
+    citation. Shown as `prompt_injection_failures` on the run metadata.
+  - PHI suppression: agent boot sets `LANGSMITH_HIDE_INPUTS` /
+    `LANGSMITH_HIDE_OUTPUTS` to `true` if not explicitly overridden,
+    and the §6.1 scan test (`tests/observability/scanRecentTraces.test.ts`)
+    runs in two modes — always-on against fixtures, and live against
+    LangSmith when `LANGSMITH_API_KEY` is set.
 
 ### 6.2 Cost analysis
 - [ ] `docs/COST_ANALYSIS.md` covering 100 / 1K / 10K / 100K user tiers

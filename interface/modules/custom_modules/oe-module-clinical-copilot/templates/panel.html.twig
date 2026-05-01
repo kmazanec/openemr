@@ -30,12 +30,11 @@
                       data-role="input"
                       name="question"
                       rows="2"
-                      placeholder="{{ 'Follow-up questions coming soon'|xlt }}"
-                      disabled></textarea>
+                      maxlength="2000"
+                      placeholder="{{ 'Ask a follow-up question about this patient…'|xlt }}"></textarea>
             <button class="copilot-composer__submit"
                     type="submit"
-                    data-role="submit"
-                    disabled>{{ 'Ask'|xlt }}</button>
+                    data-role="submit">{{ 'Ask'|xlt }}</button>
         </form>
     </main>
 

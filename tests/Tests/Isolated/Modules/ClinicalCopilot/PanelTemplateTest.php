@@ -113,22 +113,22 @@ final class PanelTemplateTest extends TestCase
     }
 
     #[Test]
-    public function rendersTheComposerFormWithDisabledInputAndSubmit(): void
+    public function rendersTheComposerFormEnabledForFreeTextFollowUps(): void
     {
-        // The composer is rendered in this phase so the chat shape is
-        // visible end-to-end, but submit is intentionally disabled until
-        // §4.5's agent-side routing lands. The disabled state is set
-        // here in HTML, not lifted by JS; that pin protects against an
-        // accidental enable in a future refactor.
+        // §4.5 lifts the disabled state so the clinician can type ad-hoc
+        // questions. The submit handler in panel.js POSTs to the same
+        // proxy endpoint with `task: 'follow_up'` and the typed
+        // question; the agent runs the same verification gate over the
+        // resulting claims.
         $twig = self::buildTwig();
         $html = $twig->render('panel.html.twig', self::defaultParams());
 
         self::assertStringContainsString('data-role="composer"', $html);
-        self::assertMatchesRegularExpression(
+        self::assertDoesNotMatchRegularExpression(
             '/<textarea[^>]*data-role="input"[^>]*disabled/',
             $html,
         );
-        self::assertMatchesRegularExpression(
+        self::assertDoesNotMatchRegularExpression(
             '/<button[^>]*data-role="submit"[^>]*disabled/',
             $html,
         );

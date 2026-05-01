@@ -16,11 +16,11 @@
  *     yellow warning banner inside the assistant bubble.
  *   - Redactions stay visible — we never silently drop content.
  *
- * Composer (free-text follow-up input) is rendered disabled in this
- * phase; the agent backend doesn't yet branch on `task: 'follow_up'`,
- * so wiring submit would create a visibly broken interaction. The
- * disabled state is set in HTML and intentionally not lifted here.
- * That changes in the next phase, when the rest of §4.5 lands.
+ * §4.5 free-text follow-up: the composer is enabled. Submit pushes a
+ * user bubble into the thread and POSTs the same proxy endpoint with
+ * `task: 'follow_up'` plus the typed question. The agent runs the same
+ * §3.3 verification gate over the resulting claims, so the cited-prose
+ * guarantee carries over.
  */
 (function () {
     'use strict';
@@ -251,26 +251,12 @@
     };
 
     /**
-     * Composer submit handler — stub for this phase.
-     *
-     * The textarea + button are rendered disabled, so this should never
-     * fire from a real user gesture. The handler exists so a phase-4.5
-     * follow-up can swap it out without re-wiring the form's event
-     * subscription.
+     * Open an SSE stream against the agent proxy and render its events
+     * into the thread. Shared between the initial briefing and §4.5
+     * free-text follow-ups — the only difference between the two is the
+     * envelope (`task` and the optional `question`).
      */
-    const wireComposer = () => {
-        const form = root.querySelector('[data-role="composer"]');
-        if (!form) return;
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            // Intentional no-op — see file header. The next phase routes
-            // the question to /v1/agent/briefing with task: 'follow_up'.
-        });
-    };
-
-    const start = async () => {
-        wireComposer();
-        setStatus('Connecting to Co-Pilot…', 'connecting');
+    const streamTurn = async ({ envelope, errorTag }) => {
         try {
             const response = await fetch(`${proxyUrl}?action=briefing&pid=${encodeURIComponent(pid)}`, {
                 method: 'POST',
@@ -279,13 +265,7 @@
                     'Content-Type': 'application/json',
                     Accept: 'text/event-stream',
                 },
-                body: JSON.stringify({
-                    conversationId,
-                    requestId,
-                    siteId,
-                    patient: { pid, uuid: '' },
-                    task: 'default_briefing',
-                }),
+                body: JSON.stringify(envelope),
             });
             if (!response.ok) {
                 renderFatalError(`http_${response.status}`);
@@ -293,9 +273,78 @@
             }
             await parseSseStream(response);
         } catch (err) {
-            console.error('copilot: stream failed', err);
+            console.error(`copilot: ${errorTag} stream failed`, err);
             renderFatalError('network_error');
         }
+    };
+
+    /**
+     * POST a §4.5 follow-up turn. `composerBusy` blocks concurrent
+     * submissions against the same conversation thread while the
+     * previous stream is still open.
+     */
+    let composerBusy = false;
+    const submitFollowUp = async (question) => {
+        if (composerBusy) return;
+        composerBusy = true;
+        thread.push({ role: 'user', text: question });
+        renderThread();
+        setStatus('Asking…', 'streaming');
+        try {
+            await streamTurn({
+                envelope: {
+                    conversationId,
+                    requestId: `req-${pid}-${Date.now()}`,
+                    siteId,
+                    patient: { pid, uuid: '' },
+                    task: 'follow_up',
+                    question,
+                },
+                errorTag: 'follow-up',
+            });
+        } finally {
+            composerBusy = false;
+        }
+    };
+
+    const wireComposer = () => {
+        const form = root.querySelector('[data-role="composer"]');
+        if (!form) return;
+        const input = form.querySelector('[data-role="input"]');
+        const submit = form.querySelector('[data-role="submit"]');
+        const setBusyUi = (busy) => {
+            if (input) input.disabled = busy;
+            if (submit) submit.disabled = busy;
+        };
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!input) return;
+            const question = String(input.value || '').trim();
+            if (question.length === 0) return;
+            input.value = '';
+            setBusyUi(true);
+            try {
+                await submitFollowUp(question);
+            } finally {
+                setBusyUi(false);
+                if (input) input.focus();
+            }
+        });
+    };
+
+    const start = async () => {
+        wireComposer();
+        setStatus('Connecting to Co-Pilot…', 'connecting');
+        await streamTurn({
+            envelope: {
+                conversationId,
+                requestId,
+                siteId,
+                patient: { pid, uuid: '' },
+                task: 'default_briefing',
+            },
+            errorTag: 'briefing',
+        });
     };
 
     start();

@@ -23,6 +23,16 @@ export interface RequestEnvelope {
     readonly actor: { readonly userId: string; readonly fhirUser: string };
     readonly patient: { readonly pid: number; readonly uuid: string };
     readonly task: 'default_briefing' | 'follow_up';
+    /**
+     * §4.5 free-text follow-up: the clinician's typed question. Present
+     * only when `task === 'follow_up'` and the suggestions rail did not
+     * pre-fill a typed parameter set. The synthesizer routes a follow-up
+     * with `question` through the generic "answer cited question" path;
+     * the verifier still gates every emitted claim against the snapshot,
+     * so the source-citation guarantee holds whether the question came
+     * from a typed suggestion or free text.
+     */
+    readonly question?: string;
 }
 
 /**

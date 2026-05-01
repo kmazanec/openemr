@@ -6,6 +6,7 @@ import type {
     ClaimLedger,
     RequestEnvelope,
 } from '../../../src/graph/types.js';
+import { createInMemoryCounters } from '../../../src/observability/counters.js';
 
 const envelope: RequestEnvelope = {
     conversationId: 'c-1',
@@ -106,5 +107,49 @@ describe('createSynthesize', () => {
                 draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
             }),
         ).rejects.toThrow(/snapshot/i);
+    });
+
+    it('records token usage and dollar cost on the counters sink when usage is reported', async () => {
+        const counters = createInMemoryCounters();
+        const synth: Synthesizer = vi.fn(() =>
+            Promise.resolve({
+                draft,
+                ledger,
+                usage: {
+                    model: 'claude-sonnet-4-6',
+                    inputTokens: 2_000_000,
+                    outputTokens: 1_000_000,
+                },
+            }),
+        );
+        const node = createSynthesize({ synthesizer: synth, counters });
+
+        await node({
+            envelope,
+            snapshot,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
+        });
+
+        const snap = counters.snapshot();
+        const usage = snap.modelUsage['claude-sonnet-4-6']!;
+        expect(usage.inputTokens).toBe(2_000_000);
+        expect(usage.outputTokens).toBe(1_000_000);
+        // 2M @ $3/M input + 1M @ $15/M output = $6 + $15 = $21
+        expect(usage.costUsd).toBeCloseTo(21, 4);
+    });
+
+    it('skips the counter call when usage is not reported (deterministic test synthesizers)', async () => {
+        const counters = createInMemoryCounters();
+        const synth: Synthesizer = vi.fn(() => Promise.resolve({ draft, ledger }));
+        const node = createSynthesize({ synthesizer: synth, counters });
+
+        await node({
+            envelope,
+            snapshot,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
+        });
+
+        const snap = counters.snapshot();
+        expect(Object.keys(snap.modelUsage)).toHaveLength(0);
     });
 });
