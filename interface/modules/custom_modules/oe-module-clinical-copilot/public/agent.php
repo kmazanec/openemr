@@ -108,6 +108,18 @@ foreach ($extraAllowlist as $paramName) {
     }
 }
 
+// §5.4: the schedule-view annotations action is keyed by the
+// practitioner's uuid. The shim has no reason to know that uuid (it
+// only sees `data-username`/`users.id` in the calendar DOM), so we
+// fill it server-side from the resolved fhirUser. The agent's route
+// still enforces self-only (`principal.sub === practitioner_uuid`) —
+// that check is now a server/server invariant rather than a
+// client/server one. Any client-supplied `practitioner_uuid` is
+// discarded so a tampered request can never widen the scope.
+if ($action === 'schedule_briefings' && $resolvedFhirUser !== null) {
+    $extraQueryParams['practitioner_uuid'] = $resolvedFhirUser->uuid;
+}
+
 $agentRequest = new AgentRequest(
     action: $action,
     siteId: $siteId,
