@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createBriefingGraph } from '../../../src/graph/index.js';
 import type { Synthesizer } from '../../../src/graph/nodes/synthesize.js';
-import type { RequestEnvelope } from '../../../src/graph/types.js';
+import type { Claim, ClaimLedger, RequestEnvelope } from '../../../src/graph/types.js';
 import type { AgentHttpClient } from '../../../src/tools/agentHttp.js';
 import { createNullUnverifiedClaimsLog } from '../../../src/verify/unverifiedClaimsLog.js';
+import { verifyLedger } from '../../../src/verify/verifier.js';
 
 import { buildClient, loadFixture } from './_helpers.js';
 
@@ -151,6 +152,82 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
         // claim if the branch invented one, but we also assert the
         // observable surface so a future renderer change is caught.
         expect(seg?.text).not.toMatch(/for \w/);
+    });
+
+    it('adversarial: rejects a claim that omits a non-null prescriber', () => {
+        // The §4.3 verifier rule pins documented provenance: when the
+        // source row carries a prescriber, the claim text MUST mention
+        // it. A model that drops the prescriber for stylistic prose
+        // looks plausible to the eye but breaks the documented-fields
+        // promise — verify the gate refuses.
+        const snapshot = loadFixture('lisinopril_recent_start');
+        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        expect(lisinopril?.prescriber).not.toBeNull();
+        if (lisinopril === undefined) return;
+
+        const fabricatedClaim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20 for new-onset hypertension.',
+            category: 'medication_change',
+            sourceReferences: [lisinopril.source],
+            safetyCritical: true,
+        };
+        const ledger: ClaimLedger = { claims: [fabricatedClaim] };
+
+        const out = verifyLedger(snapshot, ledger);
+
+        expect(out.passed).toBe(false);
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected).toHaveLength(1);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('adversarial: rejects a claim that omits a non-null indication', () => {
+        const snapshot = loadFixture('lisinopril_recent_start');
+        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        expect(lisinopril?.indication).not.toBeNull();
+        if (lisinopril === undefined) return;
+
+        const fabricatedClaim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel.',
+            category: 'medication_change',
+            sourceReferences: [lisinopril.source],
+            safetyCritical: true,
+        };
+        const ledger: ClaimLedger = { claims: [fabricatedClaim] };
+
+        const out = verifyLedger(snapshot, ledger);
+
+        expect(out.passed).toBe(false);
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('adversarial: rejects a claim citing a MedicationRequest not in the snapshot', () => {
+        const snapshot = loadFixture('lisinopril_recent_start');
+
+        const fabricatedClaim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel for new-onset hypertension.',
+            category: 'medication_change',
+            sourceReferences: [{
+                system: 'openemr',
+                recordType: 'MedicationRequest',
+                // Plausible-shape id that does not match any rx in the fixture.
+                recordId: '999999',
+                field: null,
+                recordedAt: null,
+            }],
+            safetyCritical: true,
+        };
+        const ledger: ClaimLedger = { claims: [fabricatedClaim] };
+
+        const out = verifyLedger(snapshot, ledger);
+
+        expect(out.passed).toBe(false);
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
     });
 
     it('med_unknown_prescriber: claim text omits prescriber when source is null', async () => {
