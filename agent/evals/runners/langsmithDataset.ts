@@ -21,9 +21,9 @@ import { loadFixture, loadUc2Fixture, type Uc2Scenario } from '../fixtures/load.
 import { ARCHETYPES, type ArchetypeKey } from '../fixtures/regenerate.js';
 import { UC2_SCENARIOS } from '../fixtures/regenerate-uc2.js';
 
-export const DATASET_NAME = 'clinical-copilot-uc1-golden-v2';
+export const DATASET_NAME = 'clinical-copilot-uc1-golden-v3';
 const DATASET_DESCRIPTION =
-    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, medication names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions) the verifier must surface.';
+    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, prescription names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions) the verifier must surface. v3 (Phase 4.6.2) renames prescriptionNames → prescriptionNames to match the FHIR-correct snapshot split (clinic-written prescriptions vs. patient-reported medications).';
 
 interface UploadResult {
     readonly created: boolean;
@@ -46,40 +46,40 @@ interface UploadResult {
  */
 const groundTruth = (archetype: ArchetypeKey): {
     readonly diagnosisCodes: readonly string[];
-    readonly medicationNames: readonly string[];
+    readonly prescriptionNames: readonly string[];
     readonly externalEncounterIds: readonly string[];
 } => {
     switch (archetype) {
         case 'healthy_adult':
-            return { diagnosisCodes: [], medicationNames: [], externalEncounterIds: [] };
+            return { diagnosisCodes: [], prescriptionNames: [], externalEncounterIds: [] };
         case 'hypertensive':
             return {
                 diagnosisCodes: ['I10'],
-                medicationNames: ['Lisinopril'],
+                prescriptionNames: ['Lisinopril'],
                 externalEncounterIds: [],
             };
         case 'diabetic':
             return {
                 diagnosisCodes: ['E11.9'],
-                medicationNames: ['Metformin'],
+                prescriptionNames: ['Metformin'],
                 externalEncounterIds: [],
             };
         case 'diabetic_uncontrolled':
             return {
                 diagnosisCodes: ['E11.9'],
-                medicationNames: ['Metformin', 'Lisinopril'],
+                prescriptionNames: ['Metformin', 'Lisinopril'],
                 externalEncounterIds: [],
             };
         case 'complex_elderly':
             return {
                 diagnosisCodes: ['I10', 'E78.5', 'M19.90'],
-                medicationNames: ['Lisinopril', 'Atorvastatin'],
+                prescriptionNames: ['Lisinopril', 'Atorvastatin'],
                 externalEncounterIds: [],
             };
         case 'recent_ed_visit':
             return {
                 diagnosisCodes: [],
-                medicationNames: [],
+                prescriptionNames: [],
                 externalEncounterIds: ['enc-6006-ed'],
             };
     }
@@ -89,7 +89,7 @@ const buildExamples = (): readonly {
     inputs: { snapshot: BriefingSnapshot; archetype: ArchetypeKey };
     outputs: {
         diagnosisCodes: readonly string[];
-        medicationNames: readonly string[];
+        prescriptionNames: readonly string[];
         externalEncounterIds: readonly string[];
     };
     metadata: { archetype: ArchetypeKey };

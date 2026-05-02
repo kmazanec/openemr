@@ -13,7 +13,7 @@ import { createLogger } from '../observability/logger.js';
 
 const SNAPSHOT_PATH = '/interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot.php';
 
-export type SnapshotCategory = 'diagnosis' | 'medication' | 'allergy' | 'lab' | 'encounter' | 'appointment';
+export type SnapshotCategory = 'diagnosis' | 'prescription' | 'allergy' | 'lab' | 'encounter' | 'appointment';
 
 export interface SnapshotFetchInput {
     readonly pid: number;

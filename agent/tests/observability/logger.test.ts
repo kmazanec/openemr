@@ -72,7 +72,7 @@ describe('logger', () => {
                 {
                     patient: { firstName: 'Maya', mrn: 'MRN-99' },
                     snapshot: {
-                        medications: [
+                        prescriptions: [
                             { name: 'metformin', prescriber: 'Dr Patel' },
                             { name: 'lisinopril', prescriber: 'Dr Smith' },
                         ],
@@ -87,8 +87,8 @@ describe('logger', () => {
         expect(patient['firstName']).toBe('[REDACTED]');
         expect(patient['mrn']).toBe('[REDACTED]');
 
-        const snapshot = entry['snapshot'] as { medications: Record<string, unknown>[] };
-        for (const med of snapshot.medications) {
+        const snapshot = entry['snapshot'] as { prescriptions: Record<string, unknown>[] };
+        for (const med of snapshot.prescriptions) {
             expect(med['prescriber']).toBe('[REDACTED]');
         }
     });

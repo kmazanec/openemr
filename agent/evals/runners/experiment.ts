@@ -61,7 +61,7 @@ const datasetClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
         diagnoses: snapshot.diagnoses,
-        medications: snapshot.medications,
+        prescriptions: snapshot.prescriptions,
         allergies: snapshot.allergies,
         labs: Array.isArray(snapshot.labs) ? snapshot.labs : [] as readonly LabObservation[],
         encounters: Array.isArray(snapshot.encounters)
@@ -120,7 +120,7 @@ export const runExperiment = async (options: RunOptions = {}): Promise<RunResult
                 .filter((c) => c.category === 'diagnosis')
                 .map((c) => c.text),
             medicationNames: accepted
-                .filter((c) => c.category === 'medication')
+                .filter((c) => c.category === 'prescription')
                 .map((c) => c.text),
         };
     };

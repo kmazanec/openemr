@@ -51,7 +51,7 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
         diagnoses: snapshot.diagnoses,
-        medications: snapshot.medications,
+        prescriptions: snapshot.prescriptions,
         allergies: snapshot.allergies,
         labs: Array.isArray(snapshot.labs) ? snapshot.labs : ([] as readonly LabObservation[]),
         encounters: Array.isArray(snapshot.encounters) ? snapshot.encounters : [],

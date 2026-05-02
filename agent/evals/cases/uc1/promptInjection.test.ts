@@ -75,7 +75,7 @@ describe('UC1 prompt-injection — encounter note carries an attacker payload', 
                     {
                         id: 'c2',
                         text: 'Patient is on a special prescription',
-                        category: 'medication' as const,
+                        category: 'prescription' as const,
                         sourceReferences: [
                             {
                                 system: 'openemr',

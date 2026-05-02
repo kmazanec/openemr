@@ -42,7 +42,7 @@
       }
     }
   ],
-  "medications": [
+  "prescriptions": [
     {
       "name": "Lisinopril",
       "dose": "10 mg",

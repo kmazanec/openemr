@@ -75,7 +75,7 @@ describe('ChartSnapshot cross-language contract', () => {
         const decoded = decodeChartSnapshot(loadFixture('diabetic.json'));
         const codes = decoded.diagnoses.map((d) => d.code);
         expect(codes).toContain('E11.9');
-        const drugs = decoded.medications.map((m) => m.name.toLowerCase());
+        const drugs = decoded.prescriptions.map((m) => m.name.toLowerCase());
         expect(drugs.some((d) => d.includes('metformin'))).toBe(true);
     });
 
@@ -83,14 +83,14 @@ describe('ChartSnapshot cross-language contract', () => {
         const decoded = decodeChartSnapshot(loadFixture('hypertensive.json'));
         const codes = decoded.diagnoses.map((d) => d.code);
         expect(codes).toContain('I10');
-        const drugs = decoded.medications.map((m) => m.name.toLowerCase());
+        const drugs = decoded.prescriptions.map((m) => m.name.toLowerCase());
         expect(drugs.some((d) => d.includes('lisinopril'))).toBe(true);
     });
 
     it('healthy_adult archetype has no diagnoses or medications', () => {
         const decoded = decodeChartSnapshot(loadFixture('healthy_adult.json'));
         expect(decoded.diagnoses).toHaveLength(0);
-        expect(decoded.medications).toHaveLength(0);
+        expect(decoded.prescriptions).toHaveLength(0);
     });
 
     it('every list item carries a non-empty source reference', () => {
@@ -102,7 +102,7 @@ describe('ChartSnapshot cross-language contract', () => {
             const decoded = decodeChartSnapshot(loadFixture(filename));
             const items = [
                 ...decoded.diagnoses,
-                ...decoded.medications,
+                ...decoded.prescriptions,
                 ...decoded.allergies,
                 ...decoded.labs,
                 ...decoded.encounters,

@@ -32,7 +32,7 @@ const baseSnapshot = (overrides: Record<string, unknown> = {}): unknown => ({
     },
     appointment: null,
     diagnoses: [],
-    medications: [],
+    prescriptions: [],
     allergies: [
         {
             substance: 'Penicillin',
@@ -77,7 +77,7 @@ describe('createRetrieve (Phase B1: single-fetch briefing path)', () => {
         const [call] = fetch.mock.calls;
         expect(call?.[0].categories).toEqual([
             'diagnosis',
-            'medication',
+            'prescription',
             'allergy',
             'lab',
             'encounter',

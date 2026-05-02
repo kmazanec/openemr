@@ -2,12 +2,12 @@ import { END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/lan
 
 import { format } from './nodes/format.js';
 import { loadState } from './nodes/loadState.js';
-import {
-    createMedChangeBranch,
-    type MedChangeBranchDeps,
-} from './nodes/medChangeBranch.js';
 import { persist } from './nodes/persist.js';
 import { planContext } from './nodes/planContext.js';
+import {
+    createPrescriptionChangeBranch,
+    type PrescriptionChangeBranchDeps,
+} from './nodes/prescriptionChangeBranch.js';
 import { createRetrieve, type RetrieveDeps } from './nodes/retrieve.js';
 import { createSynthesize, type SynthesizeDeps } from './nodes/synthesize.js';
 import { createVerify, type VerifyDeps } from './nodes/verify.js';
@@ -18,14 +18,14 @@ export interface BriefingGraphDeps {
     readonly synthesize: SynthesizeDeps;
     readonly verify: VerifyDeps;
     /**
-     * §4.3 UC3 medication-change branch deps. Optional so existing
+     * §4.3 UC3 prescription-change branch deps. Optional so existing
      * tests that build a graph without UC3 wiring still work — when
      * absent, every follow-up routes through the synthesizer (the
      * pre-§4.3 behavior). When present, follow-ups whose typed
-     * params carry `type: 'medication_change'` route into the
+     * params carry `type: 'prescription_change'` route into the
      * deterministic branch and bypass the synthesizer.
      */
-    readonly medChange?: MedChangeBranchDeps;
+    readonly prescriptionChange?: PrescriptionChangeBranchDeps;
     /**
      * §3.5: when set, the compiled graph persists state via this saver,
      * keyed by the `thread_id` the caller passes on `invoke`. Production
@@ -45,28 +45,29 @@ export interface BriefingGraphDeps {
  *
  * The branch still goes through `retrieve` first because the verifier
  * needs the snapshot to resolve source references — UC3's claim cites
- * a `MedicationRequest` row that must exist in `snapshot.medications`.
+ * a `MedicationRequest` row that must exist in
+ * `snapshot.prescriptions`.
  */
 export const createBriefingGraph = (deps: BriefingGraphDeps) => {
-    const medChangeWired = deps.medChange !== undefined;
-    const routeAfterRetrieve = (state: BriefingState): 'medChangeBranch' | 'synthesize' =>
-        medChangeWired && state.envelope.followUp?.type === 'medication_change'
-            ? 'medChangeBranch'
+    const prescriptionChangeWired = deps.prescriptionChange !== undefined;
+    const routeAfterRetrieve = (state: BriefingState): 'prescriptionChangeBranch' | 'synthesize' =>
+        prescriptionChangeWired && state.envelope.followUp?.type === 'prescription_change'
+            ? 'prescriptionChangeBranch'
             : 'synthesize';
 
-    // When deps.medChange is undefined the conditional edge never picks
-    // 'medChangeBranch', so the no-op handler below is unreachable —
-    // present only because LangGraph requires every named node to have
-    // an implementation at compile time.
-    const medChangeNode = deps.medChange !== undefined
-        ? createMedChangeBranch(deps.medChange)
+    // When deps.prescriptionChange is undefined the conditional edge
+    // never picks 'prescriptionChangeBranch', so the no-op handler
+    // below is unreachable — present only because LangGraph requires
+    // every named node to have an implementation at compile time.
+    const prescriptionChangeNode = deps.prescriptionChange !== undefined
+        ? createPrescriptionChangeBranch(deps.prescriptionChange)
         : () => Promise.resolve({});
 
     const builder = new StateGraph(BriefingStateAnnotation)
         .addNode('loadState', loadState)
         .addNode('planContext', planContext)
         .addNode('retrieve', createRetrieve(deps.retrieve))
-        .addNode('medChangeBranch', medChangeNode)
+        .addNode('prescriptionChangeBranch', prescriptionChangeNode)
         .addNode('synthesize', createSynthesize(deps.synthesize))
         .addNode('verify', createVerify(deps.verify))
         .addNode('format', format)
@@ -75,10 +76,10 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addEdge('loadState', 'planContext')
         .addEdge('planContext', 'retrieve')
         .addConditionalEdges('retrieve', routeAfterRetrieve, {
-            medChangeBranch: 'medChangeBranch',
+            prescriptionChangeBranch: 'prescriptionChangeBranch',
             synthesize: 'synthesize',
         })
-        .addEdge('medChangeBranch', 'verify')
+        .addEdge('prescriptionChangeBranch', 'verify')
         .addEdge('synthesize', 'verify')
         .addEdge('verify', 'format')
         .addEdge('format', 'persist')

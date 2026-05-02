@@ -13,8 +13,9 @@ import type { SnapshotClient } from './snapshotClient.js';
  * one HTTP call and decodes it once — replacing the four-tool fan-out
  * that previously hit `snapshot.php` four times for the same payload.
  *
- * The narrow per-category tools (`getMedications`, `getRecentLabs`,
- * etc.) stay around for the conversational path, where the model
+ * The narrow per-category tools (`getPrescriptions`,
+ * `getRecentLabs`, etc.) stay around for the conversational path,
+ * where the model
  * picks which tool to call against its own dedicated endpoint. They
  * are no longer used by the briefing graph.
  *
@@ -27,7 +28,7 @@ import type { SnapshotClient } from './snapshotClient.js';
 
 const ALL_CATEGORIES = [
     'diagnosis',
-    'medication',
+    'prescription',
     'allergy',
     'lab',
     'encounter',

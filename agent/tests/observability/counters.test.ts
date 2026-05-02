@@ -20,13 +20,13 @@ describe('inMemoryCounters', () => {
 
     it('records per-tool call counts and accumulated latency', () => {
         const counters = createInMemoryCounters();
-        counters.recordToolCall({ tool: 'getMedications', latencyMs: 120 });
-        counters.recordToolCall({ tool: 'getMedications', latencyMs: 80 });
+        counters.recordToolCall({ tool: 'getPrescriptions', latencyMs: 120 });
+        counters.recordToolCall({ tool: 'getPrescriptions', latencyMs: 80 });
         counters.recordToolCall({ tool: 'getRecentLabs', latencyMs: 200 });
 
         const snap = counters.snapshot();
-        expect(snap.toolCalls['getMedications']?.count).toBe(2);
-        expect(snap.toolCalls['getMedications']?.totalLatencyMs).toBe(200);
+        expect(snap.toolCalls['getPrescriptions']?.count).toBe(2);
+        expect(snap.toolCalls['getPrescriptions']?.totalLatencyMs).toBe(200);
         expect(snap.toolCalls['getRecentLabs']?.count).toBe(1);
         expect(snap.toolCalls['getRecentLabs']?.totalLatencyMs).toBe(200);
     });
@@ -92,7 +92,7 @@ describe('noopCounters', () => {
     it('accepts every call and returns an empty snapshot', () => {
         const counters = createNoopCounters();
         counters.recordBriefing({ clinicianId: 'u-1', patientId: 'p-1' });
-        counters.recordToolCall({ tool: 'getMedications', latencyMs: 120 });
+        counters.recordToolCall({ tool: 'getPrescriptions', latencyMs: 120 });
         counters.recordModelUsage({
             model: 'claude-sonnet-4-6',
             inputTokens: 1000,

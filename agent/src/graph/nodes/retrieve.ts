@@ -9,7 +9,7 @@ import type { BriefingSnapshot, Gap, LabHistorySeries } from '../types.js';
 /**
  * Default lookback for the UC2 lab-history fan-out. Two years matches
  * how clinicians read A1c/lipid/eGFR trends — long enough to span
- * pre/post a medication change, short enough to not drown the model
+ * pre/post a prescription change, short enough to not drown the model
  * in irrelevant rows.
  */
 export const UC2_LAB_HISTORY_LOOKBACK_DAYS = 730;
@@ -116,7 +116,7 @@ export const createRetrieve = (
             patient: chart.patient,
             appointment: chart.appointment,
             diagnoses: chart.diagnoses,
-            medications: chart.medications,
+            prescriptions: chart.prescriptions,
             allergies: chart.allergies,
             labs: chart.labs,
             encounters: chart.encounters,

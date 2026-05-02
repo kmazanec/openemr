@@ -42,7 +42,7 @@
       }
     }
   ],
-  "medications": [
+  "prescriptions": [
     {
       "name": "Metformin",
       "dose": "500 mg",

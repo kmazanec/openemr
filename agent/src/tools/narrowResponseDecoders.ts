@@ -5,13 +5,13 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
-    Medication,
+    Prescription,
 } from '../snapshot/types.js';
 
 /**
  * Provenance for a single prescription returned by the §4.3
- * `medication_provenance.php` endpoint. Mirrors the PHP-side
- * `MedicationProvenance::toArray()` shape.
+ * `prescription_provenance.php` endpoint. Mirrors the PHP-side
+ * `PrescriptionProvenance::toArray()` shape.
  *
  * `doseAdjustments` carries the current single dose only — OpenEMR's
  * `prescriptions` table has no historical dose-change column, and
@@ -19,7 +19,7 @@ import type {
  * this shape must not infer a dose history; the verifier rule enforces
  * that constraint at the claim layer.
  */
-export interface MedicationProvenance {
+export interface PrescriptionProvenance {
     readonly prescriptionId: string;
     readonly drugName: string;
     readonly prescriber: string | null;
@@ -37,7 +37,7 @@ export interface MedicationProvenance {
  * data; these helpers walk that envelope into the same typed DTOs
  * that the full ChartSnapshot uses. The element decoders themselves
  * live in `snapshot/decode.ts` because the briefing path exercises
- * the same shapes — we don't want two ways to decode a Medication.
+ * the same shapes — we don't want two ways to decode a Prescription.
  */
 
 import {
@@ -46,7 +46,7 @@ import {
     decodeDiagnosisForNarrow,
     decodeEncounterForNarrow,
     decodeLabForNarrow,
-    decodeMedicationForNarrow,
+    decodePrescriptionForNarrow,
 } from '../snapshot/decode.js';
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -73,11 +73,11 @@ const requireKey = (path: string, obj: Record<string, unknown>, key: string): un
     return obj[key];
 };
 
-export const decodeMedicationsResponse = (raw: unknown): readonly Medication[] => {
-    const obj = expectObject('medicationsResponse', raw);
-    const arr = expectArray('medicationsResponse.medications', requireKey('medicationsResponse', obj, 'medications'));
+export const decodePrescriptionsResponse = (raw: unknown): readonly Prescription[] => {
+    const obj = expectObject('prescriptionsResponse', raw);
+    const arr = expectArray('prescriptionsResponse.prescriptions', requireKey('prescriptionsResponse', obj, 'prescriptions'));
     return arr.map((item, idx) =>
-        decodeMedicationForNarrow(`medicationsResponse.medications[${String(idx)}]`, item),
+        decodePrescriptionForNarrow(`prescriptionsResponse.prescriptions[${String(idx)}]`, item),
     );
 };
 
@@ -126,18 +126,18 @@ const expectIntAsString = (path: string, v: unknown): string => {
     return String(v);
 };
 
-export const decodeMedicationProvenanceResponse = (raw: unknown): MedicationProvenance => {
-    const obj = expectObject('medicationProvenanceResponse', raw);
+export const decodePrescriptionProvenanceResponse = (raw: unknown): PrescriptionProvenance => {
+    const obj = expectObject('prescriptionProvenanceResponse', raw);
     const prov = expectObject(
-        'medicationProvenanceResponse.provenance',
-        requireKey('medicationProvenanceResponse', obj, 'provenance'),
+        'prescriptionProvenanceResponse.provenance',
+        requireKey('prescriptionProvenanceResponse', obj, 'provenance'),
     );
     const adjustmentsRaw = expectArray(
-        'medicationProvenanceResponse.provenance.doseAdjustments',
-        requireKey('medicationProvenanceResponse.provenance', prov, 'doseAdjustments'),
+        'prescriptionProvenanceResponse.provenance.doseAdjustments',
+        requireKey('prescriptionProvenanceResponse.provenance', prov, 'doseAdjustments'),
     );
     const doseAdjustments = adjustmentsRaw.map((item, idx) => {
-        const path = `medicationProvenanceResponse.provenance.doseAdjustments[${String(idx)}]`;
+        const path = `prescriptionProvenanceResponse.provenance.doseAdjustments[${String(idx)}]`;
         const entry = expectObject(path, item);
         return {
             dose: optionalString(`${path}.dose`, entry['dose'] ?? null),
@@ -146,23 +146,23 @@ export const decodeMedicationProvenanceResponse = (raw: unknown): MedicationProv
     });
     return {
         prescriptionId: expectIntAsString(
-            'medicationProvenanceResponse.provenance.prescriptionId',
+            'prescriptionProvenanceResponse.provenance.prescriptionId',
             prov['prescriptionId'],
         ),
         drugName: expectString(
-            'medicationProvenanceResponse.provenance.drugName',
+            'prescriptionProvenanceResponse.provenance.drugName',
             prov['drugName'],
         ),
         prescriber: optionalString(
-            'medicationProvenanceResponse.provenance.prescriber',
+            'prescriptionProvenanceResponse.provenance.prescriber',
             prov['prescriber'] ?? null,
         ),
         prescribingDate: optionalString(
-            'medicationProvenanceResponse.provenance.prescribingDate',
+            'prescriptionProvenanceResponse.provenance.prescribingDate',
             prov['prescribingDate'] ?? null,
         ),
         indication: optionalString(
-            'medicationProvenanceResponse.provenance.indication',
+            'prescriptionProvenanceResponse.provenance.indication',
             prov['indication'] ?? null,
         ),
         doseAdjustments,

@@ -14,7 +14,7 @@ import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaims
  * §4.3 UC3 medication-change branch — graph-level integration test.
  *
  * The branch fires only when the typed `followUp.type` is
- * `medication_change` *and* `medChange` deps are wired. Each case
+ * `prescription_change` *and* `prescriptionChange` deps are wired. Each case
  * here builds a graph with a stub `AgentHttpClient` that returns the
  * appropriate JSON for the medication_provenance endpoint, then runs
  * the graph end-to-end to confirm:
@@ -60,7 +60,7 @@ const buildSnapshot = (med: SnapshotMedOverrides = {}): unknown => {
         },
         appointment: null,
         diagnoses: [],
-        medications: [
+        prescriptions: [
             {
                 name: 'Lisinopril',
                 dose: '10 mg',
@@ -98,7 +98,7 @@ const followUpEnvelope = (): RequestEnvelope => ({
     actor: { userId: 'u-1', fhirUser: 'https://emr/Practitioner/u-1' },
     patient: { pid: PATIENT_PID, uuid: 'p-1' },
     task: 'follow_up',
-    followUp: { type: 'medication_change', medicationId: `MedicationRequest:${PRESCRIPTION_ID}` },
+    followUp: { type: 'prescription_change', prescriptionId: `MedicationRequest:${PRESCRIPTION_ID}` },
 });
 
 interface ProvenanceResponse {
@@ -133,7 +133,7 @@ const buildGraph = (input: BranchCaseInput) => {
         retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
         synthesize: { synthesizer: synth },
         verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-        medChange: {
+        prescriptionChange: {
             client,
             token: TOKEN,
             siteId: 'default',
@@ -155,7 +155,7 @@ const happyResponse = (overrides: Partial<ProvenanceResponse['provenance']> = {}
     },
 });
 
-describe('§4.3 medChangeBranch', () => {
+describe('§4.3 prescriptionChangeBranch', () => {
     it('renders the documented fields and the synthesizer is NOT called', async () => {
         const { graph, synth } = buildGraph({ httpResponse: happyResponse() });
 
@@ -164,7 +164,7 @@ describe('§4.3 medChangeBranch', () => {
         expect(synth).not.toHaveBeenCalled();
         expect(out.verified?.passed).toBe(true);
         expect(out.verified?.accepted).toHaveLength(1);
-        expect(out.verified?.accepted[0]?.category).toBe('medication_change');
+        expect(out.verified?.accepted[0]?.category).toBe('prescription_change');
         const seg = out.formatted?.segments[0];
         expect(seg?.text).toContain('Lisinopril');
         expect(seg?.text).toContain('Patel, Maya');
@@ -224,11 +224,11 @@ describe('§4.3 medChangeBranch', () => {
         expect(seg?.text).toMatch(/not available right now/i);
     });
 
-    it('handles a malformed medicationId by falling back to a connector', async () => {
+    it('handles a malformed prescriptionId by falling back to a connector', async () => {
         const { graph } = buildGraph({ httpResponse: happyResponse() });
         const envelope: RequestEnvelope = {
             ...followUpEnvelope(),
-            followUp: { type: 'medication_change', medicationId: 'NotAValidKey' },
+            followUp: { type: 'prescription_change', prescriptionId: 'NotAValidKey' },
         };
 
         const out = await graph.invoke({ envelope });

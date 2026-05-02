@@ -1,7 +1,7 @@
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
-    HARD_STOP_MEDICATIONS_UNAVAILABLE,
+    HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
     isStoppedCategory,
 } from '../../verify/verifier.js';
 import { generateFollowUps } from '../followUps.js';
@@ -33,10 +33,10 @@ import type {
  *      is NOT shipped to the renderer — coherent fail-closed.
  *
  * Hard-stop behaviour mirrors §3.3: when the verifier reports
- * `allergies-unavailable` or `medications-unavailable`, every segment
- * whose claims fall in the suppressed category is redacted, and the gap
- * is surfaced once at message level so the UI can render a banner above
- * the bubble.
+ * `allergies-unavailable` or `prescriptions-unavailable`, every
+ * segment whose claims fall in the suppressed category is redacted,
+ * and the gap is surfaced once at message level so the UI can render a
+ * banner above the bubble.
  */
 
 const REDACTION_TEXT = '[content withheld — could not be verified]';
@@ -45,12 +45,12 @@ const HARD_STOP_GAPS: Record<string, Gap> = {
     [HARD_STOP_ALLERGIES_UNAVAILABLE]: {
         kind: 'gap',
         reason: HARD_STOP_ALLERGIES_UNAVAILABLE,
-        message: 'Allergy data is unavailable; medication summary withheld.',
+        message: 'Allergy data is unavailable; prescription summary withheld.',
     },
-    [HARD_STOP_MEDICATIONS_UNAVAILABLE]: {
+    [HARD_STOP_PRESCRIPTIONS_UNAVAILABLE]: {
         kind: 'gap',
-        reason: HARD_STOP_MEDICATIONS_UNAVAILABLE,
-        message: 'Medication data is unavailable.',
+        reason: HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
+        message: 'Prescription data is unavailable.',
     },
 };
 

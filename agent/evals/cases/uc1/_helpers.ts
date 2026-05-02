@@ -56,7 +56,7 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
         diagnoses: snapshot.diagnoses,
-        medications: snapshot.medications,
+        prescriptions: snapshot.prescriptions,
         allergies: snapshot.allergies,
         labs,
         encounters,
@@ -106,11 +106,11 @@ const claimsFromSnapshot = (snapshot: BriefingSnapshot): readonly Claim[] => {
         });
     }
 
-    for (const med of snapshot.medications) {
+    for (const med of snapshot.prescriptions) {
         claims.push({
             id: nextId(),
             text: `Active medication: ${med.name} ${med.dose ?? ''}`.trim(),
-            category: 'medication',
+            category: 'prescription',
             sourceReferences: [med.source],
             safetyCritical: true,
         });

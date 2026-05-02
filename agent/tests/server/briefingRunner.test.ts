@@ -50,7 +50,7 @@ const happyPathSnapshot = {
             source: sourceRef('Condition', 'c-1'),
         },
     ],
-    medications: [],
+    prescriptions: [],
     allergies: [],
     labs: [],
     encounters: [],

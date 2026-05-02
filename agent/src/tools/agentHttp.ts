@@ -4,7 +4,7 @@ import { createLogger } from '../observability/logger.js';
  * Shared HTTP client for agent → OpenEMR snapshot calls.
  *
  * Every tool that calls back into OpenEMR (the briefing-path
- * `loadChartSnapshot` plus the four narrow tools `getMedications`,
+ * `loadChartSnapshot` plus the four narrow tools `getPrescriptions`,
  * `getRecentLabs`, `getRecentEncounters`, `getPatientContext`) goes
  * through this helper. Each tool maps 1:1 to a dedicated OpenEMR
  * endpoint, so this module owns the request/retry/error mechanics

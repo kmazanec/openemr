@@ -32,7 +32,19 @@ export interface Diagnosis {
     readonly source: SourceReference;
 }
 
-export interface Medication {
+/**
+ * Clinic-written prescription line (FHIR `MedicationRequest`).
+ *
+ * Sourced from OpenEMR's `prescriptions` table — what *this clinic*
+ * has prescribed. Phase 4.6.4 will introduce a sibling
+ * `MedicationStatement` interface for patient-reported / OTC entries
+ * (FHIR `MedicationStatement`) backed by `lists` + `lists_medication`.
+ *
+ * The default snapshot includes both active rows AND inactive rows
+ * modified within the lookback window so the briefing can flag recent
+ * discontinuations. `stopDate` is non-null only for inactive rows.
+ */
+export interface Prescription {
     readonly name: string;
     readonly dose: string | null;
     readonly route: string | null;
@@ -42,11 +54,12 @@ export interface Medication {
     readonly prescriber: string | null;
     readonly indication: string | null;
     /**
-     * Same value the SourceReference carries as `recordId`, surfaced here
-     * for ergonomics so §4.3's medication-change branch can address a
-     * prescription by id without spelunking through the citation. Held
-     * as a string on this side because every other id in this snapshot
-     * shape is a string; the wire format ships it as a JSON number.
+     * Same value the SourceReference carries as `recordId`, surfaced
+     * here for ergonomics so §4.3's prescription-change branch can
+     * address a prescription by id without spelunking through the
+     * citation. Held as a string on this side because every other id in
+     * this snapshot shape is a string; the wire format ships it as a
+     * JSON number.
      */
     readonly prescriptionId: string | null;
     readonly source: SourceReference;
@@ -95,7 +108,7 @@ export interface ChartSnapshot {
     readonly patient: Demographics;
     readonly appointment: Appointment | null;
     readonly diagnoses: readonly Diagnosis[];
-    readonly medications: readonly Medication[];
+    readonly prescriptions: readonly Prescription[];
     readonly allergies: readonly Allergy[];
     readonly labs: readonly LabObservation[];
     readonly encounters: readonly Encounter[];

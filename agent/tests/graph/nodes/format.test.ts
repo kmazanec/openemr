@@ -37,7 +37,7 @@ const snapshot: BriefingSnapshot = {
     },
     appointment: null,
     diagnoses: [],
-    medications: [],
+    prescriptions: [],
     allergies: [],
     labs: [],
     encounters: [],
@@ -70,7 +70,7 @@ const dxClaim: Claim = {
 const medClaim: Claim = {
     id: 'med-1',
     text: 'Metformin 500 mg PO BID',
-    category: 'medication',
+    category: 'prescription',
     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
     safetyCritical: true,
 };
@@ -215,17 +215,17 @@ describe('format', () => {
             {
                 kind: 'gap',
                 reason: 'allergies-unavailable',
-                message: 'Allergy data is unavailable; medication summary withheld.',
+                message: 'Allergy data is unavailable; prescription summary withheld.',
             },
         ]);
     });
 
-    it('surfaces a medications-unavailable hard stop as a message-level gap and redacts medication segments', async () => {
+    it('surfaces a prescriptions-unavailable hard stop as a message-level gap and redacts medication segments', async () => {
         const verified: VerifiedLedger = {
             passed: false,
             accepted: [dxClaim, medClaim],
             rejected: [],
-            safetyHardStops: ['medications-unavailable'],
+            safetyHardStops: ['prescriptions-unavailable'],
         };
         const draft = draftSegments(
             { text: 'Diabetes (E11.9).', claimIds: ['dx-1'] },
@@ -238,8 +238,8 @@ describe('format', () => {
         expect(f.gaps).toEqual([
             {
                 kind: 'gap',
-                reason: 'medications-unavailable',
-                message: 'Medication data is unavailable.',
+                reason: 'prescriptions-unavailable',
+                message: 'Prescription data is unavailable.',
             },
         ]);
     });

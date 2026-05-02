@@ -68,7 +68,7 @@ describe.each(ARCHETYPES)('UC1 happy path — %s', (archetype) => {
             .filter((c) => c.category === 'diagnosis')
             .flatMap((c) => GROUND_TRUTH[archetype].diagnosisCodes.filter((code) => c.text.includes(code)));
         const acceptedMedNames = accepted
-            .filter((c) => c.category === 'medication')
+            .filter((c) => c.category === 'prescription')
             .flatMap((c) => GROUND_TRUTH[archetype].medicationNames.filter((name) => c.text.includes(name)));
 
         expect(acceptedDxCodes).toEqual(expect.arrayContaining([...GROUND_TRUTH[archetype].diagnosisCodes]));

@@ -9,7 +9,7 @@ import type {
 import type {
     Encounter,
     LabObservation,
-    Medication,
+    Prescription,
     SourceReference,
 } from '../../src/snapshot/types.js';
 
@@ -37,7 +37,7 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
     },
     appointment: null,
     diagnoses: [],
-    medications: [],
+    prescriptions: [],
     allergies: [],
     labs: [],
     encounters: [],
@@ -60,7 +60,7 @@ const labClaim = (
 const medicationClaim = (id: string, recordId: string): Claim => ({
     id,
     text: `Medication ${id}`,
-    category: 'medication',
+    category: 'prescription',
     sourceReferences: [sourceRef('MedicationRequest', recordId)],
     safetyCritical: true,
 });
@@ -88,11 +88,11 @@ const lab = (
     ...overrides,
 });
 
-const medication = (
+const prescription = (
     recordId: string,
     name: string,
     startDate: string | null,
-): Medication => ({
+): Prescription => ({
     name,
     dose: null,
     route: null,
@@ -169,42 +169,42 @@ describe('generateFollowUps', () => {
         expect(labTrend).toHaveLength(3);
     });
 
-    it('emits a medication_change suggestion when a med claim links to a startDate within 90 days of today', () => {
+    it('emits a prescription_change suggestion when a med claim links to a startDate within 90 days of today', () => {
         const recent = new Date();
         recent.setDate(recent.getDate() - 30);
         const recentIso = recent.toISOString().slice(0, 10);
         const snapshot = baseSnapshot({
-            medications: [medication('rx-1', 'lisinopril', recentIso)],
+            prescriptions: [prescription('rx-1', 'lisinopril', recentIso)],
         });
         const claims: readonly Claim[] = [medicationClaim('claim-rx', 'rx-1')];
         const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const medSuggestions = result.filter((r) => r.params.type === 'medication_change');
+        const medSuggestions = result.filter((r) => r.params.type === 'prescription_change');
         expect(medSuggestions).toHaveLength(1);
         expect(medSuggestions[0]!.groundedInClaimIds).toContain('claim-rx');
     });
 
-    it('does not emit a medication_change suggestion when the startDate is older than 90 days', () => {
+    it('does not emit a prescription_change suggestion when the startDate is older than 90 days', () => {
         const ancient = new Date();
         ancient.setDate(ancient.getDate() - 200);
         const ancientIso = ancient.toISOString().slice(0, 10);
         const snapshot = baseSnapshot({
-            medications: [medication('rx-1', 'lisinopril', ancientIso)],
+            prescriptions: [prescription('rx-1', 'lisinopril', ancientIso)],
         });
         const claims: readonly Claim[] = [medicationClaim('claim-rx', 'rx-1')];
         const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const medSuggestions = result.filter((r) => r.params.type === 'medication_change');
+        const medSuggestions = result.filter((r) => r.params.type === 'prescription_change');
         expect(medSuggestions).toHaveLength(0);
     });
 
-    it('caps medication_change suggestions at 2 even when more recent meds match', () => {
+    it('caps prescription_change suggestions at 2 even when more recent meds match', () => {
         const recent = new Date();
         recent.setDate(recent.getDate() - 10);
         const recentIso = recent.toISOString().slice(0, 10);
         const snapshot = baseSnapshot({
-            medications: [
-                medication('rx-1', 'lisinopril', recentIso),
-                medication('rx-2', 'metformin', recentIso),
-                medication('rx-3', 'atorvastatin', recentIso),
+            prescriptions: [
+                prescription('rx-1', 'lisinopril', recentIso),
+                prescription('rx-2', 'metformin', recentIso),
+                prescription('rx-3', 'atorvastatin', recentIso),
             ],
         });
         const claims: readonly Claim[] = [
@@ -213,7 +213,7 @@ describe('generateFollowUps', () => {
             medicationClaim('c-3', 'rx-3'),
         ];
         const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const medSuggestions = result.filter((r) => r.params.type === 'medication_change');
+        const medSuggestions = result.filter((r) => r.params.type === 'prescription_change');
         expect(medSuggestions).toHaveLength(2);
     });
 
@@ -288,9 +288,9 @@ describe('generateFollowUps', () => {
         const recentIso = recent.toISOString().slice(0, 10);
         const snapshot = baseSnapshot({
             labs: [lab('o-1', 'A1c'), lab('o-2', 'BP'), lab('o-3', 'LDL'), lab('o-4', 'eGFR')],
-            medications: [
-                medication('rx-1', 'lisinopril', recentIso),
-                medication('rx-2', 'metformin', recentIso),
+            prescriptions: [
+                prescription('rx-1', 'lisinopril', recentIso),
+                prescription('rx-2', 'metformin', recentIso),
             ],
             encounters: [externalEncounter('enc-1')],
         });
@@ -331,7 +331,7 @@ describe('generateFollowUps', () => {
         const recentIso = recent.toISOString().slice(0, 10);
         const snapshot = baseSnapshot({
             labs: [lab('o-1', 'A1c')],
-            medications: [medication('rx-1', 'lisinopril', recentIso)],
+            prescriptions: [prescription('rx-1', 'lisinopril', recentIso)],
             encounters: [externalEncounter('enc-1')],
         });
         const claims: readonly Claim[] = [
@@ -379,11 +379,11 @@ describe('generateFollowUps', () => {
                 reason: null,
                 source: sourceRef('Appointment', 'a-1'),
             },
-            medications: [medication('rx-1', 'lisinopril', recentIso)],
+            prescriptions: [prescription('rx-1', 'lisinopril', recentIso)],
         });
         const claims: readonly Claim[] = [medicationClaim('c-1', 'rx-1')];
         const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const med = result.filter((r) => r.params.type === 'medication_change');
+        const med = result.filter((r) => r.params.type === 'prescription_change');
         expect(med).toHaveLength(1);
     });
 });

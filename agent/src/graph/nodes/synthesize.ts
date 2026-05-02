@@ -45,12 +45,13 @@ const claimSchema = z.object({
     id: z.string().min(1),
     text: z.string().min(1),
     category: z.enum([
-        'medication',
-        // Defensive: the deterministic §4.3 medChangeBranch builds claims
-        // with this category; the synthesizer never emits it. Keeping the
-        // literal in the structured-output enum prevents a parse retry-loop
-        // if a future model regression learned to mimic the shape.
-        'medication_change',
+        'prescription',
+        // Defensive: the deterministic §4.3 prescriptionChangeBranch
+        // builds claims with this category; the synthesizer never emits
+        // it. Keeping the literal in the structured-output enum
+        // prevents a parse retry-loop if a future model regression
+        // learned to mimic the shape.
+        'prescription_change',
         'lab',
         'allergy',
         'diagnosis',

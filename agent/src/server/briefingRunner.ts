@@ -51,7 +51,7 @@ export interface BriefingRunnerDeps {
     readonly snapshotClient: SnapshotClient;
     readonly synthesizer: Synthesizer;
     /**
-     * §4.3 narrow-tool HTTP client. Used by the medication-change
+     * §4.3 narrow-tool HTTP client. Used by the prescription-change
      * graph branch to fetch prescription provenance. Optional so the
      * runner is backwards-compatible — tests that don't exercise UC3
      * may omit it, and the graph routes follow-ups through the
@@ -59,7 +59,7 @@ export interface BriefingRunnerDeps {
      */
     readonly agentHttpClient?: AgentHttpClient;
     /**
-     * §4.3: OpenEMR base URL the medication-change branch composes
+     * §4.3: OpenEMR base URL the prescription-change branch composes
      * narrow-endpoint URLs against. Required when `agentHttpClient`
      * is set; ignored otherwise.
      */
@@ -199,13 +199,13 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                 unverifiedClaimsLog: deps.unverifiedClaimsLog,
                 ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
             },
-            // §4.3: wire the UC3 medication-change branch when the
+            // §4.3: wire the UC3 prescription-change branch when the
             // narrow-tool HTTP client is available. Both must be set
-            // for the branch to fire — otherwise medication_change
+            // for the branch to fire — otherwise prescription_change
             // follow-ups fall back to the synthesizer path.
             ...(deps.agentHttpClient !== undefined && deps.openEmrBaseUrl !== undefined
                 ? {
-                    medChange: {
+                    prescriptionChange: {
                         client: deps.agentHttpClient,
                         token,
                         siteId: envelope.siteId,
@@ -309,7 +309,7 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
     const snapshotClient = createSnapshotClient({ baseUrl: options.openEmrBaseUrl });
     const synthesizer = createAnthropicSynthesizer();
     // A single AgentHttpClient powers all narrow tools (UC2's
-    // `getLabHistory`, UC3's `getMedicationProvenance`, future
+    // `getLabHistory`, UC3's `getPrescriptionProvenance`, future
     // ones). Keeps the bulk-snapshot client's wiring untouched and
     // gives the narrow tools their own retry policy + tracing
     // namespace under one logger.

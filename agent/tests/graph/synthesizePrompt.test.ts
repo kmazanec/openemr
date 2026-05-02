@@ -22,7 +22,7 @@ const snapshot: BriefingSnapshot = {
     },
     appointment: null,
     diagnoses: [],
-    medications: [],
+    prescriptions: [],
     allergies: [],
     labs: [],
     encounters: [],

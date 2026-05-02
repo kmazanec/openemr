@@ -3,7 +3,7 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
-    Medication,
+    Prescription,
     SourceReference,
 } from '../snapshot/types.js';
 import type {
@@ -25,8 +25,8 @@ import type {
  *    record (med name, lab analyte+value, allergy substance, ICD code or
  *    label, encounter date or type, appointment startAt/type/reason,
  *    patient identity);
- *  - safety-critical categories (allergy, medication) fail closed when
- *    the underlying snapshot data is unavailable.
+ *  - safety-critical categories (allergy, prescription) fail closed
+ *    when the underlying snapshot data is unavailable.
  *
  * The verifier is a pure function over `(snapshot, ledger)` so the graph
  * node stays a thin async adapter and the deterministic logic is
@@ -39,11 +39,11 @@ const REJECT_CONTENT = 'claim-text-does-not-match-source-fields' as const;
 const REJECT_HARD_STOP = 'safety-critical-data-unavailable' as const;
 
 export const HARD_STOP_ALLERGIES_UNAVAILABLE = 'allergies-unavailable' as const;
-export const HARD_STOP_MEDICATIONS_UNAVAILABLE = 'medications-unavailable' as const;
+export const HARD_STOP_PRESCRIPTIONS_UNAVAILABLE = 'prescriptions-unavailable' as const;
 
 export type HardStop =
     | typeof HARD_STOP_ALLERGIES_UNAVAILABLE
-    | typeof HARD_STOP_MEDICATIONS_UNAVAILABLE;
+    | typeof HARD_STOP_PRESCRIPTIONS_UNAVAILABLE;
 
 const isGap = <T>(v: readonly T[] | Gap): v is Gap =>
     !Array.isArray(v) && (v as Gap).kind === 'gap';
@@ -52,7 +52,7 @@ const containsCI = (haystack: string, needle: string): boolean =>
     needle.length > 0 && haystack.toLowerCase().includes(needle.toLowerCase());
 
 interface SnapshotIndex {
-    readonly medications: ReadonlyMap<string, Medication>;
+    readonly prescriptions: ReadonlyMap<string, Prescription>;
     readonly allergies: ReadonlyMap<string, Allergy>;
     readonly diagnoses: ReadonlyMap<string, Diagnosis>;
     readonly labs: ReadonlyMap<string, LabObservation>;
@@ -62,16 +62,17 @@ interface SnapshotIndex {
 }
 
 const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
-    // The current `BriefingSnapshot` type pins `medications`/`allergies`
-    // as arrays only — Retrieve fails the whole graph if those tools
-    // error. The verifier still tolerates a gap shape on every category
-    // because a future widening of the snapshot type to allow
-    // safety-critical gaps must not silently iterate `kind: 'gap'` as if
-    // it were a record. The hard-stop rule below converts a gap into a
-    // dropped claim; this helper only shields `for…of`.
-    const medications = new Map<string, Medication>();
-    if (!isGap(snapshot.medications as readonly Medication[] | Gap)) {
-        for (const m of snapshot.medications) medications.set(m.source.recordId, m);
+    // The current `BriefingSnapshot` type pins `prescriptions`/
+    // `allergies` as arrays only — Retrieve fails the whole graph if
+    // those tools error. The verifier still tolerates a gap shape on
+    // every category because a future widening of the snapshot type to
+    // allow safety-critical gaps must not silently iterate
+    // `kind: 'gap'` as if it were a record. The hard-stop rule below
+    // converts a gap into a dropped claim; this helper only shields
+    // `for…of`.
+    const prescriptions = new Map<string, Prescription>();
+    if (!isGap(snapshot.prescriptions as readonly Prescription[] | Gap)) {
+        for (const p of snapshot.prescriptions) prescriptions.set(p.source.recordId, p);
     }
 
     const allergies = new Map<string, Allergy>();
@@ -105,7 +106,7 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
     }
 
     return {
-        medications,
+        prescriptions,
         allergies,
         diagnoses,
         labs,
@@ -115,10 +116,10 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
     };
 };
 
-const matchesMedication = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const med = idx.medications.get(ref.recordId);
-    if (med === undefined) return false;
-    return containsCI(claim.text, med.name);
+const matchesPrescription = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
+    const rx = idx.prescriptions.get(ref.recordId);
+    if (rx === undefined) return false;
+    return containsCI(claim.text, rx.name);
 };
 
 /**
@@ -135,34 +136,34 @@ const claimMentionsDate = (claim: Claim): readonly string[] =>
     claim.text.match(DATE_SUBSTRING_RE) ?? [];
 
 /**
- * §4.3 UC3: medication-change claims must surface the documented
+ * §4.3 UC3: prescription-change claims must surface the documented
  * provenance fields rather than model inference. The deterministic
- * `medChangeBranch` builds claims that mention only fields the source
- * row carries; this rule pins the inverse — when the source row has a
- * prescriber or indication, the claim text MUST contain it. Omission
- * is acceptable only when the source field is null (USERS.md UC3
- * promises *documented* provenance, so an undocumented indication
- * should not be invented).
+ * `prescriptionChangeBranch` builds claims that mention only fields
+ * the source row carries; this rule pins the inverse — when the
+ * source row has a prescriber or indication, the claim text MUST
+ * contain it. Omission is acceptable only when the source field is
+ * null (USERS.md UC3 promises *documented* provenance, so an
+ * undocumented indication should not be invented).
  */
-const matchesMedicationChange = (
+const matchesPrescriptionChange = (
     claim: Claim,
     ref: SourceReference,
     idx: SnapshotIndex,
 ): boolean => {
-    const med = idx.medications.get(ref.recordId);
-    if (med === undefined) return false;
-    if (!containsCI(claim.text, med.name)) return false;
+    const rx = idx.prescriptions.get(ref.recordId);
+    if (rx === undefined) return false;
+    if (!containsCI(claim.text, rx.name)) return false;
     if (
-        med.indication !== null
-        && med.indication.length > 0
-        && !containsCI(claim.text, med.indication)
+        rx.indication !== null
+        && rx.indication.length > 0
+        && !containsCI(claim.text, rx.indication)
     ) {
         return false;
     }
     if (
-        med.prescriber !== null
-        && med.prescriber.length > 0
-        && !containsCI(claim.text, med.prescriber)
+        rx.prescriber !== null
+        && rx.prescriber.length > 0
+        && !containsCI(claim.text, rx.prescriber)
     ) {
         return false;
     }
@@ -287,13 +288,13 @@ interface CategoryCheck {
 }
 
 const CHECKS: Record<Claim['category'], CategoryCheck> = {
-    medication: {
-        resolves: (ref, idx) => idx.medications.has(ref.recordId),
-        contentMatches: matchesMedication,
+    prescription: {
+        resolves: (ref, idx) => idx.prescriptions.has(ref.recordId),
+        contentMatches: matchesPrescription,
     },
-    medication_change: {
-        resolves: (ref, idx) => idx.medications.has(ref.recordId),
-        contentMatches: matchesMedicationChange,
+    prescription_change: {
+        resolves: (ref, idx) => idx.prescriptions.has(ref.recordId),
+        contentMatches: matchesPrescriptionChange,
     },
     lab: {
         resolves: (ref, idx) => idx.labs.has(ref.recordId),
@@ -322,7 +323,7 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
 
 export const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[] => {
     const stops: HardStop[] = [];
-    // Allergies and medications are fail-closed safety categories
+    // Allergies and prescriptions are fail-closed safety categories
     // (ARCHITECTURE.md §"Safety Rules"). The current `BriefingSnapshot`
     // shape always carries them as concrete arrays — Retrieve fails the
     // whole graph if either tool errored. Keeping the verifier check in
@@ -331,8 +332,8 @@ export const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[
     if (isGap(snapshot.allergies as readonly Allergy[] | Gap)) {
         stops.push(HARD_STOP_ALLERGIES_UNAVAILABLE);
     }
-    if (isGap(snapshot.medications as readonly Medication[] | Gap)) {
-        stops.push(HARD_STOP_MEDICATIONS_UNAVAILABLE);
+    if (isGap(snapshot.prescriptions as readonly Prescription[] | Gap)) {
+        stops.push(HARD_STOP_PRESCRIPTIONS_UNAVAILABLE);
     }
     return stops;
 };
@@ -340,18 +341,22 @@ export const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[
 /**
  * Shared rule deciding whether a hard stop suppresses a given claim
  * category. Exported so `format.ts` (per-segment redaction) and any
- * UC-specific branch (e.g. UC3 medChangeBranch's pre-network short-circuit)
- * apply the exact same suppression policy. Accepts `readonly string[]` —
- * `VerifiedLedger.safetyHardStops` widens `HardStop` at the type boundary,
- * and the inclusions check below is narrow enough to handle the wider
- * type without losing exhaustiveness.
+ * UC-specific branch (e.g. UC3 prescriptionChangeBranch's pre-network
+ * short-circuit) apply the exact same suppression policy. Accepts
+ * `readonly string[]` — `VerifiedLedger.safetyHardStops` widens
+ * `HardStop` at the type boundary, and the inclusions check below is
+ * narrow enough to handle the wider type without losing exhaustiveness.
  */
 export const isStoppedCategory = (
     category: Claim['category'],
     stops: readonly string[],
 ): boolean => {
     if (stops.length === 0) return false;
-    if (category === 'medication' || category === 'medication_change') return true;
+    // prescription_change is a prescription-category claim: the same
+    // safety rules apply — if allergies-unavailable hard stop fires,
+    // suppress UC3 output too. format.ts now imports this helper
+    // directly, so the suppression policy lives in one place.
+    if (category === 'prescription' || category === 'prescription_change') return true;
     if (category === 'allergy' && stops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) return true;
     return false;
 };

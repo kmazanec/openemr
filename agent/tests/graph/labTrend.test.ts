@@ -47,7 +47,7 @@ const baseChart = (): ChartSnapshot => ({
     },
     appointment: null,
     diagnoses: [],
-    medications: [],
+    prescriptions: [],
     allergies: [],
     labs: [],
     encounters: [],

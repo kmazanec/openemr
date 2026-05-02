@@ -69,7 +69,7 @@ const happyPathSnapshot = {
             source: sourceRef('Condition', 'c-1'),
         },
     ],
-    medications: [
+    prescriptions: [
         {
             name: 'Metformin',
             dose: '500 mg',
@@ -191,7 +191,7 @@ describe('§4.5 free-text follow-up — adversarial gate', () => {
                 {
                     id: 'hide-1',
                     text: 'Patient is on warfarin 5 mg daily',
-                    category: 'medication',
+                    category: 'prescription',
                     sourceReferences: [sourceRef('MedicationRequest', 'fabricated-rx-9999')],
                     safetyCritical: true,
                 },
@@ -227,7 +227,7 @@ describe('§4.5 free-text follow-up — adversarial gate', () => {
                 {
                     id: 'swap-1',
                     text: 'Patient is on insulin 20 units daily',
-                    category: 'medication',
+                    category: 'prescription',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                     safetyCritical: true,
                 },

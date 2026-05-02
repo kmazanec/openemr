@@ -6,7 +6,7 @@ import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 /**
  * Test helpers for the §3.1 tools.
  *
- * The four narrow tools (getMedications, getRecentLabs,
+ * The four narrow tools (getPrescriptions, getRecentLabs,
  * getRecentEncounters, getPatientContext) take an
  * {@link AgentHttpClient}; the briefing-path `loadChartSnapshot`
  * still takes a {@link SnapshotClient}. Helpers for both keep the

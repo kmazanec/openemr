@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { createBriefingGraph } from '../../../src/graph/index.js';
-import type { Allergy, Medication } from '../../../src/snapshot/types.js';
+import type { Allergy, Prescription } from '../../../src/snapshot/types.js';
 import type { BriefingSnapshot, Gap } from '../../../src/graph/types.js';
 import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
-    HARD_STOP_MEDICATIONS_UNAVAILABLE,
+    HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
     verifyLedger,
 } from '../../../src/verify/verifier.js';
 import { createNullUnverifiedClaimsLog } from '../../../src/verify/unverifiedClaimsLog.js';
@@ -30,13 +30,13 @@ import { baseEnvelope, buildClient, buildFaithfulSynth, loadFixture } from './_h
 
 const buildGapSnapshot = (
     base: BriefingSnapshot,
-    overrides: { medications?: Gap; allergies?: Gap },
+    overrides: { prescriptions?: Gap; allergies?: Gap },
 ): BriefingSnapshot => {
     const out: {
         patient: BriefingSnapshot['patient'];
         appointment: BriefingSnapshot['appointment'];
         diagnoses: BriefingSnapshot['diagnoses'];
-        medications: readonly Medication[] | Gap;
+        prescriptions: readonly Prescription[] | Gap;
         allergies: readonly Allergy[] | Gap;
         labs: BriefingSnapshot['labs'];
         encounters: BriefingSnapshot['encounters'];
@@ -45,7 +45,7 @@ const buildGapSnapshot = (
         patient: base.patient,
         appointment: base.appointment,
         diagnoses: base.diagnoses,
-        medications: overrides.medications ?? base.medications,
+        prescriptions: overrides.prescriptions ?? base.prescriptions,
         allergies: overrides.allergies ?? base.allergies,
         labs: base.labs,
         encounters: base.encounters,
@@ -72,7 +72,7 @@ describe('UC1 fail-closed — missing allergies', () => {
         expect(verified.passed).toBe(false);
         expect(verified.safetyHardStops).toContain(HARD_STOP_ALLERGIES_UNAVAILABLE);
         const rejectedMedications = verified.rejected.filter(
-            (rej) => rej.claim.category === 'medication',
+            (rej) => rej.claim.category === 'prescription',
         );
         expect(rejectedMedications.length).toBeGreaterThan(0);
         expect(
@@ -85,7 +85,7 @@ describe('UC1 fail-closed — missing medications', () => {
     it('verifier surfaces the medications-unavailable hard stop and rejects every medication claim', async () => {
         const snapshot = loadFixture('diabetic_uncontrolled');
         const gapped = buildGapSnapshot(snapshot, {
-            medications: { kind: 'gap', reason: 'medications-fetch-failed', message: 'medications unavailable' },
+            prescriptions: { kind: 'gap', reason: 'medications-fetch-failed', message: 'medications unavailable' },
         });
 
         const { synth } = buildFaithfulSynth();
@@ -93,9 +93,9 @@ describe('UC1 fail-closed — missing medications', () => {
         const verified = verifyLedger(gapped, ledger);
 
         expect(verified.passed).toBe(false);
-        expect(verified.safetyHardStops).toContain(HARD_STOP_MEDICATIONS_UNAVAILABLE);
+        expect(verified.safetyHardStops).toContain(HARD_STOP_PRESCRIPTIONS_UNAVAILABLE);
         const accepted = verified.accepted;
-        expect(accepted.find((c) => c.category === 'medication')).toBeUndefined();
+        expect(accepted.find((c) => c.category === 'prescription')).toBeUndefined();
     });
 });
 

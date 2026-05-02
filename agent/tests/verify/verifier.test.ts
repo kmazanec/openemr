@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
-    HARD_STOP_MEDICATIONS_UNAVAILABLE,
+    HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
     verifyLedger,
 } from '../../src/verify/verifier.js';
 import type { BriefingSnapshot, Claim, ClaimLedger } from '../../src/graph/types.js';
@@ -41,7 +41,7 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
             source: sourceRef('Condition', 'c-1'),
         },
     ],
-    medications: [
+    prescriptions: [
         {
             name: 'Metformin',
             dose: '500 mg',
@@ -130,7 +130,7 @@ describe('verifyLedger — deterministic checks per category', () => {
             baseSnapshot(),
             single(
                 claim({
-                    category: 'medication',
+                    category: 'prescription',
                     text: 'Patient is on Metformin 500 mg twice daily',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                 }),
@@ -145,7 +145,7 @@ describe('verifyLedger — deterministic checks per category', () => {
             baseSnapshot(),
             single(
                 claim({
-                    category: 'medication',
+                    category: 'prescription',
                     text: 'Patient is on Lisinopril 10 mg daily',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                 }),
@@ -395,14 +395,14 @@ describe('verifyLedger — deterministic checks per category', () => {
     });
 });
 
-// §4.3: medication_change requires the claim to surface the documented
+// §4.3: prescription_change requires the claim to surface the documented
 // prescriber + indication (when those fields are non-null in the source
-// row). The deterministic medChangeBranch builds these claims; the rule
+// row). The deterministic prescriptionChangeBranch builds these claims; the rule
 // is the gate that prevents a model regression from fabricating either.
-describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
+describe('verifyLedger — prescription_change category (§4.3 UC3)', () => {
     const provSnapshot = (med: { prescriber: string | null; indication: string | null }) =>
         baseSnapshot({
-            medications: [
+            prescriptions: [
                 {
                     name: 'Lisinopril',
                     dose: '10 mg',
@@ -423,7 +423,7 @@ describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
             provSnapshot({ prescriber: 'Patel, Maya', indication: 'new-onset hypertension' }),
             single(
                 claim({
-                    category: 'medication_change',
+                    category: 'prescription_change',
                     text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Patel, Maya for new-onset hypertension.',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
                     safetyCritical: true,
@@ -439,7 +439,7 @@ describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
             provSnapshot({ prescriber: 'Patel, Maya', indication: 'new-onset hypertension' }),
             single(
                 claim({
-                    category: 'medication_change',
+                    category: 'prescription_change',
                     text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Patel, Maya.',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
                     safetyCritical: true,
@@ -455,7 +455,7 @@ describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
             provSnapshot({ prescriber: 'Patel, Maya', indication: null }),
             single(
                 claim({
-                    category: 'medication_change',
+                    category: 'prescription_change',
                     text: 'Lisinopril 10 mg, started 2026-03-20.',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
                     safetyCritical: true,
@@ -471,7 +471,7 @@ describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
             provSnapshot({ prescriber: null, indication: null }),
             single(
                 claim({
-                    category: 'medication_change',
+                    category: 'prescription_change',
                     text: 'Lisinopril 10 mg, started 2026-03-20.',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
                     safetyCritical: true,
@@ -487,7 +487,7 @@ describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
             provSnapshot({ prescriber: 'Patel, Maya', indication: 'new-onset hypertension' }),
             single(
                 claim({
-                    category: 'medication_change',
+                    category: 'prescription_change',
                     text: 'Lisinopril 10 mg, prescribed by Patel, Maya for new-onset hypertension.',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-MISSING')],
                     safetyCritical: true,
@@ -514,7 +514,7 @@ describe('verifyLedger — hard clinical rules (fail closed)', () => {
             snapshot,
             single(
                 claim({
-                    category: 'medication',
+                    category: 'prescription',
                     text: 'Metformin 500 mg BID',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                     safetyCritical: true,
@@ -527,15 +527,15 @@ describe('verifyLedger — hard clinical rules (fail closed)', () => {
         expect(out.passed).toBe(false);
     });
 
-    it('drops every medication claim when medications themselves are unavailable', () => {
+    it('drops every medication claim when prescriptions themselves are unavailable', () => {
         const snapshot = baseSnapshot({
-            medications: { kind: 'gap', reason: 'unavailable', message: 'meds unreachable' } as never,
+            prescriptions: { kind: 'gap', reason: 'unavailable', message: 'meds unreachable' } as never,
         });
         const out = verifyLedger(
             snapshot,
             single(
                 claim({
-                    category: 'medication',
+                    category: 'prescription',
                     text: 'Metformin 500 mg BID',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                     safetyCritical: true,
@@ -543,10 +543,10 @@ describe('verifyLedger — hard clinical rules (fail closed)', () => {
             ),
         );
         expect(out.rejected[0]?.reason).toBe('safety-critical-data-unavailable');
-        expect(out.safetyHardStops).toContain(HARD_STOP_MEDICATIONS_UNAVAILABLE);
+        expect(out.safetyHardStops).toContain(HARD_STOP_PRESCRIPTIONS_UNAVAILABLE);
     });
 
-    it('also suppresses medication_change claims when the safety stop fires', () => {
+    it('also suppresses prescription_change claims when the safety stop fires', () => {
         // Same fail-closed parity as the medication category — a
         // medication-change claim is medication content under any
         // reasonable taxonomy, so the allergies-unavailable hard stop
@@ -558,7 +558,7 @@ describe('verifyLedger — hard clinical rules (fail closed)', () => {
             snapshot,
             single(
                 claim({
-                    category: 'medication_change',
+                    category: 'prescription_change',
                     text: 'Metformin 500 mg, prescribed by Dr. Patel.',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                     safetyCritical: true,
@@ -622,7 +622,7 @@ describe('verifyLedger — multiple claims', () => {
                 }),
                 claim({
                     id: 'bad-no-source',
-                    category: 'medication',
+                    category: 'prescription',
                     text: 'Metformin 500 mg',
                     sourceReferences: [],
                 }),
@@ -634,7 +634,7 @@ describe('verifyLedger — multiple claims', () => {
                 }),
                 claim({
                     id: 'good-med',
-                    category: 'medication',
+                    category: 'prescription',
                     text: 'Metformin 500 mg BID',
                     sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
                 }),

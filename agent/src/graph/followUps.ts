@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { BriefingSnapshot, Claim, Gap, VerifiedLedger } from './types.js';
-import type { Encounter, LabObservation, Medication } from '../snapshot/types.js';
+import type { Encounter, LabObservation, Prescription } from '../snapshot/types.js';
 
 /**
  * §4.1 suggested-follow-up generator.
@@ -23,7 +23,7 @@ import type { Encounter, LabObservation, Medication } from '../snapshot/types.js
 
 export type SuggestedFollowUpParams =
     | { readonly type: 'lab_trend'; readonly analyte: string }
-    | { readonly type: 'medication_change'; readonly medicationId: string }
+    | { readonly type: 'prescription_change'; readonly prescriptionId: string }
     | { readonly type: 'external_care'; readonly lookbackDays: number };
 
 export interface SuggestedFollowUp {
@@ -36,9 +36,9 @@ export interface SuggestedFollowUp {
 const RECOGNIZED_ANALYTES = ['A1c', 'BP', 'LDL', 'eGFR'] as const;
 
 const LAB_TREND_CAP = 3;
-const MEDICATION_CHANGE_CAP = 2;
+const PRESCRIPTION_CHANGE_CAP = 2;
 const TOTAL_CAP = 5;
-const MEDICATION_RECENT_DAYS = 90;
+const PRESCRIPTION_RECENT_DAYS = 90;
 const EXTERNAL_LOOKBACK_DAYS = 365;
 
 const MS_PER_DAY = 86_400_000;
@@ -95,24 +95,25 @@ const matchAnalyteForClaim = (
     return null;
 };
 
-const findMedicationForClaim = (
+const findPrescriptionForClaim = (
     claim: Claim,
-    medications: readonly Medication[],
-): Medication | null => {
-    // `medication_change` is the §4.3 UC3 category (deterministic branch
-    // emits these); `medication` is the §3 default-briefing category.
-    // Both should generate the same `Why was X started?` chip when the
-    // backing record is recent — without this, a default briefing whose
-    // synthesizer happens to emit a `medication_change`-flavored claim
-    // (or a future UC that does so) would never see the chip.
-    if (claim.category !== 'medication' && claim.category !== 'medication_change') return null;
+    prescriptions: readonly Prescription[],
+): Prescription | null => {
+    // `prescription_change` is the §4.3 UC3 category (deterministic
+    // branch emits these); `prescription` is the §3 default-briefing
+    // category. Both should generate the same "Why was X prescribed?"
+    // chip when the backing record is recent — without this, a default
+    // briefing whose synthesizer happens to emit a
+    // `prescription_change`-flavored claim (or a future UC that does
+    // so) would never see the chip.
+    if (claim.category !== 'prescription' && claim.category !== 'prescription_change') return null;
     for (const ref of claim.sourceReferences) {
-        const med = medications.find(
-            (m) =>
-                m.source.recordType === ref.recordType &&
-                m.source.recordId === ref.recordId,
+        const rx = prescriptions.find(
+            (p) =>
+                p.source.recordType === ref.recordType &&
+                p.source.recordId === ref.recordId,
         );
-        if (med !== undefined) return med;
+        if (rx !== undefined) return rx;
     }
     return null;
 };
@@ -126,24 +127,24 @@ const referenceDate = (snapshot: BriefingSnapshot): Date => {
     return new Date();
 };
 
-const isRecentMedication = (med: Medication, anchor: Date): boolean => {
-    if (med.startDate === null) return false;
-    const start = new Date(med.startDate);
+const isRecentPrescription = (rx: Prescription, anchor: Date): boolean => {
+    if (rx.startDate === null) return false;
+    const start = new Date(rx.startDate);
     if (Number.isNaN(start.getTime())) return false;
     const diffDays = Math.abs(anchor.getTime() - start.getTime()) / MS_PER_DAY;
-    return diffDays <= MEDICATION_RECENT_DAYS;
+    return diffDays <= PRESCRIPTION_RECENT_DAYS;
 };
 
-const medicationKey = (med: Medication): string =>
-    `${med.source.recordType}:${med.source.recordId}`;
+const prescriptionKey = (rx: Prescription): string =>
+    `${rx.source.recordType}:${rx.source.recordId}`;
 
 /**
- * Inverse of {@link medicationKey}. Used by §4.3's medChangeBranch to
- * recover the prescription record id from the typed follow-up params
- * the §4.1 generator emitted, without re-implementing the split inline
- * in the branch.
+ * Inverse of {@link prescriptionKey}. Used by §4.3's
+ * `prescriptionChangeBranch` to recover the prescription record id from
+ * the typed follow-up params the §4.1 generator emitted, without
+ * re-implementing the split inline in the branch.
  */
-export const parseMedicationKey = (key: string): {
+export const parsePrescriptionKey = (key: string): {
     readonly recordType: string;
     readonly recordId: string;
 } | null => {
@@ -195,27 +196,27 @@ export const generateFollowUps = (
     }
 
     const anchor = referenceDate(snapshot);
-    const seenMedKeys = new Set<string>();
-    let medCount = 0;
+    const seenRxKeys = new Set<string>();
+    let rxCount = 0;
     for (const claim of accepted) {
-        if (medCount >= MEDICATION_CHANGE_CAP) break;
-        const med = findMedicationForClaim(claim, snapshot.medications);
-        if (med === null) continue;
-        if (!isRecentMedication(med, anchor)) continue;
-        const key = medicationKey(med);
-        if (seenMedKeys.has(key)) continue;
-        seenMedKeys.add(key);
+        if (rxCount >= PRESCRIPTION_CHANGE_CAP) break;
+        const rx = findPrescriptionForClaim(claim, snapshot.prescriptions);
+        if (rx === null) continue;
+        if (!isRecentPrescription(rx, anchor)) continue;
+        const key = prescriptionKey(rx);
+        if (seenRxKeys.has(key)) continue;
+        seenRxKeys.add(key);
         const params: SuggestedFollowUpParams = {
-            type: 'medication_change',
-            medicationId: key,
+            type: 'prescription_change',
+            prescriptionId: key,
         };
         out.push({
             id: stableId(conversationId, params),
-            displayText: `Why was ${med.name} started?`,
+            displayText: `Why was ${rx.name} prescribed?`,
             params,
             groundedInClaimIds: [claim.id],
         });
-        medCount++;
+        rxCount++;
     }
 
     if (findEncountersHaveExternal(snapshot)) {

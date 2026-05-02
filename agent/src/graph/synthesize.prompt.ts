@@ -48,7 +48,7 @@ The schema asks for two parallel structures: \`segments\` (the prose the physici
 - A factual segment ("She is on metformin 500 mg twice daily.") MUST list at least one claimId. The renderer turns each claimId into a citation chip linking to the source record.
 - A connector segment ("She also reports") that carries no factual content has \`claimIds: []\`. Use connectors sparingly — just enough to make the prose read like a briefing rather than bullet points.
 - Every claimId in a segment MUST appear in \`ledger.claims\`. The verifier rejects segments whose ids are missing or whose claims were dropped, replacing them with a redaction notice — keep your ids consistent.
-- The briefing as a whole follows a fixed order: appointment context, demographics, deltas since last visit, active diagnoses, current medications, recent labs, allergies, recent encounters. Prioritize what is clinically notable within each topic.
+- The briefing as a whole follows a fixed order: appointment context, demographics, deltas since last visit, active diagnoses, current prescriptions, recent labs, allergies, recent encounters. Prioritize what is clinically notable within each topic.
 
 WORKED EXAMPLE (illustrative; do not copy literally):
 
@@ -57,7 +57,7 @@ WORKED EXAMPLE (illustrative; do not copy literally):
   "segments": [
     { "text": "Mrs. Patel returns this morning for a 20-minute diabetes follow-up.", "claimIds": ["apt-1", "id-1"] },
     { "text": "Her active diagnoses include type 2 diabetes (E11.9).", "claimIds": ["dx-1"] },
-    { "text": "She is currently taking metformin 500 mg PO BID.", "claimIds": ["med-1"] },
+    { "text": "She is currently taking metformin 500 mg PO BID.", "claimIds": ["rx-1"] },
     { "text": "Her most recent A1c was 8.4% on 2026-04-15, flagged high.", "claimIds": ["lab-1"] },
     { "text": "Recorded allergy: penicillin (hives).", "claimIds": ["alg-1"] }
   ],
@@ -66,7 +66,7 @@ WORKED EXAMPLE (illustrative; do not copy literally):
       { "id": "apt-1", "text": "20-minute diabetes follow-up appointment", "category": "appointment", "sourceReferences": [{"system": "openemr", "recordType": "Appointment", "recordId": "apt-1", "field": null, "recordedAt": null}], "safetyCritical": false },
       { "id": "id-1", "text": "Mrs. Patel demographics", "category": "identity", "sourceReferences": [{"system": "openemr", "recordType": "Patient", "recordId": "42", "field": null, "recordedAt": null}], "safetyCritical": false },
       { "id": "dx-1", "text": "Type 2 diabetes (E11.9)", "category": "diagnosis", "sourceReferences": [{"system": "openemr", "recordType": "Condition", "recordId": "c-1", "field": null, "recordedAt": null}], "safetyCritical": false },
-      { "id": "med-1", "text": "Metformin 500 mg PO BID", "category": "medication", "sourceReferences": [{"system": "openemr", "recordType": "MedicationRequest", "recordId": "rx-1", "field": null, "recordedAt": null}], "safetyCritical": true },
+      { "id": "rx-1", "text": "Metformin 500 mg PO BID", "category": "prescription", "sourceReferences": [{"system": "openemr", "recordType": "MedicationRequest", "recordId": "rx-1", "field": null, "recordedAt": null}], "safetyCritical": true },
       { "id": "lab-1", "text": "A1c 8.4% on 2026-04-15 (flagged high)", "category": "lab", "sourceReferences": [{"system": "openemr", "recordType": "Observation", "recordId": "lab-1", "field": null, "recordedAt": null}], "safetyCritical": false },
       { "id": "alg-1", "text": "Penicillin allergy with hives reaction", "category": "allergy", "sourceReferences": [{"system": "openemr", "recordType": "AllergyIntolerance", "recordId": "a-1", "field": null, "recordedAt": null}], "safetyCritical": true }
     ]
@@ -178,7 +178,7 @@ ABSOLUTE RULES:
 
 5. If the history has fewer than two rows, do NOT assert a trend direction. State the count plainly ("only one A1c on file" / "no A1c on file in the last two years") and stop. The clinician needs to know the data is thin, not a guess.
 
-6. Do not invent, infer, or fill in missing data. If the patient has a relevant medication or encounter that would explain the trend, you may surface it — but only when a row in the standard snapshot supports it, and only with a separate claim that cites that row.
+6. Do not invent, infer, or fill in missing data. If the patient has a relevant prescription or encounter that would explain the trend, you may surface it — but only when a row in the standard snapshot supports it, and only with a separate claim that cites that row.
 
 7. Never describe a patient's data using a different patient's identifiers. If anything in the chart references another patient, surface it as a data anomaly rather than synthesizing across patients.
 

@@ -5,7 +5,7 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
-    Medication,
+    Prescription,
     SourceReference,
 } from '../snapshot/types.js';
 import type { SuggestedFollowUp, SuggestedFollowUpParams } from './followUps.js';
@@ -77,7 +77,7 @@ export interface BriefingSnapshot {
     readonly patient: Demographics;
     readonly appointment: Appointment | null;
     readonly diagnoses: readonly Diagnosis[];
-    readonly medications: readonly Medication[];
+    readonly prescriptions: readonly Prescription[];
     readonly allergies: readonly Allergy[];
     readonly labs: readonly LabObservation[] | Gap;
     readonly encounters: readonly Encounter[] | Gap;
@@ -90,8 +90,8 @@ export interface BriefingSnapshot {
  * shape; we ship it now so `Synthesize` has a stable target schema.
  */
 export type ClaimCategory =
-    | 'medication'
-    | 'medication_change'
+    | 'prescription'
+    | 'prescription_change'
     | 'lab'
     | 'allergy'
     | 'diagnosis'
@@ -144,7 +144,7 @@ export interface DraftBriefing {
  *
  * Replaces the seven-section `FormattedBriefing` shape used through §3.3.
  * The verifier-driven fail-closed semantics (allergies-unavailable →
- * suppress medication content) carry over: matching segments are redacted
+ * suppress prescription content) carry over: matching segments are redacted
  * before they leave `Format`.
  */
 export interface AssistantMessageSegment {

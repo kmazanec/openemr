@@ -46,7 +46,7 @@ const validJson = {
             },
         },
     ],
-    medications: [
+    prescriptions: [
         {
             name: 'Metformin',
             dose: '500 mg',
@@ -122,7 +122,7 @@ describe('decodeChartSnapshot', () => {
         expect(out.appointment?.appointmentId).toBe('apt-1');
         expect(out.diagnoses).toHaveLength(1);
         expect(out.diagnoses[0]!.code).toBe('E11.9');
-        expect(out.medications[0]!.name).toBe('Metformin');
+        expect(out.prescriptions[0]!.name).toBe('Metformin');
         expect(out.allergies[0]!.substance).toBe('Penicillin');
         expect(out.labs[0]!.analyte).toBe('A1c');
         expect(out.encounters[0]!.encounterDate).toBe('2026-03-01');
@@ -137,20 +137,20 @@ describe('decodeChartSnapshot', () => {
         const minimized = {
             ...validJson,
             diagnoses: [],
-            medications: [],
+            prescriptions: [],
             allergies: [],
             labs: [],
             encounters: [],
         };
         const out = decodeChartSnapshot(minimized);
         expect(out.diagnoses).toHaveLength(0);
-        expect(out.medications).toHaveLength(0);
+        expect(out.prescriptions).toHaveLength(0);
         expect(out.allergies).toHaveLength(0);
     });
 
     it('preserves source references on every list item', () => {
         const out = decodeChartSnapshot(validJson);
-        expect(out.medications[0]!.source).toEqual({
+        expect(out.prescriptions[0]!.source).toEqual({
             system: 'openemr',
             recordType: 'MedicationRequest',
             recordId: 'rx-1',
@@ -189,9 +189,9 @@ describe('decodeChartSnapshot', () => {
     it('rejects a medication with a non-string name', () => {
         const broken = {
             ...validJson,
-            medications: [{ ...validJson.medications[0], name: 123 }],
+            prescriptions: [{ ...validJson.prescriptions[0], name: 123 }],
         };
-        expect(() => decodeChartSnapshot(broken)).toThrow(/medications\[0\]\.name/);
+        expect(() => decodeChartSnapshot(broken)).toThrow(/prescriptions\[0\]\.name/);
     });
 
     it('round-trips a ccda-importer encounter without losing the system field', () => {
@@ -241,41 +241,41 @@ describe('decodeChartSnapshot', () => {
     // medication-change branch can address a prescription by id.
     it('decodes a medication indication and prescriptionId', () => {
         const out = decodeChartSnapshot(validJson);
-        expect(out.medications[0]!.indication).toBe('type 2 diabetes');
-        expect(out.medications[0]!.prescriptionId).toBe('7001');
+        expect(out.prescriptions[0]!.indication).toBe('type 2 diabetes');
+        expect(out.prescriptions[0]!.prescriptionId).toBe('7001');
     });
 
     it('coerces null indication / prescriptionId to null on decode', () => {
         const json = {
             ...validJson,
-            medications: [{
-                ...validJson.medications[0],
+            prescriptions: [{
+                ...validJson.prescriptions[0],
                 indication: null,
                 prescriptionId: null,
             }],
         };
         const out = decodeChartSnapshot(json);
-        expect(out.medications[0]!.indication).toBeNull();
-        expect(out.medications[0]!.prescriptionId).toBeNull();
+        expect(out.prescriptions[0]!.indication).toBeNull();
+        expect(out.prescriptions[0]!.prescriptionId).toBeNull();
     });
 
     it('treats missing indication / prescriptionId as null (additive contract)', () => {
         // Older fixtures predating §4.3 omit these keys entirely. The
         // decoder is additive so a synchronized regen of every fixture
         // isn't a hard prerequisite.
-        const med = { ...validJson.medications[0] } as Record<string, unknown>;
+        const med = { ...validJson.prescriptions[0] } as Record<string, unknown>;
         delete med['indication'];
         delete med['prescriptionId'];
-        const out = decodeChartSnapshot({ ...validJson, medications: [med] });
-        expect(out.medications[0]!.indication).toBeNull();
-        expect(out.medications[0]!.prescriptionId).toBeNull();
+        const out = decodeChartSnapshot({ ...validJson, prescriptions: [med] });
+        expect(out.prescriptions[0]!.indication).toBeNull();
+        expect(out.prescriptions[0]!.prescriptionId).toBeNull();
     });
 
     it('rejects a non-integer prescriptionId', () => {
         const broken = {
             ...validJson,
-            medications: [{ ...validJson.medications[0], prescriptionId: '7001' }],
+            prescriptions: [{ ...validJson.prescriptions[0], prescriptionId: '7001' }],
         };
-        expect(() => decodeChartSnapshot(broken)).toThrow(/medications\[0\]\.prescriptionId/);
+        expect(() => decodeChartSnapshot(broken)).toThrow(/prescriptions\[0\]\.prescriptionId/);
     });
 });

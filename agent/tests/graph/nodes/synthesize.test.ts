@@ -44,7 +44,7 @@ const snapshot: BriefingSnapshot = {
             source: sourceRef('Condition', 'c-1'),
         },
     ],
-    medications: [
+    prescriptions: [
         {
             name: 'Metformin',
             dose: '500 mg',

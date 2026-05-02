@@ -98,7 +98,7 @@ const trendUp: Uc2Fixture = {
                 source: sourceRef('Condition', 'cond-4004-1'),
             },
         ],
-        medications: [
+        prescriptions: [
             {
                 name: 'Metformin',
                 dose: '1000 mg',
@@ -170,7 +170,7 @@ const trendStable: Uc2Fixture = {
                 source: sourceRef('Condition', 'cond-3003-1'),
             },
         ],
-        medications: [
+        prescriptions: [
             {
                 name: 'Metformin',
                 dose: '500 mg',
@@ -234,7 +234,7 @@ const noHistory: Uc2Fixture = {
             source: sourceRef('Appointment', 'apt-1001'),
         },
         diagnoses: [],
-        medications: [],
+        prescriptions: [],
         allergies: [],
         labs: [],
         encounters: [

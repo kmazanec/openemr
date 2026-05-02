@@ -83,7 +83,7 @@ const followUpParamsSchema = z.discriminatedUnion('type', [
             .max(200)
             .regex(ANALYTE_PATTERN, 'analyte may not contain glob characters'),
     }),
-    z.object({ type: z.literal('medication_change'), medicationId: z.string().min(1).max(200) }),
+    z.object({ type: z.literal('prescription_change'), prescriptionId: z.string().min(1).max(200) }),
     z.object({ type: z.literal('external_care'), lookbackDays: z.number().int().positive().max(3650) }),
 ]);
 
@@ -120,10 +120,10 @@ const briefingRequestSchema = z
  * §4.5 free-text path already understands. UC-specific graph branches
  * replace this one type at a time; the typed envelope shape stays.
  *
- * §4.2 + §4.3 have shipped: `lab_trend` and `medication_change` no
+ * §4.2 + §4.3 have shipped: `lab_trend` and `prescription_change` no
  * longer go through this bridge — each flows as a typed `followUp`
  * envelope and the corresponding graph branch (UC2 synthesizer prompt
- * / UC3 deterministic medChangeBranch) reads the typed params
+ * / UC3 deterministic prescriptionChangeBranch) reads the typed params
  * directly. Returning `null` here signals "do not bridge this type";
  * the route handler leaves `question` unset on the envelope and the
  * UC-specific branch wins. `external_care` still bridges until §4.4.
@@ -132,7 +132,7 @@ export const stringifyFollowUp = (params: SuggestedFollowUpParams): string | nul
     switch (params.type) {
         case 'lab_trend':
             return null;
-        case 'medication_change':
+        case 'prescription_change':
             return null;
         case 'external_care':
             return `Summarize external care from the last ${params.lookbackDays} days.`;
@@ -242,9 +242,10 @@ export const createApp = ({
             // §4.1 → §4.2/§4.3/§4.4 transitional shim: bridge a typed
             // `followUp` into the §4.5 free-text path for follow-up
             // types whose UC-specific branch hasn't shipped yet. §4.2
-            // shipped (`lab_trend`) and §4.3 shipped (`medication_change`),
-            // so both flow through their own typed branches and
-            // `stringifyFollowUp` returns `null` for them.
+            // shipped (`lab_trend`) and §4.3 shipped
+            // (`prescription_change`), so both flow through their own
+            // typed branches and `stringifyFollowUp` returns `null`
+            // for them.
             const bridgedFromFollowUp = parsed.data.followUp !== undefined
                 ? stringifyFollowUp(parsed.data.followUp)
                 : null;

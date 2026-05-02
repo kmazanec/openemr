@@ -68,7 +68,7 @@
       }
     }
   ],
-  "medications": [
+  "prescriptions": [
     {
       "name": "Lisinopril",
       "dose": "20 mg",

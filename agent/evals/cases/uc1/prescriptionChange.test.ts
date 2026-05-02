@@ -20,7 +20,7 @@ import { buildClient, loadFixture } from './_helpers.js';
  * the matching `medication_provenance` JSON for the fixture, builds a
  * follow-up envelope with the typed params, and asserts:
  *  - the synthesizer is NOT called (the branch bypasses it),
- *  - the verifier accepts exactly one `medication_change` claim,
+ *  - the verifier accepts exactly one `prescription_change` claim,
  *  - the formatted segment text includes the expected fields and
  *    omits the absent ones.
  */
@@ -30,7 +30,7 @@ const TOKEN = 'eval-token';
 const followUpEnvelope = (
     pid: number,
     uuid: string,
-    medicationId: string,
+    prescriptionId: string,
 ): RequestEnvelope => ({
     conversationId: `conv-${uuid}`,
     requestId: `req-${uuid}`,
@@ -38,7 +38,7 @@ const followUpEnvelope = (
     actor: { userId: 'eval-actor', fhirUser: 'https://emr/Practitioner/eval-actor' },
     patient: { pid, uuid },
     task: 'follow_up',
-    followUp: { type: 'medication_change', medicationId },
+    followUp: { type: 'prescription_change', prescriptionId },
 });
 
 interface ProvenanceJson {
@@ -59,7 +59,7 @@ const buildProvenanceClient = (response: ProvenanceJson): AgentHttpClient => ({
 describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', () => {
     it('lisinopril_recent_start: surfaces date + prescriber + indication from documented fields', async () => {
         const snapshot = loadFixture('lisinopril_recent_start');
-        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril).toBeDefined();
         if (lisinopril === undefined) return;
 
@@ -78,7 +78,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
             retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-            medChange: {
+            prescriptionChange: {
                 client: buildProvenanceClient(provenance),
                 token: TOKEN,
                 siteId: 'default',
@@ -96,7 +96,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
         expect(synth).not.toHaveBeenCalled();
         expect(out.verified?.passed).toBe(true);
         expect(out.verified?.accepted).toHaveLength(1);
-        expect(out.verified?.accepted[0]?.category).toBe('medication_change');
+        expect(out.verified?.accepted[0]?.category).toBe('prescription_change');
 
         const seg = out.formatted?.segments[0];
         expect(seg?.redacted).toBe(false);
@@ -108,7 +108,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
 
     it('med_no_indication: claim text omits "indication" when source is null', async () => {
         const snapshot = loadFixture('med_no_indication');
-        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.indication).toBeNull();
         if (lisinopril === undefined) return;
 
@@ -127,7 +127,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
             retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-            medChange: {
+            prescriptionChange: {
                 client: buildProvenanceClient(provenance),
                 token: TOKEN,
                 siteId: 'default',
@@ -232,7 +232,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
 
     it('med_unknown_prescriber: claim text omits prescriber when source is null', async () => {
         const snapshot = loadFixture('med_unknown_prescriber');
-        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.prescriber).toBeNull();
         if (lisinopril === undefined) return;
 
@@ -251,7 +251,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
             retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-            medChange: {
+            prescriptionChange: {
                 client: buildProvenanceClient(provenance),
                 token: TOKEN,
                 siteId: 'default',

@@ -133,7 +133,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 source: sourceRef('Appointment', 'apt-1001'),
             },
             diagnoses: [],
-            medications: [],
+            prescriptions: [],
             allergies: [],
             labs: [],
             encounters: [
@@ -174,7 +174,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Condition', 'cond-2002-1'),
                 },
             ],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Lisinopril',
                     dose: '10 mg',
@@ -235,7 +235,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Condition', 'cond-3003-1'),
                 },
             ],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Metformin',
                     dose: '500 mg',
@@ -313,7 +313,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Condition', 'cond-4004-2'),
                 },
             ],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Metformin',
                     dose: '1000 mg',
@@ -410,7 +410,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Condition', 'cond-5005-3'),
                 },
             ],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Lisinopril',
                     dose: '20 mg',
@@ -475,7 +475,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 source: sourceRef('Appointment', 'apt-6006'),
             },
             diagnoses: [],
-            medications: [],
+            prescriptions: [],
             allergies: [
                 {
                     substance: 'NKDA',
@@ -544,7 +544,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Condition', 'cond-7001-2'),
                 },
             ],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Metformin',
                     dose: '1000 mg',
@@ -610,7 +610,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 source: sourceRef('Appointment', 'apt-7002'),
             },
             diagnoses: [],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Lisinopril',
                     dose: '10 mg',
@@ -666,7 +666,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Condition', 'cond-7003-1'),
                 },
             ],
-            medications: [
+            prescriptions: [
                 {
                     name: 'Lisinopril',
                     dose: '10 mg',
@@ -716,7 +716,7 @@ export interface RegenerateResult {
  */
 const toWireFormat = (snapshot: ChartSnapshot): unknown => ({
     ...snapshot,
-    medications: snapshot.medications.map((m) => ({
+    prescriptions: snapshot.prescriptions.map((m) => ({
         ...m,
         prescriptionId: m.prescriptionId === null ? null : Number.parseInt(m.prescriptionId, 10),
     })),

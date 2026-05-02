@@ -71,7 +71,7 @@ describe('eventsForBriefing', () => {
                 {
                     kind: 'gap',
                     reason: 'allergies-unavailable',
-                    message: 'Allergy data is unavailable; medication summary withheld.',
+                    message: 'Allergy data is unavailable; prescription summary withheld.',
                 },
             ],
         });
@@ -84,7 +84,7 @@ describe('eventsForBriefing', () => {
             {
                 kind: 'gap',
                 reason: 'allergies-unavailable',
-                message: 'Allergy data is unavailable; medication summary withheld.',
+                message: 'Allergy data is unavailable; prescription summary withheld.',
             },
         ]);
     });

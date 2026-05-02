@@ -6,7 +6,7 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
-    Medication,
+    Prescription,
     SourceReference,
 } from './types.js';
 
@@ -118,7 +118,7 @@ const decodeDiagnosis = (path: string, raw: unknown): Diagnosis => {
     };
 };
 
-const decodeMedication = (path: string, raw: unknown): Medication => {
+const decodePrescription = (path: string, raw: unknown): Prescription => {
     const obj = expectObject(path, raw);
     return {
         name: expectString(`${path}.name`, obj['name']),
@@ -206,12 +206,12 @@ const requireKey = (obj: Record<string, unknown>, key: string): unknown => {
  * Element decoders re-exported under stable names so the narrow
  * conversational-path response decoders (`narrowResponseDecoders.ts`)
  * can reuse the same field-by-field walks. Keeping decode logic in
- * one place — there is exactly one way to interpret a Medication
+ * one place — there is exactly one way to interpret a Prescription
  * coming from OpenEMR, regardless of which endpoint emitted it.
  */
 export const decodeDemographicsForNarrow = decodeDemographics;
 export const decodeDiagnosisForNarrow = decodeDiagnosis;
-export const decodeMedicationForNarrow = decodeMedication;
+export const decodePrescriptionForNarrow = decodePrescription;
 export const decodeAllergyForNarrow = decodeAllergy;
 export const decodeLabForNarrow = decodeLab;
 export const decodeEncounterForNarrow = decodeEncounter;
@@ -232,10 +232,10 @@ export const decodeChartSnapshot = (raw: unknown): ChartSnapshot => {
         patient: decodeDemographics('snapshot.patient', patientRaw),
         appointment,
         diagnoses: decodeList('snapshot.diagnoses', requireKey(obj, 'diagnoses'), decodeDiagnosis),
-        medications: decodeList(
-            'snapshot.medications',
-            requireKey(obj, 'medications'),
-            decodeMedication,
+        prescriptions: decodeList(
+            'snapshot.prescriptions',
+            requireKey(obj, 'prescriptions'),
+            decodePrescription,
         ),
         allergies: decodeList('snapshot.allergies', requireKey(obj, 'allergies'), decodeAllergy),
         labs: decodeList('snapshot.labs', requireKey(obj, 'labs'), decodeLab),

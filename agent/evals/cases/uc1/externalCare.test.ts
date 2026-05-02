@@ -163,7 +163,7 @@ describe('UC4 outside care — malformed CCDA (encounters Gap)', () => {
             patient: base.patient,
             appointment: base.appointment,
             diagnoses: base.diagnoses,
-            medications: base.medications,
+            prescriptions: base.prescriptions,
             allergies: base.allergies,
             labs: base.labs,
             encounters: gap('ccda-import-malformed', 'CCDA payload could not be parsed'),
