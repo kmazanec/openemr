@@ -45,6 +45,12 @@ import { classifyBriefingError } from './errorClassifier.js';
 
 const DEFAULT_AUDIENCE = 'openemr-clinical-copilot-agent';
 
+// Shared UUID-shape filter for query parameters. Used by every route
+// that accepts a uuid in its query string (force-resume conversation
+// id, schedule_briefings practitioner uuid). Matches RFC 4122 lower-
+// or upper-case hex with dashes; no version-bit gating.
+const UUID_QUERY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface AppDeps {
     readonly auth: BearerAuthMiddlewareOptions;
     readonly briefingRunner: BriefingRunner;
@@ -470,8 +476,7 @@ export const createApp = ({
             // check) and the row must be owned by the principal AND
             // scoped to the same patient — `findOwnedById` enforces
             // both, returning null if either invariant fails.
-            const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRe.test(explicitId)) {
+            if (!UUID_QUERY_RE.test(explicitId)) {
                 return c.json({ code: 'invalid_conversation_id' }, 400);
             }
             const owned = await conversationApi.conversationStore.findOwnedById(
@@ -590,8 +595,7 @@ export const createApp = ({
         }
         const principal = getPrincipal(c);
         const practitionerUuid = c.req.query('practitioner_uuid');
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (practitionerUuid === undefined || !uuidRe.test(practitionerUuid)) {
+        if (practitionerUuid === undefined || !UUID_QUERY_RE.test(practitionerUuid)) {
             return c.json({ code: 'invalid_practitioner_uuid' }, 400);
         }
         const date = c.req.query('date');

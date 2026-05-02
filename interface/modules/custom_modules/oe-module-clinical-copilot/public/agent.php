@@ -108,16 +108,26 @@ foreach ($extraAllowlist as $paramName) {
     }
 }
 
-// §5.4: the schedule-view annotations action is keyed by the
-// practitioner's uuid. The shim has no reason to know that uuid (it
-// only sees `data-username`/`users.id` in the calendar DOM), so we
-// fill it server-side from the resolved fhirUser. The agent's route
-// still enforces self-only (`principal.sub === practitioner_uuid`) —
-// that check is now a server/server invariant rather than a
-// client/server one. Any client-supplied `practitioner_uuid` is
-// discarded so a tampered request can never widen the scope.
+// §5.4 schedule-view annotations:
+//   1. Override `practitioner_uuid` to the resolved fhirUser's uuid.
+//      The shim doesn't know the uuid (calendar DOM only carries
+//      `users.id`), and any client-supplied value is discarded so a
+//      tampered request can't widen the scope. The agent's route
+//      still enforces `principal.sub === practitioner_uuid` — that
+//      check is now a server/server invariant.
+//   2. Short-circuit when the practitioner has not opted into
+//      morning-prep. The agent's route would also return an empty
+//      list, but the round-trip is wasted on every page load.
 if ($action === 'schedule_briefings' && $resolvedFhirUser !== null) {
     $extraQueryParams['practitioner_uuid'] = $resolvedFhirUser->uuid;
+
+    $morningPrepGate = new MorningPrepGate(new SettingsRepository(AgentDbalConnection::get()));
+    if (!$morningPrepGate->isEnabledFor($resolvedFhirUser->uuid)) {
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode(['briefings' => []], JSON_THROW_ON_ERROR);
+        return;
+    }
 }
 
 $agentRequest = new AgentRequest(
@@ -127,21 +137,6 @@ $agentRequest = new AgentRequest(
     requestedScopes: $gate->defaultScopesFor($action),
     extraQueryParams: $extraQueryParams,
 );
-
-// §5.4 short-circuit: don't mint a token or call upstream when the
-// schedule-view annotations action runs against a practitioner who has
-// not opted into morning-prep. The agent's own route returns
-// `{briefings: []}` for the cold-cache case, so the contract is
-// identical — but the round-trip is wasted work on every page load.
-if ($action === 'schedule_briefings' && $resolvedFhirUser !== null) {
-    $morningPrepGate = new MorningPrepGate(new SettingsRepository(AgentDbalConnection::get()));
-    if (!$morningPrepGate->isEnabledFor($resolvedFhirUser->uuid)) {
-        http_response_code(200);
-        header('Content-Type: application/json');
-        echo json_encode(['briefings' => []], JSON_THROW_ON_ERROR);
-        return;
-    }
-}
 
 $body = $request->getContent();
 

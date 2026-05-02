@@ -1341,16 +1341,35 @@ clinician identity.
   hospital tier (the worst case PRESEARCH §2 calls out).
 
 ### 5.4 Schedule view annotations
-- [ ] Module-side hook into OpenEMR's calendar/schedule view to render
+- [x] Module-side hook into OpenEMR's calendar/schedule view to render
   per-appointment flags ("new abnormal A1c", "recent ED visit") for
   appointments whose practitioner has opted in
-- [ ] When the practitioner has not opted in, the schedule view
+  (Implemented as a `ScriptFilterEvent('pnuserapi.php')` listener in
+  `Bootstrap` that injects `public/js/schedule-annotations.js`. The
+  shim reads the rendered date from the day-view's
+  `<td class="schedule" date="Ymd">`, calls
+  `agent.php?action=schedule_briefings&date=...`, and prepends one
+  `.copilot-flag` chip per `flags[]` entry to every
+  `[data-eid='<appointment_id>']` DIV. The new
+  `/v1/agent/schedule_briefings` GET route on the agent service
+  returns cached `schedule_briefings` rows scoped self-only.)
+- [x] When the practitioner has not opted in, the schedule view
   renders unchanged — no "feature available" nag, no placeholder
   flags. The opt-in is a deliberate choice, not a discoverability
   problem.
-- [ ] Click-through opens the patient chart with the briefing
+  (Two layers: `MorningPrepGate` short-circuits in `agent.php` with
+  `{briefings: []}` so opt-out costs zero tokens *and* zero upstream
+  round-trips. The shim's empty-list branch makes no DOM changes,
+  matching the "render unchanged" contract verbatim.)
+- [x] Click-through opens the patient chart with the briefing
   pre-warmed (uses the cached `schedule_briefings` row when present;
   falls back to live UC1 generation if absent)
+  (No new code path: the existing `goPid()` opens the patient
+  chart, the panel's first load runs UC1 against the same cached
+  row when present. Cache hit just makes first paint feel faster;
+  cache miss is the standard panel-open flow. Decided in plan
+  Q&A — no `briefing_id` query-string handoff, no parallel cache
+  fast-path on the panel.)
 
 ### 5.5 Evals
 - [ ] Eval case: a synthetic 20-patient day with the practitioner
