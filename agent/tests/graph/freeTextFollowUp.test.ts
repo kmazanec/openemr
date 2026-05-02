@@ -91,6 +91,7 @@ const happyPathSnapshot = {
     ],
     labs: [],
     encounters: [],
+    reminders: [],
 };
 
 const buildClient = (): SnapshotClient => ({

@@ -4,6 +4,7 @@ import type {
     Encounter,
     LabObservation,
     Prescription,
+    Reminder,
     SourceReference,
 } from '../snapshot/types.js';
 import type {
@@ -57,6 +58,7 @@ interface SnapshotIndex {
     readonly diagnoses: ReadonlyMap<string, Diagnosis>;
     readonly labs: ReadonlyMap<string, LabObservation>;
     readonly encounters: ReadonlyMap<string, Encounter>;
+    readonly reminders: ReadonlyMap<string, Reminder>;
     readonly appointmentId: string | null;
     readonly patientRecordId: string;
 }
@@ -105,12 +107,18 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
         for (const e of snapshot.encounters) encounters.set(e.source.recordId, e);
     }
 
+    const reminders = new Map<string, Reminder>();
+    if (!isGap(snapshot.reminders)) {
+        for (const r of snapshot.reminders) reminders.set(r.source.recordId, r);
+    }
+
     return {
         prescriptions,
         allergies,
         diagnoses,
         labs,
         encounters,
+        reminders,
         appointmentId: snapshot.appointment?.source.recordId ?? null,
         patientRecordId: snapshot.patient.source.recordId,
     };
@@ -275,6 +283,23 @@ const matchesEncounter = (claim: Claim, ref: SourceReference, idx: SnapshotIndex
     return false;
 };
 
+/**
+ * §4.6.3: reminder claims must surface BOTH the human-readable item
+ * name AND the actionable due-status token. The combined check
+ * refuses claims that name the right item with the wrong urgency
+ * ("mammogram is due" against an `overdue` reminder is a different
+ * statement than "mammogram is overdue") — reminders are short by
+ * nature, so the rule has to be precise about the two pieces that
+ * actually carry meaning.
+ */
+const matchesReminder = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
+    const reminder = idx.reminders.get(ref.recordId);
+    if (reminder === undefined) return false;
+    if (!containsCI(claim.text, reminder.itemTitle)) return false;
+    if (!containsCI(claim.text, reminder.dueStatus)) return false;
+    return true;
+};
+
 interface CategoryCheck {
     readonly resolves: (ref: SourceReference, idx: SnapshotIndex) => boolean;
     /**
@@ -318,6 +343,10 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
     identity: {
         resolves: (ref, idx) =>
             ref.recordType.toLowerCase() === 'patient' && ref.recordId === idx.patientRecordId,
+    },
+    reminder: {
+        resolves: (ref, idx) => idx.reminders.has(ref.recordId),
+        contentMatches: matchesReminder,
     },
 };
 

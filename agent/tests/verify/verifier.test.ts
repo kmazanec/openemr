@@ -82,6 +82,7 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
             source: sourceRef('Encounter', 'enc-1'),
         },
     ],
+    reminders: [],
     labHistory: null,
     ...overrides,
 });

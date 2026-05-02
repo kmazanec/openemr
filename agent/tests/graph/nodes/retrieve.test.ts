@@ -43,6 +43,7 @@ const baseSnapshot = (overrides: Record<string, unknown> = {}): unknown => ({
     ],
     labs: [],
     encounters: [],
+    reminders: [],
     ...overrides,
 });
 
@@ -81,6 +82,7 @@ describe('createRetrieve (Phase B1: single-fetch briefing path)', () => {
             'allergy',
             'lab',
             'encounter',
+            'reminder',
         ]);
         expect(call?.[0].pid).toBe(PID);
         expect(call?.[0].token).toBe(TOKEN);

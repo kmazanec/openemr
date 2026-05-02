@@ -26,6 +26,7 @@ const snapshot: BriefingSnapshot = {
     allergies: [],
     labs: [],
     encounters: [],
+    reminders: [],
     labHistory: null,
 };
 

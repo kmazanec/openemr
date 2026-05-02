@@ -28,6 +28,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ReminderAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\ChartSnapshot;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategory;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategorySet;
@@ -67,6 +68,7 @@ final readonly class AgentSnapshotController
         private EncounterAdapter $encounterAdapter,
         private ExternalEncounterAdapter $externalEncounterAdapter,
         private AppointmentAdapter $appointmentAdapter,
+        private ReminderAdapter $reminderAdapter,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -235,6 +237,10 @@ final readonly class AgentSnapshotController
             );
         }
 
+        $reminders = $categories->contains(DataCategory::Reminder)
+            ? $this->reminderAdapter->fetchDue($pid)
+            : [];
+
         // The adapter calls above are already gated by the
         // DataCategorySet — categories the request did not ask for are
         // never fetched, so the snapshot we hand back already reflects
@@ -248,6 +254,7 @@ final readonly class AgentSnapshotController
             allergies: $allergies,
             labs: $labs,
             encounters: $encounters,
+            reminders: $reminders,
         );
     }
 

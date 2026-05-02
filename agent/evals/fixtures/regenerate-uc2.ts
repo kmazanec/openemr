@@ -129,6 +129,7 @@ const trendUp: Uc2Fixture = {
                 source: sourceRef('Encounter', 'enc-4004-1'),
             },
         ],
+        reminders: [],
         labHistory: {
             analyte: 'Hemoglobin A1c',
             observations: [
@@ -201,6 +202,7 @@ const trendStable: Uc2Fixture = {
                 source: sourceRef('Encounter', 'enc-3003-1'),
             },
         ],
+        reminders: [],
         labHistory: {
             analyte: 'Hemoglobin A1c',
             observations: [
@@ -245,6 +247,7 @@ const noHistory: Uc2Fixture = {
                 source: sourceRef('Encounter', 'enc-1001-1'),
             },
         ],
+        reminders: [],
         labHistory: {
             analyte: 'Hemoglobin A1c',
             observations: [],
@@ -261,6 +264,28 @@ export interface RegenerateUc2Result {
     readonly path: string;
 }
 
+/**
+ * Coerce id fields from string (decoder shape) to JSON number (wire
+ * shape). The bulk-snapshot endpoint ships `prescriptionId` /
+ * `reminderId` as JSON numbers; the TS DTO holds them as strings for
+ * uniformity with `source.recordId`. Mirrors the same coercion in
+ * `regenerate.ts::toWireFormat`.
+ */
+const toWireFormat = (snapshot: BriefingSnapshot): unknown => {
+    const prescriptions = snapshot.prescriptions.map((p) => ({
+        ...p,
+        prescriptionId: p.prescriptionId === null ? null : Number.parseInt(p.prescriptionId, 10),
+    }));
+    const remindersIn = snapshot.reminders;
+    const reminders = 'kind' in remindersIn
+        ? remindersIn
+        : remindersIn.map((r) => ({
+            ...r,
+            reminderId: r.reminderId === null ? null : Number.parseInt(r.reminderId, 10),
+        }));
+    return { ...snapshot, prescriptions, reminders };
+};
+
 export const regenerateUc2 = (): readonly RegenerateUc2Result[] => {
     mkdirSync(FIXTURES_DIR, { recursive: true });
     const written: RegenerateUc2Result[] = [];
@@ -270,7 +295,7 @@ export const regenerateUc2 = (): readonly RegenerateUc2Result[] => {
         // `pretty-format-json` pre-commit hook (`--indent=2
         // --no-sort-keys`); without this the hook rewrites every
         // fixture on commit and leaves the regenerator out of sync.
-        const body = `${JSON.stringify(fixture.snapshot, null, 2)}\n`;
+        const body = `${JSON.stringify(toWireFormat(fixture.snapshot), null, 2)}\n`;
         writeFileSync(path, body, { encoding: 'utf8' });
         written.push({ name: fixture.name, path });
     }

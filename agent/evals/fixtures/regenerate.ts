@@ -144,6 +144,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-1001-1'),
                 },
             ],
+            reminders: [],
         }),
     },
     {
@@ -205,6 +206,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-2002-1'),
                 },
             ],
+            reminders: [],
         }),
     },
     {
@@ -276,6 +278,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-3003-1'),
                 },
             ],
+            reminders: [],
         }),
     },
     {
@@ -366,6 +369,21 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-4004-1'),
                 },
             ],
+            // Phase 4.6.3: uncontrolled diabetes implies a tighter
+            // recall — the briefing should surface the A1c follow-up
+            // due so the clinician can confirm or reschedule.
+            reminders: [
+                {
+                    item: 'a1c_recheck',
+                    itemTitle: 'A1c follow-up',
+                    category: 'lab_followup',
+                    categoryTitle: 'Lab follow-up',
+                    dueStatus: 'due',
+                    createdAt: '2026-04-01',
+                    reminderId: '85002',
+                    source: sourceRef('Task', '85002'),
+                },
+            ],
         }),
     },
     {
@@ -453,6 +471,22 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-5005-1'),
                 },
             ],
+            // Phase 4.6.3: complex_elderly is the canonical
+            // "fell-off-the-screening-schedule" patient — overdue
+            // mammogram is the briefing's highest-value reminder
+            // surface for this archetype.
+            reminders: [
+                {
+                    item: 'mammogram',
+                    itemTitle: 'Mammogram screening',
+                    category: 'screening',
+                    categoryTitle: 'Screening',
+                    dueStatus: 'overdue',
+                    createdAt: '2025-11-01',
+                    reminderId: '85001',
+                    source: sourceRef('Task', '85001'),
+                },
+            ],
         }),
     },
     {
@@ -500,6 +534,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-6006-ed', null, 'ccda-importer'),
                 },
             ],
+            reminders: [],
         }),
     },
     // -----------------------------------------------------------------
@@ -588,6 +623,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Encounter', 'enc-7001-1'),
                 },
             ],
+            reminders: [],
         }),
     },
     {
@@ -636,6 +672,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
             ],
             labs: [],
             encounters: [],
+            reminders: [],
         }),
     },
     {
@@ -694,6 +731,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
             ],
             labs: [],
             encounters: [],
+            reminders: [],
         }),
     },
 ];
@@ -719,6 +757,10 @@ const toWireFormat = (snapshot: ChartSnapshot): unknown => ({
     prescriptions: snapshot.prescriptions.map((m) => ({
         ...m,
         prescriptionId: m.prescriptionId === null ? null : Number.parseInt(m.prescriptionId, 10),
+    })),
+    reminders: snapshot.reminders.map((r) => ({
+        ...r,
+        reminderId: r.reminderId === null ? null : Number.parseInt(r.reminderId, 10),
     })),
 });
 

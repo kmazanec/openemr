@@ -121,6 +121,7 @@ export const createRetrieve = (
             labs: chart.labs,
             encounters: chart.encounters,
             labHistory,
+            reminders: chart.reminders,
         };
 
         return { snapshot };

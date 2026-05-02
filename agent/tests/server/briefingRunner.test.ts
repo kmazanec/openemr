@@ -54,6 +54,7 @@ const happyPathSnapshot = {
     allergies: [],
     labs: [],
     encounters: [],
+    reminders: [],
 };
 
 const cannedLedger: ClaimLedger = {

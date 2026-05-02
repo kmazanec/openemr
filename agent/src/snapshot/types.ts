@@ -95,6 +95,39 @@ export interface Encounter {
     readonly source: SourceReference;
 }
 
+/**
+ * Clinical reminder — overdue or due health-maintenance items
+ * (FHIR `Task`).
+ *
+ * Sourced from OpenEMR's `patient_reminders` table joined to
+ * `list_options` for human-readable category and due-status titles.
+ * The adapter caps to 5 rows and filters out `not_due_yet` so the
+ * briefing surface stays focused on what the clinician should act
+ * on this visit.
+ */
+export interface Reminder {
+    readonly item: string;
+    readonly itemTitle: string;
+    readonly category: string;
+    readonly categoryTitle: string;
+    /**
+     * `'due'` | `'overdue'` (case-insensitive). The verifier rule
+     * requires the claim text to contain this token, so a claim can't
+     * say "due" against an overdue reminder.
+     */
+    readonly dueStatus: string;
+    readonly createdAt: string | null;
+    /**
+     * Same value the SourceReference carries as `recordId`, surfaced
+     * here as a top-level string so §4.6.5's reminder-detail branch
+     * can address a single reminder without spelunking through the
+     * citation. The wire format ships it as a JSON number; held as a
+     * string on this side to match every other id in the snapshot.
+     */
+    readonly reminderId: string | null;
+    readonly source: SourceReference;
+}
+
 export interface Appointment {
     readonly appointmentId: string;
     readonly startAt: string;
@@ -112,4 +145,5 @@ export interface ChartSnapshot {
     readonly allergies: readonly Allergy[];
     readonly labs: readonly LabObservation[];
     readonly encounters: readonly Encounter[];
+    readonly reminders: readonly Reminder[];
 }

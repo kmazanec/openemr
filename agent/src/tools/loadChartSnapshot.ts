@@ -32,6 +32,7 @@ const ALL_CATEGORIES = [
     'allergy',
     'lab',
     'encounter',
+    'reminder',
 ] as const;
 
 export interface LoadChartSnapshotInput {

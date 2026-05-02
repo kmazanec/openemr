@@ -27,6 +27,7 @@ enum DataCategory: string
     case Lab = 'lab';
     case Encounter = 'encounter';
     case Appointment = 'appointment';
+    case Reminder = 'reminder';
 
     /**
      * SMART scope that gates this category. The agent's JWT must carry
@@ -45,6 +46,7 @@ enum DataCategory: string
             self::Lab => 'user/Observation.rs',
             self::Encounter => 'user/Encounter.rs',
             self::Appointment => 'user/Appointment.rs',
+            self::Reminder => 'user/Task.rs',
         };
     }
 }

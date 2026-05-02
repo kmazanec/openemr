@@ -45,6 +45,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ReminderAdapter;
 use OpenEMR\Seed\PatientArchetype;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\ArchetypeChartFactory;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAllergyDataSource;
@@ -55,6 +56,7 @@ use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEx
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPrescriptionDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryReminderDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\RequireModuleClasses;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -197,6 +199,7 @@ final class AgentSnapshotControllerTest extends TestCase
         $this->assertArrayHasKey('labs', $body);
         $this->assertArrayHasKey('encounters', $body);
         $this->assertArrayHasKey('appointment', $body);
+        $this->assertArrayHasKey('reminders', $body);
         $this->assertCount(1, $events, 'exactly one disclosure event per request');
 
         $event = $events[0];
@@ -204,7 +207,7 @@ final class AgentSnapshotControllerTest extends TestCase
         $this->assertSame(4242, $event->patientPid);
         $this->assertSame(self::FIXED_JTI, $event->requestId);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription'],
+            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription', 'reminder'],
             $event->categories,
         );
     }
@@ -323,6 +326,7 @@ final class AgentSnapshotControllerTest extends TestCase
             encounterAdapter: new EncounterAdapter(new InMemoryEncounterDataSource($chart)),
             externalEncounterAdapter: new ExternalEncounterAdapter(new InMemoryExternalEncounterDataSource($chart)),
             appointmentAdapter: new AppointmentAdapter(new InMemoryAppointmentDataSource($chart)),
+            reminderAdapter: new ReminderAdapter(new InMemoryReminderDataSource($chart)),
             eventDispatcher: $dispatcher,
             logger: new NullLogger(),
             siteId: 'default',
@@ -378,6 +382,7 @@ final class AgentSnapshotControllerTest extends TestCase
             'user/Observation.rs',
             'user/Encounter.rs',
             'user/Appointment.rs',
+            'user/Task.rs',
         ]);
     }
 

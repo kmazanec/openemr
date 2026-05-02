@@ -22,7 +22,7 @@ import type {
     DraftBriefing,
     RequestEnvelope,
 } from '../../../src/graph/types.js';
-import type { Encounter, LabObservation } from '../../../src/snapshot/types.js';
+import type { Encounter, LabObservation, Reminder } from '../../../src/snapshot/types.js';
 import type { ChartSnapshot } from '../../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../../src/tools/snapshotClient.js';
 
@@ -52,6 +52,8 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         'kind' in snapshot.labs ? [] : snapshot.labs;
     const encounters: readonly Encounter[] =
         'kind' in snapshot.encounters ? [] : snapshot.encounters;
+    const reminders: readonly Reminder[] =
+        'kind' in snapshot.reminders ? [] : snapshot.reminders;
     const chart: ChartSnapshot = {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
@@ -60,6 +62,7 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         allergies: snapshot.allergies,
         labs,
         encounters,
+        reminders,
     };
     return {
         fetchSnapshot: vi.fn(() => Promise.resolve(chart)),
@@ -148,6 +151,22 @@ const claimsFromSnapshot = (snapshot: BriefingSnapshot): readonly Claim[] => {
             text: `Encounter on ${date} (${type})`,
             category: 'encounter',
             sourceReferences: [enc.source],
+            safetyCritical: false,
+        });
+    }
+
+    const reminders: readonly Reminder[] =
+        'kind' in snapshot.reminders ? [] : snapshot.reminders;
+    for (const rem of reminders) {
+        // Verifier rule (matchesReminder) requires both itemTitle AND
+        // dueStatus in the claim text — generate a phrasing that
+        // contains both so this faithful-synth produces accepted
+        // claims for archetypes that carry reminders.
+        claims.push({
+            id: nextId(),
+            text: `${rem.itemTitle} is ${rem.dueStatus}`,
+            category: 'reminder',
+            sourceReferences: [rem.source],
             safetyCritical: false,
         });
     }

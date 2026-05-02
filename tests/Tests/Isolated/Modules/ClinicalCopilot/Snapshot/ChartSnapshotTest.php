@@ -27,6 +27,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Diagnosis;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Encounter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\LabObservation;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Prescription;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Reminder;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\SourceReference;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -49,6 +50,7 @@ final class ChartSnapshotTest extends TestCase
             'Allergy.php',
             'LabObservation.php',
             'Encounter.php',
+            'Reminder.php',
             'ChartSnapshot.php',
         ];
         foreach ($files as $f) {
@@ -71,6 +73,7 @@ final class ChartSnapshotTest extends TestCase
         yield 'Allergy' => [Allergy::class];
         yield 'LabObservation' => [LabObservation::class];
         yield 'Encounter' => [Encounter::class];
+        yield 'Reminder' => [Reminder::class];
         yield 'ChartSnapshot' => [ChartSnapshot::class];
     }
 
@@ -253,6 +256,40 @@ final class ChartSnapshotTest extends TestCase
         );
     }
 
+    public function testReminderToArrayShape(): void
+    {
+        $reminder = new Reminder(
+            item: 'mammogram',
+            itemTitle: 'Mammogram screening',
+            category: 'screening',
+            categoryTitle: 'Screening',
+            dueStatus: 'overdue',
+            createdAt: new DateTimeImmutable('2025-11-01'),
+            reminderId: 85001,
+            source: $this->ref('Task', 'rem-85001'),
+        );
+
+        $this->assertSame(
+            [
+                'item' => 'mammogram',
+                'itemTitle' => 'Mammogram screening',
+                'category' => 'screening',
+                'categoryTitle' => 'Screening',
+                'dueStatus' => 'overdue',
+                'createdAt' => '2025-11-01',
+                'reminderId' => 85001,
+                'source' => [
+                    'system' => 'openemr',
+                    'recordType' => 'Task',
+                    'recordId' => 'rem-85001',
+                    'field' => null,
+                    'recordedAt' => null,
+                ],
+            ],
+            $reminder->toArray(),
+        );
+    }
+
     public function testAppointmentToArrayShape(): void
     {
         $appt = new Appointment(
@@ -375,6 +412,18 @@ final class ChartSnapshotTest extends TestCase
                     source: $this->ref('Encounter', 'enc-44'),
                 ),
             ],
+            reminders: [
+                new Reminder(
+                    item: 'a1c_recheck',
+                    itemTitle: 'A1c follow-up',
+                    category: 'lab_followup',
+                    categoryTitle: 'Lab follow-up',
+                    dueStatus: 'due',
+                    createdAt: new DateTimeImmutable('2026-04-01'),
+                    reminderId: 85002,
+                    source: $this->ref('Task', 'rem-85002'),
+                ),
+            ],
         );
 
         $array = $snapshot->toArray();
@@ -383,6 +432,7 @@ final class ChartSnapshotTest extends TestCase
         $encoded = json_encode($array, JSON_THROW_ON_ERROR);
         $this->assertStringContainsString('"diagnoses":[{', $encoded);
         $this->assertStringContainsString('"allergies":[]', $encoded);
+        $this->assertStringContainsString('"reminders":[{', $encoded);
 
         // Round-trips losslessly through json. This is the runtime pin on
         // the top-level key set: a future drift in toArray() shows up as

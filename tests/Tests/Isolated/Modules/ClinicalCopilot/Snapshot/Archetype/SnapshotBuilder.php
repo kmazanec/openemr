@@ -25,6 +25,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ReminderAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\ChartSnapshot;
 
 final readonly class SnapshotBuilder
@@ -50,6 +51,8 @@ final readonly class SnapshotBuilder
             ->fetchRecent($chart->pid, self::LOOKBACK_DAYS);
         $appointment = (new AppointmentAdapter(new InMemoryAppointmentDataSource($chart)))
             ->fetchToday($chart->pid, ArchetypeChartFactory::PRACTITIONER_UUID, $today);
+        $reminders = (new ReminderAdapter(new InMemoryReminderDataSource($chart)))
+            ->fetchDue($chart->pid);
 
         return new ChartSnapshot(
             patient: $patient,
@@ -59,6 +62,7 @@ final readonly class SnapshotBuilder
             allergies: $allergies,
             labs: $labs,
             encounters: $encounters,
+            reminders: $reminders,
         );
     }
 }

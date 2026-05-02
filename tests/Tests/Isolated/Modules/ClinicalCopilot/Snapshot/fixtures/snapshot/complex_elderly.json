@@ -442,5 +442,23 @@
         "recordedAt": "<DATE>"
       }
     }
+  ],
+  "reminders": [
+    {
+      "item": "mammogram",
+      "itemTitle": "Mammogram screening",
+      "category": "screening",
+      "categoryTitle": "Screening",
+      "dueStatus": "overdue",
+      "createdAt": "<DATE>",
+      "reminderId": 85001,
+      "source": {
+        "system": "openemr",
+        "recordType": "Task",
+        "recordId": "85001",
+        "field": null,
+        "recordedAt": "<DATE>"
+      }
+    }
   ]
 }

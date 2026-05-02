@@ -30,6 +30,7 @@ use TypeError;
  * @phpstan-import-type AllergyArray from Allergy
  * @phpstan-import-type LabObservationArray from LabObservation
  * @phpstan-import-type EncounterArray from Encounter
+ * @phpstan-import-type ReminderArray from Reminder
  *
  * @phpstan-type ChartSnapshotArray array{
  *     patient: DemographicsArray,
@@ -39,6 +40,7 @@ use TypeError;
  *     allergies: list<AllergyArray>,
  *     labs: list<LabObservationArray>,
  *     encounters: list<EncounterArray>,
+ *     reminders: list<ReminderArray>,
  * }
  */
 final readonly class ChartSnapshot
@@ -58,12 +60,16 @@ final readonly class ChartSnapshot
     /** @var list<Encounter> */
     public array $encounters;
 
+    /** @var list<Reminder> */
+    public array $reminders;
+
     /**
      * @param list<Diagnosis> $diagnoses
      * @param list<Prescription> $prescriptions
      * @param list<Allergy> $allergies
      * @param list<LabObservation> $labs
      * @param list<Encounter> $encounters
+     * @param list<Reminder> $reminders
      */
     public function __construct(
         public Demographics $patient,
@@ -73,18 +79,21 @@ final readonly class ChartSnapshot
         array $allergies,
         array $labs,
         array $encounters,
+        array $reminders = [],
     ) {
         self::assertItemTypes($diagnoses, Diagnosis::class, 'diagnoses');
         self::assertItemTypes($prescriptions, Prescription::class, 'prescriptions');
         self::assertItemTypes($allergies, Allergy::class, 'allergies');
         self::assertItemTypes($labs, LabObservation::class, 'labs');
         self::assertItemTypes($encounters, Encounter::class, 'encounters');
+        self::assertItemTypes($reminders, Reminder::class, 'reminders');
 
         $this->diagnoses = $diagnoses;
         $this->prescriptions = $prescriptions;
         $this->allergies = $allergies;
         $this->labs = $labs;
         $this->encounters = $encounters;
+        $this->reminders = $reminders;
     }
 
     /**
@@ -100,6 +109,7 @@ final readonly class ChartSnapshot
             'allergies' => array_map(fn (Allergy $a): array => $a->toArray(), $this->allergies),
             'labs' => array_map(fn (LabObservation $l): array => $l->toArray(), $this->labs),
             'encounters' => array_map(fn (Encounter $e): array => $e->toArray(), $this->encounters),
+            'reminders' => array_map(fn (Reminder $r): array => $r->toArray(), $this->reminders),
         ];
     }
 

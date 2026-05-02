@@ -120,5 +120,6 @@
         "recordedAt": "<DATE>"
       }
     }
-  ]
+  ],
+  "reminders": []
 }

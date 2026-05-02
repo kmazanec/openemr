@@ -51,6 +51,8 @@
       "startDate": "2018-09-01",
       "stopDate": null,
       "prescriber": "Dr. Patel",
+      "indication": "Type 2 diabetes mellitus",
+      "prescriptionId": 30031,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",
@@ -89,6 +91,7 @@
       }
     }
   ],
+  "reminders": [],
   "labHistory": {
     "analyte": "Hemoglobin A1c",
     "observations": [

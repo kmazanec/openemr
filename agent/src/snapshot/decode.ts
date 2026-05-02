@@ -7,6 +7,7 @@ import type {
     Encounter,
     LabObservation,
     Prescription,
+    Reminder,
     SourceReference,
 } from './types.js';
 
@@ -186,6 +187,23 @@ const decodeAppointment = (path: string, raw: unknown): Appointment => {
     };
 };
 
+const decodeReminder = (path: string, raw: unknown): Reminder => {
+    const obj = expectObject(path, raw);
+    return {
+        item: expectString(`${path}.item`, obj['item']),
+        itemTitle: expectString(`${path}.itemTitle`, obj['itemTitle']),
+        category: expectString(`${path}.category`, obj['category']),
+        categoryTitle: expectString(`${path}.categoryTitle`, obj['categoryTitle']),
+        dueStatus: expectString(`${path}.dueStatus`, obj['dueStatus']),
+        createdAt: optionalString(`${path}.createdAt`, obj['createdAt'] ?? null),
+        reminderId: optionalIntAsString(
+            `${path}.reminderId`,
+            obj['reminderId'] ?? null,
+        ),
+        source: decodeSource(`${path}.source`, obj['source']),
+    };
+};
+
 const decodeList = <T>(
     path: string,
     raw: unknown,
@@ -215,6 +233,7 @@ export const decodePrescriptionForNarrow = decodePrescription;
 export const decodeAllergyForNarrow = decodeAllergy;
 export const decodeLabForNarrow = decodeLab;
 export const decodeEncounterForNarrow = decodeEncounter;
+export const decodeReminderForNarrow = decodeReminder;
 
 export const decodeChartSnapshot = (raw: unknown): ChartSnapshot => {
     const obj = expectObject('snapshot', raw);
@@ -240,5 +259,6 @@ export const decodeChartSnapshot = (raw: unknown): ChartSnapshot => {
         allergies: decodeList('snapshot.allergies', requireKey(obj, 'allergies'), decodeAllergy),
         labs: decodeList('snapshot.labs', requireKey(obj, 'labs'), decodeLab),
         encounters: decodeList('snapshot.encounters', requireKey(obj, 'encounters'), decodeEncounter),
+        reminders: decodeList('snapshot.reminders', requireKey(obj, 'reminders'), decodeReminder),
     };
 };

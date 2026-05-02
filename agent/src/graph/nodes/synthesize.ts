@@ -58,6 +58,7 @@ const claimSchema = z.object({
         'encounter',
         'appointment',
         'identity',
+        'reminder',
     ]),
     sourceReferences: z.array(sourceReferenceSchema).min(1),
     safetyCritical: z.boolean(),

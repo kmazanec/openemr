@@ -76,6 +76,8 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ExternalEncounte
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ObservationServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PatientServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PrescriptionServiceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ReminderServiceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ReminderAdapter;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -146,6 +148,7 @@ $controller = new AgentSnapshotController(
     encounterAdapter: new EncounterAdapter(new EncounterServiceDataSource()),
     externalEncounterAdapter: new ExternalEncounterAdapter(new ExternalEncounterServiceDataSource()),
     appointmentAdapter: new AppointmentAdapter(new AppointmentServiceDataSource()),
+    reminderAdapter: new ReminderAdapter(new ReminderServiceDataSource()),
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $siteId,

@@ -40,6 +40,7 @@ const buildGapSnapshot = (
         allergies: readonly Allergy[] | Gap;
         labs: BriefingSnapshot['labs'];
         encounters: BriefingSnapshot['encounters'];
+        reminders: BriefingSnapshot['reminders'];
         labHistory: BriefingSnapshot['labHistory'];
     } = {
         patient: base.patient,
@@ -49,6 +50,7 @@ const buildGapSnapshot = (
         allergies: overrides.allergies ?? base.allergies,
         labs: base.labs,
         encounters: base.encounters,
+        reminders: base.reminders,
         labHistory: base.labHistory,
     };
     return out as BriefingSnapshot;

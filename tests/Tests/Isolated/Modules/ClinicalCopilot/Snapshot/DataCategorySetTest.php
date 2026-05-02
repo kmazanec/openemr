@@ -33,11 +33,12 @@ final class DataCategorySetTest extends TestCase
     {
         // ARCHITECTURE.md §"Verification > Claim Ledger" enumerates:
         // prescription, lab, allergy, diagnosis, encounter, appointment.
-        // Phase 4.6 adds medication_statement and reminder.
+        // Phase 4.6 adds reminder (4.6.3) and will add
+        // medication_statement (4.6.4).
         $names = array_map(static fn (DataCategory $c): string => $c->value, DataCategory::cases());
         sort($names);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription'],
+            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription', 'reminder'],
             $names,
         );
     }

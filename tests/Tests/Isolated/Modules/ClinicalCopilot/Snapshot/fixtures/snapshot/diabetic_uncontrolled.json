@@ -461,5 +461,23 @@
         "recordedAt": "<DATE>"
       }
     }
+  ],
+  "reminders": [
+    {
+      "item": "a1c_recheck",
+      "itemTitle": "A1c follow-up",
+      "category": "lab_followup",
+      "categoryTitle": "Lab follow-up",
+      "dueStatus": "due",
+      "createdAt": "<DATE>",
+      "reminderId": 85002,
+      "source": {
+        "system": "openemr",
+        "recordType": "Task",
+        "recordId": "85002",
+        "field": null,
+        "recordedAt": "<DATE>"
+      }
+    }
   ]
 }

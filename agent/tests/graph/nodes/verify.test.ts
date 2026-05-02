@@ -68,6 +68,7 @@ const snapshot: BriefingSnapshot = {
     ],
     labs: [],
     encounters: [],
+    reminders: [],
     labHistory: null,
 };
 

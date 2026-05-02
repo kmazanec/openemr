@@ -111,6 +111,7 @@ const validJson = {
             },
         },
     ],
+    reminders: [],
 };
 
 describe('decodeChartSnapshot', () => {
@@ -141,6 +142,7 @@ describe('decodeChartSnapshot', () => {
             allergies: [],
             labs: [],
             encounters: [],
+            reminders: [],
         };
         const out = decodeChartSnapshot(minimized);
         expect(out.diagnoses).toHaveLength(0);

@@ -64,6 +64,7 @@ final readonly class ArchetypeChartFactory
         $encounterRows = $this->buildEncounterRows($faker, $archetype);
         $observationRows = $this->buildObservationRows($faker, $archetype);
         $appointmentRow = $this->buildAppointmentRow($faker, $archetype);
+        $reminderRows = $this->buildReminderRows($archetype);
 
         $uuid = $patientRow['uuid'];
         if (!is_string($uuid)) {
@@ -82,6 +83,7 @@ final readonly class ArchetypeChartFactory
             observationRows: $observationRows,
             appointmentRow: $appointmentRow,
             groundTruth: ArchetypeGroundTruth::forArchetype($archetype),
+            reminderRows: $reminderRows,
         );
     }
 
@@ -207,6 +209,57 @@ final readonly class ArchetypeChartFactory
             'reaction_title' => $seedRow['reaction'],
             'severity_al'    => $seedRow['severity_al'],
         ]];
+    }
+
+    /**
+     * Phase 4.6.3: deterministic reminder rows for archetypes that
+     * carry an actionable overdue/due item. ComplexElderly gains an
+     * overdue mammogram (the canonical "fell off the schedule" case);
+     * DiabeticUncontrolled gains an A1c follow-up to surface the
+     * pattern where uncontrolled diabetes implies a tighter recall.
+     * Other archetypes return empty so the existing UC1 happy path
+     * stays unchanged.
+     *
+     * Row shape mirrors the production query's projection (the
+     * COALESCE-resolved `*_title` columns plus the raw codes), so
+     * `ReminderAdapter::mapRow` walks the same fields under both
+     * data sources.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function buildReminderRows(PatientArchetype $archetype): array
+    {
+        return match ($archetype) {
+            PatientArchetype::ComplexElderly => [
+                [
+                    'id'                => 85001,
+                    'pid'               => 5005,
+                    'due_status'        => 'overdue',
+                    'category'          => 'screening',
+                    'item'              => 'mammogram',
+                    'date_created'      => '2025-11-01',
+                    'due_status_title'  => 'overdue',
+                    'category_title'    => 'Screening',
+                    'item_title'        => 'Mammogram screening',
+                    'item_title_raw'    => 'Mammogram screening',
+                ],
+            ],
+            PatientArchetype::DiabeticUncontrolled => [
+                [
+                    'id'                => 85002,
+                    'pid'               => 4004,
+                    'due_status'        => 'due',
+                    'category'          => 'lab_followup',
+                    'item'              => 'a1c_recheck',
+                    'date_created'      => '2026-04-01',
+                    'due_status_title'  => 'due',
+                    'category_title'    => 'Lab follow-up',
+                    'item_title'        => 'A1c follow-up',
+                    'item_title_raw'    => 'A1c follow-up',
+                ],
+            ],
+            default => [],
+        };
     }
 
     /**

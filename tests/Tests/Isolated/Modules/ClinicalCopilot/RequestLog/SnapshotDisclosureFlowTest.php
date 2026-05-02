@@ -103,7 +103,7 @@ final class SnapshotDisclosureFlowTest extends TestCase
         $this->assertSame($disclosure->requestId, $recorded->requestId);
         $this->assertSame($disclosure->destination, $recorded->destination);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription'],
+            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription', 'reminder'],
             $recorded->categories,
             'AgentDisclosure must alphabetize categories at construction time',
         );

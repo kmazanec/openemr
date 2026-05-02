@@ -25,6 +25,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterDataSource
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ReminderDataSource;
 
 final readonly class InMemoryPatientDataSource implements PatientDataSource
 {
@@ -177,5 +178,21 @@ final readonly class InMemoryAppointmentDataSource implements AppointmentDataSou
             return null;
         }
         return $this->chart->appointmentRow;
+    }
+}
+
+final readonly class InMemoryReminderDataSource implements ReminderDataSource
+{
+    public function __construct(private ArchetypeChart $chart)
+    {
+    }
+
+    public function findDueForPid(int $pid, int $cap): array
+    {
+        if ($pid !== $this->chart->pid) {
+            return [];
+        }
+        $rows = $this->chart->reminderRows;
+        return array_slice($rows, 0, $cap);
     }
 }

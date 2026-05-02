@@ -6,6 +6,7 @@ import type {
     Encounter,
     LabObservation,
     Prescription,
+    Reminder,
     SourceReference,
 } from '../snapshot/types.js';
 import type { SuggestedFollowUp, SuggestedFollowUpParams } from './followUps.js';
@@ -82,6 +83,14 @@ export interface BriefingSnapshot {
     readonly labs: readonly LabObservation[] | Gap;
     readonly encounters: readonly Encounter[] | Gap;
     readonly labHistory: LabHistorySeries | Gap | null;
+    /**
+     * §4.6.3: clinical reminders. Informational fail-open — accepts a
+     * `Gap` because a reminders-fetch failure should render a banner,
+     * not fail the whole turn (unlike `prescriptions`/`allergies`
+     * which are safety-critical). The verifier rule still requires a
+     * resolved row to back any `reminder` claim.
+     */
+    readonly reminders: readonly Reminder[] | Gap;
 }
 
 /**
@@ -97,7 +106,8 @@ export type ClaimCategory =
     | 'diagnosis'
     | 'encounter'
     | 'appointment'
-    | 'identity';
+    | 'identity'
+    | 'reminder';
 
 export interface Claim {
     readonly id: string;
