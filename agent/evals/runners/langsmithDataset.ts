@@ -23,7 +23,7 @@ import { UC2_SCENARIOS } from '../fixtures/regenerate-uc2.js';
 
 export const DATASET_NAME = 'clinical-copilot-uc1-golden-v3';
 const DATASET_DESCRIPTION =
-    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, prescription names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions) the verifier must surface. v3 (Phase 4.6.2) renames prescriptionNames → prescriptionNames to match the FHIR-correct snapshot split (clinic-written prescriptions vs. patient-reported medications).';
+    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, prescription names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions, overdue reminder items, patient-reported medication names) the verifier must surface. v3 (Phase 4.6) renames the medications → prescriptions split (FHIR MedicationRequest), adds reminders + medicationStatements (FHIR Task / MedicationStatement) as first-class snapshot fields, and extends ground truth with `overdueReminderItems` and `medicationStatementNames`.';
 
 interface UploadResult {
     readonly created: boolean;
@@ -43,44 +43,74 @@ interface UploadResult {
  * eval scores the real-model run on whether it both renders the
  * suggestion and accepts a follow-up claim citing one of the listed
  * recordIds.
+ *
+ * Phase 4.6 additions:
+ * - `overdueReminderItems`: itemTitles of overdue reminders the
+ *   briefing should mention (and the §4.1 generator should surface
+ *   as `reminder_detail` chips).
+ * - `medicationStatementNames`: names of patient-reported entries
+ *   the briefing should distinguish from clinic prescriptions.
  */
 const groundTruth = (archetype: ArchetypeKey): {
     readonly diagnosisCodes: readonly string[];
     readonly prescriptionNames: readonly string[];
     readonly externalEncounterIds: readonly string[];
+    readonly overdueReminderItems: readonly string[];
+    readonly medicationStatementNames: readonly string[];
 } => {
     switch (archetype) {
         case 'healthy_adult':
-            return { diagnosisCodes: [], prescriptionNames: [], externalEncounterIds: [] };
+            return {
+                diagnosisCodes: [],
+                prescriptionNames: [],
+                externalEncounterIds: [],
+                overdueReminderItems: [],
+                medicationStatementNames: [],
+            };
         case 'hypertensive':
             return {
                 diagnosisCodes: ['I10'],
                 prescriptionNames: ['Lisinopril'],
                 externalEncounterIds: [],
+                overdueReminderItems: [],
+                medicationStatementNames: [],
             };
         case 'diabetic':
             return {
                 diagnosisCodes: ['E11.9'],
                 prescriptionNames: ['Metformin'],
                 externalEncounterIds: [],
+                overdueReminderItems: [],
+                medicationStatementNames: [],
             };
         case 'diabetic_uncontrolled':
             return {
                 diagnosisCodes: ['E11.9'],
                 prescriptionNames: ['Metformin', 'Lisinopril'],
                 externalEncounterIds: [],
+                // The diabetic_uncontrolled fixture carries an A1c
+                // follow-up reminder with `due_status='due'`, not
+                // 'overdue' — so it doesn't appear in
+                // `overdueReminderItems`. The briefing still mentions
+                // it; only the chip-emission rule keys on overdue.
+                overdueReminderItems: [],
+                medicationStatementNames: [],
             };
         case 'complex_elderly':
             return {
                 diagnosisCodes: ['I10', 'E78.5', 'M19.90'],
                 prescriptionNames: ['Lisinopril', 'Atorvastatin'],
                 externalEncounterIds: [],
+                overdueReminderItems: ['Mammogram screening'],
+                medicationStatementNames: ['Tylenol'],
             };
         case 'recent_ed_visit':
             return {
                 diagnosisCodes: [],
                 prescriptionNames: [],
                 externalEncounterIds: ['enc-6006-ed'],
+                overdueReminderItems: [],
+                medicationStatementNames: [],
             };
     }
 };
@@ -91,6 +121,8 @@ const buildExamples = (): readonly {
         diagnosisCodes: readonly string[];
         prescriptionNames: readonly string[];
         externalEncounterIds: readonly string[];
+        overdueReminderItems: readonly string[];
+        medicationStatementNames: readonly string[];
     };
     metadata: { archetype: ArchetypeKey };
 }[] =>
