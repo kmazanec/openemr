@@ -21,6 +21,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientDataSource;
@@ -82,6 +83,18 @@ final readonly class InMemoryEncounterDataSource implements EncounterDataSource
     public function findRecentForPid(int $pid, int $lookbackDays): array
     {
         return $pid === $this->chart->pid ? $this->chart->encounterRows : [];
+    }
+}
+
+final readonly class InMemoryExternalEncounterDataSource implements ExternalEncounterDataSource
+{
+    public function __construct(private ArchetypeChart $chart)
+    {
+    }
+
+    public function findRecentForPid(int $pid, int $lookbackDays): array
+    {
+        return $pid === $this->chart->pid ? $this->chart->externalEncounterRows : [];
     }
 }
 

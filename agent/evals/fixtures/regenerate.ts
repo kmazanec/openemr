@@ -75,8 +75,13 @@ const prng = (seed: number): (() => number) => {
     };
 };
 
-const sourceRef = (recordType: string, recordId: string, field: string | null = null): SourceReference => ({
-    system: 'openemr',
+const sourceRef = (
+    recordType: string,
+    recordId: string,
+    field: string | null = null,
+    system: string = 'openemr',
+): SourceReference => ({
+    system,
     recordType,
     recordId,
     field,
@@ -481,11 +486,18 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
             ],
             labs: [],
             encounters: [
+                // §4.4 UC4. The ED visit is imported via CCDA, so its
+                // SourceReference carries `system: 'ccda-importer'`
+                // (matching what the PHP-side ExternalEncounterAdapter
+                // emits from the `external_encounters` table). The
+                // §4.1 follow-ups generator looks at this exact field
+                // to decide whether to surface the `external_care`
+                // suggestion.
                 {
                     encounterDate: '2026-04-22',
                     type: 'Emergency',
                     reason: 'Chest pain - discharged after negative workup',
-                    source: sourceRef('Encounter', 'enc-6006-ed'),
+                    source: sourceRef('Encounter', 'enc-6006-ed', null, 'ccda-importer'),
                 },
             ],
         }),

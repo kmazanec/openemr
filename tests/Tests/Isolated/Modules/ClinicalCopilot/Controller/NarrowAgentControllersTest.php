@@ -43,6 +43,7 @@ use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryDisclosureRecorder;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceDataSource;
@@ -53,6 +54,7 @@ use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\ArchetypeC
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAllergyDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryConditionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEncounterDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryExternalEncounterDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryMedicationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
@@ -618,6 +620,7 @@ final class NarrowAgentControllersTest extends TestCase
         return $this->dispatchWith(static fn($auth, $dispatcher, $logger) => new EncountersController(
             auth: $auth,
             encounterAdapter: new EncounterAdapter(new InMemoryEncounterDataSource($chart)),
+            externalEncounterAdapter: new ExternalEncounterAdapter(new InMemoryExternalEncounterDataSource($chart)),
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',

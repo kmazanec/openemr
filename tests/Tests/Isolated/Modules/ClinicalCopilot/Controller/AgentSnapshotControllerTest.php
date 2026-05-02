@@ -41,6 +41,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
@@ -50,6 +51,7 @@ use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAl
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAppointmentDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryConditionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEncounterDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryExternalEncounterDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryMedicationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
@@ -319,6 +321,7 @@ final class AgentSnapshotControllerTest extends TestCase
             allergyAdapter: new AllergyAdapter(new InMemoryAllergyDataSource($chart)),
             observationAdapter: new ObservationAdapter(new InMemoryObservationDataSource($chart)),
             encounterAdapter: new EncounterAdapter(new InMemoryEncounterDataSource($chart)),
+            externalEncounterAdapter: new ExternalEncounterAdapter(new InMemoryExternalEncounterDataSource($chart)),
             appointmentAdapter: new AppointmentAdapter(new InMemoryAppointmentDataSource($chart)),
             eventDispatcher: $dispatcher,
             logger: new NullLogger(),

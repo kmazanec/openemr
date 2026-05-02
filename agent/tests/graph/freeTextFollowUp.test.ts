@@ -335,4 +335,74 @@ describe('§4.5 free-text follow-up — adversarial gate', () => {
         expect(out.formatted?.segments[1]?.redacted).toBe(true);
         expect(out.formatted?.segments[1]?.text).not.toContain("Neighbor's");
     });
+
+    it('§4.4 UC4: accepts a follow-up claim that cites a ccda-importer encounter by id', async () => {
+        // The §4.5 free-text bridge routes the typed `external_care`
+        // suggestion through this same path. The PHP-side
+        // ExternalEncounterAdapter merges CCDA-imported encounters
+        // (`source.system: 'ccda-importer'`) into the snapshot's
+        // `encounters[]`; the verifier indexes by recordId regardless
+        // of system, so a faithful encounter claim citing the
+        // imported visit's `ee_id` resolves at the gate.
+        const ccdaSourceRef = {
+            system: 'ccda-importer',
+            recordType: 'Encounter',
+            recordId: 'ext-7',
+            field: null,
+            recordedAt: '2026-04-22',
+        };
+        const snapshotWithExternal = {
+            ...happyPathSnapshot,
+            encounters: [
+                {
+                    encounterDate: '2026-04-22',
+                    type: 'St. Mary ED',
+                    reason: 'Chest pain - discharged after negative workup',
+                    source: ccdaSourceRef,
+                },
+            ],
+        };
+        const ledger: ClaimLedger = {
+            claims: [
+                {
+                    id: 'ext-1',
+                    text: 'Outside ED visit on 2026-04-22 (St. Mary ED) — chest pain, discharged.',
+                    category: 'encounter',
+                    sourceReferences: [ccdaSourceRef],
+                    safetyCritical: false,
+                },
+            ],
+        };
+        const synth: Synthesizer = vi.fn(() =>
+            Promise.resolve({
+                draft: {
+                    segments: [
+                        {
+                            text: 'Outside ED visit on 2026-04-22 (St. Mary ED) — chest pain, discharged.',
+                            claimIds: ['ext-1'],
+                        },
+                    ],
+                },
+                ledger,
+            }),
+        );
+        const graph = createBriefingGraph({
+            retrieve: {
+                client: { fetchSnapshot: vi.fn(() => Promise.resolve(snapshotWithExternal)) },
+                token: TOKEN,
+                siteId: 'default',
+            },
+            synthesize: { synthesizer: synth },
+            verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
+        });
+
+        const out = await graph.invoke({
+            envelope: followUpEnvelope('Summarize external care from the last 365 days.'),
+        });
+
+        expect(out.verified?.passed).toBe(true);
+        expect(out.verified?.accepted).toHaveLength(1);
+        expect(out.formatted?.segments[0]?.redacted).toBe(false);
+        expect(out.formatted?.segments[0]?.text).toContain('St. Mary ED');
+    });
 });

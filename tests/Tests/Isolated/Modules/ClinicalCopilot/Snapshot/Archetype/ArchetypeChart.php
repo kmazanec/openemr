@@ -24,6 +24,7 @@ final readonly class ArchetypeChart
      * @param list<array<string, mixed>> $medicationRows
      * @param list<array<string, mixed>> $allergyRows
      * @param list<array<string, mixed>> $encounterRows
+     * @param list<array<string, mixed>> $externalEncounterRows
      * @param list<array<string, mixed>> $observationRows
      * @param ?array<string, mixed> $appointmentRow
      */
@@ -39,6 +40,7 @@ final readonly class ArchetypeChart
         public array $observationRows,
         public ?array $appointmentRow,
         public ArchetypeGroundTruth $groundTruth,
+        public array $externalEncounterRows = [],
     ) {
     }
 }

@@ -194,6 +194,38 @@ describe('decodeChartSnapshot', () => {
         expect(() => decodeChartSnapshot(broken)).toThrow(/medications\[0\]\.name/);
     });
 
+    it('round-trips a ccda-importer encounter without losing the system field', () => {
+        // §4.4 UC4. ExternalEncounterAdapter (PHP) emits Encounter
+        // toArray() rows with `source.system: 'ccda-importer'`. The
+        // §4.1 follow-ups generator and the verifier both read
+        // `system` directly off the decoded shape, so the decoder must
+        // preserve it verbatim alongside the existing 'openemr'
+        // entries.
+        const withExternal = {
+            ...validJson,
+            encounters: [
+                ...validJson.encounters,
+                {
+                    encounterDate: '2026-04-22',
+                    type: 'St. Mary ED',
+                    reason: 'Chest pain - discharged after negative workup',
+                    source: {
+                        system: 'ccda-importer',
+                        recordType: 'Encounter',
+                        recordId: 'ext-7',
+                        field: null,
+                        recordedAt: '2026-04-22',
+                    },
+                },
+            ],
+        };
+        const out = decodeChartSnapshot(withExternal);
+        expect(out.encounters).toHaveLength(2);
+        expect(out.encounters[0]!.source.system).toBe('openemr');
+        expect(out.encounters[1]!.source.system).toBe('ccda-importer');
+        expect(out.encounters[1]!.source.recordId).toBe('ext-7');
+    });
+
     it('rejects a lab with a non-string value (preserves string-typed contract)', () => {
         const broken = {
             ...validJson,

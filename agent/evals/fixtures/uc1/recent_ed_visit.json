@@ -50,7 +50,7 @@
       "type": "Emergency",
       "reason": "Chest pain - discharged after negative workup",
       "source": {
-        "system": "openemr",
+        "system": "ccda-importer",
         "recordType": "Encounter",
         "recordId": "enc-6006-ed",
         "field": null,

@@ -231,6 +231,40 @@ describe('generateFollowUps', () => {
         expect(external[0]!.groundedInClaimIds.length).toBeGreaterThan(0);
     });
 
+    it('emits the external_care suggestion when native and ccda-importer encounters coexist', () => {
+        // §4.4 UC4. ExternalEncounterAdapter merges into the same
+        // `encounters[]` as the native EncounterAdapter; the §4.1
+        // generator must trigger on the presence of any non-openemr
+        // source, not on every encounter being external. Pinning this
+        // protects against a future regression where the filter
+        // accidentally requires the external one to be the most
+        // recent (or the only) encounter.
+        const snapshot = baseSnapshot({
+            encounters: [
+                {
+                    encounterDate: '2026-03-15',
+                    type: 'OFFICE',
+                    reason: 'follow-up',
+                    source: sourceRef('Encounter', 'enc-native'),
+                },
+                externalEncounter('enc-external'),
+            ],
+        });
+        const claims: readonly Claim[] = [
+            encounterClaim('c-native', 'enc-native'),
+            encounterClaim('c-external', 'enc-external'),
+        ];
+        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
+        const external = result.filter((r) => r.params.type === 'external_care');
+        expect(external).toHaveLength(1);
+        // Both encounter claims contribute to the grounding ids — the
+        // generator is conservative and links the suggestion to every
+        // encounter claim in the ledger, regardless of system.
+        expect(external[0]!.groundedInClaimIds).toEqual(
+            expect.arrayContaining(['c-native', 'c-external']),
+        );
+    });
+
     it('does not emit an external_care suggestion when every encounter is from openemr', () => {
         const snapshot = baseSnapshot({
             encounters: [

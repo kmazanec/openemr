@@ -3,8 +3,10 @@
 /**
  * Narrow agent endpoint: recent encounters only.
  *
- * 1:1 with the agent's `getRecentEncounters` tool. Runs only the
- * EncounterAdapter.
+ * 1:1 with the agent's `getRecentEncounters` tool. Runs both
+ * EncounterAdapter (native `form_encounter`) and
+ * ExternalEncounterAdapter (CCDA-imported `external_encounters`); the
+ * merged list distinguishes the two via `source.system`.
  *
  * URL surface:
  *   /interface/modules/custom_modules/oe-module-clinical-copilot/
@@ -28,7 +30,9 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\SystemClock;
 use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\EncountersController;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\EncounterServiceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ExternalEncounterServiceDataSource;
 use Symfony\Component\HttpFoundation\Request;
 
 $parsed = AgentEndpointBootstrap::parseRequest(Request::createFromGlobals());
@@ -39,6 +43,7 @@ $verifier = AgentEndpointBootstrap::buildVerifier($parsed->siteId);
 $controller = new EncountersController(
     auth: new AgentEndpointAuth($verifier, new SqlAgentActorResolver(), $logger, $parsed->siteId),
     encounterAdapter: new EncounterAdapter(new EncounterServiceDataSource()),
+    externalEncounterAdapter: new ExternalEncounterAdapter(new ExternalEncounterServiceDataSource()),
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $parsed->siteId,

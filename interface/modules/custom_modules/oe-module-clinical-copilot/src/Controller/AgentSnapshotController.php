@@ -24,12 +24,14 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\ChartSnapshot;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategory;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategorySet;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Encounter;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -63,6 +65,7 @@ final readonly class AgentSnapshotController
         private AllergyAdapter $allergyAdapter,
         private ObservationAdapter $observationAdapter,
         private EncounterAdapter $encounterAdapter,
+        private ExternalEncounterAdapter $externalEncounterAdapter,
         private AppointmentAdapter $appointmentAdapter,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
@@ -217,7 +220,10 @@ final readonly class AgentSnapshotController
             ? $this->observationAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS)
             : [];
         $encounters = $categories->contains(DataCategory::Encounter)
-            ? $this->encounterAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS)
+            ? $this->mergeEncounters(
+                $this->encounterAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS),
+                $this->externalEncounterAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS),
+            )
             : [];
 
         $appointment = null;
@@ -243,6 +249,36 @@ final readonly class AgentSnapshotController
             labs: $labs,
             encounters: $encounters,
         );
+    }
+
+    /**
+     * Merge native and external encounters into a single list ordered
+     * by date desc. The two streams share the {@see Encounter} DTO and
+     * differ only by `source.system` (`'openemr'` vs `'ccda-importer'`),
+     * which the §4.1 follow-ups generator and the verifier both rely on.
+     *
+     * @param list<Encounter> $native
+     * @param list<Encounter> $external
+     * @return list<Encounter>
+     */
+    private function mergeEncounters(array $native, array $external): array
+    {
+        $merged = array_merge($native, $external);
+        usort($merged, static function (Encounter $a, Encounter $b): int {
+            // Encounters with no date sort to the end so the leading
+            // entries always carry a timestamp the briefing can cite.
+            if ($a->encounterDate === null && $b->encounterDate === null) {
+                return 0;
+            }
+            if ($a->encounterDate === null) {
+                return 1;
+            }
+            if ($b->encounterDate === null) {
+                return -1;
+            }
+            return $b->encounterDate <=> $a->encounterDate;
+        });
+        return $merged;
     }
 
     private function dispatchDisclosure(

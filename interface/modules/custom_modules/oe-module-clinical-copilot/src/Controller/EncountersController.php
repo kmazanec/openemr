@@ -17,6 +17,8 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\ClockInterface;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Encounter;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -24,7 +26,13 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
  * Narrow agent endpoint that returns recent encounters for a patient.
  *
  * Maps 1:1 to `public/snapshot/encounters.php` and to the agent's
- * `getRecentEncounters` tool. Runs only the {@see EncounterAdapter}.
+ * `getRecentEncounters` tool. Runs both {@see EncounterAdapter} (native
+ * `form_encounter` rows, marked `source.system = 'openemr'`) and
+ * {@see ExternalEncounterAdapter} (CCDA-imported rows from
+ * `external_encounters`, marked `source.system = 'ccda-importer'`).
+ * The two are merged into a single date-desc list before disclosure;
+ * downstream consumers (the §4.1 follow-ups generator and the
+ * verifier) distinguish them via `source.system`.
  *
  * Audit row carries `action='encounters'`.
  */
@@ -35,6 +43,7 @@ final readonly class EncountersController
     public function __construct(
         private AgentEndpointAuth $auth,
         private EncounterAdapter $encounterAdapter,
+        private ExternalEncounterAdapter $externalEncounterAdapter,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -58,7 +67,9 @@ final readonly class EncountersController
         }
 
         try {
-            $encounters = $this->encounterAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS);
+            $native = $this->encounterAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS);
+            $external = $this->externalEncounterAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS);
+            $encounters = $this->mergeEncounters($native, $external);
         } catch (\RuntimeException | \Doctrine\DBAL\Exception $e) {
             $this->logger->error('Agent encounters fetch failed', [
                 'pid' => $pid,
@@ -98,6 +109,29 @@ final readonly class EncountersController
         $this->respondJson(200, [
             'encounters' => array_map(static fn($e) => $e->toArray(), $encounters),
         ]);
+    }
+
+    /**
+     * @param list<Encounter> $native
+     * @param list<Encounter> $external
+     * @return list<Encounter>
+     */
+    private function mergeEncounters(array $native, array $external): array
+    {
+        $merged = array_merge($native, $external);
+        usort($merged, static function (Encounter $a, Encounter $b): int {
+            if ($a->encounterDate === null && $b->encounterDate === null) {
+                return 0;
+            }
+            if ($a->encounterDate === null) {
+                return 1;
+            }
+            if ($b->encounterDate === null) {
+                return -1;
+            }
+            return $b->encounterDate <=> $a->encounterDate;
+        });
+        return $merged;
     }
 
     private function respondError(int $status, string $code): void

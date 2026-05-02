@@ -7,8 +7,8 @@ import {
 } from '../../src/verify/verifier.js';
 import type { BriefingSnapshot, Claim, ClaimLedger } from '../../src/graph/types.js';
 
-const sourceRef = (recordType: string, recordId: string) => ({
-    system: 'openemr',
+const sourceRef = (recordType: string, recordId: string, system: string = 'openemr') => ({
+    system,
     recordType,
     recordId,
     field: null,
@@ -300,6 +300,56 @@ describe('verifyLedger — deterministic checks per category', () => {
             ),
         );
         expect(out.accepted).toHaveLength(1);
+    });
+
+    it('resolves external (ccda-importer) encounters in the same index as native ones', () => {
+        // §4.4 UC4. ExternalEncounterAdapter (PHP side) emits Encounter
+        // DTOs with `source.system = 'ccda-importer'`; the merged
+        // snapshot includes them in `encounters[]`. The verifier indexes
+        // by `recordId` regardless of system, so a faithful claim
+        // citing an external encounter resolves and matches just like a
+        // native one. This test pins that contract — drop it and a
+        // future filter on `system === 'openemr'` would silently break
+        // UC4 without any other test failing.
+        const snapshot = baseSnapshot({
+            encounters: [
+                {
+                    encounterDate: '2026-04-22',
+                    type: 'St. Mary ED',
+                    reason: 'Chest pain - discharged after negative workup',
+                    source: sourceRef('Encounter', 'ext-7', 'ccda-importer'),
+                },
+            ],
+        });
+        const out = verifyLedger(
+            snapshot,
+            single(
+                claim({
+                    category: 'encounter',
+                    text: 'External ED visit on 2026-04-22 for chest pain',
+                    sourceReferences: [sourceRef('Encounter', 'ext-7', 'ccda-importer')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.rejected).toEqual([]);
+    });
+
+    it('rejects a claim citing an external encounter id that is not in the snapshot', () => {
+        // Companion to the resolution test: the `recordId` is the
+        // primary key the adapter emits (`ee_id`). A fabricated id
+        // (even with the correct `system`) must reject.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'encounter',
+                    text: 'Outside ED visit on 2026-04-22',
+                    sourceReferences: [sourceRef('Encounter', 'ext-does-not-exist', 'ccda-importer')],
+                }),
+            ),
+        );
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
     });
 
     it('accepts an appointment claim when the appointment id matches', () => {

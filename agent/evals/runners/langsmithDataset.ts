@@ -21,9 +21,9 @@ import { loadFixture, loadUc2Fixture, type Uc2Scenario } from '../fixtures/load.
 import { ARCHETYPES, type ArchetypeKey } from '../fixtures/regenerate.js';
 import { UC2_SCENARIOS } from '../fixtures/regenerate-uc2.js';
 
-export const DATASET_NAME = 'clinical-copilot-uc1-golden-v1';
+export const DATASET_NAME = 'clinical-copilot-uc1-golden-v2';
 const DATASET_DESCRIPTION =
-    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, medication names) the verifier must surface.';
+    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, medication names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions) the verifier must surface.';
 
 interface UploadResult {
     readonly created: boolean;
@@ -35,36 +35,63 @@ interface UploadResult {
 /**
  * Returns the archetype-pinned ground truth used as the dataset's
  * `outputs` field. Mirrors the table in `archetypes.test.ts`.
+ *
+ * `externalEncounterIds` is the §4.4 UC4 contract: the recordIds of
+ * any `system: 'ccda-importer'` encounters in the fixture. The
+ * §4.1 follow-ups generator must surface an `external_care`
+ * suggestion grounded in at least one of these claims; the LangSmith
+ * eval scores the real-model run on whether it both renders the
+ * suggestion and accepts a follow-up claim citing one of the listed
+ * recordIds.
  */
 const groundTruth = (archetype: ArchetypeKey): {
     readonly diagnosisCodes: readonly string[];
     readonly medicationNames: readonly string[];
+    readonly externalEncounterIds: readonly string[];
 } => {
     switch (archetype) {
         case 'healthy_adult':
-            return { diagnosisCodes: [], medicationNames: [] };
+            return { diagnosisCodes: [], medicationNames: [], externalEncounterIds: [] };
         case 'hypertensive':
-            return { diagnosisCodes: ['I10'], medicationNames: ['Lisinopril'] };
+            return {
+                diagnosisCodes: ['I10'],
+                medicationNames: ['Lisinopril'],
+                externalEncounterIds: [],
+            };
         case 'diabetic':
-            return { diagnosisCodes: ['E11.9'], medicationNames: ['Metformin'] };
+            return {
+                diagnosisCodes: ['E11.9'],
+                medicationNames: ['Metformin'],
+                externalEncounterIds: [],
+            };
         case 'diabetic_uncontrolled':
             return {
                 diagnosisCodes: ['E11.9'],
                 medicationNames: ['Metformin', 'Lisinopril'],
+                externalEncounterIds: [],
             };
         case 'complex_elderly':
             return {
                 diagnosisCodes: ['I10', 'E78.5', 'M19.90'],
                 medicationNames: ['Lisinopril', 'Atorvastatin'],
+                externalEncounterIds: [],
             };
         case 'recent_ed_visit':
-            return { diagnosisCodes: [], medicationNames: [] };
+            return {
+                diagnosisCodes: [],
+                medicationNames: [],
+                externalEncounterIds: ['enc-6006-ed'],
+            };
     }
 };
 
 const buildExamples = (): readonly {
     inputs: { snapshot: BriefingSnapshot; archetype: ArchetypeKey };
-    outputs: { diagnosisCodes: readonly string[]; medicationNames: readonly string[] };
+    outputs: {
+        diagnosisCodes: readonly string[];
+        medicationNames: readonly string[];
+        externalEncounterIds: readonly string[];
+    };
     metadata: { archetype: ArchetypeKey };
 }[] =>
     ARCHETYPES.map((archetype) => {

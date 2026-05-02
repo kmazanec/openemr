@@ -1086,11 +1086,26 @@ target + golden cases.
 
 ### 4.4 UC4 — outside care
 - [ ] New tool: `getExternalEncounters(lookback)` reading
-  `external_encounters` + imported CCDA documents
-- [ ] Verification rule: every external encounter cited must link to a
-  document or row by ID
-- [ ] Eval cases: recent ED visit imported via CCDA, patient with no
-  external records, malformed CCDA
+  `external_encounters` + imported CCDA documents *(deferred to the
+  UC4 bespoke graph branch — data + verifier landed in Phase 4.4
+  step 1; external encounters now flow through the merged
+  `encounters[]` distinguishable by `source.system: 'ccda-importer'`,
+  so the §4.5 free-text bridge already cites them. The narrow
+  `getExternalEncounters` tool ships when UC2/3/4 share their
+  bespoke-branch design pass.)*
+- [x] Verification rule: every external encounter cited must link to a
+  document or row by ID *(satisfied by the existing
+  `REJECT_UNRESOLVED` rule once external encounters are indexed
+  alongside native ones — pinned by
+  `agent/tests/verify/verifier.test.ts` "resolves external
+  (ccda-importer) encounters in the same index" / "rejects a claim
+  citing an external encounter id that is not in the snapshot")*
+- [x] Eval cases: recent ED visit imported via CCDA, patient with no
+  external records, malformed CCDA *(landed in
+  `agent/evals/cases/uc1/externalCare.test.ts`; the
+  `recent_ed_visit` fixture's ED encounter was retagged
+  `system: 'ccda-importer'` and the LangSmith dataset bumped to
+  `…-golden-v2` with `externalEncounterIds` ground truth)*
 
 ### 4.5 Free-text fallback
 - [x] Plain text input on the panel for questions the suggestions don't

@@ -55,6 +55,8 @@ final class RequireModuleClasses
             $module . '/Snapshot/Adapter/AllergyAdapter.php',
             $module . '/Snapshot/Adapter/EncounterDataSource.php',
             $module . '/Snapshot/Adapter/EncounterAdapter.php',
+            $module . '/Snapshot/Adapter/ExternalEncounterDataSource.php',
+            $module . '/Snapshot/Adapter/ExternalEncounterAdapter.php',
             $module . '/Snapshot/Adapter/ObservationDataSource.php',
             $module . '/Snapshot/Adapter/ObservationAdapter.php',
             $module . '/Snapshot/Adapter/AppointmentDataSource.php',
