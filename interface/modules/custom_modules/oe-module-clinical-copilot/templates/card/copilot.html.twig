@@ -15,12 +15,12 @@
 
     Auto-open: when the dashboard renders, prefetch the briefing in a
     background tab so it's already streaming by the time the clinician
-    looks at it. The only gate is "no `copilot` iframe currently
-    mounted" — that's enough to keep a patient switch from yanking
-    focus into the just-loaded co-pilot (the existing tab gets
-    navigated to the new pid by `top.navigateTab` instead). This
-    matches Visit History and the other peer tabs that re-mount on
-    every patient open.
+    looks at it. If a `copilot` iframe is already mounted on a *different*
+    patient (the user switched via the calendar/finder, which doesn't
+    re-navigate peer tabs), re-point it at the new pid; if it's already
+    on this pid, leave it alone so we don't yank focus or interrupt a
+    stream. `top.navigateTab` reuses the existing iframe in both cases —
+    we never stack up one tab per patient.
 #}
 {% block content %}
     <p class="m-0">
@@ -39,8 +39,32 @@
         (function () {
             try {
                 if (!top || !top.navigateTab) return;
-                if (top.document.querySelector('iframe[name="copilot"]')) return;
-                top.navigateTab({{ panelUrl|json_encode|raw }}, 'copilot');
+                var panelUrl = {{ panelUrl|json_encode|raw }};
+                var existing = top.document.querySelector('iframe[name="copilot"]');
+                if (!existing) {
+                    top.navigateTab(panelUrl, 'copilot');
+                    return;
+                }
+                // Iframe already mounted. Re-navigate only if it's
+                // pointing at a different patient — switching via the
+                // calendar/finder doesn't re-nav peer tabs, so the
+                // copilot iframe can be stranded on the previous pid.
+                // Same-origin access lets us read its URL; if it
+                // throws, fall back to navigating (the worst case is
+                // a redundant reload of the right patient).
+                var sameTarget = false;
+                try {
+                    var current = existing.contentWindow && existing.contentWindow.location
+                        ? existing.contentWindow.location.href
+                        : (existing.src || '');
+                    sameTarget = current.endsWith(panelUrl)
+                        || current.indexOf(panelUrl) !== -1;
+                } catch (_) {
+                    sameTarget = false;
+                }
+                if (!sameTarget) {
+                    top.navigateTab(panelUrl, 'copilot');
+                }
             } catch (e) {
                 // Same-origin / DOM access failures are benign here —
                 // auto-open is a convenience, not load-bearing.

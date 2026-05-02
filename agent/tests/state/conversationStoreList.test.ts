@@ -25,17 +25,33 @@ const baseKey = (overrides: Partial<ConversationKey> = {}): ConversationKey => (
 const buildStores = () => {
     const messages = createInMemoryConversationMessagesStore();
     const store = createInMemoryConversationStore(messages);
-    return { store, messages };
+    /**
+     * Helper for tests that exercise list ordering / scoping but
+     * don't care about message content. The store's listing is
+     * deliberately blind to orphan rows (no persisted messages), so
+     * a bare `store.create()` would not surface — every fixture row
+     * needs at least one message attached to be visible.
+     */
+    const createReal = async (overrides: Partial<ConversationKey> = {}) => {
+        const conv = await store.create(baseKey(overrides));
+        await messages.append({
+            conversationId: conv.id,
+            role: 'assistant',
+            message: ASSISTANT,
+        });
+        return conv;
+    };
+    return { store, messages, createReal };
 };
 
 describe('listForUserAndPatient — §4.7 history sidebar', () => {
     it('returns rows ordered by updated_at DESC', async () => {
-        const { store } = buildStores();
-        const a = await store.create(baseKey());
+        const { store, createReal } = buildStores();
+        const a = await createReal();
         await new Promise((r) => setTimeout(r, 2));
-        const b = await store.create(baseKey());
+        const b = await createReal();
         await new Promise((r) => setTimeout(r, 2));
-        const c = await store.create(baseKey());
+        const c = await createReal();
         // Touch the oldest so its updated_at advances past the others.
         await new Promise((r) => setTimeout(r, 2));
         await store.touch(a.id);
@@ -45,18 +61,18 @@ describe('listForUserAndPatient — §4.7 history sidebar', () => {
     });
 
     it('scopes by user — does not return another doctor\'s rows', async () => {
-        const { store } = buildStores();
-        const mine = await store.create(baseKey({ userId: 'u-patel' }));
-        await store.create(baseKey({ userId: 'u-other' }));
+        const { store, createReal } = buildStores();
+        const mine = await createReal({ userId: 'u-patel' });
+        await createReal({ userId: 'u-other' });
 
         const items = await store.listForUserAndPatient('u-patel', 42, { limit: 10 });
         expect(items.map((i) => i.id)).toEqual([mine.id]);
     });
 
     it('scopes by patient — does not return rows for a different patient', async () => {
-        const { store } = buildStores();
-        const onPatient42 = await store.create(baseKey({ patientPid: 42 }));
-        await store.create(baseKey({ patientPid: 999 }));
+        const { store, createReal } = buildStores();
+        const onPatient42 = await createReal({ patientPid: 42 });
+        await createReal({ patientPid: 999 });
 
         const items = await store.listForUserAndPatient('u-patel', 42, { limit: 10 });
         expect(items.map((i) => i.id)).toEqual([onPatient42.id]);
@@ -101,13 +117,13 @@ describe('listForUserAndPatient — §4.7 history sidebar', () => {
     });
 
     it('paginates via the `(updatedAt, id)` cursor — including across same-ms ties', async () => {
-        const { store } = buildStores();
+        const { store, createReal } = buildStores();
         // Five rows created in tight succession; many will share the same
         // updatedAt millisecond. The composite cursor must still walk the
         // full set without dropping or repeating any row.
         const created = [];
         for (let i = 0; i < 5; i++) {
-            created.push(await store.create(baseKey()));
+            created.push(await createReal());
         }
 
         const seen = new Set<string>();
@@ -135,10 +151,10 @@ describe('listForUserAndPatient — §4.7 history sidebar', () => {
     });
 
     it('caps `limit` at 100 regardless of caller input', async () => {
-        const { store } = buildStores();
+        const { store, createReal } = buildStores();
         // Create one row; we just need to verify the cap doesn't throw
         // and the limit is honored as the smaller of (rows, cap).
-        await store.create(baseKey());
+        await createReal();
         const items = await store.listForUserAndPatient('u-patel', 42, { limit: 1_000_000 });
         expect(items).toHaveLength(1);
     });
@@ -147,5 +163,19 @@ describe('listForUserAndPatient — §4.7 history sidebar', () => {
         const { store } = buildStores();
         const items = await store.listForUserAndPatient('u-patel', 42, { limit: 10 });
         expect(items).toEqual([]);
+    });
+
+    it('hides orphan rows (zero persisted messages) from the listing', async () => {
+        // Reproduces the prod-403 incident: the runner created the
+        // conversations row, the snapshot fetch 403'd, the row was
+        // left without any messages. Both the resume endpoint and
+        // the sidebar must filter those out so a clinician never gets
+        // stranded on an empty thread.
+        const { store, createReal } = buildStores();
+        const real = await createReal();
+        await store.create(baseKey()); // orphan — no messages appended
+
+        const items = await store.listForUserAndPatient('u-patel', 42, { limit: 10 });
+        expect(items.map((i) => i.id)).toEqual([real.id]);
     });
 });
