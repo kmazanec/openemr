@@ -14,6 +14,7 @@ import {
 const ASSISTANT: AssistantMessage = {
     segments: [{ text: 'briefing.', claims: [], redacted: false }],
     gaps: [],
+    suggestedFollowUps: [],
 };
 
 const PRACTITIONER = 'Practitioner/dr-patel';

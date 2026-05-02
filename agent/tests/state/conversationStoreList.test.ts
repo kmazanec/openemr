@@ -12,6 +12,7 @@ import type { AssistantMessage } from '../../src/graph/types.js';
 const ASSISTANT: AssistantMessage = {
     segments: [{ text: 'briefing.', claims: [], redacted: false }],
     gaps: [],
+    suggestedFollowUps: [],
 };
 
 const baseKey = (overrides: Partial<ConversationKey> = {}): ConversationKey => ({
