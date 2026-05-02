@@ -7,7 +7,7 @@ import {
 } from '../../src/verify/verifier.js';
 import type { BriefingSnapshot, Claim, ClaimLedger } from '../../src/graph/types.js';
 
-const sourceRef = (recordType: string, recordId: string, system: string = 'openemr') => ({
+const sourceRef = (recordType: string, recordId: string, system = 'openemr') => ({
     system,
     recordType,
     recordId,

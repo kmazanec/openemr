@@ -48,16 +48,18 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
     // The bulk snapshot endpoint never returns labs/encounters as a Gap —
     // those come from narrow tools. Strip the in-graph `labHistory` slot
     // and assert the array shapes hold for fixtures that drive this path.
+    const labs: readonly LabObservation[] =
+        'kind' in snapshot.labs ? [] : snapshot.labs;
+    const encounters: readonly Encounter[] =
+        'kind' in snapshot.encounters ? [] : snapshot.encounters;
     const chart: ChartSnapshot = {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
         diagnoses: snapshot.diagnoses,
         medications: snapshot.medications,
         allergies: snapshot.allergies,
-        labs: Array.isArray(snapshot.labs) ? snapshot.labs : [] as readonly LabObservation[],
-        encounters: Array.isArray(snapshot.encounters)
-            ? snapshot.encounters
-            : [] as readonly Encounter[],
+        labs,
+        encounters,
     };
     return {
         fetchSnapshot: vi.fn(() => Promise.resolve(chart)),
@@ -124,7 +126,7 @@ const claimsFromSnapshot = (snapshot: BriefingSnapshot): readonly Claim[] => {
         });
     }
 
-    if (Array.isArray(snapshot.labs)) {
+    if (!('kind' in snapshot.labs)) {
         for (const lab of snapshot.labs) {
             claims.push({
                 id: nextId(),
@@ -136,7 +138,8 @@ const claimsFromSnapshot = (snapshot: BriefingSnapshot): readonly Claim[] => {
         }
     }
 
-    const encounters = Array.isArray(snapshot.encounters) ? snapshot.encounters : [];
+    const encounters: readonly Encounter[] =
+        'kind' in snapshot.encounters ? [] : snapshot.encounters;
     for (const enc of encounters) {
         const date = enc.encounterDate ?? 'unknown date';
         const type = enc.type ?? 'visit';
@@ -175,5 +178,5 @@ export const buildFaithfulSynth = (): FaithfulSynth => {
         };
         return Promise.resolve({ draft, ledger });
     });
-    return { synth: mock as unknown as Synthesizer, mock };
+    return { synth: mock, mock };
 };

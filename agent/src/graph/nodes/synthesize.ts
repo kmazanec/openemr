@@ -233,8 +233,7 @@ export const createAnthropicSynthesizer = (options?: {
         //     briefing model.
         const labTrendAnalyte =
             envelope.task === 'follow_up'
-            && envelope.followUp !== undefined
-            && envelope.followUp.type === 'lab_trend'
+            && envelope.followUp?.type === 'lab_trend'
                 ? envelope.followUp.analyte
                 : null;
         const isLabTrend = labTrendAnalyte !== null;

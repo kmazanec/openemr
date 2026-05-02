@@ -91,7 +91,7 @@ export const createRetrieve = (
 
         const followUp = state.envelope.followUp;
         let labHistory: LabHistorySeries | Gap | null = null;
-        if (followUp !== undefined && followUp.type === 'lab_trend') {
+        if (followUp?.type === 'lab_trend') {
             if (deps.fetchLabHistory === undefined) {
                 labHistory = labHistoryUnavailable(
                     'fetcher-unwired',

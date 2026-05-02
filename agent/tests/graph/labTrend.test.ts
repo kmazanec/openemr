@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createRetrieve, UC2_LAB_HISTORY_LOOKBACK_DAYS } from '../../src/graph/nodes/retrieve.js';
 import type { LabHistoryFetcher } from '../../src/graph/nodes/retrieve.js';
+import type { BriefingState } from '../../src/graph/state.js';
 import type {
-    BriefingState,
     LabHistorySeries,
     RequestEnvelope,
 } from '../../src/graph/types.js';

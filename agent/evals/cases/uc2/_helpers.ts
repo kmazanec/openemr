@@ -91,7 +91,7 @@ export const buildSynth = (
     const mock = vi.fn(({ snapshot }: { snapshot: BriefingSnapshot }) =>
         Promise.resolve(produceLedger(snapshot)),
     );
-    return { synth: mock as unknown as Synthesizer, mock };
+    return { synth: mock, mock };
 };
 
 export const historySeries = (snapshot: BriefingSnapshot): LabHistorySeries | null => {

@@ -79,7 +79,7 @@ const sourceRef = (
     recordType: string,
     recordId: string,
     field: string | null = null,
-    system: string = 'openemr',
+    system = 'openemr',
 ): SourceReference => ({
     system,
     recordType,

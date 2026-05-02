@@ -60,8 +60,10 @@ const obs = (
     source: sourceRef('Observation', recordId),
 });
 
+type Uc2ScenarioLiteral = 'a1c_trend_up' | 'a1c_trend_stable' | 'no_lab_history';
+
 interface Uc2Fixture {
-    readonly name: string;
+    readonly name: Uc2ScenarioLiteral;
     readonly snapshot: BriefingSnapshot;
 }
 
@@ -105,6 +107,8 @@ const trendUp: Uc2Fixture = {
                 startDate: '2014-03-01',
                 stopDate: null,
                 prescriber: 'Dr. Patel',
+                indication: 'Type 2 diabetes mellitus',
+                prescriptionId: '40041',
                 source: sourceRef('MedicationRequest', 'rx-4004-1'),
             },
         ],
@@ -175,6 +179,8 @@ const trendStable: Uc2Fixture = {
                 startDate: '2018-09-01',
                 stopDate: null,
                 prescriber: 'Dr. Patel',
+                indication: 'Type 2 diabetes mellitus',
+                prescriptionId: '30031',
                 source: sourceRef('MedicationRequest', 'rx-3003-1'),
             },
         ],

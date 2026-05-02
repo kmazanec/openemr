@@ -118,12 +118,12 @@ describe('UC4 outside care — patient with no external records', () => {
         expect(suggestions.find((s) => s.params.type === 'external_care')).toBeUndefined();
     });
 
-    it('verifier rejects a fabricated external-care claim citing an id not in the snapshot', async () => {
+    it('verifier rejects a fabricated external-care claim citing an id not in the snapshot', () => {
         // Defense in depth: even if a synthesizer fabricated an
         // `external_care` claim against a snapshot with no external
         // records, the verifier's REJECT_UNRESOLVED rule must catch it.
         const snapshot = loadFixture('diabetic');
-        const verified = verifyLedger(snapshot as BriefingSnapshot, {
+        const verified = verifyLedger(snapshot, {
             claims: [
                 {
                     id: 'cl-fabricated',
