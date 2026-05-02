@@ -80,6 +80,7 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
             source: sourceRef('Encounter', 'enc-1'),
         },
     ],
+    labHistory: null,
     ...overrides,
 });
 
@@ -465,5 +466,175 @@ describe('verifyLedger — multiple claims', () => {
             'bad-no-source',
             'bad-unresolved',
         ]);
+    });
+});
+
+describe('verifyLedger — §4.2 UC2 strengthened lab rule', () => {
+    const labRow = (
+        recordId: string,
+        value: string,
+        observedAt: string,
+        unit: string | null = '%',
+    ) => ({
+        analyte: 'Hemoglobin A1c',
+        value,
+        unit,
+        referenceRange: '4.0-5.6',
+        abnormalFlag: 'H' as const,
+        observedAt,
+        source: sourceRef('Observation', recordId),
+    });
+
+    const trendSnapshot = () =>
+        baseSnapshot({
+            labHistory: {
+                analyte: 'Hemoglobin A1c',
+                observations: [
+                    labRow('lab-h1', '7.2', '2024-04-15'),
+                    labRow('lab-h2', '8.1', '2025-04-15'),
+                    labRow('lab-h3', '9.4', '2026-04-15'),
+                ],
+            },
+        });
+
+    it('regression: accepts a single-value lab claim with no date and no unit token', () => {
+        // Pre-§4.2 behavior — a claim with just analyte + value still
+        // passes when no date or unit is mentioned. The UC1 briefing
+        // path emits these.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    id: 'l-single',
+                    category: 'lab',
+                    text: 'A1c 8.4',
+                    sourceReferences: [sourceRef('Observation', 'lab-1')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('accepts a two-value trend claim where each value/date matches its source row', () => {
+        const out = verifyLedger(
+            trendSnapshot(),
+            single(
+                claim({
+                    id: 'l-trend',
+                    category: 'lab',
+                    text: 'Hemoglobin A1c rose from 7.2 on 2024-04-15 to 9.4 on 2026-04-15.',
+                    sourceReferences: [
+                        sourceRef('Observation', 'lab-h1'),
+                        sourceRef('Observation', 'lab-h3'),
+                    ],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.rejected).toHaveLength(0);
+    });
+
+    it('rejects a trend claim where one cited value\'s date does not match its row', () => {
+        // Row lab-h1 is observedAt 2024-04-15. The claim mentions
+        // 2024-05-15 — wrong date for the cited row, even though the
+        // value matches.
+        const out = verifyLedger(
+            trendSnapshot(),
+            single(
+                claim({
+                    id: 'l-bad-date',
+                    category: 'lab',
+                    text: 'Hemoglobin A1c rose from 7.2 on 2024-05-15 to 9.4 on 2026-04-15.',
+                    sourceReferences: [
+                        sourceRef('Observation', 'lab-h1'),
+                        sourceRef('Observation', 'lab-h3'),
+                    ],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects a trend claim where one cited value\'s unit is wrong', () => {
+        // Row unit is '%'; claim writes 'mg/dL' adjacent to the value.
+        const out = verifyLedger(
+            trendSnapshot(),
+            single(
+                claim({
+                    id: 'l-bad-unit',
+                    category: 'lab',
+                    text: 'Hemoglobin A1c rose from 7.2% on 2024-04-15 to 9.4 mg/dL on 2026-04-15.',
+                    sourceReferences: [
+                        sourceRef('Observation', 'lab-h1'),
+                        sourceRef('Observation', 'lab-h3'),
+                    ],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('accepts a trend claim that omits the unit (asymmetric rule)', () => {
+        // No unit-shaped token adjacent to the values — the rule is
+        // "if you write a unit, write the right one", not "every
+        // claim must carry a unit".
+        const out = verifyLedger(
+            trendSnapshot(),
+            single(
+                claim({
+                    id: 'l-no-unit',
+                    category: 'lab',
+                    text: 'Hemoglobin A1c rose from 7.2 on 2024-04-15 to 9.4 on 2026-04-15.',
+                    sourceReferences: [
+                        sourceRef('Observation', 'lab-h1'),
+                        sourceRef('Observation', 'lab-h3'),
+                    ],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('rejects a trend claim that mixes a real source ref with a fabricated one', () => {
+        // §4.2 multi-ref enforcement: pre-strengthening, the verifier
+        // would have accepted this because at least one ref resolved.
+        // Now every cited ref must resolve.
+        const out = verifyLedger(
+            trendSnapshot(),
+            single(
+                claim({
+                    id: 'l-mixed',
+                    category: 'lab',
+                    text: 'Hemoglobin A1c rose from 7.2 on 2024-04-15 to 9.4 on 2026-04-15.',
+                    sourceReferences: [
+                        sourceRef('Observation', 'lab-h1'),
+                        sourceRef('Observation', 'lab-FABRICATED'),
+                    ],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+
+    it('resolves trend claims against snapshot.labHistory rows (separate slot from snapshot.labs)', () => {
+        // The trend rows live in `labHistory.observations`, not
+        // `snapshot.labs`. The verifier must index both into the
+        // shared lookup so a trend citation resolves the same way
+        // a single-value briefing citation does.
+        const out = verifyLedger(
+            trendSnapshot(),
+            single(
+                claim({
+                    id: 'l-history-only',
+                    category: 'lab',
+                    text: 'Hemoglobin A1c was 8.1 on 2025-04-15.',
+                    sourceReferences: [sourceRef('Observation', 'lab-h2')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
     });
 });

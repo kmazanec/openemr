@@ -59,6 +59,7 @@ const snapshot: BriefingSnapshot = {
     allergies: [],
     labs: [],
     encounters: [],
+    labHistory: null,
 };
 
 const ledger: ClaimLedger = {

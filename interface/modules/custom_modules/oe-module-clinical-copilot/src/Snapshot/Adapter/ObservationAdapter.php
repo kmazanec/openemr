@@ -37,6 +37,31 @@ final readonly class ObservationAdapter
     public function fetchRecent(int $pid, int $lookbackDays): array
     {
         $rows = $this->source->findRecentForPid($pid, $lookbackDays);
+        return $this->mapRows($rows);
+    }
+
+    /**
+     * History rows for a single analyte over the requested lookback
+     * window. Powers the agent's UC2 lab-trend tool — see
+     * {@see ObservationDataSource::findHistoryByAnalyteForPid}.
+     *
+     * @return list<LabObservation>
+     */
+    public function fetchHistoryByAnalyte(
+        int $pid,
+        string $analyte,
+        int $lookbackDays,
+    ): array {
+        $rows = $this->source->findHistoryByAnalyteForPid($pid, $analyte, $lookbackDays);
+        return $this->mapRows($rows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>> $rows
+     * @return list<LabObservation>
+     */
+    private function mapRows(array $rows): array
+    {
         $out = [];
         foreach ($rows as $row) {
             $lab = $this->mapRow($row);

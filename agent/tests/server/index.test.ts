@@ -267,7 +267,13 @@ describe('POST /v1/agent/briefing', () => {
         expect(text).toContain('"code":"invalid_envelope"');
     });
 
-    it('§4.1 forwards a typed followUp param and bridges it into a deterministic question', async () => {
+    it('§4.2 forwards a typed lab_trend followUp without bridging a question', async () => {
+        // §4.2 contract: `lab_trend` follow-ups flow as a typed envelope
+        // straight to the synthesizer's UC2 path. The §4.1 bridge that
+        // turned the params into a sentence is intentionally skipped —
+        // `question` stays undefined so the synthesizer's typed-followUp
+        // branch wins and the verifier evaluates against the strict
+        // UC2 prompt's claims.
         const seen: { task: string | null; question: string | undefined; followUp: unknown } = {
             task: null,
             question: undefined,
@@ -300,7 +306,7 @@ describe('POST /v1/agent/briefing', () => {
         expect(res.status).toBe(200);
         await res.text();
         expect(seen.task).toBe('follow_up');
-        expect(seen.question).toContain('A1c');
+        expect(seen.question).toBeUndefined();
         expect(seen.followUp).toEqual({ type: 'lab_trend', analyte: 'A1c' });
     });
 

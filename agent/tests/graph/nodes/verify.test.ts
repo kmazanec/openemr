@@ -66,6 +66,7 @@ const snapshot: BriefingSnapshot = {
     ],
     labs: [],
     encounters: [],
+    labHistory: null,
 };
 
 const goodClaim: Claim = {

@@ -8,8 +8,10 @@ import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
     FOLLOW_UP_SYSTEM_PROMPT,
+    LAB_TREND_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     buildFollowUpUserMessage,
+    buildLabTrendUserMessage,
     buildUserMessage,
 } from '../synthesize.prompt.js';
 import type {
@@ -213,24 +215,46 @@ export const createAnthropicSynthesizer = (options?: {
     const followUpClient = followUpModel === briefingModel ? briefingClient : buildClient(followUpModel);
 
     return async ({ snapshot, envelope }) => {
-        // §4.5: a free-text follow-up swaps both the system prompt and
-        // the user-message wrapper. A `follow_up` task without a
-        // `question` (a typed-suggestion follow-up planned for §4.1–4.4)
-        // still uses the briefing prompt for now — those branches will
-        // land their own prompts when those sub-phases ship.
+        // Per-task routing. Three paths:
+        //
+        //   - `lab_trend` typed follow-up (§4.2): UC2 prompt, follow-up
+        //     model. The envelope carries `followUp.type === 'lab_trend'`
+        //     and an analyte; Retrieve has populated
+        //     `snapshot.labHistory` for that analyte.
+        //   - free-text follow-up (§4.5): follow-up prompt, follow-up
+        //     model. The envelope carries `task: 'follow_up'` and a
+        //     non-empty `question`.
+        //   - default briefing (everything else): briefing prompt,
+        //     briefing model.
+        const labTrendAnalyte =
+            envelope.task === 'follow_up'
+            && envelope.followUp !== undefined
+            && envelope.followUp.type === 'lab_trend'
+                ? envelope.followUp.analyte
+                : null;
+        const isLabTrend = labTrendAnalyte !== null;
         const question =
-            envelope.task === 'follow_up' &&
-            typeof envelope.question === 'string' &&
-            envelope.question.length > 0
+            !isLabTrend
+            && envelope.task === 'follow_up'
+            && typeof envelope.question === 'string'
+            && envelope.question.length > 0
                 ? envelope.question
                 : null;
         const isFollowUp = question !== null;
-        const systemPrompt = isFollowUp ? FOLLOW_UP_SYSTEM_PROMPT : SYSTEM_PROMPT;
-        const userMessage = isFollowUp
-            ? buildFollowUpUserMessage(snapshot, question)
-            : buildUserMessage(snapshot);
-        const structured = isFollowUp ? followUpClient : briefingClient;
-        const model = isFollowUp ? followUpModel : briefingModel;
+
+        const systemPrompt = isLabTrend
+            ? LAB_TREND_SYSTEM_PROMPT
+            : isFollowUp
+                ? FOLLOW_UP_SYSTEM_PROMPT
+                : SYSTEM_PROMPT;
+        const userMessage = isLabTrend
+            ? buildLabTrendUserMessage(snapshot, labTrendAnalyte)
+            : isFollowUp
+                ? buildFollowUpUserMessage(snapshot, question)
+                : buildUserMessage(snapshot);
+        const useFollowUpModel = isLabTrend || isFollowUp;
+        const structured = useFollowUpModel ? followUpClient : briefingClient;
+        const model = useFollowUpModel ? followUpModel : briefingModel;
         const result = await structured.invoke([
             new SystemMessage(systemPrompt),
             new HumanMessage(userMessage),

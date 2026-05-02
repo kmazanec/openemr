@@ -31,6 +31,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\OpenEmrJwtVerifier;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedAgentActor;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedFhirUser;
 use OpenEMR\Modules\ClinicalCopilot\Controller\EncountersController;
+use OpenEMR\Modules\ClinicalCopilot\Controller\LabHistoryController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\LabsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PatientContextController;
@@ -104,6 +105,7 @@ final class NarrowAgentControllersTest extends TestCase
         }
         require_once self::MODULE_DIR . '/Controller/MedicationsController.php';
         require_once self::MODULE_DIR . '/Controller/LabsController.php';
+        require_once self::MODULE_DIR . '/Controller/LabHistoryController.php';
         require_once self::MODULE_DIR . '/Controller/EncountersController.php';
         require_once self::MODULE_DIR . '/Controller/PatientContextController.php';
 
@@ -178,6 +180,77 @@ final class NarrowAgentControllersTest extends TestCase
         [$status, $body] = $this->dispatchLabs($token, 4242);
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
+    }
+
+    // ------------------------------------------------------------------
+    // Lab-history endpoint (UC2 trend)
+    // ------------------------------------------------------------------
+
+    public function testLabHistoryHappyPathReturnsAnalyteSeries(): void
+    {
+        $token = $this->mintToken(['user/Observation.rs']);
+        [$status, $body, $events] = $this->dispatchLabHistory(
+            $token,
+            4242,
+            'Hemoglobin A1c',
+            730,
+        );
+
+        $this->assertSame(200, $status);
+        $this->assertNotNull($body);
+        $this->assertArrayHasKey('labs', $body);
+        $this->assertIsArray($body['labs']);
+        $this->assertCount(1, $events);
+        $this->assertSame('lab-history', $events[0]->action);
+        $this->assertSame(['lab'], $events[0]->categories);
+    }
+
+    public function testLabHistoryRejectsTokenLackingScope(): void
+    {
+        $token = $this->mintToken(['user/MedicationRequest.rs']);
+        [$status, $body] = $this->dispatchLabHistory($token, 4242, 'A1c', 365);
+        $this->assertSame(403, $status);
+        $this->assertSame(['error' => 'scope_not_permitted'], $body);
+    }
+
+    public function testLabHistoryRejectsMissingPid(): void
+    {
+        $token = $this->mintToken(['user/Observation.rs']);
+        [$status, $body] = $this->dispatchLabHistory($token, null, 'A1c', 365);
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'missing_pid'], $body);
+    }
+
+    public function testLabHistoryRejectsMissingAnalyte(): void
+    {
+        $token = $this->mintToken(['user/Observation.rs']);
+        [$status, $body] = $this->dispatchLabHistory($token, 4242, null, 365);
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'invalid_analyte'], $body);
+    }
+
+    public function testLabHistoryRejectsEmptyAnalyte(): void
+    {
+        $token = $this->mintToken(['user/Observation.rs']);
+        [$status, $body] = $this->dispatchLabHistory($token, 4242, '', 365);
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'invalid_analyte'], $body);
+    }
+
+    public function testLabHistoryRejectsNonPositiveLookback(): void
+    {
+        $token = $this->mintToken(['user/Observation.rs']);
+        [$status, $body] = $this->dispatchLabHistory($token, 4242, 'A1c', 0);
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'invalid_lookback_days'], $body);
+    }
+
+    public function testLabHistoryRejectsExcessiveLookback(): void
+    {
+        $token = $this->mintToken(['user/Observation.rs']);
+        [$status, $body] = $this->dispatchLabHistory($token, 4242, 'A1c', 999_999);
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'invalid_lookback_days'], $body);
     }
 
     // ------------------------------------------------------------------
@@ -272,6 +345,100 @@ final class NarrowAgentControllersTest extends TestCase
             siteId: 'default',
             clock: self::staticFixedClock(),
         ), $token, $pid);
+    }
+
+    /** @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>} */
+    private function dispatchLabHistory(
+        ?string $token,
+        ?int $pid,
+        ?string $analyte,
+        ?int $lookbackDays,
+    ): array {
+        $chart = $this->chart();
+        $controllerFactory = static fn(
+            AgentEndpointAuth $auth,
+            EventDispatcher $dispatcher,
+            NullLogger $logger,
+        ): LabHistoryController => new LabHistoryController(
+            auth: $auth,
+            observationAdapter: new ObservationAdapter(new InMemoryObservationDataSource($chart)),
+            eventDispatcher: $dispatcher,
+            logger: $logger,
+            siteId: 'default',
+            clock: self::staticFixedClock(),
+        );
+        return $this->dispatchLabHistoryWith($controllerFactory, $token, $pid, $analyte, $lookbackDays);
+    }
+
+    /**
+     * LabHistory's `handle()` takes two extra args (analyte, lookback)
+     * beyond the `(token, pid, conversation)` shape the other narrow
+     * controllers share. Keep the rest of the dispatch (auth wiring,
+     * event-dispatcher pipeline, output capture) identical to
+     * {@see dispatchWith}.
+     *
+     * @param callable(AgentEndpointAuth, EventDispatcher, NullLogger): LabHistoryController $factory
+     * @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>}
+     */
+    private function dispatchLabHistoryWith(
+        callable $factory,
+        ?string $token,
+        ?int $pid,
+        ?string $analyte,
+        ?int $lookbackDays,
+    ): array {
+        $logger = new NullLogger();
+
+        $disclosureSink = new InMemoryDisclosureRecorder();
+        $requestLogSink = new InMemoryAgentRequestLogRecorder();
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(
+            AgentDisclosedEvent::EVENT_HANDLE,
+            new AgentDisclosureListener($disclosureSink, $requestLogSink, $logger),
+        );
+
+        $resolver = new NarrowControllerStubResolver(
+            new ResolvedAgentActor(7, 'patel', $this->actorUuid()),
+            true,
+        );
+
+        $auth = new AgentEndpointAuth(
+            new OpenEmrJwtVerifier(
+                publicKeyPem: self::keypair()['public'],
+                issuer: self::ISSUER,
+                audience: AgentTokenMinter::AGENT_CLIENT_ID,
+                clock: $this->fixedClock(),
+            ),
+            $resolver,
+            $logger,
+            'default',
+        );
+
+        $controller = $factory($auth, $dispatcher, $logger);
+
+        ob_start();
+        try {
+            $controller->handle($token, $pid, null, $analyte, $lookbackDays);
+        } finally {
+            $output = ob_get_clean();
+        }
+
+        $status = http_response_code();
+        $this->assertIsInt($status);
+
+        $decoded = null;
+        if ($output !== '') {
+            $raw = json_decode((string) $output, true);
+            $this->assertIsArray($raw);
+            $stringKeyed = [];
+            foreach ($raw as $key => $value) {
+                $this->assertIsString($key);
+                $stringKeyed[$key] = $value;
+            }
+            $decoded = $stringKeyed;
+        }
+
+        return [$status, $decoded, $requestLogSink->all()];
     }
 
     /** @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>} */

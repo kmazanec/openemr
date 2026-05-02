@@ -41,6 +41,7 @@ const snapshot: BriefingSnapshot = {
     allergies: [],
     labs: [],
     encounters: [],
+    labHistory: null,
 };
 
 const snapshotWithA1cLab: BriefingSnapshot = {

@@ -112,6 +112,37 @@ final readonly class InMemoryObservationDataSource implements ObservationDataSou
         }
         return $kept;
     }
+
+    public function findHistoryByAnalyteForPid(
+        int $pid,
+        string $analyte,
+        int $lookbackDays,
+    ): array {
+        if ($pid !== $this->chart->pid) {
+            return [];
+        }
+        $cutoff = (new DateTimeImmutable(ArchetypeChartFactory::TODAY))
+            ->modify('-' . $lookbackDays . ' days');
+        $needle = strtolower($analyte);
+        $kept = [];
+        foreach ($this->chart->observationRows as $row) {
+            $observedAt = $row['observed_at'] ?? null;
+            if (!is_string($observedAt)) {
+                continue;
+            }
+            if (new DateTimeImmutable($observedAt) < $cutoff) {
+                continue;
+            }
+            $rowAnalyte = $row['analyte'] ?? null;
+            if (!is_string($rowAnalyte)) {
+                continue;
+            }
+            if (str_contains(strtolower($rowAnalyte), $needle)) {
+                $kept[] = $row;
+            }
+        }
+        return $kept;
+    }
 }
 
 final readonly class InMemoryAppointmentDataSource implements AppointmentDataSource

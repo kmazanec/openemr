@@ -1,6 +1,7 @@
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 
 import { createBriefingGraph, type BriefingGraphDeps } from '../graph/index.js';
+import { createLabHistoryFetcher, type LabHistoryFetcher } from '../graph/nodes/retrieve.js';
 import { createAnthropicSynthesizer } from '../graph/nodes/synthesize.js';
 import type { Synthesizer } from '../graph/nodes/synthesize.js';
 import type { BriefingState } from '../graph/state.js';
@@ -10,6 +11,7 @@ import { createLogger } from '../observability/logger.js';
 import { buildIdentityTags } from '../observability/traceMetadata.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
+import { createAgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
 import type { UnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
@@ -48,6 +50,13 @@ export interface BriefingRunnerDeps {
     readonly synthesizer: Synthesizer;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
+    /**
+     * §4.2: lab-history fetcher for the UC2 trend path. Optional —
+     * tests that don't drive a `lab_trend` envelope can omit it; if
+     * a `lab_trend` turn arrives without a fetcher wired, Retrieve
+     * files a `fetcher-unwired` gap so the graph still completes.
+     */
+    readonly fetchLabHistory?: LabHistoryFetcher;
     /**
      * §4.6: read-side store for the rendered conversation thread.
      * Append-only; written here on every persisted turn so the resume
@@ -157,6 +166,7 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                 token,
                 siteId: envelope.siteId,
                 ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+                ...(deps.fetchLabHistory !== undefined ? { fetchLabHistory: deps.fetchLabHistory } : {}),
             },
             synthesize: {
                 synthesizer: deps.synthesizer,
@@ -229,6 +239,15 @@ export interface ProductionRunnerOptions {
 export const buildProductionBriefingRunner = (options: ProductionRunnerOptions): BriefingRunner => {
     const snapshotClient = createSnapshotClient({ baseUrl: options.openEmrBaseUrl });
     const synthesizer = createAnthropicSynthesizer();
+    // §4.2: a separate AgentHttpClient powers the narrow tools
+    // (today, just `getLabHistory`). Keeps the bulk-snapshot client's
+    // wiring untouched and gives the narrow tools their own retry
+    // policy + tracing namespace.
+    const narrowHttpClient = createAgentHttpClient({ loggerName: 'narrowHttp' });
+    const fetchLabHistory = createLabHistoryFetcher({
+        client: narrowHttpClient,
+        openEmrBaseUrl: options.openEmrBaseUrl,
+    });
     return createBriefingRunner({
         snapshotClient,
         synthesizer,
@@ -237,5 +256,6 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         conversationMessages: options.conversationMessages,
         checkpointer: options.checkpointer,
         counters: options.counters,
+        fetchLabHistory,
     });
 };

@@ -87,15 +87,23 @@ const briefingRequestSchema = z
     );
 
 /**
- * §4.1→§4.2 transitional bridge. Stringifies a typed follow-up parameter
- * set into the deterministic question that the existing free-text
- * follow-up path already understands. §4.2/§4.3/§4.4 will replace this
- * with UC-specific graph branches; the typed envelope shape stays.
+ * §4.1 → §4.2/§4.3/§4.4 transitional bridge. Stringifies a typed
+ * follow-up parameter set into the deterministic question that the
+ * §4.5 free-text path already understands. UC-specific graph branches
+ * replace this one type at a time; the typed envelope shape stays.
+ *
+ * §4.2 has shipped: `lab_trend` no longer goes through this bridge —
+ * it flows as a typed `followUp` envelope and the synthesizer picks
+ * the UC2 prompt directly. Returning `null` here signals "do not
+ * bridge this type"; the route handler leaves `question` unset on
+ * the envelope and the synthesizer's typed-followUp branch wins.
+ * `medication_change` / `external_care` still bridge until §4.3 /
+ * §4.4 land.
  */
-export const stringifyFollowUp = (params: SuggestedFollowUpParams): string => {
+export const stringifyFollowUp = (params: SuggestedFollowUpParams): string | null => {
     switch (params.type) {
         case 'lab_trend':
-            return `Show me the lab trend for ${params.analyte}.`;
+            return null;
         case 'medication_change':
             return `Why was this medication started? (${params.medicationId})`;
         case 'external_care':
@@ -165,10 +173,15 @@ export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): H
                 await writeEvent({ type: 'error', code: 'site_mismatch' });
                 return;
             }
-            // §4.1 transitional shim: bridge a typed `followUp` into the existing free-text path; §4.2 replaces this with UC-specific graph branches.
-            const bridgedQuestion =
-                parsed.data.question ??
-                (parsed.data.followUp !== undefined ? stringifyFollowUp(parsed.data.followUp) : undefined);
+            // §4.1 → §4.2/§4.3/§4.4 transitional shim: bridge a typed
+            // `followUp` into the §4.5 free-text path for follow-up
+            // types whose UC-specific branch hasn't shipped yet. §4.2
+            // shipped, so `lab_trend` no longer bridges — its typed
+            // envelope flows through unchanged.
+            const bridgedFromFollowUp = parsed.data.followUp !== undefined
+                ? stringifyFollowUp(parsed.data.followUp)
+                : null;
+            const bridgedQuestion = parsed.data.question ?? bridgedFromFollowUp ?? undefined;
             const envelope: RequestEnvelope = {
                 conversationId: parsed.data.conversationId,
                 requestId: parsed.data.requestId,

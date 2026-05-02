@@ -1,0 +1,157 @@
+{
+  "patient": {
+    "pid": 3003,
+    "uuid": "arch-dm-3003",
+    "displayName": "Patel, Maya",
+    "sex": "F",
+    "dateOfBirth": "1958-03-15",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "3003",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-3003",
+    "startAt": "2026-05-01T11:00:00Z",
+    "durationMinutes": 30,
+    "type": "Diabetes follow-up",
+    "reason": "Quarterly diabetes review",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-3003",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "E11.9",
+      "codeSystem": "ICD-10",
+      "label": "Type 2 diabetes mellitus without complications",
+      "onsetDate": "2018-08-22",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-3003-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "medications": [
+    {
+      "name": "Metformin",
+      "dose": "500 mg",
+      "route": "PO",
+      "frequency": "BID",
+      "startDate": "2018-09-01",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "rx-3003-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "Penicillin",
+      "reaction": "Hives",
+      "severity": "Moderate",
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "al-3003-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [],
+  "encounters": [
+    {
+      "encounterDate": "2026-01-20",
+      "type": "Follow-up",
+      "reason": "Diabetes review",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "enc-3003-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labHistory": {
+    "analyte": "Hemoglobin A1c",
+    "observations": [
+      {
+        "analyte": "Hemoglobin A1c",
+        "value": "7.0",
+        "unit": "%",
+        "referenceRange": "4.0-5.6",
+        "abnormalFlag": "H",
+        "observedAt": "2024-10-15",
+        "source": {
+          "system": "openemr",
+          "recordType": "Observation",
+          "recordId": "obs-3003-a1c-2024-10",
+          "field": null,
+          "recordedAt": null
+        }
+      },
+      {
+        "analyte": "Hemoglobin A1c",
+        "value": "7.1",
+        "unit": "%",
+        "referenceRange": "4.0-5.6",
+        "abnormalFlag": "H",
+        "observedAt": "2025-04-15",
+        "source": {
+          "system": "openemr",
+          "recordType": "Observation",
+          "recordId": "obs-3003-a1c-2025-04",
+          "field": null,
+          "recordedAt": null
+        }
+      },
+      {
+        "analyte": "Hemoglobin A1c",
+        "value": "6.9",
+        "unit": "%",
+        "referenceRange": "4.0-5.6",
+        "abnormalFlag": "H",
+        "observedAt": "2025-10-15",
+        "source": {
+          "system": "openemr",
+          "recordType": "Observation",
+          "recordId": "obs-3003-a1c-2025-10",
+          "field": null,
+          "recordedAt": null
+        }
+      },
+      {
+        "analyte": "Hemoglobin A1c",
+        "value": "7.2",
+        "unit": "%",
+        "referenceRange": "4.0-5.6",
+        "abnormalFlag": "H",
+        "observedAt": "2026-04-15",
+        "source": {
+          "system": "openemr",
+          "recordType": "Observation",
+          "recordId": "obs-3003-a1c-2026-04",
+          "field": null,
+          "recordedAt": null
+        }
+      }
+    ]
+  }
+}

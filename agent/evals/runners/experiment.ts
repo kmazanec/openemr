@@ -22,7 +22,8 @@ import { evaluate } from 'langsmith/evaluation';
 
 import { createBriefingGraph } from '../../src/graph/index.js';
 import { createAnthropicSynthesizer } from '../../src/graph/nodes/synthesize.js';
-import type { ChartSnapshot } from '../../src/snapshot/types.js';
+import type { BriefingSnapshot } from '../../src/graph/types.js';
+import type { ChartSnapshot, Encounter, LabObservation } from '../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaimsLog.js';
 
@@ -51,9 +52,26 @@ interface RunOptions {
  * passes that example's input verbatim, we resolve the snapshot from
  * the closure rather than the URL.
  */
-const datasetClient = (snapshot: ChartSnapshot): SnapshotClient => ({
-    fetchSnapshot: () => Promise.resolve(snapshot),
-});
+const datasetClient = (snapshot: BriefingSnapshot): SnapshotClient => {
+    // The bulk snapshot endpoint never returns labs/encounters as a Gap —
+    // those come from narrow tools. UC1 fixtures only ever carry array
+    // shapes, so narrow before handing to the (ChartSnapshot-typed)
+    // client.
+    const chart: ChartSnapshot = {
+        patient: snapshot.patient,
+        appointment: snapshot.appointment,
+        diagnoses: snapshot.diagnoses,
+        medications: snapshot.medications,
+        allergies: snapshot.allergies,
+        labs: Array.isArray(snapshot.labs) ? snapshot.labs : [] as readonly LabObservation[],
+        encounters: Array.isArray(snapshot.encounters)
+            ? snapshot.encounters
+            : [] as readonly Encounter[],
+    };
+    return {
+        fetchSnapshot: () => Promise.resolve(chart),
+    };
+};
 
 export const runExperiment = async (options: RunOptions = {}): Promise<RunResult> => {
     const langsmithApiKey = options.langsmithApiKey ?? process.env['LANGSMITH_API_KEY'];
@@ -76,7 +94,7 @@ export const runExperiment = async (options: RunOptions = {}): Promise<RunResult
      * ground-truth assertions; LangSmith's UI compares those to the
      * dataset row's `outputs` automatically.
      */
-    const target = async (input: { snapshot: ChartSnapshot; archetype: string }) => {
+    const target = async (input: { snapshot: BriefingSnapshot; archetype: string }) => {
         const graph = createBriefingGraph({
             retrieve: { client: datasetClient(input.snapshot), token: 'experiment', siteId: 'default' },
             synthesize: { synthesizer },

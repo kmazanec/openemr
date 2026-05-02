@@ -54,4 +54,42 @@ final readonly class ObservationServiceDataSource implements ObservationDataSour
             [$pid, $cutoff],
         ));
     }
+
+    public function findHistoryByAnalyteForPid(
+        int $pid,
+        string $analyte,
+        int $lookbackDays,
+    ): array {
+        $cutoff = (new \DateTimeImmutable('today'))
+            ->modify('-' . $lookbackDays . ' days')
+            ->format('Y-m-d');
+
+        // Case-insensitive substring match — labs ship "Hemoglobin A1c",
+        // "HbA1c", "A1c" etc. for the same analyte; the agent passes one
+        // canonical name from the suggested-follow-up params and the
+        // database holds whichever variant the lab system used.
+        $needle = '%' . $analyte . '%';
+
+        return RowAssertion::listWithStringKeys(QueryUtils::fetchRecords(
+            "SELECT pr.procedure_result_id AS id,
+                    pr.result_text AS analyte,
+                    pr.result AS value,
+                    pr.units,
+                    pr.`range`,
+                    pr.abnormal,
+                    DATE(COALESCE(prep.date_report, prep.date_collected, po.date_ordered))
+                        AS observed_at
+               FROM procedure_result pr
+               JOIN procedure_report prep
+                 ON prep.procedure_report_id = pr.procedure_report_id
+               JOIN procedure_order po
+                 ON po.procedure_order_id = prep.procedure_order_id
+              WHERE po.patient_id = ?
+                AND po.activity = 1
+                AND DATE(COALESCE(prep.date_report, prep.date_collected, po.date_ordered)) >= ?
+                AND pr.result_text LIKE ?
+              ORDER BY observed_at ASC",
+            [$pid, $cutoff, $needle],
+        ));
+    }
 }

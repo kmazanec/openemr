@@ -73,6 +73,14 @@ final class ObservationAdapterTest extends TestCase
                 $this->days = $lookbackDays;
                 return [];
             }
+
+            public function findHistoryByAnalyteForPid(
+                int $pid,
+                string $analyte,
+                int $lookbackDays,
+            ): array {
+                return [];
+            }
         };
 
         (new ObservationAdapter($source))->fetchRecent(101, 90);
@@ -118,6 +126,74 @@ final class ObservationAdapterTest extends TestCase
         $this->assertSame([], $list);
     }
 
+    public function testFetchHistoryByAnalyteBuildsLabList(): void
+    {
+        $rows = [
+            ['id' => 11, 'analyte' => 'Hemoglobin A1c', 'value' => '7.2', 'units' => '%',
+                'range' => '4.0-5.6', 'abnormal' => 'H', 'observed_at' => '2024-04-15'],
+            ['id' => 12, 'analyte' => 'Hemoglobin A1c', 'value' => '8.1', 'units' => '%',
+                'range' => '4.0-5.6', 'abnormal' => 'H', 'observed_at' => '2025-04-15'],
+            ['id' => 13, 'analyte' => 'Hemoglobin A1c', 'value' => '9.4', 'units' => '%',
+                'range' => '4.0-5.6', 'abnormal' => 'H', 'observed_at' => '2026-04-15'],
+        ];
+        $list = (new ObservationAdapter($this->historySource($rows)))
+            ->fetchHistoryByAnalyte(101, 'Hemoglobin A1c', 730);
+
+        $this->assertCount(3, $list);
+        $this->assertSame('7.2', $list[0]->value);
+        $this->assertSame('9.4', $list[2]->value);
+    }
+
+    public function testFetchHistoryByAnalytePassesArgsToDataSource(): void
+    {
+        $source = new class implements ObservationDataSource {
+            public ?int $pid = null;
+
+            public ?string $analyte = null;
+
+            public ?int $days = null;
+
+            public function findRecentForPid(int $pid, int $lookbackDays): array
+            {
+                return [];
+            }
+
+            public function findHistoryByAnalyteForPid(
+                int $pid,
+                string $analyte,
+                int $lookbackDays,
+            ): array {
+                $this->pid = $pid;
+                $this->analyte = $analyte;
+                $this->days = $lookbackDays;
+                return [];
+            }
+        };
+
+        (new ObservationAdapter($source))
+            ->fetchHistoryByAnalyte(101, 'A1c', 730);
+
+        $this->assertSame(101, $source->pid);
+        $this->assertSame('A1c', $source->analyte);
+        $this->assertSame(730, $source->days);
+    }
+
+    public function testFetchHistoryByAnalyteStripsRowsWithEmptyAnalyteOrValue(): void
+    {
+        $rows = [
+            ['id' => 1, 'analyte' => '', 'value' => '8.1', 'units' => '%',
+                'range' => null, 'abnormal' => null, 'observed_at' => '2025-04-15'],
+            ['id' => 2, 'analyte' => 'A1c', 'value' => '', 'units' => '%',
+                'range' => null, 'abnormal' => null, 'observed_at' => '2025-04-15'],
+            ['id' => 3, 'analyte' => 'A1c', 'value' => '9.4', 'units' => '%',
+                'range' => null, 'abnormal' => null, 'observed_at' => '2026-04-15'],
+        ];
+        $list = (new ObservationAdapter($this->historySource($rows)))
+            ->fetchHistoryByAnalyte(101, 'A1c', 730);
+        $this->assertCount(1, $list);
+        $this->assertSame('3', $list[0]->source->recordId);
+    }
+
     /**
      * @param list<array<string, mixed>> $rows
      */
@@ -131,6 +207,40 @@ final class ObservationAdapterTest extends TestCase
 
             public function findRecentForPid(int $pid, int $lookbackDays): array
             {
+                return $this->rows;
+            }
+
+            public function findHistoryByAnalyteForPid(
+                int $pid,
+                string $analyte,
+                int $lookbackDays,
+            ): array {
+                return [];
+            }
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function historySource(array $rows): ObservationDataSource
+    {
+        return new class ($rows) implements ObservationDataSource {
+            /** @param list<array<string, mixed>> $rows */
+            public function __construct(private readonly array $rows)
+            {
+            }
+
+            public function findRecentForPid(int $pid, int $lookbackDays): array
+            {
+                return [];
+            }
+
+            public function findHistoryByAnalyteForPid(
+                int $pid,
+                string $analyte,
+                int $lookbackDays,
+            ): array {
                 return $this->rows;
             }
         };

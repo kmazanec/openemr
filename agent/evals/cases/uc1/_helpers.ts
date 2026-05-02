@@ -16,17 +16,19 @@ import { vi } from 'vitest';
 
 import type { Synthesizer } from '../../../src/graph/nodes/synthesize.js';
 import type {
+    BriefingSnapshot,
     Claim,
     ClaimLedger,
     DraftBriefing,
     RequestEnvelope,
 } from '../../../src/graph/types.js';
+import type { Encounter, LabObservation } from '../../../src/snapshot/types.js';
 import type { ChartSnapshot } from '../../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../../src/tools/snapshotClient.js';
 
 export { loadFixture } from '../../fixtures/load.js';
 
-export const baseEnvelope = (snapshot: ChartSnapshot): RequestEnvelope => ({
+export const baseEnvelope = (snapshot: BriefingSnapshot): RequestEnvelope => ({
     conversationId: `conv-${snapshot.patient.uuid}`,
     requestId: `req-${snapshot.patient.uuid}`,
     siteId: 'default',
@@ -38,13 +40,31 @@ export const baseEnvelope = (snapshot: ChartSnapshot): RequestEnvelope => ({
 /**
  * Stub `SnapshotClient` that returns the supplied chart for every call.
  * Cross-patient tests substitute this with one that throws or returns
- * a different chart.
+ * a different chart. The wire-shape `ChartSnapshot` is what
+ * `loadChartSnapshot` returns, so the client speaks that — `Retrieve`
+ * adapts it into the in-graph `BriefingSnapshot`.
  */
-export const buildClient = (snapshot: ChartSnapshot): SnapshotClient => ({
-    fetchSnapshot: vi.fn(() => Promise.resolve(snapshot)),
-});
+export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
+    // The bulk snapshot endpoint never returns labs/encounters as a Gap —
+    // those come from narrow tools. Strip the in-graph `labHistory` slot
+    // and assert the array shapes hold for fixtures that drive this path.
+    const chart: ChartSnapshot = {
+        patient: snapshot.patient,
+        appointment: snapshot.appointment,
+        diagnoses: snapshot.diagnoses,
+        medications: snapshot.medications,
+        allergies: snapshot.allergies,
+        labs: Array.isArray(snapshot.labs) ? snapshot.labs : [] as readonly LabObservation[],
+        encounters: Array.isArray(snapshot.encounters)
+            ? snapshot.encounters
+            : [] as readonly Encounter[],
+    };
+    return {
+        fetchSnapshot: vi.fn(() => Promise.resolve(chart)),
+    };
+};
 
-const claimsFromSnapshot = (snapshot: ChartSnapshot): readonly Claim[] => {
+const claimsFromSnapshot = (snapshot: BriefingSnapshot): readonly Claim[] => {
     const claims: Claim[] = [];
 
     let id = 1;
@@ -104,17 +124,20 @@ const claimsFromSnapshot = (snapshot: ChartSnapshot): readonly Claim[] => {
         });
     }
 
-    for (const lab of snapshot.labs) {
-        claims.push({
-            id: nextId(),
-            text: `${lab.analyte}: ${lab.value} ${lab.unit ?? ''}`.trim(),
-            category: 'lab',
-            sourceReferences: [lab.source],
-            safetyCritical: false,
-        });
+    if (Array.isArray(snapshot.labs)) {
+        for (const lab of snapshot.labs) {
+            claims.push({
+                id: nextId(),
+                text: `${lab.analyte}: ${lab.value} ${lab.unit ?? ''}`.trim(),
+                category: 'lab',
+                sourceReferences: [lab.source],
+                safetyCritical: false,
+            });
+        }
     }
 
-    for (const enc of snapshot.encounters) {
+    const encounters = Array.isArray(snapshot.encounters) ? snapshot.encounters : [];
+    for (const enc of encounters) {
         const date = enc.encounterDate ?? 'unknown date';
         const type = enc.type ?? 'visit';
         claims.push({
@@ -144,7 +167,7 @@ export interface FaithfulSynth {
 }
 
 export const buildFaithfulSynth = (): FaithfulSynth => {
-    const mock = vi.fn(({ snapshot }: { snapshot: ChartSnapshot }) => {
+    const mock = vi.fn(({ snapshot }: { snapshot: BriefingSnapshot }) => {
         const claims = claimsFromSnapshot(snapshot);
         const ledger: ClaimLedger = { claims };
         const draft: DraftBriefing = {

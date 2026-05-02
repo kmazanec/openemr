@@ -59,6 +59,20 @@ export interface Gap {
     readonly message: string;
 }
 
+/**
+ * UC2 lab-history slot. Only populated when the envelope carries
+ * `followUp.type === 'lab_trend'` — `Retrieve` fans out an extra
+ * `getLabHistory` call for the suggested-follow-up's analyte and
+ * files the result here. `null` is the default ("this turn does not
+ * need history") and is what every non-UC2 turn carries; a `Gap`
+ * means the history endpoint failed-open and the synthesizer should
+ * say so explicitly rather than render an empty trend.
+ */
+export interface LabHistorySeries {
+    readonly analyte: string;
+    readonly observations: readonly LabObservation[];
+}
+
 export interface BriefingSnapshot {
     readonly patient: Demographics;
     readonly appointment: Appointment | null;
@@ -67,6 +81,7 @@ export interface BriefingSnapshot {
     readonly allergies: readonly Allergy[];
     readonly labs: readonly LabObservation[] | Gap;
     readonly encounters: readonly Encounter[] | Gap;
+    readonly labHistory: LabHistorySeries | Gap | null;
 }
 
 /**

@@ -86,6 +86,18 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
     if (!isGap(snapshot.labs)) {
         for (const l of snapshot.labs) labs.set(l.source.recordId, l);
     }
+    // §4.2: UC2 lab-trend claims cite rows from `snapshot.labHistory`
+    // (a separate slot from `snapshot.labs` because the standard
+    // briefing's recent-labs panel and the trend's analyte-scoped
+    // history have different lookback windows). Index both into the
+    // same `labs` map so the verifier resolves trend citations the
+    // same way it resolves single-value briefing citations.
+    const history = snapshot.labHistory;
+    if (history !== null && !('kind' in history)) {
+        for (const l of history.observations) {
+            labs.set(l.source.recordId, l);
+        }
+    }
 
     const encounters = new Map<string, Encounter>();
     if (!isGap(snapshot.encounters)) {
@@ -109,14 +121,72 @@ const matchesMedication = (claim: Claim, ref: SourceReference, idx: SnapshotInde
     return containsCI(claim.text, med.name);
 };
 
+/**
+ * Match `YYYY-MM-DD` substrings in a claim. The §4.2 strengthened
+ * lab rule asks: if the claim text mentions a date, that date must
+ * match the resolved row's `observedAt`. We pull every date-shaped
+ * substring in the claim and only enforce when ≥1 is present —
+ * "A1c was 9.4" with no date stays acceptable, but "A1c was 9.4 on
+ * 2026-04-10" must match the cited row's `observedAt`.
+ */
+const DATE_SUBSTRING_RE = /\b\d{4}-\d{2}-\d{2}\b/g;
+
+const claimMentionsDate = (claim: Claim): readonly string[] =>
+    claim.text.match(DATE_SUBSTRING_RE) ?? [];
+
 const matchesLab = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const lab = idx.labs.get(ref.recordId);
     if (lab === undefined) return false;
-    // Lab claims must cite both the analyte and the value — the verifier
-    // refuses claims like "A1c trending up" with no number, because §3.4 UI
-    // renders them as fact and the user has no way to spot a fabricated
-    // number against the cited Observation row.
-    return containsCI(claim.text, lab.analyte) && containsCI(claim.text, lab.value);
+    // Layer 1 (§3.3): the analyte AND value of the cited row both
+    // appear in the claim text. Refuses "A1c trending up" with no
+    // number; the §3.4 UI renders the claim as fact and the user
+    // can't spot a fabricated number otherwise.
+    if (!containsCI(claim.text, lab.analyte) || !containsCI(claim.text, lab.value)) {
+        return false;
+    }
+
+    // Layer 2 (§4.2): if the claim mentions a date, at least one
+    // of the date substrings must match the cited row's
+    // `observedAt`. A claim that omits dates entirely is still
+    // acceptable — the rule is "if you write a date, write the
+    // right one", not "every claim must carry a date". Same for
+    // the unit token below.
+    const dates = claimMentionsDate(claim);
+    if (dates.length > 0) {
+        const observedAt = lab.observedAt;
+        if (observedAt === null || !dates.includes(observedAt)) {
+            return false;
+        }
+    }
+
+    // Layer 3 (§4.2): if the resolved row has a non-null `unit`,
+    // the claim text must NOT carry a *different* unit-like token
+    // adjacent to the cited value. Asymmetric — a claim that omits
+    // the unit entirely is still acceptable; the rule is "if you
+    // write a unit, write the right one".
+    //
+    // A "unit-like token" here is one containing `%` or `/` (the two
+    // characters that don't appear in English prose adjacent to a
+    // number). This heuristic catches the common confusions —
+    // "9.4 mg/dL" vs "9.4 %" — without false-positives on glue
+    // words like "on" in "9.4 on 2026-04-15".
+    const unit = lab.unit;
+    if (unit !== null && unit.length > 0) {
+        const escapedValue = lab.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const adjacentRe = new RegExp(`${escapedValue}\\s*([%/A-Za-z][\\w/%]*)`, 'g');
+        for (const m of claim.text.matchAll(adjacentRe)) {
+            const trailing = m[1];
+            if (trailing === undefined || trailing.length === 0) continue;
+            // Only enforce when the trailing token looks like a unit.
+            const looksLikeUnit = trailing.includes('%') || trailing.includes('/');
+            if (!looksLikeUnit) continue;
+            if (!containsCI(trailing, unit)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 };
 
 /**
@@ -256,6 +326,36 @@ export const verifyLedger = (
         }
 
         const check = CHECKS[claim.category];
+
+        // §4.2 strengthening for `lab` category: a trend claim cites
+        // multiple values (one ref per value), and every ref must
+        // resolve AND its content match the claim text. The pre-§4.2
+        // first-resolves-wins loop allowed a claim that mixed real
+        // ids with fabricated ones to slip through; the strict pass
+        // refuses any unresolved or non-matching ref.
+        if (claim.category === 'lab') {
+            let labReject: string | null = null;
+            for (const ref of claim.sourceReferences) {
+                if (!check.resolves(ref, idx)) {
+                    labReject = REJECT_UNRESOLVED;
+                    break;
+                }
+                if (
+                    check.contentMatches !== undefined
+                    && !check.contentMatches(claim, ref, idx)
+                ) {
+                    labReject = REJECT_CONTENT;
+                    break;
+                }
+            }
+            if (labReject !== null) {
+                rejected.push({ claim, reason: labReject });
+                continue;
+            }
+            accepted.push(claim);
+            continue;
+        }
+
         const resolvedRef = claim.sourceReferences.find((ref) => check.resolves(ref, idx));
         if (resolvedRef === undefined) {
             rejected.push({ claim, reason: REJECT_UNRESOLVED });
