@@ -10,6 +10,11 @@
  *   - `SectionEvent::EVENT_HANDLE` (primary section) — adds the
  *     "Open Co-Pilot" card to the patient summary screen, fulfilling the
  *     §3.4 patient-chart button entry point (PRESEARCH decision #5).
+ *   - `ScriptFilterEvent::EVENT_NAME` (calendar day-view only) —
+ *     injects the §5.4 schedule-annotations shim so the day view
+ *     decorates appointments with cached briefing flags. Scoped to
+ *     `pnuserapi.php` so the add-edit dialog and admin views are
+ *     untouched.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -23,6 +28,8 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot;
 
 use OpenEMR\Common\Session\SessionWrapperFactory;
+use OpenEMR\Core\OEGlobalsBag;
+use OpenEMR\Events\Core\ScriptFilterEvent;
 use OpenEMR\Events\Core\TwigEnvironmentEvent;
 use OpenEMR\Events\Patient\Summary\Card\CardModel;
 use OpenEMR\Events\Patient\Summary\Card\SectionEvent;
@@ -34,6 +41,24 @@ final readonly class Bootstrap
     public const MODULE_NAME = 'oe-module-clinical-copilot';
 
     public const MODULE_INSTALLATION_PATH = '/interface/modules/custom_modules/' . self::MODULE_NAME;
+
+    /**
+     * §5.4 day-view shim. The path is webroot-relative because that's
+     * what `ScriptFilterEvent::setScripts()` expects — it round-trips
+     * the value through `ModulesApplication::filterSafeLocalModuleFiles`
+     * which strips the webroot, resolves to a real file under the
+     * modules tree, and rejects anything outside.
+     */
+    private const SCHEDULE_SHIM_RELATIVE_PATH =
+        self::MODULE_INSTALLATION_PATH . '/public/js/schedule-annotations.js';
+
+    /**
+     * The calendar day/week views (`pnuserapi.php`) are the only place
+     * the shim should run. The add-edit dialog (`add_edit_event.php`)
+     * and the admin pages (`pnadmin.php`) dispatch the same event but
+     * have no appointment list to decorate.
+     */
+    private const SCHEDULE_SHIM_SCOPED_PAGE = 'pnuserapi.php';
 
     public function __construct(
         private EventDispatcherInterface $dispatcher,
@@ -50,6 +75,10 @@ final readonly class Bootstrap
             SectionEvent::EVENT_HANDLE,
             $this->maybeAddCopilotCard(...),
         );
+        $this->dispatcher->addListener(
+            ScriptFilterEvent::EVENT_NAME,
+            $this->maybeAddScheduleShim(...),
+        );
     }
 
     public function registerTemplatesPath(TwigEnvironmentEvent $event): void
@@ -58,6 +87,30 @@ final readonly class Bootstrap
         if ($loader instanceof FilesystemLoader) {
             $loader->prependPath(__DIR__ . '/../templates');
         }
+    }
+
+    public function maybeAddScheduleShim(ScriptFilterEvent $event): void
+    {
+        if ($event->getPageName() !== self::SCHEDULE_SHIM_SCOPED_PAGE) {
+            return;
+        }
+
+        // The webroot prefix matters: `setScripts()` filters every entry
+        // through `ModulesApplication::filterSafeLocalModuleFiles`,
+        // which strips the configured webroot before resolving against
+        // the on-disk modules tree. Passing only the `/interface/...`
+        // suffix works for standard installs (webroot = `''`) but
+        // fails the realpath check the moment the install is mounted
+        // under a nontrivial webroot — append it explicitly so the
+        // filter sees the same string the browser would request.
+        $webroot = OEGlobalsBag::getInstance()->getWebRoot();
+        $shimUrl = $webroot . self::SCHEDULE_SHIM_RELATIVE_PATH;
+
+        $existing = $event->getScripts();
+        if (in_array($shimUrl, $existing, strict: true)) {
+            return;
+        }
+        $event->setScripts([...$existing, $shimUrl]);
     }
 
     public function maybeAddCopilotCard(SectionEvent $event): void

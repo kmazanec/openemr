@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot;
 
+use OpenEMR\Events\Core\ScriptFilterEvent;
 use OpenEMR\Events\Core\TwigEnvironmentEvent;
 use OpenEMR\Events\Patient\Summary\Card\CardInterface;
 use OpenEMR\Events\Patient\Summary\Card\SectionEvent;
@@ -210,6 +211,112 @@ final class BootstrapTest extends TestCase
         // a different patient (or the same patient) must reopen it.
         self::assertStringNotContainsString('sessionStorage', $html);
         self::assertStringNotContainsString('copilot_autoopened', $html);
+    }
+
+    #[Test]
+    public function appendsScheduleShimToCalendarDayView(): void
+    {
+        // §5.4 boundary: only the calendar day/week view gets the
+        // shim. The path must round-trip through `setScripts()`'s
+        // safe-files filter (it requires the file exists on disk
+        // under the modules tree), which is why the JS shim file is
+        // committed alongside this listener.
+        $GLOBALS['webroot'] ??= '';
+        $GLOBALS['fileroot'] ??= dirname(__DIR__, 5);
+
+        $dispatcher = new EventDispatcher();
+        (new Bootstrap($dispatcher))->subscribeToEvents();
+
+        $event = new ScriptFilterEvent('pnuserapi.php');
+        $dispatcher->dispatch($event, ScriptFilterEvent::EVENT_NAME);
+
+        $scripts = $event->getScripts();
+        self::assertCount(1, $scripts);
+        self::assertIsString($scripts[0]);
+        self::assertStringEndsWith(
+            '/interface/modules/custom_modules/oe-module-clinical-copilot/public/js/schedule-annotations.js',
+            $scripts[0],
+        );
+    }
+
+    #[Test]
+    public function leavesAddEditEventDialogScriptsAlone(): void
+    {
+        // The add-edit dialog dispatches the same event but renders
+        // no appointment list — injecting the shim would just be dead
+        // weight on every appointment-edit modal.
+        $GLOBALS['webroot'] ??= '';
+        $GLOBALS['fileroot'] ??= dirname(__DIR__, 5);
+
+        $dispatcher = new EventDispatcher();
+        (new Bootstrap($dispatcher))->subscribeToEvents();
+
+        $event = new ScriptFilterEvent('add_edit_event.php');
+        $dispatcher->dispatch($event, ScriptFilterEvent::EVENT_NAME);
+
+        self::assertSame([], $event->getScripts());
+    }
+
+    #[Test]
+    public function leavesCalendarAdminScriptsAlone(): void
+    {
+        $GLOBALS['webroot'] ??= '';
+        $GLOBALS['fileroot'] ??= dirname(__DIR__, 5);
+
+        $dispatcher = new EventDispatcher();
+        (new Bootstrap($dispatcher))->subscribeToEvents();
+
+        $event = new ScriptFilterEvent('pnadmin.php');
+        $dispatcher->dispatch($event, ScriptFilterEvent::EVENT_NAME);
+
+        self::assertSame([], $event->getScripts());
+    }
+
+    #[Test]
+    public function shimAppendsRatherThanReplacingPreexistingScripts(): void
+    {
+        // Other modules may already have appended scripts to this
+        // event before us. Decoration, not displacement — the test
+        // confirms a pre-seeded entry survives.
+        $GLOBALS['webroot'] ??= '';
+        $GLOBALS['fileroot'] ??= dirname(__DIR__, 5);
+
+        $existingShim = '/interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js';
+
+        $dispatcher = new EventDispatcher();
+        (new Bootstrap($dispatcher))->subscribeToEvents();
+
+        $event = new ScriptFilterEvent('pnuserapi.php');
+        $event->setScripts([$existingShim]);
+        $dispatcher->dispatch($event, ScriptFilterEvent::EVENT_NAME);
+
+        $scripts = $event->getScripts();
+        self::assertCount(2, $scripts);
+        self::assertContains($existingShim, $scripts);
+        self::assertIsString($scripts[1]);
+        self::assertStringEndsWith(
+            '/interface/modules/custom_modules/oe-module-clinical-copilot/public/js/schedule-annotations.js',
+            $scripts[1],
+        );
+    }
+
+    #[Test]
+    public function shimIsAppendedOnlyOnce(): void
+    {
+        // Defensive: a misconfigured caller that fires the event twice
+        // (or our listener wired twice) would otherwise inject two
+        // identical <script> tags. The listener guards against that.
+        $GLOBALS['webroot'] ??= '';
+        $GLOBALS['fileroot'] ??= dirname(__DIR__, 5);
+
+        $dispatcher = new EventDispatcher();
+        (new Bootstrap($dispatcher))->subscribeToEvents();
+
+        $event = new ScriptFilterEvent('pnuserapi.php');
+        $dispatcher->dispatch($event, ScriptFilterEvent::EVENT_NAME);
+        $dispatcher->dispatch($event, ScriptFilterEvent::EVENT_NAME);
+
+        self::assertCount(1, $event->getScripts());
     }
 
     #[Test]
