@@ -129,14 +129,20 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
         formatSegment(segment, acceptedById, suppressedIds, verified.safetyHardStops),
     );
 
+    // Suggested follow-ups are the chip set that powers the next user
+    // turn — they make sense only on the default briefing. A follow-up
+    // turn answering an earlier chip would otherwise emit a stale chip
+    // set re-derived from the previous question's verifier output;
+    // suppress at source so the UI never sees a chip whose origin chip
+    // it can't trace back to a default_briefing turn.
+    const suggestedFollowUps = state.envelope.task === 'default_briefing'
+        ? generateFollowUps(state.envelope.conversationId, verified, state.snapshot)
+        : [];
+
     const formatted: AssistantMessage = {
         segments,
         gaps: collectGaps(verified),
-        suggestedFollowUps: generateFollowUps(
-            state.envelope.conversationId,
-            verified,
-            state.snapshot,
-        ),
+        suggestedFollowUps,
     };
 
     return { formatted };

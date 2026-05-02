@@ -107,9 +107,10 @@ const baseState = (
         draft?: DraftBriefing;
         verified?: VerifiedLedger;
         snapshot?: BriefingSnapshot;
+        envelope?: RequestEnvelope;
     } = {},
 ) => ({
-    envelope,
+    envelope: overrides.envelope ?? envelope,
     snapshot: overrides.snapshot ?? snapshot,
     draft: overrides.draft ?? draftSegments(),
     claimLedger: { claims: [dxClaim, medClaim, allergyClaim, labClaim] },
@@ -305,5 +306,28 @@ describe('format', () => {
             expect(labTrend.params.analyte).toBe('A1c');
         }
         expect(labTrend?.groundedInClaimIds).toContain('lab-1');
+    });
+
+    it('emits an empty suggestedFollowUps list on follow-up turns', async () => {
+        // Suggested follow-ups make sense only on the default briefing —
+        // the chips become the next turn's `followUp` envelope. Re-deriving
+        // them on a follow-up turn produces a stale chip set the UI cannot
+        // tie back to a default_briefing turn, so suppress at source.
+        const draft = draftSegments(
+            { text: 'A1c is 8.4%.', claimIds: ['lab-1'] },
+        );
+        const followUpEnvelope: RequestEnvelope = {
+            ...envelope,
+            task: 'follow_up',
+            question: 'What was her last A1c?',
+        };
+        const out = await format(baseState({
+            draft,
+            snapshot: snapshotWithA1cLab,
+            envelope: followUpEnvelope,
+        }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.suggestedFollowUps).toEqual([]);
     });
 });
