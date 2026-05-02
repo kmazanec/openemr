@@ -34,6 +34,8 @@ use OpenEMR\Core\Header;
 use OpenEMR\Core\OEGlobalsBag;
 use Symfony\Component\HttpFoundation\Request;
 
+require_once OEGlobalsBag::getInstance()->getSrcDir() . '/pid.inc.php';
+
 if (!AclMain::aclCheckCore('patients', 'med')) {
     AccessDeniedHelper::denyWithTemplate(
         'ACL check failed for patients/med: Clinical Co-Pilot',
@@ -48,14 +50,23 @@ $pidParam = $request->query->get('pid');
 $pidString = (is_string($pidParam) && $pidParam !== '' && $pidParam !== '0') ? $pidParam : null;
 $pid = ($pidString !== null && ctype_digit($pidString)) ? (int) $pidString : null;
 
-$sessionPidRaw = $session->get('pid');
-$sessionPid = is_scalar($sessionPidRaw) ? (int) $sessionPidRaw : 0;
-
-if ($pid === null || $pid !== $sessionPid) {
+if ($pid === null) {
     AccessDeniedHelper::denyWithTemplate(
-        'Clinical Co-Pilot panel: requested pid does not match the active session patient',
+        'Clinical Co-Pilot panel: missing or invalid pid query parameter',
         xl('Clinical Co-Pilot'),
     );
+}
+
+// Sync the session to the requested patient if it has drifted. The
+// panel is opened from the chart iframe, which races set_pt.php — the
+// previous strict-equality check 403'd on every initial load until the
+// AJAX commit landed. This follows the standard OpenEMR convention used
+// by demographics_full.php and pnotes_full.php: ACL is the gate, and
+// `?pid` updates the session so the rest of the chrome agrees with us.
+$sessionPidRaw = $session->get('pid');
+$sessionPid = is_scalar($sessionPidRaw) ? (int) $sessionPidRaw : 0;
+if ($pid !== $sessionPid) {
+    setpid($pid);
 }
 
 $globals = OEGlobalsBag::getInstance();
