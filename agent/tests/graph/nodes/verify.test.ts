@@ -53,6 +53,8 @@ const snapshot: BriefingSnapshot = {
             startDate: '2020-01-01',
             stopDate: null,
             prescriber: 'Dr. Patel',
+            indication: null,
+            prescriptionId: 'rx-1',
             source: sourceRef('MedicationRequest', 'rx-1'),
         },
     ],

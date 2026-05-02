@@ -55,6 +55,8 @@ const validJson = {
             startDate: '2020-01-01',
             stopDate: null,
             prescriber: 'Dr. Patel',
+            indication: 'type 2 diabetes',
+            prescriptionId: 7001,
             source: {
                 system: 'openemr',
                 recordType: 'MedicationRequest',
@@ -200,5 +202,48 @@ describe('decodeChartSnapshot', () => {
         // Plan §2.2 ObservationAdapter: `value` is preserved as a string so
         // text qualifiers like "<0.01" survive normalization.
         expect(() => decodeChartSnapshot(broken)).toThrow(/labs\[0\]\.value/);
+    });
+
+    // §4.3: indication + prescriptionId are added to the briefing-time
+    // Medication shape so the briefing path can mention indication and the
+    // medication-change branch can address a prescription by id.
+    it('decodes a medication indication and prescriptionId', () => {
+        const out = decodeChartSnapshot(validJson);
+        expect(out.medications[0]!.indication).toBe('type 2 diabetes');
+        expect(out.medications[0]!.prescriptionId).toBe('7001');
+    });
+
+    it('coerces null indication / prescriptionId to null on decode', () => {
+        const json = {
+            ...validJson,
+            medications: [{
+                ...validJson.medications[0],
+                indication: null,
+                prescriptionId: null,
+            }],
+        };
+        const out = decodeChartSnapshot(json);
+        expect(out.medications[0]!.indication).toBeNull();
+        expect(out.medications[0]!.prescriptionId).toBeNull();
+    });
+
+    it('treats missing indication / prescriptionId as null (additive contract)', () => {
+        // Older fixtures predating §4.3 omit these keys entirely. The
+        // decoder is additive so a synchronized regen of every fixture
+        // isn't a hard prerequisite.
+        const med = { ...validJson.medications[0] } as Record<string, unknown>;
+        delete med['indication'];
+        delete med['prescriptionId'];
+        const out = decodeChartSnapshot({ ...validJson, medications: [med] });
+        expect(out.medications[0]!.indication).toBeNull();
+        expect(out.medications[0]!.prescriptionId).toBeNull();
+    });
+
+    it('rejects a non-integer prescriptionId', () => {
+        const broken = {
+            ...validJson,
+            medications: [{ ...validJson.medications[0], prescriptionId: '7001' }],
+        };
+        expect(() => decodeChartSnapshot(broken)).toThrow(/medications\[0\]\.prescriptionId/);
     });
 });

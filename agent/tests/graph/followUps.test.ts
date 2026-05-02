@@ -100,6 +100,8 @@ const medication = (
     startDate,
     stopDate: null,
     prescriber: null,
+    indication: null,
+    prescriptionId: recordId,
     source: sourceRef('MedicationRequest', recordId),
 });
 

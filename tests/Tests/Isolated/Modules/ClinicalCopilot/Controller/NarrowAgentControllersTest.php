@@ -33,6 +33,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedFhirUser;
 use OpenEMR\Modules\ClinicalCopilot\Controller\EncountersController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\LabHistoryController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\LabsController;
+use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationProvenanceController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PatientContextController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
@@ -43,6 +44,8 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Seed\PatientArchetype;
@@ -64,6 +67,8 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/JtiGenerator.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentActorResolver.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/Adapter/MedicationProvenanceDataSource.php';
 
 final class NarrowAgentControllersTest extends TestCase
 {
@@ -108,6 +113,7 @@ final class NarrowAgentControllersTest extends TestCase
         require_once self::MODULE_DIR . '/Controller/LabHistoryController.php';
         require_once self::MODULE_DIR . '/Controller/EncountersController.php';
         require_once self::MODULE_DIR . '/Controller/PatientContextController.php';
+        require_once self::MODULE_DIR . '/Controller/MedicationProvenanceController.php';
 
         if (self::$keypair === null) {
             self::$keypair = self::generateKeypair();
@@ -128,6 +134,13 @@ final class NarrowAgentControllersTest extends TestCase
         $this->assertArrayHasKey('medications', $body);
         $this->assertIsArray($body['medications']);
         $this->assertNotEmpty($body['medications']);
+        // §4.3: each row carries indication + prescriptionId so the
+        // briefing can mention indication and the medication-change
+        // follow-up can address a single prescription by id.
+        $first = $body['medications'][0];
+        $this->assertIsArray($first);
+        $this->assertArrayHasKey('indication', $first);
+        $this->assertArrayHasKey('prescriptionId', $first);
         $this->assertCount(1, $events);
         $this->assertSame('medications', $events[0]->action);
         $this->assertSame(['medication'], $events[0]->categories);
@@ -313,6 +326,161 @@ final class NarrowAgentControllersTest extends TestCase
         [$status, $body] = $this->dispatchPatientContext($token, 4242);
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
+    }
+
+    // ------------------------------------------------------------------
+    // Medication provenance endpoint (§4.3 UC3)
+    // ------------------------------------------------------------------
+
+    public function testMedicationProvenanceHappyPathReturnsRow(): void
+    {
+        $token = $this->mintToken(['user/MedicationRequest.rs']);
+        [$status, $body, $events] = $this->dispatchMedicationProvenance(
+            $token,
+            pid: 4242,
+            medicationId: 7001,
+            row: $this->lisinoprilProvenanceRow(),
+        );
+
+        $this->assertSame(200, $status);
+        $this->assertNotNull($body);
+        $this->assertArrayHasKey('provenance', $body);
+        $this->assertIsArray($body['provenance']);
+        $this->assertSame(7001, $body['provenance']['prescriptionId']);
+        $this->assertSame('lisinopril', $body['provenance']['drugName']);
+        $this->assertSame('Patel, Maya', $body['provenance']['prescriber']);
+        $this->assertSame('new-onset hypertension', $body['provenance']['indication']);
+        $this->assertCount(1, $events);
+        $this->assertSame('medication_provenance', $events[0]->action);
+        $this->assertSame(['medication'], $events[0]->categories);
+    }
+
+    public function testMedicationProvenanceRejectsMissingMedicationId(): void
+    {
+        $token = $this->mintToken(['user/MedicationRequest.rs']);
+        [$status, $body, $events] = $this->dispatchMedicationProvenance(
+            $token,
+            pid: 4242,
+            medicationId: null,
+            row: $this->lisinoprilProvenanceRow(),
+        );
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'missing_medication_id'], $body);
+        $this->assertCount(0, $events);
+    }
+
+    public function testMedicationProvenanceUnknownIdReturnsNotFound(): void
+    {
+        $token = $this->mintToken(['user/MedicationRequest.rs']);
+        [$status, $body, $events] = $this->dispatchMedicationProvenance(
+            $token,
+            pid: 4242,
+            medicationId: 9999,
+            row: null,
+        );
+        $this->assertSame(404, $status);
+        $this->assertSame(['error' => 'not_found'], $body);
+        // No disclosure when no record was actually disclosed.
+        $this->assertCount(0, $events);
+    }
+
+    public function testMedicationProvenanceRejectsTokenLackingScope(): void
+    {
+        $token = $this->mintToken(['user/Patient.rs']);
+        [$status, $body] = $this->dispatchMedicationProvenance(
+            $token,
+            pid: 4242,
+            medicationId: 7001,
+            row: $this->lisinoprilProvenanceRow(),
+        );
+        $this->assertSame(403, $status);
+        $this->assertSame(['error' => 'scope_not_permitted'], $body);
+    }
+
+    /** @return array<string, mixed> */
+    private function lisinoprilProvenanceRow(): array
+    {
+        return [
+            'id' => 7001,
+            'drug' => 'lisinopril',
+            'dosage' => '10 mg',
+            'date_added' => '2026-03-20',
+            'indication' => 'new-onset hypertension',
+            'prescriber' => 'Patel, Maya',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $row null → controller emits 404
+     * @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>}
+     */
+    private function dispatchMedicationProvenance(
+        ?string $token,
+        ?int $pid,
+        ?int $medicationId,
+        ?array $row,
+    ): array {
+        $logger = new NullLogger();
+
+        $disclosureSink = new InMemoryDisclosureRecorder();
+        $requestLogSink = new InMemoryAgentRequestLogRecorder();
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(
+            AgentDisclosedEvent::EVENT_HANDLE,
+            new AgentDisclosureListener($disclosureSink, $requestLogSink, $logger),
+        );
+
+        $resolver = new NarrowControllerStubResolver(
+            new ResolvedAgentActor(7, 'patel', $this->actorUuid()),
+            true,
+        );
+
+        $auth = new AgentEndpointAuth(
+            new OpenEmrJwtVerifier(
+                publicKeyPem: self::keypair()['public'],
+                issuer: self::ISSUER,
+                audience: AgentTokenMinter::AGENT_CLIENT_ID,
+                clock: $this->fixedClock(),
+            ),
+            $resolver,
+            $logger,
+            'default',
+        );
+
+        $controller = new MedicationProvenanceController(
+            auth: $auth,
+            adapter: new MedicationProvenanceAdapter(
+                new NarrowControllerStubProvenanceSource($row),
+            ),
+            eventDispatcher: $dispatcher,
+            logger: $logger,
+            siteId: 'default',
+            clock: self::staticFixedClock(),
+        );
+
+        ob_start();
+        try {
+            $controller->handle($token, $pid, $medicationId, null);
+        } finally {
+            $output = ob_get_clean();
+        }
+
+        $status = http_response_code();
+        $this->assertIsInt($status);
+
+        $decoded = null;
+        if ($output !== '') {
+            $raw = json_decode((string) $output, true);
+            $this->assertIsArray($raw);
+            $stringKeyed = [];
+            foreach ($raw as $key => $value) {
+                $this->assertIsString($key);
+                $stringKeyed[$key] = $value;
+            }
+            $decoded = $stringKeyed;
+        }
+
+        return [$status, $decoded, $requestLogSink->all()];
     }
 
     // ------------------------------------------------------------------
@@ -644,5 +812,18 @@ final readonly class NarrowControllerStubResolver implements \OpenEMR\Modules\Cl
     public function mayReadPatients(ResolvedAgentActor $actor): bool
     {
         return $this->mayRead;
+    }
+}
+
+final readonly class NarrowControllerStubProvenanceSource implements MedicationProvenanceDataSource
+{
+    /** @param array<string, mixed>|null $row */
+    public function __construct(private ?array $row)
+    {
+    }
+
+    public function findByPrescriptionId(int $pid, int $prescriptionId): ?array
+    {
+        return $this->row;
     }
 }

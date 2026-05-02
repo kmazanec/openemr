@@ -45,6 +45,7 @@ final class MedicationAdapterTest extends TestCase
                 'date_added' => '2024-08-15',
                 'date_modified' => null,
                 'prescriber' => 'Patel, Maya',
+                'indication' => 'type 2 diabetes',
             ],
         ];
         $list = (new MedicationAdapter($this->source($rows)))->fetchActive(101);
@@ -59,8 +60,53 @@ final class MedicationAdapterTest extends TestCase
         $this->assertSame('2024-08-15', $med->startDate->format('Y-m-d'));
         $this->assertNull($med->stopDate);
         $this->assertSame('Patel, Maya', $med->prescriber);
+        $this->assertSame('type 2 diabetes', $med->indication);
+        $this->assertSame(7001, $med->prescriptionId);
         $this->assertSame('MedicationRequest', $med->source->recordType);
         $this->assertSame('7001', $med->source->recordId);
+    }
+
+    public function testIndicationNormalizesEmptyToNull(): void
+    {
+        $rows = [
+            [
+                'id' => 7010,
+                'drug' => 'lisinopril',
+                'dosage' => '10 mg',
+                'route_title' => 'oral',
+                'interval_title' => 'daily',
+                'date_added' => '2026-03-20',
+                'date_modified' => null,
+                'prescriber' => 'Patel, Maya',
+                'indication' => '',
+            ],
+        ];
+        $med = (new MedicationAdapter($this->source($rows)))->fetchActive(101)[0];
+        $this->assertNull($med->indication);
+    }
+
+    public function testPrescriptionIdMirrorsSourceRecordId(): void
+    {
+        // The DTO carries prescriptionId as a top-level int alongside the
+        // SourceReference's string recordId. They are the same value in
+        // different shapes — pin that so a future change to one doesn't
+        // silently desync from the other.
+        $rows = [
+            [
+                'id' => 7020,
+                'drug' => 'metformin',
+                'dosage' => '500 mg',
+                'route_title' => 'oral',
+                'interval_title' => 'BID',
+                'date_added' => '2024-08-15',
+                'date_modified' => null,
+                'prescriber' => null,
+                'indication' => null,
+            ],
+        ];
+        $med = (new MedicationAdapter($this->source($rows)))->fetchActive(101)[0];
+        $this->assertSame(7020, $med->prescriptionId);
+        $this->assertSame((string) $med->prescriptionId, $med->source->recordId);
     }
 
     public function testStopDateAlwaysNullForActiveRows(): void

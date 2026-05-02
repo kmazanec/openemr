@@ -75,6 +75,8 @@ final readonly class MedicationAdapter
             // stop column.
             stopDate: null,
             prescriber: Normalize::toOptionalString(Normalize::stringField($row, 'prescriber')),
+            indication: Normalize::toOptionalString(Normalize::stringField($row, 'indication')),
+            prescriptionId: (int) $recordId,
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'MedicationRequest',

@@ -50,6 +50,8 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
             startDate: '2020-01-01',
             stopDate: null,
             prescriber: 'Dr. Patel',
+            indication: null,
+            prescriptionId: 'rx-1',
             source: sourceRef('MedicationRequest', 'rx-1'),
         },
     ],
@@ -343,6 +345,110 @@ describe('verifyLedger — deterministic checks per category', () => {
     });
 });
 
+// §4.3: medication_change requires the claim to surface the documented
+// prescriber + indication (when those fields are non-null in the source
+// row). The deterministic medChangeBranch builds these claims; the rule
+// is the gate that prevents a model regression from fabricating either.
+describe('verifyLedger — medication_change category (§4.3 UC3)', () => {
+    const provSnapshot = (med: { prescriber: string | null; indication: string | null }) =>
+        baseSnapshot({
+            medications: [
+                {
+                    name: 'Lisinopril',
+                    dose: '10 mg',
+                    route: 'PO',
+                    frequency: 'daily',
+                    startDate: '2026-03-20',
+                    stopDate: null,
+                    prescriber: med.prescriber,
+                    indication: med.indication,
+                    prescriptionId: 'rx-7001',
+                    source: sourceRef('MedicationRequest', 'rx-7001'),
+                },
+            ],
+        });
+
+    it('accepts when name + prescriber + indication all appear in the claim text', () => {
+        const out = verifyLedger(
+            provSnapshot({ prescriber: 'Patel, Maya', indication: 'new-onset hypertension' }),
+            single(
+                claim({
+                    category: 'medication_change',
+                    text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Patel, Maya for new-onset hypertension.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.passed).toBe(true);
+    });
+
+    it('rejects when the source has an indication but the claim text omits it', () => {
+        const out = verifyLedger(
+            provSnapshot({ prescriber: 'Patel, Maya', indication: 'new-onset hypertension' }),
+            single(
+                claim({
+                    category: 'medication_change',
+                    text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Patel, Maya.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects when the source has a prescriber but the claim text omits it', () => {
+        const out = verifyLedger(
+            provSnapshot({ prescriber: 'Patel, Maya', indication: null }),
+            single(
+                claim({
+                    category: 'medication_change',
+                    text: 'Lisinopril 10 mg, started 2026-03-20.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('accepts a name-only claim when both prescriber and indication are null in the source', () => {
+        const out = verifyLedger(
+            provSnapshot({ prescriber: null, indication: null }),
+            single(
+                claim({
+                    category: 'medication_change',
+                    text: 'Lisinopril 10 mg, started 2026-03-20.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-7001')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.passed).toBe(true);
+    });
+
+    it('rejects when the cited prescription is not in the snapshot', () => {
+        const out = verifyLedger(
+            provSnapshot({ prescriber: 'Patel, Maya', indication: 'new-onset hypertension' }),
+            single(
+                claim({
+                    category: 'medication_change',
+                    text: 'Lisinopril 10 mg, prescribed by Patel, Maya for new-onset hypertension.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-MISSING')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+});
+
 describe('verifyLedger — hard clinical rules (fail closed)', () => {
     it('drops every medication claim and reports a hard stop when allergies are unavailable', () => {
         // The current `BriefingSnapshot` shape never carries an allergy gap
@@ -388,6 +494,30 @@ describe('verifyLedger — hard clinical rules (fail closed)', () => {
         );
         expect(out.rejected[0]?.reason).toBe('safety-critical-data-unavailable');
         expect(out.safetyHardStops).toContain(HARD_STOP_MEDICATIONS_UNAVAILABLE);
+    });
+
+    it('also suppresses medication_change claims when the safety stop fires', () => {
+        // Same fail-closed parity as the medication category — a
+        // medication-change claim is medication content under any
+        // reasonable taxonomy, so the allergies-unavailable hard stop
+        // suppresses it too.
+        const snapshot = baseSnapshot({
+            allergies: { kind: 'gap', reason: 'unavailable', message: 'allergies unreachable' } as never,
+        });
+        const out = verifyLedger(
+            snapshot,
+            single(
+                claim({
+                    category: 'medication_change',
+                    text: 'Metformin 500 mg, prescribed by Dr. Patel.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('safety-critical-data-unavailable');
+        expect(out.safetyHardStops).toContain(HARD_STOP_ALLERGIES_UNAVAILABLE);
     });
 
     it('passes for non-medication claims even when allergies are unavailable', () => {

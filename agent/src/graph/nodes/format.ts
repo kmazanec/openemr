@@ -64,7 +64,7 @@ const isCategorySuppressed = (
     // and appointments stay visible — they are independent of the safety
     // pivot.
     if (stops.length === 0) return false;
-    if (category === 'medication') return true;
+    if (category === 'medication' || category === 'medication_change') return true;
     if (category === 'allergy' && stops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) return true;
     return false;
 };

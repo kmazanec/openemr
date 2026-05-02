@@ -165,11 +165,11 @@ final readonly class ArchetypeChartFactory
     private function mapMedicationRow(array $seedRow, int $id): array
     {
         // MedicationAdapter consumes id/drug/dosage/route_title/interval_title/
-        // date_added/prescriber. Seed row provides drug+dosage+
-        // start_date+date_added. route_title and interval_title come from
-        // OpenEMR's prescriptions JOIN onto list_options in production; the
-        // test fixture supplies fixed values (not exercised by the seed
-        // generator).
+        // date_added/prescriber/indication. Seed row provides drug+dosage+
+        // start_date+date_added+indication. route_title and interval_title
+        // come from OpenEMR's prescriptions JOIN onto list_options in
+        // production; the test fixture supplies fixed values (not exercised
+        // by the seed generator).
         return [
             'id'              => $id,
             'drug'            => $seedRow['drug'],
@@ -178,6 +178,7 @@ final readonly class ArchetypeChartFactory
             'interval_title'  => 'Twice a day',
             'date_added'      => $seedRow['date_added'],
             'prescriber'      => 'Patel, Maya',
+            'indication'      => $seedRow['indication'] ?? null,
         ];
     }
 

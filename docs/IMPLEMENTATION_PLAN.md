@@ -1077,11 +1077,11 @@ target + golden cases.
   no-op-without-key like the §3.6 uploader.)
 
 ### 4.3 UC3 — medication change
-- [ ] New tool: `getMedicationProvenance(medicationId)` → prescribing
+- [x] New tool: `getMedicationProvenance(medicationId)` → prescribing
   date, prescriber, indication, dose adjustments
-- [ ] Verification rule: prescriber name + indication must come from the
+- [x] Verification rule: prescriber name + indication must come from the
   prescription record's documented fields, not inference
-- [ ] Eval cases: lisinopril started 6 weeks ago (matches USERS.md UC3),
+- [x] Eval cases: lisinopril started 6 weeks ago (matches USERS.md UC3),
   med with no documented indication, med prescribed by an unknown user
 
 ### 4.4 UC4 — outside care

@@ -134,6 +134,42 @@ const DATE_SUBSTRING_RE = /\b\d{4}-\d{2}-\d{2}\b/g;
 const claimMentionsDate = (claim: Claim): readonly string[] =>
     claim.text.match(DATE_SUBSTRING_RE) ?? [];
 
+/**
+ * §4.3 UC3: medication-change claims must surface the documented
+ * provenance fields rather than model inference. The deterministic
+ * `medChangeBranch` builds claims that mention only fields the source
+ * row carries; this rule pins the inverse — when the source row has a
+ * prescriber or indication, the claim text MUST contain it. Omission
+ * is acceptable only when the source field is null (USERS.md UC3
+ * promises *documented* provenance, so an undocumented indication
+ * should not be invented).
+ */
+const matchesMedicationChange = (
+    claim: Claim,
+    ref: SourceReference,
+    idx: SnapshotIndex,
+): boolean => {
+    const med = idx.medications.get(ref.recordId);
+    if (med === undefined) return false;
+    if (!containsCI(claim.text, med.name)) return false;
+    if (
+        med.indication !== null
+        && med.indication.length > 0
+        && !containsCI(claim.text, med.indication)
+    ) {
+        return false;
+    }
+    if (
+        med.prescriber !== null
+        && med.prescriber.length > 0
+        && !containsCI(claim.text, med.prescriber)
+    ) {
+        return false;
+    }
+    return true;
+};
+
+
 const matchesLab = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const lab = idx.labs.get(ref.recordId);
     if (lab === undefined) return false;
@@ -255,6 +291,10 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
         resolves: (ref, idx) => idx.medications.has(ref.recordId),
         contentMatches: matchesMedication,
     },
+    medication_change: {
+        resolves: (ref, idx) => idx.medications.has(ref.recordId),
+        contentMatches: matchesMedicationChange,
+    },
     lab: {
         resolves: (ref, idx) => idx.labs.has(ref.recordId),
         contentMatches: matchesLab,
@@ -299,7 +339,10 @@ const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[] => {
 
 const isStoppedCategory = (category: Claim['category'], stops: readonly HardStop[]): boolean => {
     if (stops.length === 0) return false;
-    if (category === 'medication') return true;
+    // medication_change is a medication-category claim: the same
+    // safety rules apply — if allergies-unavailable hard stop fires,
+    // suppress UC3 output too. Mirrored in format.ts:isCategorySuppressed.
+    if (category === 'medication' || category === 'medication_change') return true;
     if (category === 'allergy' && stops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) return true;
     return false;
 };

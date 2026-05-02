@@ -141,6 +141,8 @@ final class ChartSnapshotTest extends TestCase
             startDate: new DateTimeImmutable('2024-08-15'),
             stopDate: null,
             prescriber: 'Patel, Maya',
+            indication: 'type 2 diabetes',
+            prescriptionId: 77,
             source: $this->ref('MedicationRequest', 'rx-77', field: 'dosageInstruction'),
         );
 
@@ -153,6 +155,8 @@ final class ChartSnapshotTest extends TestCase
                 'startDate' => '2024-08-15',
                 'stopDate' => null,
                 'prescriber' => 'Patel, Maya',
+                'indication' => 'type 2 diabetes',
+                'prescriptionId' => 77,
                 'source' => [
                     'system' => 'openemr',
                     'recordType' => 'MedicationRequest',
@@ -346,6 +350,8 @@ final class ChartSnapshotTest extends TestCase
                     startDate: new DateTimeImmutable('2024-08-15'),
                     stopDate: null,
                     prescriber: 'Patel, Maya',
+                    indication: 'type 2 diabetes',
+                    prescriptionId: 77,
                     source: $this->ref('MedicationRequest', 'rx-77'),
                 ),
             ],

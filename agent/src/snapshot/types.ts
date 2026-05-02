@@ -40,6 +40,15 @@ export interface Medication {
     readonly startDate: string | null;
     readonly stopDate: string | null;
     readonly prescriber: string | null;
+    readonly indication: string | null;
+    /**
+     * Same value the SourceReference carries as `recordId`, surfaced here
+     * for ergonomics so §4.3's medication-change branch can address a
+     * prescription by id without spelunking through the citation. Held
+     * as a string on this side because every other id in this snapshot
+     * shape is a string; the wire format ships it as a JSON number.
+     */
+    readonly prescriptionId: string | null;
     readonly source: SourceReference;
 }
 

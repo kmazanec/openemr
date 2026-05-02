@@ -5,8 +5,6 @@ import { fileURLToPath } from 'node:url';
 import type { BriefingSnapshot } from '../../src/graph/types.js';
 import type { ChartSnapshot } from '../../src/snapshot/types.js';
 
-import type { ArchetypeKey } from './regenerate.js';
-
 const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc1');
 
 /**
@@ -14,8 +12,14 @@ const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc1');
  * shape. UC1 fixtures are pinned `ChartSnapshot` JSON; the only
  * difference between the two shapes is `labHistory`, which UC1 turns
  * never populate (UC2 has its own fixture loader).
+ *
+ * Per user direction, §4.3 keeps UC3 fixtures colocated under `uc1/`
+ * rather than splitting into a `uc3/` sibling — loader accepts any
+ * string key (UC1's ArchetypeKey or one of the §4.3 named fixtures
+ * like `lisinopril_recent_start`); the file must exist under
+ * `evals/fixtures/uc1/`.
  */
-export const loadFixture = (archetype: ArchetypeKey): BriefingSnapshot => {
+export const loadFixture = (archetype: string): BriefingSnapshot => {
     const path = resolve(FIXTURES_DIR, `${archetype}.json`);
     const chart = JSON.parse(readFileSync(path, 'utf8')) as ChartSnapshot;
     return {

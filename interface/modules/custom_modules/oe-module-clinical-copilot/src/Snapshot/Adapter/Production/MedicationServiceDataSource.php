@@ -40,6 +40,7 @@ final readonly class MedicationServiceDataSource implements MedicationDataSource
                     COALESCE(routes.title, p.route) AS route_title,
                     COALESCE(intervals.title, p.note) AS interval_title,
                     p.date_added,
+                    p.indication,
                     TRIM(CONCAT_WS(' ', users.lname, users.fname)) AS prescriber
                FROM prescriptions p
           LEFT JOIN list_options AS routes

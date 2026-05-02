@@ -122,6 +122,24 @@ const isRecentMedication = (med: Medication, anchor: Date): boolean => {
 const medicationKey = (med: Medication): string =>
     `${med.source.recordType}:${med.source.recordId}`;
 
+/**
+ * Inverse of {@link medicationKey}. Used by §4.3's medChangeBranch to
+ * recover the prescription record id from the typed follow-up params
+ * the §4.1 generator emitted, without re-implementing the split inline
+ * in the branch.
+ */
+export const parseMedicationKey = (key: string): {
+    readonly recordType: string;
+    readonly recordId: string;
+} | null => {
+    const idx = key.indexOf(':');
+    if (idx <= 0 || idx === key.length - 1) return null;
+    return {
+        recordType: key.slice(0, idx),
+        recordId: key.slice(idx + 1),
+    };
+};
+
 export const generateFollowUps = (
     conversationId: string,
     verified: VerifiedLedger,

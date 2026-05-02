@@ -92,20 +92,20 @@ const briefingRequestSchema = z
  * §4.5 free-text path already understands. UC-specific graph branches
  * replace this one type at a time; the typed envelope shape stays.
  *
- * §4.2 has shipped: `lab_trend` no longer goes through this bridge —
- * it flows as a typed `followUp` envelope and the synthesizer picks
- * the UC2 prompt directly. Returning `null` here signals "do not
- * bridge this type"; the route handler leaves `question` unset on
- * the envelope and the synthesizer's typed-followUp branch wins.
- * `medication_change` / `external_care` still bridge until §4.3 /
- * §4.4 land.
+ * §4.2 + §4.3 have shipped: `lab_trend` and `medication_change` no
+ * longer go through this bridge — each flows as a typed `followUp`
+ * envelope and the corresponding graph branch (UC2 synthesizer prompt
+ * / UC3 deterministic medChangeBranch) reads the typed params
+ * directly. Returning `null` here signals "do not bridge this type";
+ * the route handler leaves `question` unset on the envelope and the
+ * UC-specific branch wins. `external_care` still bridges until §4.4.
  */
 export const stringifyFollowUp = (params: SuggestedFollowUpParams): string | null => {
     switch (params.type) {
         case 'lab_trend':
             return null;
         case 'medication_change':
-            return `Why was this medication started? (${params.medicationId})`;
+            return null;
         case 'external_care':
             return `Summarize external care from the last ${params.lookbackDays} days.`;
     }
@@ -176,8 +176,9 @@ export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): H
             // §4.1 → §4.2/§4.3/§4.4 transitional shim: bridge a typed
             // `followUp` into the §4.5 free-text path for follow-up
             // types whose UC-specific branch hasn't shipped yet. §4.2
-            // shipped, so `lab_trend` no longer bridges — its typed
-            // envelope flows through unchanged.
+            // shipped (`lab_trend`) and §4.3 shipped (`medication_change`),
+            // so both flow through their own typed branches and
+            // `stringifyFollowUp` returns `null` for them.
             const bridgedFromFollowUp = parsed.data.followUp !== undefined
                 ? stringifyFollowUp(parsed.data.followUp)
                 : null;

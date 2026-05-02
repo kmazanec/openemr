@@ -77,6 +77,8 @@
       "startDate": "2008-06-01",
       "stopDate": null,
       "prescriber": "Dr. Patel",
+      "indication": "Essential (primary) hypertension",
+      "prescriptionId": 55001,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",
@@ -93,6 +95,8 @@
       "startDate": "2010-10-01",
       "stopDate": null,
       "prescriber": "Dr. Patel",
+      "indication": "Hyperlipidemia",
+      "prescriptionId": 55002,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",

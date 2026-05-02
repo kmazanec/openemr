@@ -64,6 +64,8 @@
       "startDate": "<DATE>",
       "stopDate": null,
       "prescriber": "Patel, Maya",
+      "indication": "Type 2 diabetes mellitus",
+      "prescriptionId": 1,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",

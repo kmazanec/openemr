@@ -91,6 +91,7 @@ export interface BriefingSnapshot {
  */
 export type ClaimCategory =
     | 'medication'
+    | 'medication_change'
     | 'lab'
     | 'allergy'
     | 'diagnosis'

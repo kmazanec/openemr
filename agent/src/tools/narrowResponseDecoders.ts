@@ -9,6 +9,29 @@ import type {
 } from '../snapshot/types.js';
 
 /**
+ * Provenance for a single prescription returned by the §4.3
+ * `medication_provenance.php` endpoint. Mirrors the PHP-side
+ * `MedicationProvenance::toArray()` shape.
+ *
+ * `doseAdjustments` carries the current single dose only — OpenEMR's
+ * `prescriptions` table has no historical dose-change column, and
+ * `date_modified` moves on any edit. Tools and graph branches consuming
+ * this shape must not infer a dose history; the verifier rule enforces
+ * that constraint at the claim layer.
+ */
+export interface MedicationProvenance {
+    readonly prescriptionId: string;
+    readonly drugName: string;
+    readonly prescriber: string | null;
+    readonly prescribingDate: string | null;
+    readonly indication: string | null;
+    readonly doseAdjustments: readonly {
+        readonly dose: string | null;
+        readonly date: string | null;
+    }[];
+}
+
+/**
  * JSON-shape decoders for the four narrow agent endpoints. Each
  * narrow endpoint returns a slim JSON envelope with only its own
  * data; these helpers walk that envelope into the same typed DTOs
@@ -80,6 +103,71 @@ export interface PatientContextResponse {
     readonly diagnoses: readonly Diagnosis[];
     readonly allergies: readonly Allergy[];
 }
+
+const expectString = (path: string, v: unknown): string => {
+    if (typeof v !== 'string') {
+        throw new ChartSnapshotDecodeError(path, 'expected a string');
+    }
+    return v;
+};
+
+const optionalString = (path: string, v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    if (typeof v !== 'string') {
+        throw new ChartSnapshotDecodeError(path, 'expected a string or null');
+    }
+    return v;
+};
+
+const expectIntAsString = (path: string, v: unknown): string => {
+    if (typeof v !== 'number' || !Number.isInteger(v)) {
+        throw new ChartSnapshotDecodeError(path, 'expected an integer');
+    }
+    return String(v);
+};
+
+export const decodeMedicationProvenanceResponse = (raw: unknown): MedicationProvenance => {
+    const obj = expectObject('medicationProvenanceResponse', raw);
+    const prov = expectObject(
+        'medicationProvenanceResponse.provenance',
+        requireKey('medicationProvenanceResponse', obj, 'provenance'),
+    );
+    const adjustmentsRaw = expectArray(
+        'medicationProvenanceResponse.provenance.doseAdjustments',
+        requireKey('medicationProvenanceResponse.provenance', prov, 'doseAdjustments'),
+    );
+    const doseAdjustments = adjustmentsRaw.map((item, idx) => {
+        const path = `medicationProvenanceResponse.provenance.doseAdjustments[${String(idx)}]`;
+        const entry = expectObject(path, item);
+        return {
+            dose: optionalString(`${path}.dose`, entry['dose'] ?? null),
+            date: optionalString(`${path}.date`, entry['date'] ?? null),
+        };
+    });
+    return {
+        prescriptionId: expectIntAsString(
+            'medicationProvenanceResponse.provenance.prescriptionId',
+            prov['prescriptionId'],
+        ),
+        drugName: expectString(
+            'medicationProvenanceResponse.provenance.drugName',
+            prov['drugName'],
+        ),
+        prescriber: optionalString(
+            'medicationProvenanceResponse.provenance.prescriber',
+            prov['prescriber'] ?? null,
+        ),
+        prescribingDate: optionalString(
+            'medicationProvenanceResponse.provenance.prescribingDate',
+            prov['prescribingDate'] ?? null,
+        ),
+        indication: optionalString(
+            'medicationProvenanceResponse.provenance.indication',
+            prov['indication'] ?? null,
+        ),
+        doseAdjustments,
+    };
+};
 
 export const decodePatientContextResponse = (raw: unknown): PatientContextResponse => {
     const obj = expectObject('patientContextResponse', raw);

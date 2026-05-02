@@ -27,6 +27,8 @@ use DateTimeImmutable;
  *     startDate: ?string,
  *     stopDate: ?string,
  *     prescriber: ?string,
+ *     indication: ?string,
+ *     prescriptionId: ?int,
  *     source: SourceReferenceArray,
  * }
  */
@@ -40,6 +42,12 @@ final readonly class Medication
         public ?DateTimeImmutable $startDate,
         public ?DateTimeImmutable $stopDate,
         public ?string $prescriber,
+        public ?string $indication,
+        // Same value the SourceReference carries as `recordId` (a string),
+        // surfaced here as a top-level int so the §4.3 medication-change
+        // branch and its narrow tool can address a single prescription
+        // without spelunking through the citation.
+        public ?int $prescriptionId,
         public SourceReference $source,
     ) {
     }
@@ -57,6 +65,8 @@ final readonly class Medication
             'startDate' => $this->startDate?->format('Y-m-d'),
             'stopDate' => $this->stopDate?->format('Y-m-d'),
             'prescriber' => $this->prescriber,
+            'indication' => $this->indication,
+            'prescriptionId' => $this->prescriptionId,
             'source' => $this->source->toArray(),
         ];
     }

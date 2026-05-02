@@ -64,6 +64,8 @@
       "startDate": "2014-03-01",
       "stopDate": null,
       "prescriber": "Dr. Patel",
+      "indication": "Type 2 diabetes mellitus",
+      "prescriptionId": 44001,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",
@@ -80,6 +82,8 @@
       "startDate": "2016-07-01",
       "stopDate": null,
       "prescriber": "Dr. Patel",
+      "indication": "Essential (primary) hypertension",
+      "prescriptionId": 44002,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",

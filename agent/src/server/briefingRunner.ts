@@ -12,6 +12,7 @@ import { buildIdentityTags } from '../observability/traceMetadata.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
 import { createAgentHttpClient } from '../tools/agentHttp.js';
+import type { AgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
 import type { UnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
@@ -48,6 +49,20 @@ export type BriefingRunner = (input: {
 export interface BriefingRunnerDeps {
     readonly snapshotClient: SnapshotClient;
     readonly synthesizer: Synthesizer;
+    /**
+     * §4.3 narrow-tool HTTP client. Used by the medication-change
+     * graph branch to fetch prescription provenance. Optional so the
+     * runner is backwards-compatible — tests that don't exercise UC3
+     * may omit it, and the graph routes follow-ups through the
+     * synthesizer when missing.
+     */
+    readonly agentHttpClient?: AgentHttpClient;
+    /**
+     * §4.3: OpenEMR base URL the medication-change branch composes
+     * narrow-endpoint URLs against. Required when `agentHttpClient`
+     * is set; ignored otherwise.
+     */
+    readonly openEmrBaseUrl?: string;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
     /**
@@ -176,6 +191,21 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                 unverifiedClaimsLog: deps.unverifiedClaimsLog,
                 ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
             },
+            // §4.3: wire the UC3 medication-change branch when the
+            // narrow-tool HTTP client is available. Both must be set
+            // for the branch to fire — otherwise medication_change
+            // follow-ups fall back to the synthesizer path.
+            ...(deps.agentHttpClient !== undefined && deps.openEmrBaseUrl !== undefined
+                ? {
+                    medChange: {
+                        client: deps.agentHttpClient,
+                        token,
+                        siteId: envelope.siteId,
+                        openEmrBaseUrl: deps.openEmrBaseUrl,
+                        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+                    },
+                }
+                : {}),
             ...(deps.checkpointer !== undefined ? { checkpointer: deps.checkpointer } : {}),
         };
         const graph = createBriefingGraph(graphDeps);
@@ -239,10 +269,11 @@ export interface ProductionRunnerOptions {
 export const buildProductionBriefingRunner = (options: ProductionRunnerOptions): BriefingRunner => {
     const snapshotClient = createSnapshotClient({ baseUrl: options.openEmrBaseUrl });
     const synthesizer = createAnthropicSynthesizer();
-    // §4.2: a separate AgentHttpClient powers the narrow tools
-    // (today, just `getLabHistory`). Keeps the bulk-snapshot client's
-    // wiring untouched and gives the narrow tools their own retry
-    // policy + tracing namespace.
+    // A single AgentHttpClient powers all narrow tools (UC2's
+    // `getLabHistory`, UC3's `getMedicationProvenance`, future
+    // ones). Keeps the bulk-snapshot client's wiring untouched and
+    // gives the narrow tools their own retry policy + tracing
+    // namespace under one logger.
     const narrowHttpClient = createAgentHttpClient({ loggerName: 'narrowHttp' });
     const fetchLabHistory = createLabHistoryFetcher({
         client: narrowHttpClient,
@@ -251,6 +282,8 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
     return createBriefingRunner({
         snapshotClient,
         synthesizer,
+        agentHttpClient: narrowHttpClient,
+        openEmrBaseUrl: options.openEmrBaseUrl,
         unverifiedClaimsLog: options.unverifiedClaimsLog,
         conversationStore: options.conversationStore,
         conversationMessages: options.conversationMessages,

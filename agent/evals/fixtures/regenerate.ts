@@ -83,8 +83,17 @@ const sourceRef = (recordType: string, recordId: string, field: string | null = 
     recordedAt: null,
 });
 
+/**
+ * §3.6 builders were originally keyed by `ArchetypeKey` (entries of the
+ * UC1 distribution map). §4.3 added per-UC fixtures —
+ * `lisinopril_recent_start`, `med_no_indication`,
+ * `med_unknown_prescriber` — that the UC3 cases load by name without
+ * polluting the UC1 sampling distribution. The builder key widens to
+ * `string` so those names are accepted; UC1's archetype set is still
+ * filtered out of `ARCHETYPES` below for the §3.6 sampler.
+ */
 interface ArchetypeFixtureBuilder {
-    readonly archetype: ArchetypeKey;
+    readonly archetype: string;
     readonly build: (rand: () => number) => ChartSnapshot;
 }
 
@@ -169,6 +178,8 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     startDate: '2019-05-01',
                     stopDate: null,
                     prescriber: 'Dr. Patel',
+                    indication: 'Essential (primary) hypertension',
+                    prescriptionId: '22001',
                     source: sourceRef('MedicationRequest', 'rx-2002-1'),
                 },
             ],
@@ -228,6 +239,8 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     startDate: '2018-09-01',
                     stopDate: null,
                     prescriber: 'Dr. Patel',
+                    indication: 'Type 2 diabetes mellitus',
+                    prescriptionId: '33001',
                     source: sourceRef('MedicationRequest', 'rx-3003-1'),
                 },
             ],
@@ -304,6 +317,8 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     startDate: '2014-03-01',
                     stopDate: null,
                     prescriber: 'Dr. Patel',
+                    indication: 'Type 2 diabetes mellitus',
+                    prescriptionId: '44001',
                     source: sourceRef('MedicationRequest', 'rx-4004-1'),
                 },
                 {
@@ -314,6 +329,8 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     startDate: '2016-07-01',
                     stopDate: null,
                     prescriber: 'Dr. Patel',
+                    indication: 'Essential (primary) hypertension',
+                    prescriptionId: '44002',
                     source: sourceRef('MedicationRequest', 'rx-4004-2'),
                 },
             ],
@@ -397,6 +414,8 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     startDate: '2008-06-01',
                     stopDate: null,
                     prescriber: 'Dr. Patel',
+                    indication: 'Essential (primary) hypertension',
+                    prescriptionId: '55001',
                     source: sourceRef('MedicationRequest', 'rx-5005-1'),
                 },
                 {
@@ -407,6 +426,8 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     startDate: '2010-10-01',
                     stopDate: null,
                     prescriber: 'Dr. Patel',
+                    indication: 'Hyperlipidemia',
+                    prescriptionId: '55002',
                     source: sourceRef('MedicationRequest', 'rx-5005-2'),
                 },
             ],
@@ -469,14 +490,225 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
             ],
         }),
     },
+    // -----------------------------------------------------------------
+    // §4.3 UC3 — three per-MR Vitest fixtures for the medication-change
+    // drill-down. Lisinopril startDate is pinned 42 days before the
+    // 2026-05-01 reference date (matches USERS.md UC3 "started 6 weeks
+    // ago"). Distinct pids and rxids so a USERS.md-shaped patient-list
+    // test could mix them with UC1's mix without collision.
+    // -----------------------------------------------------------------
+    {
+        archetype: 'lisinopril_recent_start',
+        build: () => ({
+            patient: {
+                pid: 7001,
+                uuid: 'arch-uc3-7001',
+                displayName: 'Patel, Maya',
+                sex: 'F',
+                dateOfBirth: '1958-03-15',
+                source: sourceRef('Patient', '7001'),
+            },
+            appointment: {
+                appointmentId: 'apt-7001',
+                startAt: '2026-05-01T11:00:00Z',
+                durationMinutes: 30,
+                type: 'Diabetes follow-up',
+                reason: 'Quarterly diabetes review + new lisinopril check-in',
+                source: sourceRef('Appointment', 'apt-7001'),
+            },
+            diagnoses: [
+                {
+                    code: 'E11.9',
+                    codeSystem: 'ICD-10',
+                    label: 'Type 2 diabetes mellitus without complications',
+                    onsetDate: '2018-08-22',
+                    source: sourceRef('Condition', 'cond-7001-1'),
+                },
+                {
+                    code: 'I10',
+                    codeSystem: 'ICD-10',
+                    label: 'Essential (primary) hypertension',
+                    onsetDate: '2026-03-15',
+                    source: sourceRef('Condition', 'cond-7001-2'),
+                },
+            ],
+            medications: [
+                {
+                    name: 'Metformin',
+                    dose: '1000 mg',
+                    route: 'PO',
+                    frequency: 'BID',
+                    startDate: '2018-09-01',
+                    stopDate: null,
+                    prescriber: 'Dr. Patel',
+                    indication: 'Type 2 diabetes mellitus',
+                    prescriptionId: '77001',
+                    source: sourceRef('MedicationRequest', '77001'),
+                },
+                {
+                    // Started 42 days before the appointment (USERS.md UC3).
+                    name: 'Lisinopril',
+                    dose: '10 mg',
+                    route: 'PO',
+                    frequency: 'QD',
+                    startDate: '2026-03-20',
+                    stopDate: null,
+                    prescriber: 'Dr. Patel',
+                    indication: 'new-onset hypertension',
+                    prescriptionId: '77002',
+                    source: sourceRef('MedicationRequest', '77002'),
+                },
+            ],
+            allergies: [
+                {
+                    substance: 'NKDA',
+                    reaction: null,
+                    severity: null,
+                    source: sourceRef('AllergyIntolerance', 'al-7001-nkda'),
+                },
+            ],
+            labs: [],
+            encounters: [
+                {
+                    encounterDate: '2026-03-20',
+                    type: 'Office Visit',
+                    reason: 'New-onset hypertension; lisinopril started',
+                    source: sourceRef('Encounter', 'enc-7001-1'),
+                },
+            ],
+        }),
+    },
+    {
+        archetype: 'med_no_indication',
+        build: () => ({
+            patient: {
+                pid: 7002,
+                uuid: 'arch-uc3-7002',
+                displayName: 'Tran, Bao',
+                sex: 'M',
+                dateOfBirth: '1965-07-22',
+                source: sourceRef('Patient', '7002'),
+            },
+            appointment: {
+                appointmentId: 'apt-7002',
+                startAt: '2026-05-01T11:30:00Z',
+                durationMinutes: 20,
+                type: 'Follow-up',
+                reason: 'Medication review',
+                source: sourceRef('Appointment', 'apt-7002'),
+            },
+            diagnoses: [],
+            medications: [
+                {
+                    name: 'Lisinopril',
+                    dose: '10 mg',
+                    route: 'PO',
+                    frequency: 'QD',
+                    startDate: '2026-03-20',
+                    stopDate: null,
+                    prescriber: 'Dr. Patel',
+                    // Source row has no documented indication. UC3
+                    // verifier rule: claim text must omit indication too.
+                    indication: null,
+                    prescriptionId: '77201',
+                    source: sourceRef('MedicationRequest', '77201'),
+                },
+            ],
+            allergies: [
+                {
+                    substance: 'NKDA',
+                    reaction: null,
+                    severity: null,
+                    source: sourceRef('AllergyIntolerance', 'al-7002-nkda'),
+                },
+            ],
+            labs: [],
+            encounters: [],
+        }),
+    },
+    {
+        archetype: 'med_unknown_prescriber',
+        build: () => ({
+            patient: {
+                pid: 7003,
+                uuid: 'arch-uc3-7003',
+                displayName: 'Lopez, Ana',
+                sex: 'F',
+                dateOfBirth: '1970-12-04',
+                source: sourceRef('Patient', '7003'),
+            },
+            appointment: {
+                appointmentId: 'apt-7003',
+                startAt: '2026-05-01T12:00:00Z',
+                durationMinutes: 20,
+                type: 'Follow-up',
+                reason: 'Medication review',
+                source: sourceRef('Appointment', 'apt-7003'),
+            },
+            diagnoses: [
+                {
+                    code: 'I10',
+                    codeSystem: 'ICD-10',
+                    label: 'Essential (primary) hypertension',
+                    onsetDate: '2026-03-15',
+                    source: sourceRef('Condition', 'cond-7003-1'),
+                },
+            ],
+            medications: [
+                {
+                    name: 'Lisinopril',
+                    dose: '10 mg',
+                    route: 'PO',
+                    frequency: 'QD',
+                    startDate: '2026-03-20',
+                    stopDate: null,
+                    // Source row has no documented prescriber (e.g. an
+                    // imported Rx whose provider didn't resolve to a
+                    // user). Verifier rule: claim text must omit
+                    // prescriber rather than fabricate one.
+                    prescriber: null,
+                    indication: 'new-onset hypertension',
+                    prescriptionId: '77301',
+                    source: sourceRef('MedicationRequest', '77301'),
+                },
+            ],
+            allergies: [
+                {
+                    substance: 'NKDA',
+                    reaction: null,
+                    severity: null,
+                    source: sourceRef('AllergyIntolerance', 'al-7003-nkda'),
+                },
+            ],
+            labs: [],
+            encounters: [],
+        }),
+    },
 ];
 
 const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc1');
 
 export interface RegenerateResult {
-    readonly archetype: ArchetypeKey;
+    readonly archetype: string;
     readonly path: string;
 }
+
+/**
+ * The PHP-side `Medication::toArray()` emits `prescriptionId` as a JSON
+ * integer (mirroring the underlying DB primary key); the TS-side
+ * `Medication.prescriptionId` is `string | null` (because every other
+ * id in the snapshot shape is a string). Builders work with the
+ * decoded shape (string), and the writer coerces back to the wire
+ * format on the way to disk so `decodeChartSnapshot` accepts the
+ * regenerated fixtures unchanged.
+ */
+const toWireFormat = (snapshot: ChartSnapshot): unknown => ({
+    ...snapshot,
+    medications: snapshot.medications.map((m) => ({
+        ...m,
+        prescriptionId: m.prescriptionId === null ? null : Number.parseInt(m.prescriptionId, 10),
+    })),
+});
 
 export const regenerate = (): readonly RegenerateResult[] => {
     mkdirSync(FIXTURES_DIR, { recursive: true });
@@ -489,7 +721,7 @@ export const regenerate = (): readonly RegenerateResult[] => {
         // `pretty-format-json` pre-commit hook (`--indent=2
         // --no-sort-keys`); without this the hook rewrites every
         // fixture on commit and leaves the regenerator out of sync.
-        const body = `${JSON.stringify(snapshot, null, 2)}\n`;
+        const body = `${JSON.stringify(toWireFormat(snapshot), null, 2)}\n`;
         writeFileSync(path, body, { encoding: 'utf8' });
         written.push({ archetype: builder.archetype, path });
     }
@@ -504,7 +736,15 @@ const hashKey = (key: string): number => {
     return h >>> 0;
 };
 
-export const ARCHETYPES: readonly ArchetypeKey[] = builders.map((b) => b.archetype);
+/**
+ * UC1's archetype keys, used by the §3.6 archetypes test. Excludes the
+ * §4.3 UC3-specific fixtures so a future weighted-sampler doesn't pick
+ * them in a UC1 batch.
+ */
+export const ARCHETYPES: readonly ArchetypeKey[] =
+    builders
+        .map((b) => b.archetype)
+        .filter((k): k is ArchetypeKey => k in ARCHETYPE_DISTRIBUTION);
 
 const isMain = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {

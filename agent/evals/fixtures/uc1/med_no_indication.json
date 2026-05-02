@@ -1,0 +1,67 @@
+{
+  "patient": {
+    "pid": 7002,
+    "uuid": "arch-uc3-7002",
+    "displayName": "Tran, Bao",
+    "sex": "M",
+    "dateOfBirth": "1965-07-22",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "7002",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-7002",
+    "startAt": "2026-05-01T11:30:00Z",
+    "durationMinutes": 20,
+    "type": "Follow-up",
+    "reason": "Medication review",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-7002",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [],
+  "medications": [
+    {
+      "name": "Lisinopril",
+      "dose": "10 mg",
+      "route": "PO",
+      "frequency": "QD",
+      "startDate": "2026-03-20",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "indication": null,
+      "prescriptionId": 77201,
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "77201",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "NKDA",
+      "reaction": null,
+      "severity": null,
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "al-7002-nkda",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [],
+  "encounters": []
+}

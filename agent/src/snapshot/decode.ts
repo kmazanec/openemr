@@ -68,6 +68,22 @@ const optionalString = (path: string, v: unknown): string | null => {
     return v;
 };
 
+/**
+ * PHP encodes integer ids as JSON numbers, but every id in this decoder's
+ * output shape is held as a string (the snapshot's SourceReference does
+ * the same). Coerce here so callers downstream don't have to worry about
+ * the wire-format split.
+ */
+const optionalIntAsString = (path: string, v: unknown): string | null => {
+    if (v === null) {
+        return null;
+    }
+    if (typeof v !== 'number' || !Number.isInteger(v)) {
+        throw new ChartSnapshotDecodeError(path, 'expected an integer or null');
+    }
+    return String(v);
+};
+
 const decodeSource = (path: string, raw: unknown): SourceReference => {
     const obj = expectObject(path, raw);
     return {
@@ -112,6 +128,15 @@ const decodeMedication = (path: string, raw: unknown): Medication => {
         startDate: optionalString(`${path}.startDate`, obj['startDate'] ?? null),
         stopDate: optionalString(`${path}.stopDate`, obj['stopDate'] ?? null),
         prescriber: optionalString(`${path}.prescriber`, obj['prescriber'] ?? null),
+        // §4.3 fields. `??` defaults so older fixtures (pre-§4.3) still
+        // decode — the PHP regenerator was updated alongside this, but
+        // keeping the decoder additive avoids a synchronized-bump
+        // requirement on every consumer.
+        indication: optionalString(`${path}.indication`, obj['indication'] ?? null),
+        prescriptionId: optionalIntAsString(
+            `${path}.prescriptionId`,
+            obj['prescriptionId'] ?? null,
+        ),
         source: decodeSource(`${path}.source`, obj['source']),
     };
 };

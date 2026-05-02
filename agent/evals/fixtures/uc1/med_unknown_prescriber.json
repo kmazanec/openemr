@@ -1,28 +1,28 @@
 {
   "patient": {
-    "pid": 2002,
-    "uuid": "arch-htn-2002",
-    "displayName": "Nguyen, Linh",
+    "pid": 7003,
+    "uuid": "arch-uc3-7003",
+    "displayName": "Lopez, Ana",
     "sex": "F",
-    "dateOfBirth": "1972-09-03",
+    "dateOfBirth": "1970-12-04",
     "source": {
       "system": "openemr",
       "recordType": "Patient",
-      "recordId": "2002",
+      "recordId": "7003",
       "field": null,
       "recordedAt": null
     }
   },
   "appointment": {
-    "appointmentId": "apt-2002",
-    "startAt": "2026-05-01T10:00:00Z",
+    "appointmentId": "apt-7003",
+    "startAt": "2026-05-01T12:00:00Z",
     "durationMinutes": 20,
     "type": "Follow-up",
-    "reason": "Blood-pressure check",
+    "reason": "Medication review",
     "source": {
       "system": "openemr",
       "recordType": "Appointment",
-      "recordId": "apt-2002",
+      "recordId": "apt-7003",
       "field": null,
       "recordedAt": null
     }
@@ -32,11 +32,11 @@
       "code": "I10",
       "codeSystem": "ICD-10",
       "label": "Essential (primary) hypertension",
-      "onsetDate": "2019-04-12",
+      "onsetDate": "2026-03-15",
       "source": {
         "system": "openemr",
         "recordType": "Condition",
-        "recordId": "cond-2002-1",
+        "recordId": "cond-7003-1",
         "field": null,
         "recordedAt": null
       }
@@ -48,15 +48,15 @@
       "dose": "10 mg",
       "route": "PO",
       "frequency": "QD",
-      "startDate": "2019-05-01",
+      "startDate": "2026-03-20",
       "stopDate": null,
-      "prescriber": "Dr. Patel",
-      "indication": "Essential (primary) hypertension",
-      "prescriptionId": 22001,
+      "prescriber": null,
+      "indication": "new-onset hypertension",
+      "prescriptionId": 77301,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",
-        "recordId": "rx-2002-1",
+        "recordId": "77301",
         "field": null,
         "recordedAt": null
       }
@@ -70,25 +70,12 @@
       "source": {
         "system": "openemr",
         "recordType": "AllergyIntolerance",
-        "recordId": "al-2002-nkda",
+        "recordId": "al-7003-nkda",
         "field": null,
         "recordedAt": null
       }
     }
   ],
   "labs": [],
-  "encounters": [
-    {
-      "encounterDate": "2025-11-14",
-      "type": "Follow-up",
-      "reason": "Hypertension management",
-      "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-2002-1",
-        "field": null,
-        "recordedAt": null
-      }
-    }
-  ]
+  "encounters": []
 }

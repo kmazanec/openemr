@@ -90,6 +90,8 @@
       "startDate": "<DATE>",
       "stopDate": null,
       "prescriber": "Patel, Maya",
+      "indication": "Hypertension",
+      "prescriptionId": 1,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",
@@ -106,6 +108,8 @@
       "startDate": "<DATE>",
       "stopDate": null,
       "prescriber": "Patel, Maya",
+      "indication": "Hyperlipidemia",
+      "prescriptionId": 2,
       "source": {
         "system": "openemr",
         "recordType": "MedicationRequest",
