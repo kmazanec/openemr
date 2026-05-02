@@ -138,6 +138,8 @@ final class NarrowAgentControllersTest extends TestCase
         // briefing can mention indication and the medication-change
         // follow-up can address a single prescription by id.
         $first = $body['medications'][0];
+        // Narrowing assertion — `$first` is `mixed` after the index, and
+        // PHPStan needs this before the assertArrayHasKey calls below.
         $this->assertIsArray($first);
         $this->assertArrayHasKey('indication', $first);
         $this->assertArrayHasKey('prescriptionId', $first);

@@ -143,6 +143,11 @@ final class MedicationProvenanceAdapterTest extends TestCase
             {
             }
 
+            // Covariant narrowing: the interface declares ?array (the
+            // production source returns null on a row miss), but this
+            // stub always serves the row it was constructed with — so
+            // narrow to `array` rather than declare a nullable that
+            // can never fire and trip PHPStan's `return.unusedType`.
             public function findByPrescriptionId(int $pid, int $prescriptionId): array
             {
                 return $this->row;
