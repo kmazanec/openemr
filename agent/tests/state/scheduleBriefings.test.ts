@@ -93,6 +93,14 @@ describe('createNullScheduleBriefingsLog', () => {
         const result = await log.record(fixtureRecord(), { force: false });
         expect(result).toEqual({ written: true, outcome: 'inserted' });
     });
+
+    it('listForPractitionerDay returns an empty list', async () => {
+        const log = createNullScheduleBriefingsLog();
+        const items = await log.listForPractitionerDay(
+            { practitionerUuid: 'u', dateUtc: '2026-05-02' },
+        );
+        expect(items).toEqual([]);
+    });
 });
 
 describe('createScheduleBriefingsLogFromPool', () => {
@@ -179,5 +187,89 @@ describe('createScheduleBriefingsLogFromPool', () => {
         expect(JSON.parse(params[2] as string)).toEqual(summary);
         expect(JSON.parse(params[3] as string)).toEqual(['DiabeticUncontrolled']);
         expect(params[4]).toBe('req-abc');
+    });
+
+    it('listForPractitionerDay returns parsed rows scoped to the day', async () => {
+        const pool = buildFakePool([
+            {
+                rowCount: 2,
+                rows: [
+                    {
+                        appointment_id: 'appt-42',
+                        flags: ['DiabeticUncontrolled', 'RecentEdVisit'],
+                        generated_at: '2026-05-02T13:50:00.000Z',
+                    },
+                    {
+                        appointment_id: 'appt-43',
+                        flags: [],
+                        generated_at: '2026-05-02T13:51:00.000Z',
+                    },
+                ],
+            },
+        ]);
+        const log = createScheduleBriefingsLogFromPool(pool);
+        const items = await log.listForPractitionerDay({
+            practitionerUuid: '11111111-1111-1111-1111-111111111111',
+            dateUtc: '2026-05-02',
+        });
+        expect(items).toEqual([
+            {
+                appointmentId: 'appt-42',
+                flags: ['DiabeticUncontrolled', 'RecentEdVisit'],
+                generatedAt: '2026-05-02T13:50:00.000Z',
+            },
+            {
+                appointmentId: 'appt-43',
+                flags: [],
+                generatedAt: '2026-05-02T13:51:00.000Z',
+            },
+        ]);
+        expect(pool.calls[0]?.params).toEqual([
+            '11111111-1111-1111-1111-111111111111',
+            '2026-05-02',
+        ]);
+        const sql = pool.calls[0]?.sql ?? '';
+        expect(sql).toContain('FROM schedule_briefings');
+        expect(sql).toContain('practitioner_uuid');
+    });
+
+    it('listForPractitionerDay returns an empty list when nothing matches', async () => {
+        const pool = buildFakePool([{ rowCount: 0, rows: [] }]);
+        const log = createScheduleBriefingsLogFromPool(pool);
+        const items = await log.listForPractitionerDay({
+            practitionerUuid: '11111111-1111-1111-1111-111111111111',
+            dateUtc: '2026-05-02',
+        });
+        expect(items).toEqual([]);
+    });
+
+    it('listForPractitionerDay coerces a non-array flags column to an empty list', async () => {
+        // Defensive: jsonb storage should always round-trip to an array,
+        // but the read path treats malformed rows as no-flags rather
+        // than throwing — a single bad row must not blank the schedule.
+        const pool = buildFakePool([
+            {
+                rowCount: 1,
+                rows: [
+                    {
+                        appointment_id: 'appt-42',
+                        flags: null,
+                        generated_at: '2026-05-02T13:50:00.000Z',
+                    },
+                ],
+            },
+        ]);
+        const log = createScheduleBriefingsLogFromPool(pool);
+        const items = await log.listForPractitionerDay({
+            practitionerUuid: '11111111-1111-1111-1111-111111111111',
+            dateUtc: '2026-05-02',
+        });
+        expect(items).toEqual([
+            {
+                appointmentId: 'appt-42',
+                flags: [],
+                generatedAt: '2026-05-02T13:50:00.000Z',
+            },
+        ]);
     });
 });

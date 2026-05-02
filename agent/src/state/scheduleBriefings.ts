@@ -44,6 +44,17 @@ export interface RecordOutcome {
     readonly outcome: 'inserted' | 'overwritten' | 'skipped_idempotent';
 }
 
+export interface ScheduleBriefingDayKey {
+    readonly practitionerUuid: string;
+    readonly dateUtc: string;
+}
+
+export interface ScheduleBriefingSummary {
+    readonly appointmentId: string;
+    readonly flags: readonly string[];
+    readonly generatedAt: string;
+}
+
 export interface ScheduleBriefingsLog {
     readonly setup: () => Promise<void>;
     readonly existsForToday: (key: ScheduleBriefingKey, today: string) => Promise<boolean>;
@@ -51,6 +62,18 @@ export interface ScheduleBriefingsLog {
         record: ScheduleBriefingRecord,
         options: { readonly force: boolean },
     ) => Promise<RecordOutcome>;
+    /**
+     * §5.4 read path. Returns the cached briefings for a (practitioner,
+     * day) pair as compact `appointment_id → flags` summaries — no
+     * `summary` payload, since the schedule view only renders the flag
+     * chips, and the panel re-runs UC1 on click-through. `dateUtc` is a
+     * `YYYY-MM-DD` string in UTC (the same key used by the UNIQUE
+     * index). An empty list (vs. an error) is the disabled-default
+     * story; callers degrade gracefully when the cache is cold.
+     */
+    readonly listForPractitionerDay: (
+        key: ScheduleBriefingDayKey,
+    ) => Promise<readonly ScheduleBriefingSummary[]>;
 }
 
 const SCHEMA_SQL = `
@@ -94,6 +117,14 @@ const INSERT_SQL = `
     ) VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT DO NOTHING
     RETURNING id
+`;
+
+const LIST_FOR_DAY_SQL = `
+    SELECT appointment_id, flags, generated_at
+    FROM schedule_briefings
+    WHERE practitioner_uuid = $1
+      AND ((generated_at AT TIME ZONE 'UTC')::date) = $2::date
+    ORDER BY generated_at ASC
 `;
 
 export interface PgScheduleBriefingsLogOptions {
@@ -210,7 +241,34 @@ export const createScheduleBriefingsLogFromPool = (
         }
     };
 
-    return { setup, existsForToday, record };
+    const listForPractitionerDay = async (
+        key: ScheduleBriefingDayKey,
+    ): Promise<readonly ScheduleBriefingSummary[]> => {
+        const result = await pool.query(LIST_FOR_DAY_SQL, [
+            key.practitionerUuid,
+            key.dateUtc,
+        ]);
+        return result.rows.map((row): ScheduleBriefingSummary => {
+            const rawFlags = row['flags'];
+            const flags: readonly string[] = Array.isArray(rawFlags)
+                ? rawFlags.filter((f): f is string => typeof f === 'string')
+                : [];
+            const rawAppointmentId = row['appointment_id'];
+            const rawGeneratedAt = row['generated_at'];
+            return {
+                appointmentId: typeof rawAppointmentId === 'string' ? rawAppointmentId : '',
+                flags,
+                generatedAt:
+                    rawGeneratedAt instanceof Date
+                        ? rawGeneratedAt.toISOString()
+                        : typeof rawGeneratedAt === 'string'
+                          ? rawGeneratedAt
+                          : '',
+            };
+        });
+    };
+
+    return { setup, existsForToday, record, listForPractitionerDay };
 };
 
 /**
@@ -223,4 +281,5 @@ export const createNullScheduleBriefingsLog = (): ScheduleBriefingsLog => ({
     setup: () => Promise.resolve(),
     existsForToday: () => Promise.resolve(false),
     record: () => Promise.resolve({ written: true, outcome: 'inserted' }),
+    listForPractitionerDay: () => Promise.resolve([]),
 });

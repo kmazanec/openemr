@@ -59,6 +59,7 @@ const buildFakeLog = (
             state.forceFlags.push(options.force);
             return Promise.resolve(behavior.recordOutcome);
         },
+        listForPractitionerDay: () => Promise.resolve([]),
     };
     return { log, state };
 };

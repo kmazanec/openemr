@@ -575,6 +575,52 @@ export const createApp = ({
         });
     });
 
+    /**
+     * §5.4 schedule-view annotations read path. Returns the cached
+     * briefings the §5.3 precompute job already wrote for the
+     * requesting practitioner. Keyed by (practitioner_uuid, date) and
+     * scoped self-only — the principal must equal the requested
+     * practitioner_uuid. The PHP shim that fronts this endpoint
+     * collapses any non-200 response to "no annotations" so the
+     * calendar render never blocks on a misconfigured agent.
+     */
+    app.get('/v1/agent/schedule_briefings', async (c) => {
+        if (scheduleBriefingsLog === undefined) {
+            return c.json({ code: 'briefings_unavailable' }, 503);
+        }
+        const principal = getPrincipal(c);
+        const practitionerUuid = c.req.query('practitioner_uuid');
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (practitionerUuid === undefined || !uuidRe.test(practitionerUuid)) {
+            return c.json({ code: 'invalid_practitioner_uuid' }, 400);
+        }
+        const date = c.req.query('date');
+        if (date === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return c.json({ code: 'invalid_date' }, 400);
+        }
+        const parsed = new Date(`${date}T00:00:00.000Z`);
+        // `Date` accepts overflow dates like 2026-13-01 by silently
+        // rolling them forward; round-trip the parsed value back to a
+        // YYYY-MM-DD string and compare to catch the rollover.
+        if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+            return c.json({ code: 'invalid_date' }, 400);
+        }
+        if (principal.sub !== practitionerUuid) {
+            return c.json({ code: 'not_self' }, 403);
+        }
+        const rows = await scheduleBriefingsLog.listForPractitionerDay({
+            practitionerUuid,
+            dateUtc: date,
+        });
+        return c.json({
+            briefings: rows.map((r) => ({
+                appointment_id: r.appointmentId,
+                flags: r.flags,
+                generated_at: r.generatedAt,
+            })),
+        });
+    });
+
     // Smoke-test endpoint paired with the proxy's `echo` action. End-to-end
     // smoke verifies the trust boundary works before any real LLM lands.
     app.post('/v1/agent/echo', async (c) => {
