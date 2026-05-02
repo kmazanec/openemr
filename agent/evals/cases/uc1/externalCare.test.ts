@@ -167,6 +167,7 @@ describe('UC4 outside care — malformed CCDA (encounters Gap)', () => {
             allergies: base.allergies,
             labs: base.labs,
             encounters: gap('ccda-import-malformed', 'CCDA payload could not be parsed'),
+            labHistory: null,
         };
         const verified = verifyLedger(malformed, {
             claims: [
