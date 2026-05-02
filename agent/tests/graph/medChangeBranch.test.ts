@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBriefingGraph } from '../../src/graph/index.js';
+import { createMedChangeBranch } from '../../src/graph/nodes/medChangeBranch.js';
+import type { BriefingState } from '../../src/graph/state.js';
 import type { Synthesizer } from '../../src/graph/nodes/synthesize.js';
-import type { RequestEnvelope } from '../../src/graph/types.js';
+import type { BriefingSnapshot, Gap, RequestEnvelope } from '../../src/graph/types.js';
 import type { AgentHttpClient } from '../../src/tools/agentHttp.js';
 import { AgentHttpError, AgentNetworkError } from '../../src/tools/agentHttp.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
@@ -234,5 +236,63 @@ describe('§4.3 medChangeBranch', () => {
         expect(out.verified?.accepted).toHaveLength(0);
         const seg = out.formatted?.segments[0];
         expect(seg?.text).toMatch(/not in a recognizable format/i);
+    });
+
+    it('hard-stops on allergies-unavailable BEFORE the provenance fetch', async () => {
+        // The current `BriefingSnapshot` shape pins `allergies` as a
+        // concrete array — Retrieve fails the whole graph if the tool
+        // errored. The verifier is defensive against a future widening
+        // (so are we): inject a Gap-shaped allergies slot via a cast and
+        // confirm the branch short-circuits before calling the network.
+        const allergiesGap: Gap = {
+            kind: 'gap',
+            reason: 'allergies-unavailable',
+            message: 'Allergy data is unavailable.',
+        };
+        const snapshot: BriefingSnapshot = {
+            patient: {
+                pid: PATIENT_PID,
+                uuid: 'p-1',
+                displayName: 'Patel, Maya',
+                sex: 'F',
+                dateOfBirth: '1958-03-15',
+                source: sourceRef('Patient', PATIENT_RECORD_ID),
+            },
+            appointment: null,
+            diagnoses: [],
+            medications: [],
+            // Cast: the public type forbids Gap on `allergies` today, but
+            // the verifier hard-stops on that shape and so does this branch.
+            allergies: allergiesGap as unknown as readonly never[],
+            labs: [],
+            encounters: [],
+            labHistory: null,
+        };
+
+        const get = vi.fn((): Promise<unknown> => {
+            throw new Error('getMedicationProvenance must not run when allergies are unavailable');
+        });
+        const branch = createMedChangeBranch({
+            client: { get },
+            token: TOKEN,
+            siteId: 'default',
+            openEmrBaseUrl: 'http://openemr',
+        });
+
+        const state = {
+            envelope: followUpEnvelope(),
+            snapshot,
+            draft: null,
+            claimLedger: null,
+            verified: null,
+            formatted: null,
+            persisted: null,
+        } as unknown as BriefingState;
+
+        const out = await branch(state);
+
+        expect(get).not.toHaveBeenCalled();
+        expect(out.draft?.segments[0]?.text).toMatch(/allergy data is loaded/i);
+        expect(out.claimLedger?.claims).toHaveLength(0);
     });
 });

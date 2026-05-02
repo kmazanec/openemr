@@ -8,6 +8,7 @@ import type { MedicationProvenance } from '../../tools/narrowResponseDecoders.js
 import { parseMedicationKey } from '../followUps.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import type { Claim, ClaimLedger, DraftBriefing } from '../types.js';
+import { computeHardStops, isStoppedCategory } from '../../verify/verifier.js';
 
 /**
  * §4.3 UC3 medication-change drill-down branch.
@@ -115,6 +116,23 @@ export const createMedChangeBranch = (
             return CONNECTOR(
                 'The medication reference for this follow-up was not in a recognizable format.',
             );
+        }
+
+        // Match the verifier's safety policy: when allergies (or
+        // medications) are unavailable we cannot safely surface a med
+        // detail — the verifier would drop the resulting claim under the
+        // same hard-stop rule, so short-circuit BEFORE the network call
+        // so the snapshot endpoint never sees a request whose response
+        // we will never show. Reachable today only if the snapshot type
+        // widens to allow a Gap on those slots; pinned ahead of that
+        // change so the policy doesn't depend on the current narrow shape.
+        if (state.snapshot !== null) {
+            const stops = computeHardStops(state.snapshot);
+            if (isStoppedCategory('medication_change', stops)) {
+                return CONNECTOR(
+                    'Medication details are unavailable until allergy data is loaded.',
+                );
+            }
         }
 
         const result = await getMedicationProvenance({

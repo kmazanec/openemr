@@ -320,7 +320,7 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
     },
 };
 
-const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[] => {
+export const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[] => {
     const stops: HardStop[] = [];
     // Allergies and medications are fail-closed safety categories
     // (ARCHITECTURE.md §"Safety Rules"). The current `BriefingSnapshot`
