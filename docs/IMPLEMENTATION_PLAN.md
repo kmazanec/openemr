@@ -961,20 +961,30 @@ follow-up questions yet.
   canonical id.)
 
 ### 3.6 Evals (UC1 only — golden set v1)
-- [ ] `agent/evals/fixtures/regenerate.ts` — runs seed pipeline with
+- [x] `agent/evals/fixtures/regenerate.ts` — runs seed pipeline with
   pinned archetype mix + pinned PRNG seed, dumps each patient's
-  `ChartSnapshot` JSON to `agent/evals/fixtures/uc1/`
-- [ ] LangSmith dataset `clinical-copilot-uc1-golden-v1` populated from
-  fixtures
-- [ ] Vitest cases under `agent/evals/cases/uc1/`:
+  `ChartSnapshot` JSON to `agent/evals/fixtures/uc1/` (decoupled from
+  the PHP seed pipeline so CI's bare-Node `test:agent` job can run
+  without booting OpenEMR; archetype mix mirrors
+  `PatientArchetype::distribution()`. Header documents the trade-off.)
+- [x] LangSmith dataset `clinical-copilot-uc1-golden-v1` populated from
+  fixtures (idempotent uploader at `agent/evals/runners/langsmithDataset.ts`,
+  no-op when `LANGSMITH_API_KEY` unset; bootstrapped via the manual
+  `evals:bootstrap-dataset` GitLab job)
+- [x] Vitest cases under `agent/evals/cases/uc1/`:
   - happy path per archetype (asserts archetype-derived ground truth:
     Diabetic patients surface E11.9 + metformin, etc.)
   - missing-allergies → fail-closed assertion
   - missing-meds → fail-closed assertion
   - prompt-injection in encounter notes → ignored
   - cross-patient ID in envelope → 403 from proxy, 0 tokens spent
-- [ ] CI: GitLab pipeline runs the suite on every MR and nightly;
+- [x] CI: GitLab pipeline runs the suite on every MR and nightly;
   results pushed to LangSmith as an experiment tagged with the git SHA
+  (per-MR Vitest gate runs in `test:agent` and is the deterministic
+  hard fail; the LangSmith experiment runs the real Anthropic
+  synthesizer against the dataset and lives in
+  `test:agent-evals-nightly`, gated to GitLab schedules + a master
+  manual button to keep model cost predictable.)
 
 **Phase 3 done when:** opening Mrs. Patel's chart on `emr.biograph.dev`
 streams the briefing from `USERS.md` §UC1 in <8s P50, every claim is
@@ -1034,8 +1044,11 @@ target + golden cases.
 - [x] Adversarial eval cases: cross-patient leakage attempts ("what's
   Maya's neighbor's A1c?"), authorization probes, hidden-data
   extraction prompts (landed as Vitest integration tests in
-  `agent/tests/graph/freeTextFollowUp.test.ts`; will migrate to the
-  `agent/evals/` harness when §3.6 ships it)
+  `agent/tests/graph/freeTextFollowUp.test.ts`; the §3.6 harness now
+  exists, but these stay alongside the briefing graph tests because
+  they exercise the follow-up-only path. Migrating them to
+  `agent/evals/cases/follow_up/` is a Phase 4.5 follow-up if a
+  golden-set form ever proves more useful than the integration form.)
 
 **Phase 4 done when:** each of UC2/3/4 has a green golden set, the
 free-text fallback routes through the same verification gate as the

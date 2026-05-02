@@ -17,7 +17,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "evals:regenerate-fixtures": "tsx evals/fixtures/regenerate.ts",
+    "evals:upload-dataset": "tsx --env-file-if-exists=.env evals/runners/cli.ts upload-dataset",
+    "evals:experiment": "tsx --env-file-if-exists=.env evals/runners/cli.ts experiment"
   },
   "dependencies": {
     "@hono/node-server": "1.19.7",

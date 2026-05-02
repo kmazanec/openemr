@@ -1,0 +1,92 @@
+{
+  "patient": {
+    "pid": 2002,
+    "uuid": "arch-htn-2002",
+    "displayName": "Nguyen, Linh",
+    "sex": "F",
+    "dateOfBirth": "1972-09-03",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "2002",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-2002",
+    "startAt": "2026-05-01T10:00:00Z",
+    "durationMinutes": 20,
+    "type": "Follow-up",
+    "reason": "Blood-pressure check",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-2002",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "I10",
+      "codeSystem": "ICD-10",
+      "label": "Essential (primary) hypertension",
+      "onsetDate": "2019-04-12",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-2002-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "medications": [
+    {
+      "name": "Lisinopril",
+      "dose": "10 mg",
+      "route": "PO",
+      "frequency": "QD",
+      "startDate": "2019-05-01",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "rx-2002-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "NKDA",
+      "reaction": null,
+      "severity": null,
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "al-2002-nkda",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [],
+  "encounters": [
+    {
+      "encounterDate": "2025-11-14",
+      "type": "Follow-up",
+      "reason": "Hypertension management",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "enc-2002-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}

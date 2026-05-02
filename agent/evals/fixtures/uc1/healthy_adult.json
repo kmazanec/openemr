@@ -1,0 +1,48 @@
+{
+  "patient": {
+    "pid": 1001,
+    "uuid": "arch-healthy-1001",
+    "displayName": "Reyes, Jordan",
+    "sex": "M",
+    "dateOfBirth": "1988-06-12",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "1001",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-1001",
+    "startAt": "2026-05-01T09:00:00Z",
+    "durationMinutes": 30,
+    "type": "Annual physical",
+    "reason": "Routine annual visit",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-1001",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [],
+  "medications": [],
+  "allergies": [],
+  "labs": [],
+  "encounters": [
+    {
+      "encounterDate": "2025-05-04",
+      "type": "Annual physical",
+      "reason": "Routine annual visit",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "enc-1001-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}

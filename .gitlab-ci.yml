@@ -104,12 +104,55 @@ test:agent:
     # ../../../tests/Tests/Isolated/Modules/ClinicalCopilot/Snapshot/
     # fixtures/snapshot/. node_modules is overlaid with a named volume
     # so npm install never lands on the host bind mount.
+    #
+    # Vitest discovers `evals/**/*.test.ts` automatically — the §3.6
+    # UC1 golden cases run inside this same job on every MR. The
+    # adjacent `test:agent-evals-nightly` job runs the LangSmith
+    # experiment that exercises the real synthesizer; that one is
+    # gated to schedules to keep per-MR cost predictable.
     docker run --rm \
       -v "$CI_PROJECT_DIR:/work-root" \
       -v openemr-ci-node-modules:/work-root/agent/node_modules \
       -w /work-root/agent \
       node:22-alpine \
       sh -c 'npm ci --no-audit --no-fund && npm run lint && npm run typecheck && npm test'
+
+# §3.6 nightly LangSmith experiment. Bootstraps the
+# `clinical-copilot-uc1-golden-v1` dataset (idempotent) and runs the
+# briefing graph against every example, posting results as a
+# LangSmith experiment tagged with $CI_COMMIT_SHA. Schedule this from
+# CI/CD → Schedules. Master gets a manual button as an escape hatch.
+#
+# Required CI variables (Settings → CI/CD → Variables, masked):
+#   - LANGSMITH_API_KEY
+#   - ANTHROPIC_API_KEY
+# When either is unset the runner scripts return a structured
+# `skippedReason` and exit 0 — so a misconfigured schedule doesn't
+# silently look healthy. CI logs show the JSON result either way.
+test:agent-evals-nightly:
+  <<: *runner-tags
+  stage: test
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  - if: '$CI_COMMIT_BRANCH == "master"'
+    when: manual
+    allow_failure: true
+  script:
+  - |
+    docker run --rm \
+      -v "$CI_PROJECT_DIR:/work-root" \
+      -v openemr-ci-node-modules:/work-root/agent/node_modules \
+      -w /work-root/agent \
+      -e LANGSMITH_API_KEY \
+      -e ANTHROPIC_API_KEY \
+      -e LANGSMITH_PROJECT \
+      -e CI_COMMIT_SHA \
+      node:22-alpine \
+      sh -c '
+        npm ci --no-audit --no-fund && \
+        npm run evals:upload-dataset && \
+        npm run evals:experiment
+      '
 
 deploy:
   <<: *runner-tags
@@ -136,3 +179,24 @@ cache-prune:
   script:
   - docker volume rm -f openemr-ci-vendor openemr-ci-phpstan-cache openemr-ci-node-modules
   - docker volume ls --filter name=openemr-ci-
+
+# Manual button on master to bootstrap the LangSmith golden dataset
+# without burning a synthesizer experiment. Idempotent — if the
+# dataset already exists, the job is a no-op.
+evals:bootstrap-dataset:
+  <<: *runner-tags
+  stage: test
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master"'
+    when: manual
+    allow_failure: true
+  script:
+  - |
+    docker run --rm \
+      -v "$CI_PROJECT_DIR:/work-root" \
+      -v openemr-ci-node-modules:/work-root/agent/node_modules \
+      -w /work-root/agent \
+      -e LANGSMITH_API_KEY \
+      -e LANGSMITH_PROJECT \
+      node:22-alpine \
+      sh -c 'npm ci --no-audit --no-fund && npm run evals:upload-dataset'

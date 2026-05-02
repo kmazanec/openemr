@@ -1,0 +1,134 @@
+{
+  "patient": {
+    "pid": 5005,
+    "uuid": "arch-elder-5005",
+    "displayName": "Okafor, Adaeze",
+    "sex": "F",
+    "dateOfBirth": "1942-01-08",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "5005",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-5005",
+    "startAt": "2026-05-01T14:00:00Z",
+    "durationMinutes": 30,
+    "type": "Geriatric follow-up",
+    "reason": "Multi-condition review",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-5005",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "I10",
+      "codeSystem": "ICD-10",
+      "label": "Essential (primary) hypertension",
+      "onsetDate": "2008-05-01",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-5005-1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "code": "E78.5",
+      "codeSystem": "ICD-10",
+      "label": "Hyperlipidemia, unspecified",
+      "onsetDate": "2010-09-12",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-5005-2",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "code": "M19.90",
+      "codeSystem": "ICD-10",
+      "label": "Osteoarthritis, unspecified site",
+      "onsetDate": "2012-11-04",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-5005-3",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "medications": [
+    {
+      "name": "Lisinopril",
+      "dose": "20 mg",
+      "route": "PO",
+      "frequency": "QD",
+      "startDate": "2008-06-01",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "rx-5005-1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "name": "Atorvastatin",
+      "dose": "40 mg",
+      "route": "PO",
+      "frequency": "QHS",
+      "startDate": "2010-10-01",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "rx-5005-2",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "Sulfa",
+      "reaction": "Rash",
+      "severity": "Moderate",
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "al-5005-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [],
+  "encounters": [
+    {
+      "encounterDate": "2025-12-08",
+      "type": "Follow-up",
+      "reason": "Multi-condition review",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "enc-5005-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}

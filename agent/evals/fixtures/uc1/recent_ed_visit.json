@@ -1,0 +1,61 @@
+{
+  "patient": {
+    "pid": 6006,
+    "uuid": "arch-ed-6006",
+    "displayName": "Hassan, Omar",
+    "sex": "M",
+    "dateOfBirth": "1979-04-30",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "6006",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-6006",
+    "startAt": "2026-05-01T15:00:00Z",
+    "durationMinutes": 30,
+    "type": "Post-ED follow-up",
+    "reason": "Post-ED chest-pain check",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-6006",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [],
+  "medications": [],
+  "allergies": [
+    {
+      "substance": "NKDA",
+      "reaction": null,
+      "severity": null,
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "al-6006-nkda",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [],
+  "encounters": [
+    {
+      "encounterDate": "2026-04-22",
+      "type": "Emergency",
+      "reason": "Chest pain - discharged after negative workup",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "enc-6006-ed",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}

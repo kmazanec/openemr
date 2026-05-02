@@ -1,0 +1,137 @@
+{
+  "patient": {
+    "pid": 4004,
+    "uuid": "arch-dm-unc-4004",
+    "displayName": "Carter, Marcus",
+    "sex": "M",
+    "dateOfBirth": "1960-11-20",
+    "source": {
+      "system": "openemr",
+      "recordType": "Patient",
+      "recordId": "4004",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "appointment": {
+    "appointmentId": "apt-4004",
+    "startAt": "2026-05-01T13:00:00Z",
+    "durationMinutes": 40,
+    "type": "Diabetes follow-up",
+    "reason": "Uncontrolled A1c review",
+    "source": {
+      "system": "openemr",
+      "recordType": "Appointment",
+      "recordId": "apt-4004",
+      "field": null,
+      "recordedAt": null
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "E11.9",
+      "codeSystem": "ICD-10",
+      "label": "Type 2 diabetes mellitus without complications",
+      "onsetDate": "2014-02-10",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-4004-1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "code": "I10",
+      "codeSystem": "ICD-10",
+      "label": "Essential (primary) hypertension",
+      "onsetDate": "2016-06-18",
+      "source": {
+        "system": "openemr",
+        "recordType": "Condition",
+        "recordId": "cond-4004-2",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "medications": [
+    {
+      "name": "Metformin",
+      "dose": "1000 mg",
+      "route": "PO",
+      "frequency": "BID",
+      "startDate": "2014-03-01",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "rx-4004-1",
+        "field": null,
+        "recordedAt": null
+      }
+    },
+    {
+      "name": "Lisinopril",
+      "dose": "20 mg",
+      "route": "PO",
+      "frequency": "QD",
+      "startDate": "2016-07-01",
+      "stopDate": null,
+      "prescriber": "Dr. Patel",
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationRequest",
+        "recordId": "rx-4004-2",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "NKDA",
+      "reaction": null,
+      "severity": null,
+      "source": {
+        "system": "openemr",
+        "recordType": "AllergyIntolerance",
+        "recordId": "al-4004-nkda",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "labs": [
+    {
+      "analyte": "Hemoglobin A1c",
+      "value": "9.4",
+      "unit": "%",
+      "referenceRange": "4.0-5.6",
+      "abnormalFlag": "H",
+      "observedAt": "2026-04-10",
+      "source": {
+        "system": "openemr",
+        "recordType": "Observation",
+        "recordId": "obs-4004-a1c-2026-04",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ],
+  "encounters": [
+    {
+      "encounterDate": "2026-02-05",
+      "type": "Follow-up",
+      "reason": "Diabetes review",
+      "source": {
+        "system": "openemr",
+        "recordType": "Encounter",
+        "recordId": "enc-4004-1",
+        "field": null,
+        "recordedAt": null
+      }
+    }
+  ]
+}
