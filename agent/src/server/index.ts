@@ -53,8 +53,24 @@ interface AppDeps {
     };
 }
 
+// `analyte` is an identifier we feed into a SQL `LIKE` pattern downstream.
+// The PHP layer escapes `%` and `_` defensively, but rejecting glob chars at
+// the boundary keeps a single hostile character (e.g. `%`) from ever reaching
+// the database. The character class matches the real seed values today
+// (`Hemoglobin A1c`, `Sodium`, etc.) — letters, digits, spaces, hyphens,
+// slashes, parens, and dots — and excludes `_` because no seed analyte uses
+// it and it doubles as a LIKE wildcard.
+const ANALYTE_PATTERN = /^[A-Za-z0-9 \-/().]+$/;
+
 const followUpParamsSchema = z.discriminatedUnion('type', [
-    z.object({ type: z.literal('lab_trend'), analyte: z.string().min(1).max(200) }),
+    z.object({
+        type: z.literal('lab_trend'),
+        analyte: z
+            .string()
+            .min(1)
+            .max(200)
+            .regex(ANALYTE_PATTERN, 'analyte may not contain glob characters'),
+    }),
     z.object({ type: z.literal('medication_change'), medicationId: z.string().min(1).max(200) }),
     z.object({ type: z.literal('external_care'), lookbackDays: z.number().int().positive().max(3650) }),
 ]);

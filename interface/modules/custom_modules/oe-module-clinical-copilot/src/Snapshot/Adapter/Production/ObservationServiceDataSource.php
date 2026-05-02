@@ -68,7 +68,7 @@ final readonly class ObservationServiceDataSource implements ObservationDataSour
         // "HbA1c", "A1c" etc. for the same analyte; the agent passes one
         // canonical name from the suggested-follow-up params and the
         // database holds whichever variant the lab system used.
-        $needle = '%' . $analyte . '%';
+        $needle = '%' . self::escapeLikePattern($analyte) . '%';
 
         return RowAssertion::listWithStringKeys(QueryUtils::fetchRecords(
             "SELECT pr.procedure_result_id AS id,
@@ -91,5 +91,21 @@ final readonly class ObservationServiceDataSource implements ObservationDataSour
               ORDER BY observed_at ASC",
             [$pid, $cutoff, $needle],
         ));
+    }
+
+    /**
+     * Escape MySQL LIKE wildcards so the analyte parameter cannot be used to
+     * widen the substring match. Without this, an authorized caller passing
+     * `%` would match every row (and `_` would match any single character).
+     * Order matters: backslashes are doubled first so the wildcard escapes we
+     * add aren't themselves re-escaped.
+     */
+    public static function escapeLikePattern(string $value): string
+    {
+        return str_replace(
+            ['\\', '%', '_'],
+            ['\\\\', '\\%', '\\_'],
+            $value,
+        );
     }
 }

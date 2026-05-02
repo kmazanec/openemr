@@ -336,6 +336,35 @@ describe('POST /v1/agent/briefing', () => {
         expect(text).toContain('"code":"invalid_envelope"');
     });
 
+    it('§4.1 rejects a lab_trend followUp whose analyte contains a glob char', async () => {
+        // Defense-in-depth against the LIKE-wildcard escape in the production
+        // ObservationServiceDataSource. The PHP layer escapes `%` and `_`, but
+        // a hostile or malformed analyte should never reach the database in
+        // the first place.
+        const { app, privateKey } = await buildAuthedApp();
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                ...briefingBody,
+                task: 'follow_up',
+                followUp: { type: 'lab_trend', analyte: '%' },
+            }),
+        });
+        expect(res.status).toBe(200);
+        const text = await res.text();
+        expect(text).toContain('event: error');
+        expect(text).toContain('"code":"invalid_envelope"');
+    });
+
     it('§4.1 rejects a followUp with an unknown discriminator type', async () => {
         const { app, privateKey } = await buildAuthedApp();
         const token = await mintTestToken(privateKey, {
