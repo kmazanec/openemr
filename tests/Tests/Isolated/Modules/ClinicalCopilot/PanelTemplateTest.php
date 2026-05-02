@@ -135,6 +135,23 @@ final class PanelTemplateTest extends TestCase
     }
 
     #[Test]
+    public function rendersTheHistorySidebarShellWithItsAnchors(): void
+    {
+        // §4.7: the history sidebar lists this clinician's prior
+        // conversations on the active patient. The JS bundle binds to
+        // these data-role anchors — empty state, list container, and
+        // an IntersectionObserver sentinel for infinite scroll.
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('class="copilot-history"', $html);
+        self::assertStringContainsString('data-role="history"', $html);
+        self::assertStringContainsString('data-role="history-list"', $html);
+        self::assertStringContainsString('data-role="history-empty"', $html);
+        self::assertStringContainsString('data-role="history-sentinel"', $html);
+    }
+
+    #[Test]
     public function loadsTheJsBundleWithDeferSoTheDomIsReadyOnInit(): void
     {
         $twig = self::buildTwig();

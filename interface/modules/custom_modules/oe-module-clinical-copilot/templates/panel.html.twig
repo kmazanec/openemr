@@ -16,26 +16,43 @@
 </head>
 <body>
     <main class="copilot-panel" data-pid="{{ pid }}" data-site-id="{{ siteId }}" data-proxy-url="{{ proxyUrl }}">
-        <header class="copilot-panel__header">
-            <h1 class="copilot-panel__title">{{ 'Clinical Co-Pilot'|xlt }}</h1>
-            <p class="copilot-panel__subtitle" data-role="status">{{ 'Loading briefing…'|xlt }}</p>
-        </header>
+        {# §4.7: history sidebar lists this clinician's prior conversations
+           on the active patient. Click → force-resume that thread; the
+           composer rebinds to the resumed conversationId so follow-ups
+           append. The sentinel at the end of the list drives infinite
+           scroll via IntersectionObserver in panel.js. #}
+        <aside class="copilot-history" data-role="history">
+            <header class="copilot-history__header">
+                <h2 class="copilot-history__title">{{ 'History'|xlt }}</h2>
+            </header>
+            <ul class="copilot-history__list" data-role="history-list"></ul>
+            <p class="copilot-history__empty" data-role="history-empty" hidden>
+                {{ 'No prior conversations.'|xlt }}
+            </p>
+            <div class="copilot-history__sentinel" data-role="history-sentinel" hidden></div>
+        </aside>
+        <section class="copilot-main">
+            <header class="copilot-panel__header">
+                <h1 class="copilot-panel__title">{{ 'Clinical Co-Pilot'|xlt }}</h1>
+                <p class="copilot-panel__subtitle" data-role="status">{{ 'Loading briefing…'|xlt }}</p>
+            </header>
 
-        <div class="copilot-thread" data-role="thread"></div>
+            <div class="copilot-thread" data-role="thread"></div>
 
-        <div class="copilot-suggestions" data-role="suggestions" hidden></div>
+            <div class="copilot-suggestions" data-role="suggestions" hidden></div>
 
-        <form class="copilot-composer" data-role="composer">
-            <textarea class="copilot-composer__input"
-                      data-role="input"
-                      name="question"
-                      rows="2"
-                      maxlength="2000"
-                      placeholder="{{ 'Ask a follow-up question about this patient…'|xlt }}"></textarea>
-            <button class="copilot-composer__submit"
-                    type="submit"
-                    data-role="submit">{{ 'Ask'|xlt }}</button>
-        </form>
+            <form class="copilot-composer" data-role="composer">
+                <textarea class="copilot-composer__input"
+                          data-role="input"
+                          name="question"
+                          rows="2"
+                          maxlength="2000"
+                          placeholder="{{ 'Ask a follow-up question about this patient…'|xlt }}"></textarea>
+                <button class="copilot-composer__submit"
+                        type="submit"
+                        data-role="submit">{{ 'Ask'|xlt }}</button>
+            </form>
+        </section>
     </main>
 
     <script src="{{ jsUrl }}" defer></script>

@@ -184,6 +184,49 @@ final class PolicyGateTest extends TestCase
         $this->assertSame(['openid', 'fhirUser'], $gate->defaultScopesFor('latest_conversation'));
     }
 
+    public function testConversationHistoryActionAllowsListLookupForActivePatient(): void
+    {
+        // §4.7 history sidebar feed: same shape as latest_conversation
+        // — read-only over the agent's own conversation tables, no
+        // chart scopes minted, patient-match required.
+        $gate = new PolicyGate();
+        $session = new SessionContext(
+            authUserId: '42',
+            authUser: 'admin',
+            siteId: 'default',
+            patientPid: '101',
+            fhirUser: $this->stubFhirUser(),
+        );
+        $request = new AgentRequest(
+            action: 'conversation_history',
+            siteId: 'default',
+            requestedPatientPid: '101',
+            requestedScopes: $gate->defaultScopesFor('conversation_history'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertTrue($decision->allowed);
+        $this->assertSame(['openid', 'fhirUser'], $gate->defaultScopesFor('conversation_history'));
+    }
+
+    public function testConversationHistoryDeniesAcrossPatients(): void
+    {
+        $gate = new PolicyGate();
+        $session = new SessionContext('42', 'admin', 'default', '101', $this->stubFhirUser());
+        $request = new AgentRequest(
+            action: 'conversation_history',
+            siteId: 'default',
+            requestedPatientPid: '999',
+            requestedScopes: $gate->defaultScopesFor('conversation_history'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertFalse($decision->allowed);
+        $this->assertSame(PolicyDenyReason::PatientMismatch, $decision->reason);
+    }
+
     public function testLatestConversationDeniesAcrossPatients(): void
     {
         $gate = new PolicyGate();

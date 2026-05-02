@@ -66,6 +66,13 @@ final readonly class PolicyGate
             'openid',
             'fhirUser',
         ],
+        // §4.7 history sidebar feed: same shape as latest_conversation
+        // — read-only against the agent's own conversation tables,
+        // user-scoped server-side via principal.sub.
+        'conversation_history' => [
+            'openid',
+            'fhirUser',
+        ],
     ];
 
     public function evaluate(SessionContext $session, AgentRequest $request): PolicyDecision

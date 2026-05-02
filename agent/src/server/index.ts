@@ -40,15 +40,16 @@ interface AppDeps {
     readonly auth: BearerAuthMiddlewareOptions;
     readonly briefingRunner: BriefingRunner;
     /**
-     * §4.6 resume support. Wired into the
-     * `GET /v1/agent/latest_conversation` route below; when omitted (only
-     * legacy tests do this) the route returns 404 so the panel falls
-     * back to a fresh briefing.
+     * §4.6 resume + §4.7 history wiring. Both `GET
+     * /v1/agent/latest_conversation` (auto-resume + force-resume) and
+     * `GET /v1/agent/conversation_history` (sidebar list) read through
+     * this bag. When omitted (only legacy tests do this) the routes
+     * return 404 / empty so the panel falls back to a fresh briefing.
      */
-    readonly resume?: {
+    readonly conversationApi?: {
         readonly conversationStore: ConversationStore;
         readonly conversationMessages: ConversationMessagesStore;
-        readonly windowHours: number;
+        readonly resumeWindowHours: number;
     };
 }
 
@@ -70,7 +71,7 @@ const briefingRequestSchema = z.object({
     question: z.string().min(1).max(2000).optional(),
 });
 
-export const createApp = ({ auth, briefingRunner, resume }: AppDeps): Hono => {
+export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
 
@@ -176,17 +177,24 @@ export const createApp = ({ auth, briefingRunner, resume }: AppDeps): Hono => {
     });
 
     /**
-     * §4.6 resume entry point. The panel calls this on cold load before
-     * deciding whether to mint a fresh briefing. We look up the most
-     * recent conversation for the (principal, patient) pair whose
-     * `updated_at` is within the resume window (12h), and return its
-     * rendered thread so the panel can hydrate without a re-stream.
+     * §4.6 resume + §4.7 force-resume entry point.
      *
-     * 404 means "no resumable conversation" — not an error. The panel
-     * treats it as a signal to fall back to the default briefing flow.
+     * Two modes, distinguished by query string:
+     *   - default ("auto-resume"): no `conversation` param → resolves
+     *     the most recent conversation for the (principal, patient)
+     *     pair whose `updated_at` is within the resume window (12h),
+     *     or 404 if none. The panel hits this on cold load.
+     *   - explicit ("force-resume"): `?conversation=<uuid>` → loads
+     *     that specific conversation, regardless of recency, after
+     *     verifying the principal owns it (`findOwnedById`). The
+     *     sidebar history click hits this. Ownership check uses the
+     *     same authorization seam as follow-up turns.
+     *
+     * Both modes return the same payload shape so the panel renders
+     * them identically.
      */
     app.get('/v1/agent/latest_conversation', async (c) => {
-        if (resume === undefined) {
+        if (conversationApi === undefined) {
             return c.json({ code: 'resume_unavailable' }, 404);
         }
         const principal = getPrincipal(c);
@@ -195,15 +203,41 @@ export const createApp = ({ auth, briefingRunner, resume }: AppDeps): Hono => {
         if (!Number.isInteger(pid) || pid <= 0) {
             return c.json({ code: 'invalid_pid' }, 400);
         }
-        const found = await resume.conversationStore.findResumable(
-            principal.sub,
-            pid,
-            resume.windowHours,
-        );
-        if (found === null) {
-            return c.json({ code: 'no_resumable_conversation' }, 404);
+        const explicitId = c.req.query('conversation');
+        let convId: string;
+        let updatedAt: string;
+        if (explicitId !== undefined) {
+            // Force-resume path. The id must be a UUID (cheap structural
+            // check) and the row must be owned by the principal AND
+            // scoped to the same patient — `findOwnedById` enforces
+            // both, returning null if either invariant fails.
+            const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRe.test(explicitId)) {
+                return c.json({ code: 'invalid_conversation_id' }, 400);
+            }
+            const owned = await conversationApi.conversationStore.findOwnedById(
+                explicitId,
+                principal.sub,
+                pid,
+            );
+            if (owned === null) {
+                return c.json({ code: 'conversation_not_found' }, 404);
+            }
+            convId = owned.id;
+            updatedAt = owned.updatedAt;
+        } else {
+            const found = await conversationApi.conversationStore.findResumable(
+                principal.sub,
+                pid,
+                conversationApi.resumeWindowHours,
+            );
+            if (found === null) {
+                return c.json({ code: 'no_resumable_conversation' }, 404);
+            }
+            convId = found.id;
+            updatedAt = found.updatedAt;
         }
-        const messages = await resume.conversationMessages.listForConversation(found.id);
+        const messages = await conversationApi.conversationMessages.listForConversation(convId);
         // Project the persisted rows into the panel's render shape.
         // Assistant messages keep their full `AssistantMessage` payload
         // (segments + claims + sources); user turns collapse to plain text.
@@ -213,9 +247,72 @@ export const createApp = ({ auth, briefingRunner, resume }: AppDeps): Hono => {
                 : { role: 'user' as const, text: m.text },
         );
         return c.json({
-            conversationId: found.id,
-            updatedAt: found.updatedAt,
+            conversationId: convId,
+            updatedAt,
             thread,
+        });
+    });
+
+    /**
+     * §4.7 history sidebar feed. Returns the most recent conversations
+     * for the (principal, patient) pair, paged. Empty list (200) when
+     * the user has no conversations on this patient — that's a normal
+     * "new patient" state, not an error.
+     *
+     * Query params:
+     *   - `pid` (required, positive integer)
+     *   - `limit` (optional, default 50, capped at 100 server-side)
+     *   - `before_updated_at` + `before_id` (optional cursor pair from
+     *     the previous page's last item)
+     */
+    app.get('/v1/agent/conversation_history', async (c) => {
+        if (conversationApi === undefined) {
+            return c.json({ items: [], nextBefore: null });
+        }
+        const principal = getPrincipal(c);
+        const pidRaw = c.req.query('pid');
+        const pid = pidRaw !== undefined ? Number.parseInt(pidRaw, 10) : Number.NaN;
+        if (!Number.isInteger(pid) || pid <= 0) {
+            return c.json({ code: 'invalid_pid' }, 400);
+        }
+        const limitRaw = c.req.query('limit');
+        const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : 50;
+        if (!Number.isInteger(limit) || limit <= 0) {
+            return c.json({ code: 'invalid_limit' }, 400);
+        }
+        const beforeUpdatedAt = c.req.query('before_updated_at');
+        const beforeId = c.req.query('before_id');
+        // Both cursor parts must come together; one without the other
+        // is a contract error rather than a silent fallback to the
+        // first page (which would hide a UI bug).
+        if ((beforeUpdatedAt === undefined) !== (beforeId === undefined)) {
+            return c.json({ code: 'invalid_cursor' }, 400);
+        }
+        const items = await conversationApi.conversationStore.listForUserAndPatient(
+            principal.sub,
+            pid,
+            {
+                limit,
+                ...(beforeUpdatedAt !== undefined && beforeId !== undefined
+                    ? { before: { updatedAt: beforeUpdatedAt, id: beforeId } }
+                    : {}),
+            },
+        );
+        // The next-page cursor is the last item's `(updatedAt, id)`,
+        // emitted only when the page was full — a short page implies
+        // we've hit the tail.
+        const nextBefore = items.length === limit && items.length > 0
+            ? { updatedAt: items[items.length - 1]!.updatedAt, id: items[items.length - 1]!.id }
+            : null;
+        return c.json({
+            items: items.map((it) => ({
+                conversationId: it.id,
+                createdAt: it.createdAt,
+                updatedAt: it.updatedAt,
+                messageCount: it.messageCount,
+                firstQuestion: it.firstQuestion,
+            })),
+            nextBefore,
         });
     });
 
@@ -343,10 +440,10 @@ export const start = async (port: number): Promise<void> => {
     const app = createApp({
         auth: { verify },
         briefingRunner,
-        resume: {
+        conversationApi: {
             conversationStore,
             conversationMessages,
-            windowHours: 12,
+            resumeWindowHours: 12,
         },
     });
     serve({ fetch: app.fetch, port });

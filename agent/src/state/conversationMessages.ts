@@ -126,7 +126,19 @@ interface InMemoryMessageRow {
     readonly seq: number;
 }
 
-export const createInMemoryConversationMessagesStore = (): ConversationMessagesStore => {
+/**
+ * Test-only: in-memory mirror that also exposes a `listMessagesForListing`
+ * adapter the in-memory conversation store can plug into for §4.7
+ * `listForUserAndPatient`. Production never builds this; the Pg store
+ * does the same projection inline via SQL.
+ */
+export interface InMemoryConversationMessagesStore extends ConversationMessagesStore {
+    readonly listMessagesForListing: (
+        conversationId: string,
+    ) => Promise<readonly { readonly role: 'user' | 'assistant'; readonly payload: unknown }[]>;
+}
+
+export const createInMemoryConversationMessagesStore = (): InMemoryConversationMessagesStore => {
     const rows: InMemoryMessageRow[] = [];
     let nextSeq = 0;
     const setup = (): Promise<void> => Promise.resolve();
@@ -140,17 +152,18 @@ export const createInMemoryConversationMessagesStore = (): ConversationMessagesS
         });
         return Promise.resolve();
     };
-    const listForConversation = (
-        conversationId: string,
-    ): Promise<readonly ConversationMessage[]> => {
-        const filtered = rows
+    const filteredRows = (conversationId: string): InMemoryMessageRow[] =>
+        rows
             .filter((r) => r.conversationId === conversationId)
             .sort((a, b) => {
                 const dt = a.createdAt.getTime() - b.createdAt.getTime();
                 if (dt !== 0) return dt;
                 return a.seq - b.seq;
             });
-        const messages: ConversationMessage[] = filtered.map((r) => {
+    const listForConversation = (
+        conversationId: string,
+    ): Promise<readonly ConversationMessage[]> => {
+        const messages: ConversationMessage[] = filteredRows(conversationId).map((r) => {
             const createdAt = r.createdAt.toISOString();
             if (r.role === 'user') {
                 const payload = r.payload as { text?: unknown };
@@ -161,5 +174,11 @@ export const createInMemoryConversationMessagesStore = (): ConversationMessagesS
         });
         return Promise.resolve(messages);
     };
-    return { setup, append, listForConversation };
+    const listMessagesForListing = (
+        conversationId: string,
+    ): Promise<readonly { readonly role: 'user' | 'assistant'; readonly payload: unknown }[]> =>
+        Promise.resolve(
+            filteredRows(conversationId).map((r) => ({ role: r.role, payload: r.payload })),
+        );
+    return { setup, append, listForConversation, listMessagesForListing };
 };

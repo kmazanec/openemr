@@ -63,7 +63,26 @@ final readonly class AgentProxyController
      *
      * @var list<string>
      */
-    private const JSON_GET_ACTIONS = ['latest_conversation'];
+    private const JSON_GET_ACTIONS = ['latest_conversation', 'conversation_history'];
+
+    /**
+     * Per-action whitelist of additional query parameters the proxy
+     * forwards to the upstream agent. `pid` is always forwarded
+     * separately (when the request names a patient); only opt-in
+     * params live here.
+     *
+     * The presence of an entry implicitly trusts the value was sniffed
+     * for shape at the entry point — `agent.php` URL-decodes via
+     * Symfony's Request and re-encodes here.
+     *
+     * @var array<string, list<string>>
+     */
+    public const EXTRA_QUERY_PARAM_ALLOWLIST = [
+        // §4.7 force-resume mode of the resume route.
+        'latest_conversation' => ['conversation'],
+        // §4.7 history sidebar pagination.
+        'conversation_history' => ['limit', 'before_updated_at', 'before_id'],
+    ];
 
     public function __construct(
         private PolicyGate $policyGate,
@@ -145,11 +164,24 @@ final readonly class AgentProxyController
     private function proxyJsonGet(AgentRequest $request, string $bearer): void
     {
         $upstreamUrl = $this->agentBaseUrl . '/v1/agent/' . rawurlencode($request->action);
-        // Forward only the patient pid; that's the single non-secret
-        // parameter the resume route reads. Adding more pass-through
-        // params here is opt-in per action.
+        // Build the upstream query string from `pid` plus any
+        // action-allowlisted extras. The allowlist is checked at the
+        // entry point (agent.php), so `extraQueryParams` here is
+        // already filtered — but we re-check defensively to keep this
+        // controller a single point of truth.
+        $allowedExtras = self::EXTRA_QUERY_PARAM_ALLOWLIST[$request->action] ?? [];
+        $queryParts = [];
         if ($request->requestedPatientPid !== null) {
-            $upstreamUrl .= '?pid=' . rawurlencode($request->requestedPatientPid);
+            $queryParts[] = 'pid=' . rawurlencode($request->requestedPatientPid);
+        }
+        foreach ($request->extraQueryParams as $name => $value) {
+            if (!in_array($name, $allowedExtras, strict: true)) {
+                continue;
+            }
+            $queryParts[] = rawurlencode($name) . '=' . rawurlencode($value);
+        }
+        if ($queryParts !== []) {
+            $upstreamUrl .= '?' . implode('&', $queryParts);
         }
 
         try {

@@ -41,6 +41,35 @@ export interface ResumableConversation {
     readonly updatedAt: string;
 }
 
+/**
+ * One row of the §4.7 history sidebar. `firstQuestion` is the verbatim
+ * `text` of the first user turn in the conversation (truncated by the
+ * UI, not here). `null` when the conversation only has assistant turns
+ * — i.e. a default briefing the clinician opened but never followed up
+ * on. `messageCount` is the total number of persisted turns
+ * (user + assistant), which the UI shows as a small badge so longer
+ * threads are easy to spot.
+ */
+export interface ConversationListItem {
+    readonly id: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+    readonly messageCount: number;
+    readonly firstQuestion: string | null;
+}
+
+export interface ConversationListOptions {
+    readonly limit: number;
+    /**
+     * Composite cursor: `(updatedAt, id)` lex pair. Returns rows
+     * strictly less than this position — i.e. older. Omit on the
+     * first page to get the most recent rows. Composite (rather than
+     * `updatedAt` alone) so same-ms ties pick up cleanly across
+     * pages instead of being silently dropped.
+     */
+    readonly before?: { readonly updatedAt: string; readonly id: string };
+}
+
 export interface ConversationStore {
     readonly setup: () => Promise<void>;
     /**
@@ -79,6 +108,22 @@ export interface ConversationStore {
         userId: string,
         patientPid: number,
     ) => Promise<ConversationRecord | null>;
+    /**
+     * §4.7 history sidebar. Returns conversations for `(userId,
+     * patientPid)` ordered by `updated_at DESC`, including a derived
+     * `messageCount` and `firstQuestion` snippet per row. Pagination
+     * is via the `before` cursor on `updated_at`; the caller passes
+     * the previous page's last `updatedAt` to get the next page.
+     *
+     * `limit` is capped at 100 inside the store regardless of what
+     * the route allows, so a buggy or malicious caller cannot drag
+     * an unbounded result set into memory.
+     */
+    readonly listForUserAndPatient: (
+        userId: string,
+        patientPid: number,
+        options: ConversationListOptions,
+    ) => Promise<readonly ConversationListItem[]>;
 }
 
 /**
@@ -136,6 +181,53 @@ const FIND_OWNED_BY_ID_SQL = `
     WHERE id = $1 AND user_id = $2 AND patient_pid = $3
     LIMIT 1
 `;
+
+/**
+ * §4.7 history list. The two correlated subqueries (message_count,
+ * first_question) keep this to a single round-trip — the
+ * `conversation_messages_thread_idx` index supports both lookups, so
+ * for the typical conversation (a handful of turns) each adds well
+ * under a millisecond. Cursor mode (`updated_at < $4`) is opt-in;
+ * the LIST_FIRST variant omits the cursor for the first page so the
+ * planner picks the resume index directly.
+ */
+const LIST_FIRST_PAGE_SQL = `
+    SELECT
+        c.id,
+        c.created_at,
+        c.updated_at,
+        (SELECT count(*)::int FROM conversation_messages m
+            WHERE m.conversation_id = c.id) AS message_count,
+        (SELECT m.payload ->> 'text' FROM conversation_messages m
+            WHERE m.conversation_id = c.id AND m.role = 'user'
+            ORDER BY m.created_at ASC, m.id ASC
+            LIMIT 1) AS first_question
+    FROM conversations c
+    WHERE c.user_id = $1 AND c.patient_pid = $2
+    ORDER BY c.updated_at DESC, c.id DESC
+    LIMIT $3
+`;
+
+const LIST_NEXT_PAGE_SQL = `
+    SELECT
+        c.id,
+        c.created_at,
+        c.updated_at,
+        (SELECT count(*)::int FROM conversation_messages m
+            WHERE m.conversation_id = c.id) AS message_count,
+        (SELECT m.payload ->> 'text' FROM conversation_messages m
+            WHERE m.conversation_id = c.id AND m.role = 'user'
+            ORDER BY m.created_at ASC, m.id ASC
+            LIMIT 1) AS first_question
+    FROM conversations c
+    WHERE c.user_id = $1
+      AND c.patient_pid = $2
+      AND (c.updated_at, c.id) < ($3, $4)
+    ORDER BY c.updated_at DESC, c.id DESC
+    LIMIT $5
+`;
+
+const LIST_HARD_CAP = 100;
 
 interface ConversationRow {
     readonly id: string;
@@ -223,7 +315,38 @@ export const createPgConversationStore = (
         return rowToRecord(row);
     };
 
-    return { setup, create, findResumable, touch, findOwnedById };
+    const listForUserAndPatient = async (
+        userId: string,
+        patientPid: number,
+        options: ConversationListOptions,
+    ): Promise<readonly ConversationListItem[]> => {
+        const limit = Math.max(1, Math.min(LIST_HARD_CAP, options.limit));
+        interface ListRow {
+            readonly id: string;
+            readonly created_at: Date;
+            readonly updated_at: Date;
+            readonly message_count: number;
+            readonly first_question: string | null;
+        }
+        const result = options.before === undefined
+            ? await pool.query<ListRow>(LIST_FIRST_PAGE_SQL, [userId, patientPid, limit])
+            : await pool.query<ListRow>(LIST_NEXT_PAGE_SQL, [
+                  userId,
+                  patientPid,
+                  new Date(options.before.updatedAt),
+                  options.before.id,
+                  limit,
+              ]);
+        return result.rows.map((r) => ({
+            id: r.id,
+            createdAt: r.created_at.toISOString(),
+            updatedAt: r.updated_at.toISOString(),
+            messageCount: r.message_count,
+            firstQuestion: r.first_question,
+        }));
+    };
+
+    return { setup, create, findResumable, touch, findOwnedById, listForUserAndPatient };
 };
 
 interface InMemoryRow {
@@ -243,12 +366,44 @@ interface InMemoryRow {
 }
 
 /**
+ * Adapter the in-memory store uses to project the §4.7 history list's
+ * `messageCount` and `firstQuestion` fields. Production reads both via
+ * SQL on the same connection; tests wire a tiny adapter that walks the
+ * in-memory messages store. The adapter receives the role and JSON
+ * payload exactly as `conversationMessages` persists them, so the
+ * "first user question" derivation logic stays in one place
+ * (`firstUserText` below) and matches the production SQL.
+ */
+export interface ConversationMessagesProjection {
+    readonly listMessagesForListing: (
+        conversationId: string,
+    ) => Promise<readonly { readonly role: 'user' | 'assistant'; readonly payload: unknown }[]>;
+}
+
+const firstUserText = (
+    messages: readonly { readonly role: 'user' | 'assistant'; readonly payload: unknown }[],
+): string | null => {
+    for (const m of messages) {
+        if (m.role !== 'user') continue;
+        const payload = m.payload as { text?: unknown };
+        if (typeof payload.text === 'string') return payload.text;
+        return null;
+    }
+    return null;
+};
+
+/**
  * In-memory store for tests. Mirrors the production semantics: every
  * `create()` mints a fresh row, `findResumable` walks rows in reverse
  * insertion order and respects the `withinHours` window, `touch()`
- * bumps `updatedAt` only.
+ * bumps `updatedAt` only. `listForUserAndPatient` reads
+ * `messageCount` / `firstQuestion` via the optional projection
+ * adapter; tests that exercise the list pass one, tests that don't
+ * see empty counts.
  */
-export const createInMemoryConversationStore = (): ConversationStore => {
+export const createInMemoryConversationStore = (
+    messages?: ConversationMessagesProjection,
+): ConversationStore => {
     const rows: InMemoryRow[] = [];
     let nextSeq = 0;
     const setup = (): Promise<void> => Promise.resolve();
@@ -320,5 +475,58 @@ export const createInMemoryConversationStore = (): ConversationStore => {
             updatedAt: row.updatedAt.toISOString(),
         });
     };
-    return { setup, create, findResumable, touch, findOwnedById };
+    const listForUserAndPatient = async (
+        userId: string,
+        patientPid: number,
+        options: ConversationListOptions,
+    ): Promise<readonly ConversationListItem[]> => {
+        const limit = Math.max(1, Math.min(LIST_HARD_CAP, options.limit));
+        const cursorMs = options.before === undefined
+            ? Number.POSITIVE_INFINITY
+            : new Date(options.before.updatedAt).getTime();
+        const cursorId = options.before?.id ?? '';
+        const candidates = rows
+            .filter((r) => r.userId === userId && r.patientPid === patientPid)
+            .filter((r) => {
+                if (options.before === undefined) return true;
+                const ms = r.updatedAt.getTime();
+                if (ms < cursorMs) return true;
+                if (ms > cursorMs) return false;
+                // ms tie → strict id less-than to avoid re-emitting the
+                // cursor row on the next page.
+                return r.id < cursorId;
+            })
+            .sort((a, b) => {
+                const dt = b.updatedAt.getTime() - a.updatedAt.getTime();
+                if (dt !== 0) return dt;
+                // Same ms: tie-break by id DESC, matching the
+                // production SQL `ORDER BY updated_at DESC, id DESC`.
+                if (a.id < b.id) return 1;
+                if (a.id > b.id) return -1;
+                return 0;
+            })
+            .slice(0, limit);
+        const items: ConversationListItem[] = [];
+        for (const row of candidates) {
+            const persisted = messages !== undefined
+                ? await messages.listMessagesForListing(row.id)
+                : [];
+            items.push({
+                id: row.id,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString(),
+                messageCount: persisted.length,
+                firstQuestion: firstUserText(persisted),
+            });
+        }
+        return items;
+    };
+    return {
+        setup,
+        create,
+        findResumable,
+        touch,
+        findOwnedById,
+        listForUserAndPatient,
+    };
 };

@@ -1,11 +1,22 @@
 /* Clinical Co-Pilot panel — vanilla CSS, no preprocessor. Chat-thread shape. */
 
 .copilot-panel {
-    max-width: 880px;
+    display: flex;
+    align-items: stretch;
+    gap: 1.5em;
+    max-width: 1180px;
     margin: 0 auto;
-    padding: 1.25em 1.5em 7em;
+    padding: 1.25em 1.5em 1.5em;
     font-family: inherit;
     color: #222;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.copilot-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-bottom: 6em;
 }
 
 .copilot-panel__header {
@@ -249,4 +260,120 @@
     border-color: #b6bec8;
     color: #fff;
     cursor: not-allowed;
+}
+
+/* ───────── §4.7 history sidebar ───────── */
+
+.copilot-history {
+    flex: 0 0 240px;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #e3e7ee;
+    padding-right: 1em;
+    /* The sidebar scrolls independently of the main column so a long
+       history doesn't push the composer offscreen. */
+    max-height: calc(100vh - 2.5em);
+    position: sticky;
+    top: 1.25em;
+}
+
+.copilot-history__header {
+    flex: 0 0 auto;
+    padding-bottom: 0.5em;
+    margin-bottom: 0.4em;
+    border-bottom: 1px solid #e3e7ee;
+}
+
+.copilot-history__title {
+    margin: 0;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.copilot-history__list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* Visual cushion so the bottom row isn't flush against the
+       composer area below; sentinel sits inside this overflow box. */
+    padding-bottom: 0.4em;
+}
+
+.copilot-history__row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    padding: 0.55em 0.6em;
+    margin: 0.15em 0;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+}
+
+.copilot-history__row:hover {
+    background: #f4f6f9;
+    border-color: #e3e7ee;
+}
+
+.copilot-history__row[data-active="true"] {
+    background: #e6efff;
+    border-color: #b9cdee;
+}
+
+.copilot-history__row-snippet {
+    font-size: 0.9em;
+    color: #1c232e;
+    /* Truncate to two lines so a long question doesn't blow out the
+       row height; the full text is visible on resume. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.copilot-history__row-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6em;
+    font-size: 0.78em;
+    color: #6b6e74;
+}
+
+.copilot-history__row-time {
+    flex: 1 1 auto;
+}
+
+.copilot-history__row-count {
+    flex: 0 0 auto;
+    background: #eef1f5;
+    color: #4a5260;
+    padding: 0.05em 0.45em;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.copilot-history__empty {
+    margin: 0.6em 0.4em;
+    font-size: 0.85em;
+    color: #6b6e74;
+    font-style: italic;
+}
+
+.copilot-history__sentinel {
+    /* Visible only when the JS bundle un-hides it during pagination;
+       gives IntersectionObserver a stable target. Height matters
+       because hidden elements with no box have no intersection. */
+    height: 1px;
+    margin-top: 0.2em;
 }

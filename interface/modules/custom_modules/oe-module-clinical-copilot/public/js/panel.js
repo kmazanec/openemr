@@ -425,16 +425,201 @@
         renderThread();
     };
 
+    /**
+     * §4.7 history sidebar.
+     *
+     * The sidebar lists this clinician's prior conversations on the
+     * active patient, newest first, paged via an opaque cursor. Each
+     * row shows a relative timestamp, a first-question snippet (or
+     * "Briefing only" when the doc never asked a follow-up), and a
+     * message-count badge. Clicking a row force-resumes that
+     * conversation by re-hitting the resume endpoint with
+     * `?conversation=<uuid>`; the agent verifies ownership server-side
+     * before returning the thread, so a forged UUID in the DOM
+     * cannot smuggle in another doctor's conversation.
+     */
+    const historyEl = root.querySelector('[data-role="history-list"]');
+    const historyEmptyEl = root.querySelector('[data-role="history-empty"]');
+    const historySentinelEl = root.querySelector('[data-role="history-sentinel"]');
+    let historyNextBefore = null;
+    let historyExhausted = false;
+    let historyLoading = false;
+
+    const truncateSnippet = (text, max = 80) => {
+        if (typeof text !== 'string') return '';
+        if (text.length <= max) return text;
+        return text.slice(0, max - 1).trimEnd() + '…';
+    };
+
+    /**
+     * Build a history row button. We use a <button> rather than a
+     * <li>+click so keyboard activation (Enter/Space) and assistive
+     * tech see the row as interactive. Wrapped in <li> for list
+     * semantics.
+     */
+    const renderHistoryRow = (item) => {
+        const li = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'copilot-history__row';
+        button.dataset.convId = item.conversationId;
+
+        const snippet = document.createElement('span');
+        snippet.className = 'copilot-history__row-snippet';
+        snippet.textContent = item.firstQuestion
+            ? truncateSnippet(item.firstQuestion)
+            : 'Briefing only';
+        if (!item.firstQuestion) {
+            snippet.style.fontStyle = 'italic';
+            snippet.style.color = '#6b6e74';
+        }
+
+        const meta = document.createElement('span');
+        meta.className = 'copilot-history__row-meta';
+        const time = document.createElement('span');
+        time.className = 'copilot-history__row-time';
+        time.textContent = formatRelativeTime(item.updatedAt || '');
+        const count = document.createElement('span');
+        count.className = 'copilot-history__row-count';
+        count.textContent = `${item.messageCount} ${item.messageCount === 1 ? 'turn' : 'turns'}`;
+        meta.append(time, count);
+
+        button.append(snippet, meta);
+        button.addEventListener('click', () => {
+            forceResume(item.conversationId).catch((err) => {
+                console.warn('copilot: force-resume failed', err);
+            });
+        });
+        li.append(button);
+        return li;
+    };
+
+    const markActiveRow = (id) => {
+        if (!historyEl) return;
+        const rows = historyEl.querySelectorAll('.copilot-history__row');
+        for (const row of rows) {
+            row.dataset.active = row.dataset.convId === id ? 'true' : 'false';
+        }
+    };
+
+    const refreshHistoryEmptyState = () => {
+        if (!historyEl || !historyEmptyEl) return;
+        const hasRows = historyEl.children.length > 0;
+        historyEmptyEl.hidden = hasRows;
+    };
+
+    const loadHistoryPage = async () => {
+        if (historyLoading || historyExhausted || !historyEl) return;
+        historyLoading = true;
+        try {
+            const params = new URLSearchParams({
+                action: 'conversation_history',
+                pid: String(pid),
+                limit: '50',
+            });
+            if (historyNextBefore) {
+                params.set('before_updated_at', historyNextBefore.updatedAt);
+                params.set('before_id', historyNextBefore.id);
+            }
+            const response = await fetch(`${proxyUrl}?${params.toString()}`, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                console.warn('copilot: history fetch failed', response.status);
+                historyExhausted = true;
+                return;
+            }
+            const body = await response.json();
+            const items = Array.isArray(body && body.items) ? body.items : [];
+            for (const item of items) {
+                if (!item || typeof item.conversationId !== 'string') continue;
+                historyEl.append(renderHistoryRow(item));
+            }
+            historyNextBefore = body && body.nextBefore ? body.nextBefore : null;
+            historyExhausted = historyNextBefore === null;
+            if (historySentinelEl) {
+                historySentinelEl.hidden = historyExhausted;
+            }
+            refreshHistoryEmptyState();
+            // After a hydration, re-mark the row tied to the
+            // currently-loaded conversation so the active highlight
+            // survives infinite-scroll loads of older pages.
+            markActiveRow(conversationId);
+        } catch (err) {
+            console.warn('copilot: history fetch errored', err);
+            historyExhausted = true;
+        } finally {
+            historyLoading = false;
+        }
+    };
+
+    /**
+     * Force-resume: load a specific conversation by id (sidebar click).
+     * Replaces the rendered thread, adopts the conversationId so
+     * follow-ups append to that row, and updates the status line. On
+     * any failure (forged id, ownership mismatch, network blip) we
+     * leave the panel in its previous state — no destructive UI move.
+     */
+    const forceResume = async (id) => {
+        const params = new URLSearchParams({
+            action: 'latest_conversation',
+            pid: String(pid),
+            conversation: id,
+        });
+        const response = await fetch(`${proxyUrl}?${params.toString()}`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+            console.warn('copilot: force-resume rejected', response.status);
+            return;
+        }
+        const payload = await response.json();
+        if (!payload || typeof payload.conversationId !== 'string') return;
+        conversationId = payload.conversationId;
+        thread.length = 0;
+        hydrateFromResume(payload);
+        const relative = formatRelativeTime(payload.updatedAt || '');
+        setStatus(`Resumed conversation from ${relative}.`, 'ready');
+        markActiveRow(conversationId);
+    };
+
+    const wireHistoryInfiniteScroll = () => {
+        if (!historySentinelEl || !historyEl) return;
+        if (typeof IntersectionObserver === 'undefined') return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting && !historyLoading && !historyExhausted) {
+                        loadHistoryPage().catch((err) => {
+                            console.warn('copilot: pagination errored', err);
+                        });
+                    }
+                }
+            },
+            { root: historyEl, rootMargin: '120px', threshold: 0 },
+        );
+        observer.observe(historySentinelEl);
+    };
+
     const start = async () => {
         wireComposer();
+        wireHistoryInfiniteScroll();
         setStatus('Connecting to Co-Pilot…', 'connecting');
 
-        const resumed = await tryResume();
+        // Resume lookup and history fetch are independent — fire them
+        // in parallel so first paint shows both the resumed thread and
+        // the populated sidebar.
+        const [resumed] = await Promise.all([tryResume(), loadHistoryPage()]);
         if (resumed && typeof resumed.conversationId === 'string' && resumed.conversationId.length > 0) {
             conversationId = resumed.conversationId;
             hydrateFromResume(resumed);
             const relative = formatRelativeTime(resumed.updatedAt || '');
             setStatus(`Resumed conversation from ${relative}.`, 'ready');
+            markActiveRow(conversationId);
             return;
         }
 

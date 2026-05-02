@@ -20,17 +20,25 @@ namespace OpenEMR\Modules\ClinicalCopilot\Auth;
  * `requestedPatientPid` may be null for whole-day routes (UC5); when set, it
  * must equal the session's pid or the gate denies. `requestedScopes` are the
  * SMART scopes the proxy will mint into the bearer token.
+ *
+ * `extraQueryParams` carries non-PHI query parameters the upstream agent
+ * route needs (cursor pagination, force-resume conversation id, etc.).
+ * The entry point parses them per a fixed allowlist before constructing
+ * the request — the controller blindly forwards what's here, so the
+ * allowlist IS the contract. Values are already URL-decoded.
  */
 final readonly class AgentRequest
 {
     /**
      * @param list<string> $requestedScopes
+     * @param array<string, string> $extraQueryParams
      */
     public function __construct(
         public string $action,
         public string $siteId,
         public ?string $requestedPatientPid,
         public array $requestedScopes,
+        public array $extraQueryParams = [],
     ) {
     }
 }

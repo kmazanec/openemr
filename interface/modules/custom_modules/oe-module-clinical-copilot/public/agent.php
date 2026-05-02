@@ -83,11 +83,25 @@ $context = new SessionContext(
     fhirUser: $resolvedFhirUser,
 );
 
+// §4.7: pull through the per-action whitelisted extras (force-resume
+// conversation id, history pagination cursor + limit). The proxy
+// controller re-checks the allowlist on its side — this is a defense-
+// in-depth filter, not the policy point itself.
+$extraAllowlist = AgentProxyController::EXTRA_QUERY_PARAM_ALLOWLIST[$action] ?? [];
+$extraQueryParams = [];
+foreach ($extraAllowlist as $paramName) {
+    $raw = $request->query->get($paramName);
+    if (is_string($raw) && $raw !== '') {
+        $extraQueryParams[$paramName] = $raw;
+    }
+}
+
 $agentRequest = new AgentRequest(
     action: $action,
     siteId: $siteId,
     requestedPatientPid: $requestedPid,
     requestedScopes: $gate->defaultScopesFor($action),
+    extraQueryParams: $extraQueryParams,
 );
 
 $body = $request->getContent();

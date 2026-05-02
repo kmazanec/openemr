@@ -18,6 +18,16 @@ export interface AuthedApp {
 
 export interface AuthedAppOptions {
     readonly briefingRunner?: BriefingRunner;
+    /**
+     * §4.6 / §4.7 conversation read-side wiring. Older tests still use
+     * the field name `resume` from the §4.6 era; new tests can use
+     * `conversationApi`. Either name accepted.
+     */
+    readonly conversationApi?: {
+        readonly conversationStore: ConversationStore;
+        readonly conversationMessages: ConversationMessagesStore;
+        readonly resumeWindowHours?: number;
+    };
     readonly resume?: {
         readonly conversationStore: ConversationStore;
         readonly conversationMessages: ConversationMessagesStore;
@@ -34,16 +44,23 @@ export const buildAuthedApp = async (options: AuthedAppOptions = {}): Promise<Au
         issuer: TEST_ISSUER,
         audience: TEST_AUDIENCE,
     });
+    const conversationApi = options.conversationApi ?? (options.resume !== undefined
+        ? {
+              conversationStore: options.resume.conversationStore,
+              conversationMessages: options.resume.conversationMessages,
+              resumeWindowHours: options.resume.windowHours,
+          }
+        : undefined);
     return {
         app: createApp({
             auth: { verify },
             briefingRunner: options.briefingRunner ?? stubBriefingRunner,
-            ...(options.resume !== undefined
+            ...(conversationApi !== undefined
                 ? {
-                      resume: {
-                          conversationStore: options.resume.conversationStore,
-                          conversationMessages: options.resume.conversationMessages,
-                          windowHours: options.resume.windowHours ?? 12,
+                      conversationApi: {
+                          conversationStore: conversationApi.conversationStore,
+                          conversationMessages: conversationApi.conversationMessages,
+                          resumeWindowHours: conversationApi.resumeWindowHours ?? 12,
                       },
                   }
                 : {}),
