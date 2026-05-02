@@ -56,6 +56,12 @@ final readonly class PolicyGate
             'user/MedicationRequest.rs',
             'user/Encounter.rs',
             'user/Appointment.rs',
+            // §4.6.3 reminders snapshot field — guarded by Task.rs in
+            // AgentSnapshotController via DataCategory::Reminder.
+            'user/Task.rs',
+            // §4.6.4 patient-reported medications snapshot field —
+            // guarded by MedicationStatement.rs.
+            'user/MedicationStatement.rs',
         ],
         // §4.6 resume lookup: read-only JSON, no chart access. The
         // agent reads its own conversation tables; no SMART scopes

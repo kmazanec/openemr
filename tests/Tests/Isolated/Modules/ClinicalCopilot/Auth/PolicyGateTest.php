@@ -275,6 +275,31 @@ final class PolicyGateTest extends TestCase
         $this->assertSame(PolicyDenyReason::MissingSession, $decision->reason);
     }
 
+    public function testBriefingMintsScopesForEveryDataCategory(): void
+    {
+        // Regression: when a new DataCategory case is added (the §4.6.3
+        // reminder + §4.6.4 medication_statement work both did this), the
+        // briefing allowlist must mint the matching SMART scope or the
+        // agent's snapshot callback will be rejected by
+        // AgentSnapshotController with `scope_not_permitted`. Loop the
+        // enum so adding a category without updating PolicyGate fails
+        // here instead of in production.
+        require_once self::MODULE_AUTH_DIR . '/../Snapshot/DataCategory.php';
+
+        $briefingScopes = (new PolicyGate())->defaultScopesFor('briefing');
+        foreach (\OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategory::cases() as $category) {
+            self::assertContains(
+                $category->smartScope(),
+                $briefingScopes,
+                "Briefing's allowlist is missing the SMART scope for "
+                . "DataCategory::{$category->name} ({$category->smartScope()}). "
+                . "Add it to PolicyGate::ACTION_SCOPE_ALLOWLIST['briefing'] "
+                . "or AgentSnapshotController will reject the snapshot "
+                . "callback with scope_not_permitted.",
+            );
+        }
+    }
+
     private function stubFhirUser(): ResolvedFhirUser
     {
         return new ResolvedFhirUser(
