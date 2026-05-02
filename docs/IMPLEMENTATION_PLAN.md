@@ -1130,8 +1130,19 @@ suggestions, and adversarial cases pass.
 
 ## Phase 5 — UC5: schedule-aware morning prep
 
-Goal: at 7:50 AM, the schedule view shows pre-computed briefing
-annotations on each appointment, flagging patients with notable items.
+Goal: at a configurable time (default 7:50 AM), the schedule view shows
+pre-computed briefing annotations on each appointment, flagging patients
+with notable items. Pre-compute is **opt-in per practitioner** because
+it multiplies daily token spend by ~20× and not every clinician will
+want it on.
+
+**Cost framing.** A 20-patient day, opted-in, is ~20 UC1 briefings ahead
+of the first appointment. At family-practice scale (5–15 clinicians)
+this is a meaningful but bounded line item; at hospital scale it
+dominates daily LLM cost. The settings gate exists so the feature is
+defensible in a cost review — clinicians who use it pay for it,
+clinicians who don't aren't billing tokens for briefings they'd never
+read.
 
 ### 5.1 Schedule extension
 - [ ] Extend OpenEMR's FHIR Appointment endpoint to accept the standard
@@ -1140,31 +1151,86 @@ annotations on each appointment, flagging patients with notable items.
   larger than ~50 lines
 - [ ] PHPUnit api-test for the new search parameter
 
-### 5.2 Background pre-compute job
-- [ ] CLI command `agent:precompute-day` that runs each morning per
-  practitioner; populates a `schedule_briefings(appointment_id, summary,
-  flags, generated_at)` table in agent Postgres
-- [ ] Reuses the UC1 graph; results are cached, not re-run on each
-  schedule view
-- [ ] Cost-projection note in `docs/COST_ANALYSIS.md` because this
-  multiplies token use by 20 per practitioner per day
+### 5.2 Per-practitioner settings
+Pre-compute is gated by a per-practitioner setting stored in OpenEMR
+(MariaDB), not in agent Postgres — the gate is read on the OpenEMR side
+before any agent work fires, and clinician-visible settings belong with
+clinician identity.
 
-### 5.3 Schedule view annotations
+- [ ] New table `agent_practitioner_settings(practitioner_uuid PK,
+  morning_prep_enabled BOOL DEFAULT FALSE, morning_prep_time_local
+  TIME DEFAULT '07:50', timezone VARCHAR DEFAULT 'America/Chicago',
+  updated_at)`. Doctrine migration under `db/Migrations/`. Default off
+  — opt-in.
+- [ ] Settings page in the module: a small Twig form under the existing
+  module page that lets the logged-in practitioner toggle
+  `morning_prep_enabled`, set `morning_prep_time_local`, and pick
+  `timezone` (default to OpenEMR's site timezone). The settings page
+  writes only the acting user's row — no admin-edits-others surface
+  this sprint.
+- [ ] PolicyGate action `morning-prep-settings:write` scoped to the
+  acting practitioner's own uuid. Settings reads are unauthenticated
+  inside the precompute scheduler (it runs server-side as a system
+  actor) but writes go through the standard module page auth.
+- [ ] PHPUnit isolated coverage for the settings controller: a user
+  can only update their own row; the time field rejects invalid
+  values; toggling `morning_prep_enabled` to false cancels any
+  scheduled run for that practitioner (idempotent).
+
+### 5.3 Background pre-compute job
+- [ ] CLI command `agent:precompute-day` that runs hourly (or on a
+  fine-grained cron) and selects practitioners whose
+  `morning_prep_enabled = TRUE` and whose `morning_prep_time_local`
+  (in their `timezone`) falls within the current run window. Practitioners
+  without the flag are skipped without logging a per-patient row, so
+  the disabled-default cost story is "zero tokens, zero rows."
+- [ ] For each opted-in practitioner, populate
+  `schedule_briefings(appointment_id, practitioner_uuid, summary,
+  flags, generated_at, request_id)` in agent Postgres. Reuses the UC1
+  graph; results are cached, not re-run on each schedule view.
+- [ ] Per-practitioner daily token + cost counters logged through the
+  existing §6.1 LangSmith metadata path so a clinician's
+  morning-prep cost is visible per day.
+- [ ] Idempotency: re-running the job for a practitioner+date that
+  already has `schedule_briefings` rows is a no-op (UNIQUE on
+  `(practitioner_uuid, appointment_id, generated_at::date)`). Manual
+  re-run for debug requires `--force`.
+- [ ] Cost-projection note in `docs/COST_ANALYSIS.md` covering both
+  the disabled-default case (zero) and the fully-opted-in 300-clinician
+  hospital tier (the worst case PRESEARCH §2 calls out).
+
+### 5.4 Schedule view annotations
 - [ ] Module-side hook into OpenEMR's calendar/schedule view to render
-  per-appointment flags ("new abnormal A1c", "recent ED visit")
+  per-appointment flags ("new abnormal A1c", "recent ED visit") for
+  appointments whose practitioner has opted in
+- [ ] When the practitioner has not opted in, the schedule view
+  renders unchanged — no "feature available" nag, no placeholder
+  flags. The opt-in is a deliberate choice, not a discoverability
+  problem.
 - [ ] Click-through opens the patient chart with the briefing
-  pre-warmed
+  pre-warmed (uses the cached `schedule_briefings` row when present;
+  falls back to live UC1 generation if absent)
 
-### 5.4 Evals
-- [ ] Eval case: a synthetic 20-patient day; assert the right subset is
-  flagged (Diabetic-Uncontrolled, RecentEdVisit, ComplexElderly with a
-  new med)
-- [ ] Idempotency case: running the precompute twice produces the same
-  result
+### 5.5 Evals
+- [ ] Eval case: a synthetic 20-patient day with the practitioner
+  opted in; assert the right subset is flagged
+  (Diabetic-Uncontrolled, RecentEdVisit, ComplexElderly with a new
+  med)
+- [ ] Eval case: same 20-patient day with the practitioner opted
+  **out**; assert zero `schedule_briefings` rows are written and
+  zero LLM tokens are spent
+- [ ] Idempotency case: running the precompute twice for an
+  opted-in practitioner produces the same rows and zero additional
+  tokens
+- [ ] Settings-flip case: toggling `morning_prep_enabled` from TRUE
+  to FALSE before the next run window prevents any further rows
+  for that practitioner
 
-**Phase 5 done when:** morning precompute runs against the seed-deployed
-schedule, flags match expectations, and the schedule view annotations
-render cleanly.
+**Phase 5 done when:** morning precompute runs against the
+seed-deployed schedule for opted-in practitioners only, opt-out is
+the default and produces zero tokens, the settings page round-trips
+cleanly, flags match expectations, and the schedule view annotations
+render only for opted-in practitioners.
 
 ---
 
@@ -1228,12 +1294,60 @@ These are tracked separately but worked in parallel as each UC lands.
 - [ ] `docs/EVAL_RESULTS.md` — current eval suite output, updated each
   submission
 - [ ] Update `CLAUDE.md` with any new dev commands the agent introduces
+- [ ] Audit document depth pass against PDF Stage 3 categories. The PDF
+  asks for five distinct passes — security, performance, architecture,
+  data quality, compliance & regulatory. Read `AUDIT.md` against that
+  list and confirm each one has its own section with concrete findings
+  (especially the **performance audit** — bottlenecks, where the system
+  is slow, what constraints will affect agent response latency — which
+  is the easiest section to under-cover). Backfill any gap. Output is a
+  short note in the audit's summary tying findings to architecture
+  decisions, so the interview question "how did the audit change your
+  AI integration plan?" has a written trace.
 
 ### 6.5 Submission deliverables (per PDF §"Submission Requirements")
 - [ ] Demo video 3-5 min (one per submission)
 - [ ] AI cost analysis (lives in `docs/COST_ANALYSIS.md`)
 - [ ] Eval dataset + results posted publicly via LangSmith share link
 - [ ] Social post (final submission only)
+
+### 6.6 Adversarial eval coverage
+PDF §"Evaluation" calls out *"inputs that attempt to extract
+information the requester is not authorized to see"* as the kind of
+case a strong eval suite must include. Existing coverage:
+cross-patient leakage and prompt-injection in encounter notes (§3.6
+UC1), free-text adversarial prompts (§4.5). Gaps below are explicit
+RBAC-tier and model-misbehavior cases that don't yet have a pinned
+test.
+
+- [ ] **Authorization-tier evals.** PRESEARCH §12 commits to OpenEMR's
+  three-tier ACL model (physician / nurse / admin). Add eval cases
+  asserting the agent honors that boundary: a nurse principal querying
+  a chart they don't have access to gets a 403 from the proxy with
+  zero tokens spent, and a physician principal querying another
+  physician's patient (outside their assigned panel) is blocked at
+  the policy gate. Lives alongside §3.6's cross-patient case;
+  fixtures use the seeded role users from `db/seeds/`.
+- [ ] **Hidden-data extraction.** A claim that asks the agent to
+  surface a field that's deliberately excluded from the snapshot
+  (SSN, full address, prescriber's home phone) must produce no
+  citation and no leaked value. Stub the synthesizer to emit a claim
+  citing such a field; assert the verifier rejects it because the
+  field isn't in the indexed snapshot. Pins that PHI minimization is
+  a tested property, not an assumed one.
+- [ ] **Malformed model output.** PDF §"Failure Modes" asks what
+  happens "when the model returns something unexpected." Today the
+  Zod schema in `synthesize.ts` rejects bad output and the verifier
+  rejects sourceless claims (§3.3). Add an eval case: stub the
+  synthesizer to return malformed JSON / a schema-violating ledger /
+  a claim with an empty `sourceReferences` array, assert the graph
+  surfaces a structured error rather than a malformed response or
+  crash. One test per failure shape.
+- [ ] **Cross-conversation leakage.** Conversation state is keyed by
+  `(user, patient)` per PRESEARCH "Open Decisions" #6. Add a case:
+  invoke the graph with a follow-up envelope whose conversation_id
+  belongs to a different patient than the envelope's `pid`; assert
+  the runner rejects rather than blending state across conversations.
 
 ---
 
