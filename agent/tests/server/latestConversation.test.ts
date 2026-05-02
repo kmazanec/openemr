@@ -110,7 +110,7 @@ describe('GET /v1/agent/latest_conversation', () => {
         const body = (await res.json()) as {
             conversationId: string;
             updatedAt: string;
-            thread: ReadonlyArray<{ role: string; text?: string; message?: AssistantMessage }>;
+            thread: readonly { role: string; text?: string; message?: AssistantMessage }[];
         };
         expect(body.conversationId).toBe(seed.id);
         expect(typeof body.updatedAt).toBe('string');

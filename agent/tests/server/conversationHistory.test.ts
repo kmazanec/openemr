@@ -105,11 +105,11 @@ describe('GET /v1/agent/conversation_history', () => {
         const res = await authedRequest(built, `/v1/agent/conversation_history?pid=${PID}`);
         expect(res.status).toBe(200);
         const body = (await res.json()) as {
-            items: ReadonlyArray<{
+            items: readonly {
                 conversationId: string;
                 messageCount: number;
                 firstQuestion: string | null;
-            }>;
+            }[];
             nextBefore: unknown;
         };
         expect(body.items).toHaveLength(1);
@@ -149,7 +149,7 @@ describe('GET /v1/agent/conversation_history', () => {
             `/v1/agent/conversation_history?pid=${PID}&limit=2`,
         );
         const body1 = (await page1.json()) as {
-            items: ReadonlyArray<{ conversationId: string; updatedAt: string }>;
+            items: readonly { conversationId: string; updatedAt: string }[];
             nextBefore: { updatedAt: string; id: string } | null;
         };
         expect(body1.items).toHaveLength(2);
@@ -162,7 +162,7 @@ describe('GET /v1/agent/conversation_history', () => {
             `/v1/agent/conversation_history?pid=${PID}&limit=2&before_updated_at=${cursorTs}&before_id=${cursorId}`,
         );
         const body2 = (await page2.json()) as {
-            items: ReadonlyArray<unknown>;
+            items: readonly unknown[];
             nextBefore: unknown;
         };
         expect(body2.items).toHaveLength(1);
@@ -215,7 +215,7 @@ describe('GET /v1/agent/latest_conversation?conversation=<uuid> (force-resume)',
         expect(res.status).toBe(200);
         const body = (await res.json()) as {
             conversationId: string;
-            thread: ReadonlyArray<{ role: string; text?: string; message?: AssistantMessage }>;
+            thread: readonly { role: string; text?: string; message?: AssistantMessage }[];
         };
         expect(body.conversationId).toBe(seed.id);
         expect(body.thread).toHaveLength(2);
