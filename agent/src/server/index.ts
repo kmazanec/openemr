@@ -85,6 +85,7 @@ const followUpParamsSchema = z.discriminatedUnion('type', [
     }),
     z.object({ type: z.literal('prescription_change'), prescriptionId: z.string().min(1).max(200) }),
     z.object({ type: z.literal('external_care'), lookbackDays: z.number().int().positive().max(3650) }),
+    z.object({ type: z.literal('reminder_detail'), reminderId: z.string().min(1).max(200) }),
 ]);
 
 const briefingRequestSchema = z
@@ -133,6 +134,10 @@ export const stringifyFollowUp = (params: SuggestedFollowUpParams): string | nul
         case 'lab_trend':
             return null;
         case 'prescription_change':
+            return null;
+        case 'reminder_detail':
+            // §4.6.5 deterministic branch reads the typed params; no
+            // bridging needed.
             return null;
         case 'external_care':
             return `Summarize external care from the last ${params.lookbackDays} days.`;

@@ -8,6 +8,10 @@ import {
     createPrescriptionChangeBranch,
     type PrescriptionChangeBranchDeps,
 } from './nodes/prescriptionChangeBranch.js';
+import {
+    createReminderBranch,
+    type ReminderBranchDeps,
+} from './nodes/reminderBranch.js';
 import { createRetrieve, type RetrieveDeps } from './nodes/retrieve.js';
 import { createSynthesize, type SynthesizeDeps } from './nodes/synthesize.js';
 import { createVerify, type VerifyDeps } from './nodes/verify.js';
@@ -26,6 +30,13 @@ export interface BriefingGraphDeps {
      * deterministic branch and bypass the synthesizer.
      */
     readonly prescriptionChange?: PrescriptionChangeBranchDeps;
+    /**
+     * §4.6.5 reminder-detail branch deps. Optional — when absent,
+     * `reminder_detail` follow-ups fall through to the synthesizer
+     * path (which won't have anything useful to say without the
+     * detail tool).
+     */
+    readonly reminderDetail?: ReminderBranchDeps;
     /**
      * §3.5: when set, the compiled graph persists state via this saver,
      * keyed by the `thread_id` the caller passes on `invoke`. Production
@@ -50,17 +61,29 @@ export interface BriefingGraphDeps {
  */
 export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     const prescriptionChangeWired = deps.prescriptionChange !== undefined;
-    const routeAfterRetrieve = (state: BriefingState): 'prescriptionChangeBranch' | 'synthesize' =>
-        prescriptionChangeWired && state.envelope.followUp?.type === 'prescription_change'
-            ? 'prescriptionChangeBranch'
-            : 'synthesize';
+    const reminderDetailWired = deps.reminderDetail !== undefined;
 
-    // When deps.prescriptionChange is undefined the conditional edge
-    // never picks 'prescriptionChangeBranch', so the no-op handler
+    type DeterministicBranch = 'prescriptionChangeBranch' | 'reminderBranch';
+    const routeAfterRetrieve = (state: BriefingState): DeterministicBranch | 'synthesize' => {
+        const followUpType = state.envelope.followUp?.type;
+        if (prescriptionChangeWired && followUpType === 'prescription_change') {
+            return 'prescriptionChangeBranch';
+        }
+        if (reminderDetailWired && followUpType === 'reminder_detail') {
+            return 'reminderBranch';
+        }
+        return 'synthesize';
+    };
+
+    // When the matching deps slot is undefined the conditional edge
+    // never picks the corresponding branch name, so the no-op handler
     // below is unreachable — present only because LangGraph requires
     // every named node to have an implementation at compile time.
     const prescriptionChangeNode = deps.prescriptionChange !== undefined
         ? createPrescriptionChangeBranch(deps.prescriptionChange)
+        : () => Promise.resolve({});
+    const reminderNode = deps.reminderDetail !== undefined
+        ? createReminderBranch(deps.reminderDetail)
         : () => Promise.resolve({});
 
     const builder = new StateGraph(BriefingStateAnnotation)
@@ -68,6 +91,7 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addNode('planContext', planContext)
         .addNode('retrieve', createRetrieve(deps.retrieve))
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)
+        .addNode('reminderBranch', reminderNode)
         .addNode('synthesize', createSynthesize(deps.synthesize))
         .addNode('verify', createVerify(deps.verify))
         .addNode('format', format)
@@ -77,9 +101,11 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addEdge('planContext', 'retrieve')
         .addConditionalEdges('retrieve', routeAfterRetrieve, {
             prescriptionChangeBranch: 'prescriptionChangeBranch',
+            reminderBranch: 'reminderBranch',
             synthesize: 'synthesize',
         })
         .addEdge('prescriptionChangeBranch', 'verify')
+        .addEdge('reminderBranch', 'verify')
         .addEdge('synthesize', 'verify')
         .addEdge('verify', 'format')
         .addEdge('format', 'persist')

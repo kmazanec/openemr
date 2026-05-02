@@ -32,6 +32,22 @@ export interface PrescriptionProvenance {
 }
 
 /**
+ * Detail for a single clinical reminder returned by the §4.6.5
+ * `reminder_detail.php` endpoint. Mirrors the PHP-side
+ * `ReminderDetail::toArray()` shape.
+ */
+export interface ReminderDetail {
+    readonly reminderId: string;
+    readonly item: string;
+    readonly itemTitle: string;
+    readonly category: string;
+    readonly categoryTitle: string;
+    readonly dueStatus: string;
+    readonly createdAt: string | null;
+    readonly ruleDescription: string | null;
+}
+
+/**
  * JSON-shape decoders for the four narrow agent endpoints. Each
  * narrow endpoint returns a slim JSON envelope with only its own
  * data; these helpers walk that envelope into the same typed DTOs
@@ -166,6 +182,45 @@ export const decodePrescriptionProvenanceResponse = (raw: unknown): Prescription
             prov['indication'] ?? null,
         ),
         doseAdjustments,
+    };
+};
+
+export const decodeReminderDetailResponse = (raw: unknown): ReminderDetail => {
+    const obj = expectObject('reminderDetailResponse', raw);
+    const detail = expectObject(
+        'reminderDetailResponse.detail',
+        requireKey('reminderDetailResponse', obj, 'detail'),
+    );
+    return {
+        reminderId: expectIntAsString(
+            'reminderDetailResponse.detail.reminderId',
+            detail['reminderId'],
+        ),
+        item: expectString('reminderDetailResponse.detail.item', detail['item']),
+        itemTitle: expectString(
+            'reminderDetailResponse.detail.itemTitle',
+            detail['itemTitle'],
+        ),
+        category: expectString(
+            'reminderDetailResponse.detail.category',
+            detail['category'],
+        ),
+        categoryTitle: expectString(
+            'reminderDetailResponse.detail.categoryTitle',
+            detail['categoryTitle'],
+        ),
+        dueStatus: expectString(
+            'reminderDetailResponse.detail.dueStatus',
+            detail['dueStatus'],
+        ),
+        createdAt: optionalString(
+            'reminderDetailResponse.detail.createdAt',
+            detail['createdAt'] ?? null,
+        ),
+        ruleDescription: optionalString(
+            'reminderDetailResponse.detail.ruleDescription',
+            detail['ruleDescription'] ?? null,
+        ),
     };
 };
 

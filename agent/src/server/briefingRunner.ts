@@ -199,13 +199,21 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                 unverifiedClaimsLog: deps.unverifiedClaimsLog,
                 ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
             },
-            // §4.3: wire the UC3 prescription-change branch when the
-            // narrow-tool HTTP client is available. Both must be set
-            // for the branch to fire — otherwise prescription_change
-            // follow-ups fall back to the synthesizer path.
+            // §4.3 + §4.6.5: wire the deterministic drill-down
+            // branches when the narrow-tool HTTP client is available.
+            // Both deps must be set for the branches to fire —
+            // otherwise the matching follow-up types fall back to the
+            // synthesizer path.
             ...(deps.agentHttpClient !== undefined && deps.openEmrBaseUrl !== undefined
                 ? {
                     prescriptionChange: {
+                        client: deps.agentHttpClient,
+                        token,
+                        siteId: envelope.siteId,
+                        openEmrBaseUrl: deps.openEmrBaseUrl,
+                        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+                    },
+                    reminderDetail: {
                         client: deps.agentHttpClient,
                         token,
                         siteId: envelope.siteId,

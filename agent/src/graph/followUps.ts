@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto';
 
 import type { BriefingSnapshot, Claim, Gap, VerifiedLedger } from './types.js';
-import type { Encounter, LabObservation, Prescription } from '../snapshot/types.js';
+import type {
+    Encounter,
+    LabObservation,
+    Prescription,
+    Reminder,
+} from '../snapshot/types.js';
 
 /**
  * §4.1 suggested-follow-up generator.
@@ -24,7 +29,8 @@ import type { Encounter, LabObservation, Prescription } from '../snapshot/types.
 export type SuggestedFollowUpParams =
     | { readonly type: 'lab_trend'; readonly analyte: string }
     | { readonly type: 'prescription_change'; readonly prescriptionId: string }
-    | { readonly type: 'external_care'; readonly lookbackDays: number };
+    | { readonly type: 'external_care'; readonly lookbackDays: number }
+    | { readonly type: 'reminder_detail'; readonly reminderId: string };
 
 export interface SuggestedFollowUp {
     readonly id: string;
@@ -37,6 +43,7 @@ const RECOGNIZED_ANALYTES = ['A1c', 'BP', 'LDL', 'eGFR'] as const;
 
 const LAB_TREND_CAP = 3;
 const PRESCRIPTION_CHANGE_CAP = 2;
+const REMINDER_DETAIL_CAP = 2;
 const TOTAL_CAP = 5;
 const PRESCRIPTION_RECENT_DAYS = 90;
 const EXTERNAL_LOOKBACK_DAYS = 365;
@@ -161,6 +168,39 @@ export const parsePrescriptionKey = (key: string): {
     };
 };
 
+/**
+ * Same `recordType:recordId` shape as the prescription key — kept
+ * separate to make the call sites self-documenting at the
+ * suggestion-generator boundary.
+ */
+const reminderKey = (reminder: Reminder): string =>
+    `${reminder.source.recordType}:${reminder.source.recordId}`;
+
+/**
+ * Inverse of {@link reminderKey}. Used by §4.6.5's `reminderBranch`
+ * to recover the reminder record id from the typed follow-up params.
+ */
+export const parseReminderKey = (key: string): {
+    readonly recordType: string;
+    readonly recordId: string;
+} | null => parsePrescriptionKey(key);
+
+const findReminderForClaim = (
+    claim: Claim,
+    reminders: readonly Reminder[],
+): Reminder | null => {
+    if (claim.category !== 'reminder') return null;
+    for (const ref of claim.sourceReferences) {
+        const r = reminders.find(
+            (rem) =>
+                rem.source.recordType === ref.recordType &&
+                rem.source.recordId === ref.recordId,
+        );
+        if (r !== undefined) return r;
+    }
+    return null;
+};
+
 export const generateFollowUps = (
     conversationId: string,
     verified: VerifiedLedger,
@@ -217,6 +257,34 @@ export const generateFollowUps = (
             groundedInClaimIds: [claim.id],
         });
         rxCount++;
+    }
+
+    const remindersIn = snapshot.reminders;
+    const reminders: readonly Reminder[] = 'kind' in remindersIn ? [] : remindersIn;
+    const seenReminderKeys = new Set<string>();
+    let reminderCount = 0;
+    for (const claim of accepted) {
+        if (reminderCount >= REMINDER_DETAIL_CAP) break;
+        const reminder = findReminderForClaim(claim, reminders);
+        if (reminder === null) continue;
+        // Only the actionable subset gets a drill-down — "due" items
+        // are informational; "overdue" is what a clinician should
+        // address this visit.
+        if (reminder.dueStatus.toLowerCase() !== 'overdue') continue;
+        const key = reminderKey(reminder);
+        if (seenReminderKeys.has(key)) continue;
+        seenReminderKeys.add(key);
+        const params: SuggestedFollowUpParams = {
+            type: 'reminder_detail',
+            reminderId: key,
+        };
+        out.push({
+            id: stableId(conversationId, params),
+            displayText: `When is ${reminder.itemTitle} due?`,
+            params,
+            groundedInClaimIds: [claim.id],
+        });
+        reminderCount++;
     }
 
     if (findEncountersHaveExternal(snapshot)) {
