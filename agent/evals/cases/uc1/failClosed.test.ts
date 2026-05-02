@@ -41,6 +41,7 @@ const buildGapSnapshot = (
         labs: BriefingSnapshot['labs'];
         encounters: BriefingSnapshot['encounters'];
         reminders: BriefingSnapshot['reminders'];
+        medications: BriefingSnapshot['medications'];
         labHistory: BriefingSnapshot['labHistory'];
     } = {
         patient: base.patient,
@@ -51,6 +52,7 @@ const buildGapSnapshot = (
         labs: base.labs,
         encounters: base.encounters,
         reminders: base.reminders,
+        medications: base.medications,
         labHistory: base.labHistory,
     };
     return out as BriefingSnapshot;

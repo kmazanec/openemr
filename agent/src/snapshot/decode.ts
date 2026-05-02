@@ -6,6 +6,7 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
+    MedicationStatement,
     Prescription,
     Reminder,
     SourceReference,
@@ -204,6 +205,23 @@ const decodeReminder = (path: string, raw: unknown): Reminder => {
     };
 };
 
+const decodeMedicationStatement = (path: string, raw: unknown): MedicationStatement => {
+    const obj = expectObject(path, raw);
+    return {
+        name: expectString(`${path}.name`, obj['name']),
+        dose: optionalString(`${path}.dose`, obj['dose'] ?? null),
+        usageCategory: optionalString(`${path}.usageCategory`, obj['usageCategory'] ?? null),
+        informationSource: optionalString(
+            `${path}.informationSource`,
+            obj['informationSource'] ?? null,
+        ),
+        startDate: optionalString(`${path}.startDate`, obj['startDate'] ?? null),
+        stopDate: optionalString(`${path}.stopDate`, obj['stopDate'] ?? null),
+        listId: optionalIntAsString(`${path}.listId`, obj['listId'] ?? null),
+        source: decodeSource(`${path}.source`, obj['source']),
+    };
+};
+
 const decodeList = <T>(
     path: string,
     raw: unknown,
@@ -234,6 +252,7 @@ export const decodeAllergyForNarrow = decodeAllergy;
 export const decodeLabForNarrow = decodeLab;
 export const decodeEncounterForNarrow = decodeEncounter;
 export const decodeReminderForNarrow = decodeReminder;
+export const decodeMedicationStatementForNarrow = decodeMedicationStatement;
 
 export const decodeChartSnapshot = (raw: unknown): ChartSnapshot => {
     const obj = expectObject('snapshot', raw);
@@ -260,5 +279,10 @@ export const decodeChartSnapshot = (raw: unknown): ChartSnapshot => {
         labs: decodeList('snapshot.labs', requireKey(obj, 'labs'), decodeLab),
         encounters: decodeList('snapshot.encounters', requireKey(obj, 'encounters'), decodeEncounter),
         reminders: decodeList('snapshot.reminders', requireKey(obj, 'reminders'), decodeReminder),
+        medications: decodeList(
+            'snapshot.medications',
+            requireKey(obj, 'medications'),
+            decodeMedicationStatement,
+        ),
     };
 };

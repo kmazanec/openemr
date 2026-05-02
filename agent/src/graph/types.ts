@@ -5,6 +5,7 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
+    MedicationStatement,
     Prescription,
     Reminder,
     SourceReference,
@@ -91,6 +92,16 @@ export interface BriefingSnapshot {
      * resolved row to back any `reminder` claim.
      */
     readonly reminders: readonly Reminder[] | Gap;
+    /**
+     * §4.6.4: patient-reported medications (FHIR
+     * `MedicationStatement`). Independent data source from
+     * `prescriptions` — patient-reported entries stay visible even
+     * when the prescription hard-stop fires (a clinician seeing
+     * "patient says they're taking Tylenol" is more useful than a
+     * silent drop when the Rx list is unavailable). Same Gap-tolerant
+     * shape as `reminders`.
+     */
+    readonly medications: readonly MedicationStatement[] | Gap;
 }
 
 /**
@@ -107,7 +118,8 @@ export type ClaimCategory =
     | 'encounter'
     | 'appointment'
     | 'identity'
-    | 'reminder';
+    | 'reminder'
+    | 'medication_statement';
 
 export interface Claim {
     readonly id: string;

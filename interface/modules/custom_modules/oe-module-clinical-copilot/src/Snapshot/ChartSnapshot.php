@@ -31,6 +31,7 @@ use TypeError;
  * @phpstan-import-type LabObservationArray from LabObservation
  * @phpstan-import-type EncounterArray from Encounter
  * @phpstan-import-type ReminderArray from Reminder
+ * @phpstan-import-type MedicationStatementArray from MedicationStatement
  *
  * @phpstan-type ChartSnapshotArray array{
  *     patient: DemographicsArray,
@@ -41,6 +42,7 @@ use TypeError;
  *     labs: list<LabObservationArray>,
  *     encounters: list<EncounterArray>,
  *     reminders: list<ReminderArray>,
+ *     medications: list<MedicationStatementArray>,
  * }
  */
 final readonly class ChartSnapshot
@@ -63,6 +65,9 @@ final readonly class ChartSnapshot
     /** @var list<Reminder> */
     public array $reminders;
 
+    /** @var list<MedicationStatement> */
+    public array $medications;
+
     /**
      * @param list<Diagnosis> $diagnoses
      * @param list<Prescription> $prescriptions
@@ -70,6 +75,7 @@ final readonly class ChartSnapshot
      * @param list<LabObservation> $labs
      * @param list<Encounter> $encounters
      * @param list<Reminder> $reminders
+     * @param list<MedicationStatement> $medications
      */
     public function __construct(
         public Demographics $patient,
@@ -80,6 +86,7 @@ final readonly class ChartSnapshot
         array $labs,
         array $encounters,
         array $reminders = [],
+        array $medications = [],
     ) {
         self::assertItemTypes($diagnoses, Diagnosis::class, 'diagnoses');
         self::assertItemTypes($prescriptions, Prescription::class, 'prescriptions');
@@ -87,6 +94,7 @@ final readonly class ChartSnapshot
         self::assertItemTypes($labs, LabObservation::class, 'labs');
         self::assertItemTypes($encounters, Encounter::class, 'encounters');
         self::assertItemTypes($reminders, Reminder::class, 'reminders');
+        self::assertItemTypes($medications, MedicationStatement::class, 'medications');
 
         $this->diagnoses = $diagnoses;
         $this->prescriptions = $prescriptions;
@@ -94,6 +102,7 @@ final readonly class ChartSnapshot
         $this->labs = $labs;
         $this->encounters = $encounters;
         $this->reminders = $reminders;
+        $this->medications = $medications;
     }
 
     /**
@@ -110,6 +119,7 @@ final readonly class ChartSnapshot
             'labs' => array_map(fn (LabObservation $l): array => $l->toArray(), $this->labs),
             'encounters' => array_map(fn (Encounter $e): array => $e->toArray(), $this->encounters),
             'reminders' => array_map(fn (Reminder $r): array => $r->toArray(), $this->reminders),
+            'medications' => array_map(fn (MedicationStatement $m): array => $m->toArray(), $this->medications),
         ];
     }
 

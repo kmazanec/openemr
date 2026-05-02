@@ -282,5 +282,6 @@
       }
     }
   ],
-  "reminders": []
+  "reminders": [],
+  "medications": []
 }

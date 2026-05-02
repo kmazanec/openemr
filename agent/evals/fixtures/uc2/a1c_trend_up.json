@@ -92,6 +92,7 @@
     }
   ],
   "reminders": [],
+  "medications": [],
   "labHistory": {
     "analyte": "Hemoglobin A1c",
     "observations": [

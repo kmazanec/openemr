@@ -22,7 +22,7 @@ import type {
     DraftBriefing,
     RequestEnvelope,
 } from '../../../src/graph/types.js';
-import type { Encounter, LabObservation, Reminder } from '../../../src/snapshot/types.js';
+import type { Encounter, LabObservation, MedicationStatement, Reminder } from '../../../src/snapshot/types.js';
 import type { ChartSnapshot } from '../../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../../src/tools/snapshotClient.js';
 
@@ -54,6 +54,8 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         'kind' in snapshot.encounters ? [] : snapshot.encounters;
     const reminders: readonly Reminder[] =
         'kind' in snapshot.reminders ? [] : snapshot.reminders;
+    const medications: readonly MedicationStatement[] =
+        'kind' in snapshot.medications ? [] : snapshot.medications;
     const chart: ChartSnapshot = {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
@@ -63,6 +65,7 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         labs,
         encounters,
         reminders,
+        medications,
     };
     return {
         fetchSnapshot: vi.fn(() => Promise.resolve(chart)),
@@ -167,6 +170,23 @@ const claimsFromSnapshot = (snapshot: BriefingSnapshot): readonly Claim[] => {
             text: `${rem.itemTitle} is ${rem.dueStatus}`,
             category: 'reminder',
             sourceReferences: [rem.source],
+            safetyCritical: false,
+        });
+    }
+
+    const medications: readonly MedicationStatement[] =
+        'kind' in snapshot.medications ? [] : snapshot.medications;
+    for (const stmt of medications) {
+        // matchesMedicationStatement asks only for the name — the
+        // looser rule lets us include usageCategory/dose context the
+        // briefing actually wants without making the verifier picky.
+        const dose = stmt.dose !== null ? ` ${stmt.dose}` : '';
+        const cat = stmt.usageCategory !== null ? ` (${stmt.usageCategory})` : '';
+        claims.push({
+            id: nextId(),
+            text: `Patient reports taking ${stmt.name}${dose}${cat}`,
+            category: 'medication_statement',
+            sourceReferences: [stmt.source],
             safetyCritical: false,
         });
     }

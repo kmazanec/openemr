@@ -27,6 +27,7 @@ final readonly class ArchetypeChart
      * @param list<array<string, mixed>> $externalEncounterRows
      * @param list<array<string, mixed>> $observationRows
      * @param list<array<string, mixed>> $reminderRows
+     * @param list<array<string, mixed>> $medicationStatementRows
      * @param ?array<string, mixed> $appointmentRow
      */
     public function __construct(
@@ -43,6 +44,7 @@ final readonly class ArchetypeChart
         public ArchetypeGroundTruth $groundTruth,
         public array $externalEncounterRows = [],
         public array $reminderRows = [],
+        public array $medicationStatementRows = [],
     ) {
     }
 }

@@ -3,6 +3,7 @@ import type {
     Diagnosis,
     Encounter,
     LabObservation,
+    MedicationStatement,
     Prescription,
     Reminder,
     SourceReference,
@@ -59,6 +60,7 @@ interface SnapshotIndex {
     readonly labs: ReadonlyMap<string, LabObservation>;
     readonly encounters: ReadonlyMap<string, Encounter>;
     readonly reminders: ReadonlyMap<string, Reminder>;
+    readonly medications: ReadonlyMap<string, MedicationStatement>;
     readonly appointmentId: string | null;
     readonly patientRecordId: string;
 }
@@ -112,6 +114,11 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
         for (const r of snapshot.reminders) reminders.set(r.source.recordId, r);
     }
 
+    const medications = new Map<string, MedicationStatement>();
+    if (!isGap(snapshot.medications)) {
+        for (const m of snapshot.medications) medications.set(m.source.recordId, m);
+    }
+
     return {
         prescriptions,
         allergies,
@@ -119,6 +126,7 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
         labs,
         encounters,
         reminders,
+        medications,
         appointmentId: snapshot.appointment?.source.recordId ?? null,
         patientRecordId: snapshot.patient.source.recordId,
     };
@@ -300,6 +308,26 @@ const matchesReminder = (claim: Claim, ref: SourceReference, idx: SnapshotIndex)
     return true;
 };
 
+/**
+ * §4.6.4: medication-statement claims need to mention the
+ * medication name. The rule is intentionally looser than the
+ * prescription rule because patient-reported entries often lack the
+ * structured metadata (no formal prescriber, no clinic indication)
+ * that the prescription rule keys on. The whole point of this surface
+ * is "the patient said something the clinic didn't write" — being too
+ * strict about what *else* the claim must contain would push the
+ * synthesizer to skip it.
+ */
+const matchesMedicationStatement = (
+    claim: Claim,
+    ref: SourceReference,
+    idx: SnapshotIndex,
+): boolean => {
+    const stmt = idx.medications.get(ref.recordId);
+    if (stmt === undefined) return false;
+    return containsCI(claim.text, stmt.name);
+};
+
 interface CategoryCheck {
     readonly resolves: (ref: SourceReference, idx: SnapshotIndex) => boolean;
     /**
@@ -347,6 +375,10 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
     reminder: {
         resolves: (ref, idx) => idx.reminders.has(ref.recordId),
         contentMatches: matchesReminder,
+    },
+    medication_statement: {
+        resolves: (ref, idx) => idx.medications.has(ref.recordId),
+        contentMatches: matchesMedicationStatement,
     },
 };
 

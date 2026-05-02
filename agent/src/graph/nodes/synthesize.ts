@@ -59,6 +59,7 @@ const claimSchema = z.object({
         'appointment',
         'identity',
         'reminder',
+        'medication_statement',
     ]),
     sourceReferences: z.array(sourceReferenceSchema).min(1),
     safetyCritical: z.boolean(),

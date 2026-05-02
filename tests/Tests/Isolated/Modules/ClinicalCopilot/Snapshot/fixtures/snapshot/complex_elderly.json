@@ -460,5 +460,23 @@
         "recordedAt": "<DATE>"
       }
     }
+  ],
+  "medications": [
+    {
+      "name": "Tylenol",
+      "dose": "500 mg as needed",
+      "usageCategory": "OTC",
+      "informationSource": "Patient",
+      "startDate": "<DATE>",
+      "stopDate": null,
+      "listId": 95001,
+      "source": {
+        "system": "openemr",
+        "recordType": "MedicationStatement",
+        "recordId": "95001",
+        "field": null,
+        "recordedAt": "<DATE>"
+      }
+    }
   ]
 }

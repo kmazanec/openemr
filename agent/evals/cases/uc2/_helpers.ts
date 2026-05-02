@@ -56,6 +56,7 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
         labs: Array.isArray(snapshot.labs) ? snapshot.labs : ([] as readonly LabObservation[]),
         encounters: Array.isArray(snapshot.encounters) ? snapshot.encounters : [],
         reminders: Array.isArray(snapshot.reminders) ? snapshot.reminders : [],
+        medications: Array.isArray(snapshot.medications) ? snapshot.medications : [],
     };
     return {
         fetchSnapshot: vi.fn(() => Promise.resolve(chart)),

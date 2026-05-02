@@ -65,6 +65,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationStatementAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
@@ -73,6 +74,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\AppointmentServi
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ConditionServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\EncounterServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ExternalEncounterServiceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\MedicationStatementServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ObservationServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PatientServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PrescriptionServiceDataSource;
@@ -149,6 +151,7 @@ $controller = new AgentSnapshotController(
     externalEncounterAdapter: new ExternalEncounterAdapter(new ExternalEncounterServiceDataSource()),
     appointmentAdapter: new AppointmentAdapter(new AppointmentServiceDataSource()),
     reminderAdapter: new ReminderAdapter(new ReminderServiceDataSource()),
+    medicationStatementAdapter: new MedicationStatementAdapter(new MedicationStatementServiceDataSource()),
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $siteId,

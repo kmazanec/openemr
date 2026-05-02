@@ -130,6 +130,7 @@ const trendUp: Uc2Fixture = {
             },
         ],
         reminders: [],
+        medications: [],
         labHistory: {
             analyte: 'Hemoglobin A1c',
             observations: [
@@ -203,6 +204,7 @@ const trendStable: Uc2Fixture = {
             },
         ],
         reminders: [],
+        medications: [],
         labHistory: {
             analyte: 'Hemoglobin A1c',
             observations: [
@@ -248,6 +250,7 @@ const noHistory: Uc2Fixture = {
             },
         ],
         reminders: [],
+        medications: [],
         labHistory: {
             analyte: 'Hemoglobin A1c',
             observations: [],
@@ -283,7 +286,14 @@ const toWireFormat = (snapshot: BriefingSnapshot): unknown => {
             ...r,
             reminderId: r.reminderId === null ? null : Number.parseInt(r.reminderId, 10),
         }));
-    return { ...snapshot, prescriptions, reminders };
+    const medsIn = snapshot.medications;
+    const medications = 'kind' in medsIn
+        ? medsIn
+        : medsIn.map((m) => ({
+            ...m,
+            listId: m.listId === null ? null : Number.parseInt(m.listId, 10),
+        }));
+    return { ...snapshot, prescriptions, reminders, medications };
 };
 
 export const regenerateUc2 = (): readonly RegenerateUc2Result[] => {

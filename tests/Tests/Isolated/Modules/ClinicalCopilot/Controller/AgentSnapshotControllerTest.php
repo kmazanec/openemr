@@ -42,6 +42,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationStatementAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
@@ -53,6 +54,7 @@ use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAp
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryConditionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEncounterDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryExternalEncounterDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryMedicationStatementDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPrescriptionDataSource;
@@ -200,6 +202,7 @@ final class AgentSnapshotControllerTest extends TestCase
         $this->assertArrayHasKey('encounters', $body);
         $this->assertArrayHasKey('appointment', $body);
         $this->assertArrayHasKey('reminders', $body);
+        $this->assertArrayHasKey('medications', $body);
         $this->assertCount(1, $events, 'exactly one disclosure event per request');
 
         $event = $events[0];
@@ -207,7 +210,16 @@ final class AgentSnapshotControllerTest extends TestCase
         $this->assertSame(4242, $event->patientPid);
         $this->assertSame(self::FIXED_JTI, $event->requestId);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription', 'reminder'],
+            [
+                'allergy',
+                'appointment',
+                'diagnosis',
+                'encounter',
+                'lab',
+                'medication_statement',
+                'prescription',
+                'reminder',
+            ],
             $event->categories,
         );
     }
@@ -327,6 +339,7 @@ final class AgentSnapshotControllerTest extends TestCase
             externalEncounterAdapter: new ExternalEncounterAdapter(new InMemoryExternalEncounterDataSource($chart)),
             appointmentAdapter: new AppointmentAdapter(new InMemoryAppointmentDataSource($chart)),
             reminderAdapter: new ReminderAdapter(new InMemoryReminderDataSource($chart)),
+            medicationStatementAdapter: new MedicationStatementAdapter(new InMemoryMedicationStatementDataSource($chart)),
             eventDispatcher: $dispatcher,
             logger: new NullLogger(),
             siteId: 'default',
@@ -383,6 +396,7 @@ final class AgentSnapshotControllerTest extends TestCase
             'user/Encounter.rs',
             'user/Appointment.rs',
             'user/Task.rs',
+            'user/MedicationStatement.rs',
         ]);
     }
 

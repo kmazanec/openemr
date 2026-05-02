@@ -22,6 +22,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationStatementAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
@@ -53,6 +54,8 @@ final readonly class SnapshotBuilder
             ->fetchToday($chart->pid, ArchetypeChartFactory::PRACTITIONER_UUID, $today);
         $reminders = (new ReminderAdapter(new InMemoryReminderDataSource($chart)))
             ->fetchDue($chart->pid);
+        $medications = (new MedicationStatementAdapter(new InMemoryMedicationStatementDataSource($chart)))
+            ->fetchActive($chart->pid);
 
         return new ChartSnapshot(
             patient: $patient,
@@ -63,6 +66,7 @@ final readonly class SnapshotBuilder
             labs: $labs,
             encounters: $encounters,
             reminders: $reminders,
+            medications: $medications,
         );
     }
 }

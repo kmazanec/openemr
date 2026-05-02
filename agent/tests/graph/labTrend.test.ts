@@ -52,6 +52,7 @@ const baseChart = (): ChartSnapshot => ({
     labs: [],
     encounters: [],
     reminders: [],
+    medications: [],
 });
 
 const buildClient = (chart: ChartSnapshot): SnapshotClient => ({

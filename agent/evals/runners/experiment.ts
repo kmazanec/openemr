@@ -68,6 +68,7 @@ const datasetClient = (snapshot: BriefingSnapshot): SnapshotClient => {
             ? snapshot.encounters
             : [] as readonly Encounter[],
         reminders: Array.isArray(snapshot.reminders) ? snapshot.reminders : [],
+        medications: Array.isArray(snapshot.medications) ? snapshot.medications : [],
     };
     return {
         fetchSnapshot: () => Promise.resolve(chart),

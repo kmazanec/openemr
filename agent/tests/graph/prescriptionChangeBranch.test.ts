@@ -85,6 +85,7 @@ const buildSnapshot = (med: SnapshotMedOverrides = {}): unknown => {
         labs: [],
         encounters: [],
         reminders: [],
+        medications: [],
     };
 };
 

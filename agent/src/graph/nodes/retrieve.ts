@@ -122,6 +122,7 @@ export const createRetrieve = (
             encounters: chart.encounters,
             labHistory,
             reminders: chart.reminders,
+            medications: chart.medications,
         };
 
         return { snapshot };

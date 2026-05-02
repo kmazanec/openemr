@@ -25,6 +25,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationStatementAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
@@ -69,6 +70,7 @@ final readonly class AgentSnapshotController
         private ExternalEncounterAdapter $externalEncounterAdapter,
         private AppointmentAdapter $appointmentAdapter,
         private ReminderAdapter $reminderAdapter,
+        private MedicationStatementAdapter $medicationStatementAdapter,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -241,6 +243,10 @@ final readonly class AgentSnapshotController
             ? $this->reminderAdapter->fetchDue($pid)
             : [];
 
+        $medications = $categories->contains(DataCategory::MedicationStatement)
+            ? $this->medicationStatementAdapter->fetchActive($pid)
+            : [];
+
         // The adapter calls above are already gated by the
         // DataCategorySet — categories the request did not ask for are
         // never fetched, so the snapshot we hand back already reflects
@@ -255,6 +261,7 @@ final readonly class AgentSnapshotController
             labs: $labs,
             encounters: $encounters,
             reminders: $reminders,
+            medications: $medications,
         );
     }
 

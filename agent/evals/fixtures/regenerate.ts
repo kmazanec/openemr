@@ -145,6 +145,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 },
             ],
             reminders: [],
+            medications: [],
         }),
     },
     {
@@ -207,6 +208,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 },
             ],
             reminders: [],
+            medications: [],
         }),
     },
     {
@@ -279,6 +281,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 },
             ],
             reminders: [],
+            medications: [],
         }),
     },
     {
@@ -384,6 +387,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Task', '85002'),
                 },
             ],
+            medications: [],
         }),
     },
     {
@@ -487,6 +491,23 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                     source: sourceRef('Task', '85001'),
                 },
             ],
+            // Phase 4.6.4: complex_elderly is the canonical
+            // patient-reported medication case — chronic pain managed
+            // with OTC Tylenol the patient bought on their own. The
+            // briefing surfaces this so a clinician sees the full
+            // medication picture, not just clinic-written scripts.
+            medications: [
+                {
+                    name: 'Tylenol',
+                    dose: '500 mg as needed',
+                    usageCategory: 'OTC',
+                    informationSource: 'Patient',
+                    startDate: '2024-06-01',
+                    stopDate: null,
+                    listId: '95001',
+                    source: sourceRef('MedicationStatement', '95001'),
+                },
+            ],
         }),
     },
     {
@@ -535,6 +556,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 },
             ],
             reminders: [],
+            medications: [],
         }),
     },
     // -----------------------------------------------------------------
@@ -624,6 +646,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 },
             ],
             reminders: [],
+            medications: [],
         }),
     },
     {
@@ -673,6 +696,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
             labs: [],
             encounters: [],
             reminders: [],
+            medications: [],
         }),
     },
     {
@@ -732,6 +756,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
             labs: [],
             encounters: [],
             reminders: [],
+            medications: [],
         }),
     },
 ];
@@ -761,6 +786,10 @@ const toWireFormat = (snapshot: ChartSnapshot): unknown => ({
     reminders: snapshot.reminders.map((r) => ({
         ...r,
         reminderId: r.reminderId === null ? null : Number.parseInt(r.reminderId, 10),
+    })),
+    medications: snapshot.medications.map((m) => ({
+        ...m,
+        listId: m.listId === null ? null : Number.parseInt(m.listId, 10),
     })),
 });
 

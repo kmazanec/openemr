@@ -68,6 +68,7 @@ const happyPathSnapshot = {
     labs: [],
     encounters: [],
     reminders: [],
+    medications: [],
 };
 
 interface MockClient {

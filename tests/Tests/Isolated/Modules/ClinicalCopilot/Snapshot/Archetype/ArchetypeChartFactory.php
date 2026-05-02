@@ -65,6 +65,7 @@ final readonly class ArchetypeChartFactory
         $observationRows = $this->buildObservationRows($faker, $archetype);
         $appointmentRow = $this->buildAppointmentRow($faker, $archetype);
         $reminderRows = $this->buildReminderRows($archetype);
+        $medicationStatementRows = $this->buildMedicationStatementRows($archetype);
 
         $uuid = $patientRow['uuid'];
         if (!is_string($uuid)) {
@@ -84,6 +85,7 @@ final readonly class ArchetypeChartFactory
             appointmentRow: $appointmentRow,
             groundTruth: ArchetypeGroundTruth::forArchetype($archetype),
             reminderRows: $reminderRows,
+            medicationStatementRows: $medicationStatementRows,
         );
     }
 
@@ -256,6 +258,41 @@ final readonly class ArchetypeChartFactory
                     'category_title'    => 'Lab follow-up',
                     'item_title'        => 'A1c follow-up',
                     'item_title_raw'    => 'A1c follow-up',
+                ],
+            ],
+            default => [],
+        };
+    }
+
+    /**
+     * Phase 4.6.4: deterministic patient-reported medication
+     * (`MedicationStatement`) rows. ComplexElderly carries an OTC
+     * Tylenol entry — the canonical "patient is medicating chronic
+     * pain on their own" case for a multi-condition older adult.
+     * Other archetypes return empty so the existing UC1 happy path
+     * stays unchanged.
+     *
+     * Row shape mirrors the production query: `lists.title`,
+     * `lists.begdate`, `lists.enddate`, and the
+     * `lists_medication.*` denormalized fields plus the resolved
+     * `information_source_title`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function buildMedicationStatementRows(PatientArchetype $archetype): array
+    {
+        return match ($archetype) {
+            PatientArchetype::ComplexElderly => [
+                [
+                    'id'                          => 95001,
+                    'pid'                         => 5005,
+                    'title'                       => 'Tylenol',
+                    'begdate'                     => '2024-06-01',
+                    'enddate'                     => null,
+                    'date'                        => '2024-06-01',
+                    'drug_dosage_instructions'    => '500 mg as needed',
+                    'usage_category_title'        => 'OTC',
+                    'information_source_title'    => 'Patient',
                 ],
             ],
             default => [],

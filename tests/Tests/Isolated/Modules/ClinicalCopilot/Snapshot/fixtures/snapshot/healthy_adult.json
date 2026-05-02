@@ -121,5 +121,6 @@
       }
     }
   ],
-  "reminders": []
+  "reminders": [],
+  "medications": []
 }

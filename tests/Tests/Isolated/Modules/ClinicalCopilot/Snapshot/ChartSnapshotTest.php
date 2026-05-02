@@ -26,6 +26,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Demographics;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Diagnosis;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Encounter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\LabObservation;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\MedicationStatement;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Prescription;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Reminder;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\SourceReference;
@@ -51,6 +52,7 @@ final class ChartSnapshotTest extends TestCase
             'LabObservation.php',
             'Encounter.php',
             'Reminder.php',
+            'MedicationStatement.php',
             'ChartSnapshot.php',
         ];
         foreach ($files as $f) {
@@ -74,6 +76,7 @@ final class ChartSnapshotTest extends TestCase
         yield 'LabObservation' => [LabObservation::class];
         yield 'Encounter' => [Encounter::class];
         yield 'Reminder' => [Reminder::class];
+        yield 'MedicationStatement' => [MedicationStatement::class];
         yield 'ChartSnapshot' => [ChartSnapshot::class];
     }
 
@@ -290,6 +293,40 @@ final class ChartSnapshotTest extends TestCase
         );
     }
 
+    public function testMedicationStatementToArrayShape(): void
+    {
+        $stmt = new MedicationStatement(
+            name: 'Tylenol',
+            dose: '500 mg as needed',
+            usageCategory: 'OTC',
+            informationSource: 'Patient',
+            startDate: new DateTimeImmutable('2024-06-01'),
+            stopDate: null,
+            listId: 95001,
+            source: $this->ref('MedicationStatement', 'msmt-95001'),
+        );
+
+        $this->assertSame(
+            [
+                'name' => 'Tylenol',
+                'dose' => '500 mg as needed',
+                'usageCategory' => 'OTC',
+                'informationSource' => 'Patient',
+                'startDate' => '2024-06-01',
+                'stopDate' => null,
+                'listId' => 95001,
+                'source' => [
+                    'system' => 'openemr',
+                    'recordType' => 'MedicationStatement',
+                    'recordId' => 'msmt-95001',
+                    'field' => null,
+                    'recordedAt' => null,
+                ],
+            ],
+            $stmt->toArray(),
+        );
+    }
+
     public function testAppointmentToArrayShape(): void
     {
         $appt = new Appointment(
@@ -424,6 +461,18 @@ final class ChartSnapshotTest extends TestCase
                     source: $this->ref('Task', 'rem-85002'),
                 ),
             ],
+            medications: [
+                new MedicationStatement(
+                    name: 'Tylenol',
+                    dose: '500 mg as needed',
+                    usageCategory: 'OTC',
+                    informationSource: 'Patient',
+                    startDate: new DateTimeImmutable('2024-06-01'),
+                    stopDate: null,
+                    listId: 95001,
+                    source: $this->ref('MedicationStatement', 'msmt-95001'),
+                ),
+            ],
         );
 
         $array = $snapshot->toArray();
@@ -433,6 +482,7 @@ final class ChartSnapshotTest extends TestCase
         $this->assertStringContainsString('"diagnoses":[{', $encoded);
         $this->assertStringContainsString('"allergies":[]', $encoded);
         $this->assertStringContainsString('"reminders":[{', $encoded);
+        $this->assertStringContainsString('"medications":[{', $encoded);
 
         // Round-trips losslessly through json. This is the runtime pin on
         // the top-level key set: a future drift in toArray() shows up as

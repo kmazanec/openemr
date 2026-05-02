@@ -83,6 +83,7 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
         },
     ],
     reminders: [],
+    medications: [],
     labHistory: null,
     ...overrides,
 });

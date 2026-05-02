@@ -96,6 +96,42 @@ export interface Encounter {
 }
 
 /**
+ * Patient-reported medication line — what the patient says they're
+ * actually taking (FHIR `MedicationStatement`). Includes OTC,
+ * supplements, and prescriptions written by other clinics.
+ *
+ * Sourced from OpenEMR's `lists` table joined to `lists_medication`
+ * (`is_primary_record=0`). Distinct from {@link Prescription} (clinic
+ * Rx); the two surfaces ride side-by-side so the briefing can
+ * mention both:
+ *
+ *   - Prescriptions: "What this clinic has written"
+ *   - Medications:  "What the patient says they're taking"
+ *
+ * Verifier rule for `medication_statement` claims is intentionally
+ * looser than the prescription rule — statement rows often lack
+ * structure (no formal prescriber, no clinic-side indication) so the
+ * rule asks only that the claim text contain the medication name.
+ */
+export interface MedicationStatement {
+    readonly name: string;
+    readonly dose: string | null;
+    readonly usageCategory: string | null;
+    readonly informationSource: string | null;
+    readonly startDate: string | null;
+    readonly stopDate: string | null;
+    /**
+     * Same value the SourceReference carries as `recordId`, surfaced
+     * here as a top-level string so §4.6.6's medication-statement
+     * detail branch can address one row by id. The wire format ships
+     * it as a JSON number; held as a string on this side to match
+     * every other id in the snapshot.
+     */
+    readonly listId: string | null;
+    readonly source: SourceReference;
+}
+
+/**
  * Clinical reminder — overdue or due health-maintenance items
  * (FHIR `Task`).
  *
@@ -146,4 +182,5 @@ export interface ChartSnapshot {
     readonly labs: readonly LabObservation[];
     readonly encounters: readonly Encounter[];
     readonly reminders: readonly Reminder[];
+    readonly medications: readonly MedicationStatement[];
 }
