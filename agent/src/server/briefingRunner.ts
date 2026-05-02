@@ -8,6 +8,7 @@ import type { RequestEnvelope } from '../graph/types.js';
 import type { Counters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { buildIdentityTags } from '../observability/traceMetadata.js';
+import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
@@ -20,6 +21,22 @@ import { eventsForBriefing, type BriefingStreamEvent } from './briefingStream.js
  * §3.4 SSE event sequence. Token comes from the incoming `Authorization`
  * header — `Retrieve` forwards it to OpenEMR's snapshot endpoint, so it
  * never leaves this call frame.
+ *
+ * Contract by task (§4.6):
+ *
+ *   - `default_briefing` always mints a fresh conversation row. Any
+ *     `conversationId` in the envelope is ignored — a default briefing
+ *     is, by definition, the start of a new conversation. (Resume of an
+ *     existing conversation is handled out-of-band by the panel via
+ *     `GET /v1/agent/latest_conversation`; that path does NOT call the
+ *     runner.)
+ *
+ *   - `follow_up` requires a UUID `conversationId` whose row is owned
+ *     by the principal and scoped to the same patient. We re-check
+ *     ownership against the store before appending so a leaked or
+ *     guessed UUID can't smuggle a turn into someone else's thread.
+ *     Both failures surface as a typed runner error which the SSE
+ *     route maps to `invalid_envelope`.
  */
 export type BriefingRunner = (input: {
     readonly envelope: RequestEnvelope;
@@ -31,6 +48,12 @@ export interface BriefingRunnerDeps {
     readonly synthesizer: Synthesizer;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
+    /**
+     * §4.6: read-side store for the rendered conversation thread.
+     * Append-only; written here on every persisted turn so the resume
+     * endpoint and a future history UI can replay the conversation.
+     */
+    readonly conversationMessages: ConversationMessagesStore;
     /**
      * §3.5: optional. Wired in production so LangGraph durably persists
      * state under the canonical conversation id; tests omit it and run
@@ -46,30 +69,88 @@ export interface BriefingRunnerDeps {
     readonly counters?: Counters;
 }
 
+/**
+ * Typed contract violation: the envelope is structurally OK (passed the
+ * Zod check at the route boundary) but doesn't satisfy the per-task
+ * runner contract — e.g. a follow-up without a conversationId, or with
+ * a UUID the principal does not own. The route handler maps this to
+ * the SSE `invalid_envelope` error code so the browser shows the same
+ * generic "request was malformed" message rather than a leaky reason.
+ *
+ * The reason field is for log/trace correlation only; never surface
+ * it to the client.
+ */
+export class BriefingContractError extends Error {
+    public readonly reason: string;
+    public constructor(reason: string) {
+        super(`briefing contract: ${reason}`);
+        this.name = 'BriefingContractError';
+        this.reason = reason;
+    }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (s: string): boolean => UUID_RE.test(s);
+
 export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner => {
     const logger = createLogger('briefingRunner');
     return async ({ envelope, token }) => {
-        // §3.5: resolve the canonical conversation for this (user, patient,
-        // appointment?) tuple before running the graph. Subsequent opens by
-        // the same actor on the same patient resume the same row, so the
-        // LangGraph checkpointer (keyed by thread_id below) replays prior
-        // turns instead of starting fresh. UC1 doesn't carry an appointment
-        // context — `appointmentId` is null for now; UC2/4 will plumb it.
-        const { conversation, created } = await deps.conversationStore.findOrCreate({
-            userId: envelope.actor.userId,
-            patientPid: envelope.patient.pid,
-            appointmentId: null,
-        });
-        if (created) {
+        // Resolve the conversation row for this turn based on the task.
+        // Default briefings always mint; follow-ups must target an
+        // existing row the principal owns.
+        let conversationId: string;
+        if (envelope.task === 'default_briefing') {
+            const created = await deps.conversationStore.create({
+                userId: envelope.actor.userId,
+                patientPid: envelope.patient.pid,
+                appointmentId: null,
+            });
+            conversationId = created.id;
             logger.info(
-                { conversationId: conversation.id, userId: envelope.actor.userId, patientPid: envelope.patient.pid },
+                { conversationId, userId: envelope.actor.userId, patientPid: envelope.patient.pid },
                 'created new conversation row',
             );
+        } else {
+            // Follow-up: require a UUID and verify ownership.
+            const claimed = envelope.conversationId;
+            if (!isUuid(claimed)) {
+                throw new BriefingContractError('follow_up without authoritative conversationId');
+            }
+            const owned = await deps.conversationStore.findOwnedById(
+                claimed,
+                envelope.actor.userId,
+                envelope.patient.pid,
+            );
+            if (owned === null) {
+                logger.warn(
+                    {
+                        conversationId: claimed,
+                        userId: envelope.actor.userId,
+                        patientPid: envelope.patient.pid,
+                    },
+                    'follow_up rejected — conversation not owned by principal or wrong patient',
+                );
+                throw new BriefingContractError('follow_up conversation not owned by principal');
+            }
+            conversationId = owned.id;
         }
         const canonicalEnvelope: RequestEnvelope = {
             ...envelope,
-            conversationId: conversation.id,
+            conversationId,
         };
+
+        // §4.6: persist the user turn (free-text follow-up) before the
+        // graph runs, so a mid-flight failure still leaves the question
+        // visible on resume. Default-briefing turns have no user text.
+        if (canonicalEnvelope.task === 'follow_up' && typeof canonicalEnvelope.question === 'string') {
+            await deps.conversationMessages.append({
+                conversationId,
+                role: 'user',
+                text: canonicalEnvelope.question,
+            });
+            await deps.conversationStore.touch(conversationId);
+        }
+
         const graphDeps: BriefingGraphDeps = {
             retrieve: {
                 client: deps.snapshotClient,
@@ -95,7 +176,7 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         const out: BriefingState = await graph.invoke(
             { envelope: canonicalEnvelope },
             {
-                configurable: { thread_id: conversation.id },
+                configurable: { thread_id: conversationId },
                 tags: [`clinician:${tags.clinicianHash}`, `patient:${tags.patientHash}`],
                 metadata: {
                     site_id: envelope.siteId,
@@ -116,6 +197,18 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         if (out.persisted === null) {
             throw new Error('briefing graph completed without a persisted record');
         }
+
+        // §4.6: persist the assistant turn after the graph (and the
+        // verification gate inside it) finishes. `out.formatted` is the
+        // post-verifier AssistantMessage, so anything we mirror here is
+        // already cleared for the renderer.
+        await deps.conversationMessages.append({
+            conversationId,
+            role: 'assistant',
+            message: out.formatted,
+        });
+        await deps.conversationStore.touch(conversationId);
+
         return eventsForBriefing(canonicalEnvelope, out.formatted, out.persisted);
     };
 };
@@ -124,6 +217,7 @@ export interface ProductionRunnerOptions {
     readonly openEmrBaseUrl: string;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
+    readonly conversationMessages: ConversationMessagesStore;
     readonly checkpointer: BaseCheckpointSaver;
     readonly counters: Counters;
 }
@@ -140,6 +234,7 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         synthesizer,
         unverifiedClaimsLog: options.unverifiedClaimsLog,
         conversationStore: options.conversationStore,
+        conversationMessages: options.conversationMessages,
         checkpointer: options.checkpointer,
         counters: options.counters,
     });

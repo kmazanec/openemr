@@ -55,6 +55,16 @@ final readonly class AgentProxyController
         'X-Accel-Buffering' => 'no',
     ];
 
+    /**
+     * Read-only JSON actions: proxied as upstream GET with the original
+     * query string preserved, and the response is a single buffered JSON
+     * body rather than an SSE stream. Anything not listed here defaults
+     * to the streaming POST path used by `briefing` and `echo`.
+     *
+     * @var list<string>
+     */
+    private const JSON_GET_ACTIONS = ['latest_conversation'];
+
     public function __construct(
         private PolicyGate $policyGate,
         private AgentTokenMinter $tokenMinter,
@@ -118,7 +128,51 @@ final readonly class AgentProxyController
             'hasPatient' => $request->requestedPatientPid !== null,
         ]);
 
+        if (in_array($request->action, self::JSON_GET_ACTIONS, strict: true)) {
+            $this->proxyJsonGet($request, $bearer);
+            return;
+        }
         $this->streamUpstream($request, $bearer, $requestBody);
+    }
+
+    /**
+     * Read-only JSON actions: GET upstream with the same query string the
+     * browser supplied (only `pid` and similar non-PHI parameters live
+     * there), buffer the response, and pass it through with the upstream
+     * status code. No SSE framing — the panel consumes this with a plain
+     * `fetch().json()`.
+     */
+    private function proxyJsonGet(AgentRequest $request, string $bearer): void
+    {
+        $upstreamUrl = $this->agentBaseUrl . '/v1/agent/' . rawurlencode($request->action);
+        // Forward only the patient pid; that's the single non-secret
+        // parameter the resume route reads. Adding more pass-through
+        // params here is opt-in per action.
+        if ($request->requestedPatientPid !== null) {
+            $upstreamUrl .= '?pid=' . rawurlencode($request->requestedPatientPid);
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', $upstreamUrl, [
+                RequestOptions::HEADERS => [
+                    'Authorization' => 'Bearer ' . $bearer,
+                    'Accept' => 'application/json',
+                ],
+            ]);
+        } catch (GuzzleException $e) {
+            $this->logger->error('Agent upstream connection failed', [
+                'action' => $request->action,
+                'exception' => $e,
+            ]);
+            $this->respondError(502, 'upstream_unavailable');
+            return;
+        }
+
+        $status = $response->getStatusCode();
+        $body = (string) $response->getBody();
+        http_response_code($status);
+        header('Content-Type: application/json');
+        echo $body;
     }
 
     private function streamUpstream(AgentRequest $request, string $bearer, string $requestBody): void

@@ -15,12 +15,23 @@ import type { RequestEnvelope } from '../graph/types.js';
 import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
-import { createPgConversationStore } from '../state/conversationStore.js';
+import {
+    createPgConversationMessagesStore,
+    type ConversationMessagesStore,
+} from '../state/conversationMessages.js';
+import {
+    createPgConversationStore,
+    type ConversationStore,
+} from '../state/conversationStore.js';
 import { createPgUnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
 import type { JWK } from 'jose';
 
 import { encodeStreamEvent, type BriefingStreamEvent } from './briefingStream.js';
-import { buildProductionBriefingRunner, type BriefingRunner } from './briefingRunner.js';
+import {
+    BriefingContractError,
+    buildProductionBriefingRunner,
+    type BriefingRunner,
+} from './briefingRunner.js';
 import { classifyBriefingError } from './errorClassifier.js';
 
 const DEFAULT_AUDIENCE = 'openemr-clinical-copilot-agent';
@@ -28,6 +39,17 @@ const DEFAULT_AUDIENCE = 'openemr-clinical-copilot-agent';
 interface AppDeps {
     readonly auth: BearerAuthMiddlewareOptions;
     readonly briefingRunner: BriefingRunner;
+    /**
+     * §4.6 resume support. Wired into the
+     * `GET /v1/agent/latest_conversation` route below; when omitted (only
+     * legacy tests do this) the route returns 404 so the panel falls
+     * back to a fresh briefing.
+     */
+    readonly resume?: {
+        readonly conversationStore: ConversationStore;
+        readonly conversationMessages: ConversationMessagesStore;
+        readonly windowHours: number;
+    };
 }
 
 const briefingRequestSchema = z.object({
@@ -48,7 +70,7 @@ const briefingRequestSchema = z.object({
     question: z.string().min(1).max(2000).optional(),
 });
 
-export const createApp = ({ auth, briefingRunner }: AppDeps): Hono => {
+export const createApp = ({ auth, briefingRunner, resume }: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
 
@@ -126,6 +148,18 @@ export const createApp = ({ auth, briefingRunner }: AppDeps): Hono => {
                     await writeEvent(event);
                 }
             } catch (err) {
+                if (err instanceof BriefingContractError) {
+                    logger.warn(
+                        {
+                            reason: err.reason,
+                            requestId: envelope.requestId,
+                            task: envelope.task,
+                        },
+                        'briefing contract violation',
+                    );
+                    await writeEvent({ type: 'error', code: 'invalid_envelope' });
+                    return;
+                }
                 const code = classifyBriefingError(err);
                 logger.error(
                     {
@@ -138,6 +172,50 @@ export const createApp = ({ auth, briefingRunner }: AppDeps): Hono => {
                 );
                 await writeEvent({ type: 'error', code });
             }
+        });
+    });
+
+    /**
+     * §4.6 resume entry point. The panel calls this on cold load before
+     * deciding whether to mint a fresh briefing. We look up the most
+     * recent conversation for the (principal, patient) pair whose
+     * `updated_at` is within the resume window (12h), and return its
+     * rendered thread so the panel can hydrate without a re-stream.
+     *
+     * 404 means "no resumable conversation" — not an error. The panel
+     * treats it as a signal to fall back to the default briefing flow.
+     */
+    app.get('/v1/agent/latest_conversation', async (c) => {
+        if (resume === undefined) {
+            return c.json({ code: 'resume_unavailable' }, 404);
+        }
+        const principal = getPrincipal(c);
+        const pidRaw = c.req.query('pid');
+        const pid = pidRaw !== undefined ? Number.parseInt(pidRaw, 10) : Number.NaN;
+        if (!Number.isInteger(pid) || pid <= 0) {
+            return c.json({ code: 'invalid_pid' }, 400);
+        }
+        const found = await resume.conversationStore.findResumable(
+            principal.sub,
+            pid,
+            resume.windowHours,
+        );
+        if (found === null) {
+            return c.json({ code: 'no_resumable_conversation' }, 404);
+        }
+        const messages = await resume.conversationMessages.listForConversation(found.id);
+        // Project the persisted rows into the panel's render shape.
+        // Assistant messages keep their full `AssistantMessage` payload
+        // (segments + claims + sources); user turns collapse to plain text.
+        const thread = messages.map((m) =>
+            m.role === 'assistant'
+                ? { role: 'assistant' as const, message: m.message }
+                : { role: 'user' as const, text: m.text },
+        );
+        return c.json({
+            conversationId: found.id,
+            updatedAt: found.updatedAt,
+            thread,
         });
     });
 
@@ -230,11 +308,16 @@ export const start = async (port: number): Promise<void> => {
     await conversationStore.setup();
     logger.info('conversations table ready');
 
+    const conversationMessages = createPgConversationMessagesStore({ connectionString: databaseUrl });
+    await conversationMessages.setup();
+    logger.info('conversation_messages table ready');
+
     const counters = createInMemoryCounters();
     const briefingRunner = buildProductionBriefingRunner({
         openEmrBaseUrl,
         unverifiedClaimsLog,
         conversationStore,
+        conversationMessages,
         checkpointer,
         counters,
     });
@@ -257,7 +340,15 @@ export const start = async (port: number): Promise<void> => {
         );
     }, 60_000).unref();
 
-    const app = createApp({ auth: { verify }, briefingRunner });
+    const app = createApp({
+        auth: { verify },
+        briefingRunner,
+        resume: {
+            conversationStore,
+            conversationMessages,
+            windowHours: 12,
+        },
+    });
     serve({ fetch: app.fetch, port });
     logger.info({ port }, 'agent service listening');
 };

@@ -21,6 +21,13 @@
  * `task: 'follow_up'` plus the typed question. The agent runs the same
  * §3.3 verification gate over the resulting claims, so the cited-prose
  * guarantee carries over.
+ *
+ * §4.6 resume: on cold load, the panel asks the agent for the most
+ * recent conversation for this (clinician, patient) pair. If one exists
+ * and was active within the resume window (12h, agent-side), we hydrate
+ * the thread and adopt its conversationId so follow-ups append to that
+ * row. Otherwise we mint nothing here and let the agent create a fresh
+ * row when the default_briefing turn arrives.
  */
 (function () {
     'use strict';
@@ -36,7 +43,14 @@
     const statusEl = root.querySelector('[data-role="status"]');
     const threadEl = root.querySelector('[data-role="thread"]');
 
-    const conversationId = `conv-${pid}-${Date.now()}`;
+    /**
+     * `conversationId` is mutable: a placeholder until either a resume
+     * lookup hands us an authoritative UUID (§4.6) or the agent mints
+     * one and echoes it back in the `meta` event of the first stream
+     * (§3.5). Either way, follow-up turns send the resolved id so the
+     * agent appends to the same conversation.
+     */
+    let conversationId = `conv-${pid}-${Date.now()}`;
     const requestId = `req-${pid}-${Date.now()}`;
 
     /**
@@ -46,6 +60,7 @@
      *
      *   { role: 'assistant', message: AssistantMessage }
      *   { role: 'assistant', error: { code: string } }
+     *   { role: 'user', text: string }
      */
     const thread = [];
 
@@ -199,10 +214,38 @@
         renderThread();
     };
 
+    /**
+     * Format a past timestamp as an English relative-time phrase, used
+     * for the §4.6 resume status line ("Resumed conversation from
+     * 2h ago"). Bounded units: minutes for <1h, hours for <24h, days
+     * beyond that. We deliberately don't reach for `Intl.RelativeTimeFormat`
+     * — its phrasing varies by locale config and the resume status is
+     * one short EHR-domain phrase, not a localized UI surface.
+     */
+    const formatRelativeTime = (isoString) => {
+        const then = Date.parse(isoString);
+        if (Number.isNaN(then)) return 'earlier';
+        const deltaMs = Date.now() - then;
+        if (deltaMs < 60_000) return 'just now';
+        const minutes = Math.floor(deltaMs / 60_000);
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    };
+
     const handleEvent = (data) => {
         if (!data || typeof data !== 'object' || !data.type) return;
         switch (data.type) {
             case 'meta':
+                // Agent-minted conversationId becomes authoritative for
+                // follow-ups. On resume this matches what we already set;
+                // on a fresh briefing this is the first time we see the
+                // canonical UUID.
+                if (typeof data.conversationId === 'string' && data.conversationId.length > 0) {
+                    conversationId = data.conversationId;
+                }
                 setStatus('Streaming briefing…', 'streaming');
                 break;
             case 'assistantMessage':
@@ -332,9 +375,69 @@
         });
     };
 
+    /**
+     * §4.6: ask the agent for the most recent conversation on this
+     * (clinician, patient) pair. Returns the parsed body on a 200,
+     * `null` on a 404 (the documented "no resumable conversation"
+     * signal), and `null` on any network/proxy failure — failed resume
+     * is silently downgraded to "fresh briefing" so a transient blip
+     * never blocks the panel from working.
+     */
+    const tryResume = async () => {
+        try {
+            const response = await fetch(
+                `${proxyUrl}?action=latest_conversation&pid=${encodeURIComponent(pid)}`,
+                {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' },
+                },
+            );
+            if (response.status === 404) return null;
+            if (!response.ok) {
+                console.warn('copilot: resume lookup failed', response.status);
+                return null;
+            }
+            return await response.json();
+        } catch (err) {
+            console.warn('copilot: resume lookup errored', err);
+            return null;
+        }
+    };
+
+    /**
+     * Hydrate `thread[]` from a resumed conversation payload. Assistant
+     * turns keep their full AssistantMessage shape (segments + claims +
+     * sources); user turns collapse to plain text. The order in which
+     * the panel renders is the order the agent persisted, so we don't
+     * need to sort here.
+     */
+    const hydrateFromResume = (payload) => {
+        const items = Array.isArray(payload && payload.thread) ? payload.thread : [];
+        for (const item of items) {
+            if (!item || typeof item !== 'object') continue;
+            if (item.role === 'assistant' && item.message) {
+                thread.push({ role: 'assistant', message: item.message });
+            } else if (item.role === 'user' && typeof item.text === 'string') {
+                thread.push({ role: 'user', text: item.text });
+            }
+        }
+        renderThread();
+    };
+
     const start = async () => {
         wireComposer();
         setStatus('Connecting to Co-Pilot…', 'connecting');
+
+        const resumed = await tryResume();
+        if (resumed && typeof resumed.conversationId === 'string' && resumed.conversationId.length > 0) {
+            conversationId = resumed.conversationId;
+            hydrateFromResume(resumed);
+            const relative = formatRelativeTime(resumed.updatedAt || '');
+            setStatus(`Resumed conversation from ${relative}.`, 'ready');
+            return;
+        }
+
         await streamTurn({
             envelope: {
                 conversationId,

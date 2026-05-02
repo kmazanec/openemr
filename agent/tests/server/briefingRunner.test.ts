@@ -1,10 +1,11 @@
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createBriefingRunner } from '../../src/server/briefingRunner.js';
+import { BriefingContractError, createBriefingRunner } from '../../src/server/briefingRunner.js';
 import type { Synthesizer } from '../../src/graph/nodes/synthesize.js';
 import type { ClaimLedger, RequestEnvelope } from '../../src/graph/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
+import { createInMemoryConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import { createInMemoryConversationStore } from '../../src/state/conversationStore.js';
 import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaimsLog.js';
 
@@ -19,7 +20,7 @@ const sourceRef = (recordType: string, recordId: string) => ({
 });
 
 const buildEnvelope = (overrides: Partial<RequestEnvelope> = {}): RequestEnvelope => ({
-    conversationId: 'browser-supplied-stale',
+    conversationId: 'conv-42-placeholder',
     requestId: 'r-1',
     siteId: 'default',
     actor: { userId: 'u-patel', fhirUser: 'https://emr/Practitioner/u-patel' },
@@ -77,32 +78,54 @@ const buildSynth = (): Synthesizer =>
         }),
     );
 
-describe('createBriefingRunner — §3.5 conversation persistence', () => {
-    it('first invocation creates a canonical conversation id and overrides the browser-supplied one', async () => {
-        const conversationStore = createInMemoryConversationStore();
+const buildDeps = () => ({
+    conversationStore: createInMemoryConversationStore(),
+    conversationMessages: createInMemoryConversationMessagesStore(),
+});
+
+describe('createBriefingRunner — §4.6 conversation persistence and resume', () => {
+    it('default_briefing always mints a fresh row, ignoring any conversationId in the envelope', async () => {
+        // Even if the panel sends an authoritative UUID, default_briefing
+        // is by definition the start of a new conversation. The runner
+        // mints a new row and ignores the supplied id — otherwise a
+        // stale tab could re-run a default briefing into an existing
+        // thread and pollute it.
+        const { conversationStore, conversationMessages } = buildDeps();
         const runner = createBriefingRunner({
             snapshotClient: buildClient(),
             synthesizer: buildSynth(),
             unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
             conversationStore,
+            conversationMessages,
+        });
+        const seed = await conversationStore.create({
+            userId: 'u-patel',
+            patientPid: PID,
+            appointmentId: null,
         });
 
-        const envelope = buildEnvelope({ conversationId: 'browser-supplied-stale' });
-        const events = await runner({ envelope, token: 'tok' });
+        const events = await runner({
+            envelope: buildEnvelope({ conversationId: seed.id }),
+            token: 'tok',
+        });
 
         const meta = events.find((e) => e.type === 'meta');
         if (meta?.type !== 'meta') throw new Error('expected meta event');
-        expect(meta.conversationId).not.toBe('browser-supplied-stale');
+        expect(meta.conversationId).not.toBe(seed.id);
         expect(meta.conversationId).toMatch(/^[0-9a-f-]{36}$/);
+        // The seed row stays empty — nothing was appended into it.
+        const seedThread = await conversationMessages.listForConversation(seed.id);
+        expect(seedThread).toHaveLength(0);
     });
 
-    it('second invocation by the same user for the same patient resumes the same conversation', async () => {
-        const conversationStore = createInMemoryConversationStore();
+    it('every default_briefing mints a new conversation row — no implicit resume in the runner', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
         const runner = createBriefingRunner({
             snapshotClient: buildClient(),
             synthesizer: buildSynth(),
             unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
             conversationStore,
+            conversationMessages,
         });
 
         const first = await runner({ envelope: buildEnvelope({ requestId: 'r-1' }), token: 'tok' });
@@ -113,20 +136,221 @@ describe('createBriefingRunner — §3.5 conversation persistence', () => {
         if (firstMeta?.type !== 'meta' || secondMeta?.type !== 'meta') {
             throw new Error('expected meta events on both invocations');
         }
-        expect(secondMeta.conversationId).toBe(firstMeta.conversationId);
+        // Different rows: resume is the panel's job, not the runner's.
+        expect(secondMeta.conversationId).not.toBe(firstMeta.conversationId);
     });
 
-    it('different users on the same patient get separate conversations', async () => {
-        const conversationStore = createInMemoryConversationStore();
+    it('follow_up against an owned conversation appends to that thread', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
         const runner = createBriefingRunner({
             snapshotClient: buildClient(),
             synthesizer: buildSynth(),
             unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
             conversationStore,
+            conversationMessages,
+        });
+        const seed = await conversationStore.create({
+            userId: 'u-patel',
+            patientPid: PID,
+            appointmentId: null,
         });
 
-        const drA = await runner({ envelope: buildEnvelope({ actor: { userId: 'u-A', fhirUser: 'fA' } }), token: 'tok' });
-        const drB = await runner({ envelope: buildEnvelope({ actor: { userId: 'u-B', fhirUser: 'fB' } }), token: 'tok' });
+        const events = await runner({
+            envelope: buildEnvelope({
+                conversationId: seed.id,
+                task: 'follow_up',
+                question: 'Are they on metformin?',
+            }),
+            token: 'tok',
+        });
+
+        const meta = events.find((e) => e.type === 'meta');
+        if (meta?.type !== 'meta') throw new Error('expected meta event');
+        expect(meta.conversationId).toBe(seed.id);
+
+        const thread = await conversationMessages.listForConversation(seed.id);
+        expect(thread).toHaveLength(2);
+        expect(thread[0]!.role).toBe('user');
+        expect(thread[1]!.role).toBe('assistant');
+    });
+
+    it('follow_up without a UUID conversationId throws BriefingContractError', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+
+        await expect(
+            runner({
+                envelope: buildEnvelope({
+                    conversationId: 'conv-42-placeholder',
+                    task: 'follow_up',
+                    question: 'Are they on metformin?',
+                }),
+                token: 'tok',
+            }),
+        ).rejects.toBeInstanceOf(BriefingContractError);
+    });
+
+    it('follow_up against a conversation owned by a different user is rejected', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+        const otherDrSeed = await conversationStore.create({
+            userId: 'u-other',
+            patientPid: PID,
+            appointmentId: null,
+        });
+
+        await expect(
+            runner({
+                envelope: buildEnvelope({
+                    conversationId: otherDrSeed.id,
+                    task: 'follow_up',
+                    question: 'Are they on metformin?',
+                }),
+                token: 'tok',
+            }),
+        ).rejects.toBeInstanceOf(BriefingContractError);
+
+        // And the other doctor's thread is untouched.
+        const thread = await conversationMessages.listForConversation(otherDrSeed.id);
+        expect(thread).toHaveLength(0);
+    });
+
+    it('follow_up against a conversation scoped to a different patient is rejected', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+        // Same user owns this conversation, but for a different patient.
+        const otherPatientSeed = await conversationStore.create({
+            userId: 'u-patel',
+            patientPid: 999,
+            appointmentId: null,
+        });
+
+        await expect(
+            runner({
+                envelope: buildEnvelope({
+                    conversationId: otherPatientSeed.id,
+                    task: 'follow_up',
+                    question: 'Are they on metformin?',
+                }),
+                token: 'tok',
+            }),
+        ).rejects.toBeInstanceOf(BriefingContractError);
+    });
+
+    it('persists the assistant turn into conversation_messages on a default briefing', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+
+        const events = await runner({ envelope: buildEnvelope(), token: 'tok' });
+        const meta = events.find((e) => e.type === 'meta');
+        if (meta?.type !== 'meta') throw new Error('expected meta event');
+
+        const thread = await conversationMessages.listForConversation(meta.conversationId);
+        expect(thread).toHaveLength(1);
+        expect(thread[0]!.role).toBe('assistant');
+        if (thread[0]!.role === 'assistant') {
+            expect(thread[0]!.message.segments[0]!.text).toBe('Briefing.');
+        }
+    });
+
+    it('persists user + assistant turns on a follow-up', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+        const seed = await conversationStore.create({
+            userId: 'u-patel',
+            patientPid: PID,
+            appointmentId: null,
+        });
+
+        const events = await runner({
+            envelope: buildEnvelope({
+                conversationId: seed.id,
+                task: 'follow_up',
+                question: 'Are they on metformin?',
+            }),
+            token: 'tok',
+        });
+        const meta = events.find((e) => e.type === 'meta');
+        if (meta?.type !== 'meta') throw new Error('expected meta event');
+
+        const thread = await conversationMessages.listForConversation(seed.id);
+        expect(thread).toHaveLength(2);
+        expect(thread[0]!.role).toBe('user');
+        if (thread[0]!.role === 'user') {
+            expect(thread[0]!.text).toBe('Are they on metformin?');
+        }
+        expect(thread[1]!.role).toBe('assistant');
+    });
+
+    it('touch() bumps updated_at on every persisted turn so the row stays resumable', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+
+        const events = await runner({ envelope: buildEnvelope(), token: 'tok' });
+        const meta = events.find((e) => e.type === 'meta');
+        if (meta?.type !== 'meta') throw new Error('expected meta event');
+
+        // The conversation we just created should be findable as
+        // resumable within a 12h window.
+        const resumed = await conversationStore.findResumable('u-patel', PID, 12);
+        expect(resumed).not.toBeNull();
+        expect(resumed!.id).toBe(meta.conversationId);
+    });
+
+    it('different users on the same patient get separate conversations', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+
+        const drA = await runner({
+            envelope: buildEnvelope({ actor: { userId: 'u-A', fhirUser: 'fA' } }),
+            token: 'tok',
+        });
+        const drB = await runner({
+            envelope: buildEnvelope({ actor: { userId: 'u-B', fhirUser: 'fB' } }),
+            token: 'tok',
+        });
 
         const aMeta = drA.find((e) => e.type === 'meta');
         const bMeta = drB.find((e) => e.type === 'meta');
@@ -137,10 +361,6 @@ describe('createBriefingRunner — §3.5 conversation persistence', () => {
     });
 
     it('uses the canonical conversation id as the LangGraph thread_id (observable via the checkpointer)', async () => {
-        // Wire a stub checkpointer that records the thread_id passed in
-        // RunnableConfig. LangGraph calls `getTuple({configurable: {thread_id}})`
-        // before each step and `put(...)` after each step; either is enough
-        // to observe the id the runner picked.
         const observed: string[] = [];
         const stubCheckpointer = {
             getTuple: ({ configurable }: { configurable?: Record<string, unknown> }) => {
@@ -158,12 +378,13 @@ describe('createBriefingRunner — §3.5 conversation persistence', () => {
             getNextVersion: (current: number | undefined) => (current ?? 0) + 1,
         };
 
-        const conversationStore = createInMemoryConversationStore();
+        const { conversationStore, conversationMessages } = buildDeps();
         const runner = createBriefingRunner({
             snapshotClient: buildClient(),
             synthesizer: buildSynth(),
             unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
             conversationStore,
+            conversationMessages,
             checkpointer: stubCheckpointer as unknown as BaseCheckpointSaver,
         });
 

@@ -57,6 +57,15 @@ final readonly class PolicyGate
             'user/Encounter.rs',
             'user/Appointment.rs',
         ],
+        // §4.6 resume lookup: read-only JSON, no chart access. The
+        // agent reads its own conversation tables; no SMART scopes
+        // are needed because the action does not touch FHIR resources.
+        // We still mint a token (the agent gates on principal.sub for
+        // user scoping), but with no chart scopes attached.
+        'latest_conversation' => [
+            'openid',
+            'fhirUser',
+        ],
     ];
 
     public function evaluate(SessionContext $session, AgentRequest $request): PolicyDecision

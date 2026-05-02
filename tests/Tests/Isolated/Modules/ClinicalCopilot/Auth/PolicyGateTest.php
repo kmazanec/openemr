@@ -157,6 +157,50 @@ final class PolicyGateTest extends TestCase
         $this->assertSame(PolicyDenyReason::ScopeNotPermitted, $decision->reason);
     }
 
+    public function testLatestConversationActionAllowsResumeLookupForActivePatient(): void
+    {
+        // §4.6 resume lookup. The action is read-only against the agent's
+        // own conversation tables — no chart scopes are minted, so the
+        // gate's default scope list is `openid` + `fhirUser` only. The
+        // patient-match rule still applies because the panel passes a pid.
+        $gate = new PolicyGate();
+        $session = new SessionContext(
+            authUserId: '42',
+            authUser: 'admin',
+            siteId: 'default',
+            patientPid: '101',
+            fhirUser: $this->stubFhirUser(),
+        );
+        $request = new AgentRequest(
+            action: 'latest_conversation',
+            siteId: 'default',
+            requestedPatientPid: '101',
+            requestedScopes: $gate->defaultScopesFor('latest_conversation'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertTrue($decision->allowed);
+        $this->assertSame(['openid', 'fhirUser'], $gate->defaultScopesFor('latest_conversation'));
+    }
+
+    public function testLatestConversationDeniesAcrossPatients(): void
+    {
+        $gate = new PolicyGate();
+        $session = new SessionContext('42', 'admin', 'default', '101', $this->stubFhirUser());
+        $request = new AgentRequest(
+            action: 'latest_conversation',
+            siteId: 'default',
+            requestedPatientPid: '999',
+            requestedScopes: $gate->defaultScopesFor('latest_conversation'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertFalse($decision->allowed);
+        $this->assertSame(PolicyDenyReason::PatientMismatch, $decision->reason);
+    }
+
     public function testEchoActionRequiresSessionButNoPatientOrScopes(): void
     {
         $gate = new PolicyGate();
