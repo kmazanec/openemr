@@ -4,6 +4,7 @@ import type { BriefingSnapshot, Claim, Gap, VerifiedLedger } from './types.js';
 import type {
     Encounter,
     LabObservation,
+    MedicationStatement,
     Prescription,
     Reminder,
 } from '../snapshot/types.js';
@@ -30,7 +31,8 @@ export type SuggestedFollowUpParams =
     | { readonly type: 'lab_trend'; readonly analyte: string }
     | { readonly type: 'prescription_change'; readonly prescriptionId: string }
     | { readonly type: 'external_care'; readonly lookbackDays: number }
-    | { readonly type: 'reminder_detail'; readonly reminderId: string };
+    | { readonly type: 'reminder_detail'; readonly reminderId: string }
+    | { readonly type: 'medication_statement_detail'; readonly listId: string };
 
 export interface SuggestedFollowUp {
     readonly id: string;
@@ -44,6 +46,7 @@ const RECOGNIZED_ANALYTES = ['A1c', 'BP', 'LDL', 'eGFR'] as const;
 const LAB_TREND_CAP = 3;
 const PRESCRIPTION_CHANGE_CAP = 2;
 const REMINDER_DETAIL_CAP = 2;
+const MEDICATION_STATEMENT_DETAIL_CAP = 2;
 const TOTAL_CAP = 5;
 const PRESCRIPTION_RECENT_DAYS = 90;
 const EXTERNAL_LOOKBACK_DAYS = 365;
@@ -134,13 +137,26 @@ const referenceDate = (snapshot: BriefingSnapshot): Date => {
     return new Date();
 };
 
-const isRecentPrescription = (rx: Prescription, anchor: Date): boolean => {
-    if (rx.startDate === null) return false;
-    const start = new Date(rx.startDate);
+const isWithinRecentDays = (
+    startDate: string | null,
+    anchor: Date,
+    windowDays: number,
+): boolean => {
+    if (startDate === null) return false;
+    const start = new Date(startDate);
     if (Number.isNaN(start.getTime())) return false;
     const diffDays = Math.abs(anchor.getTime() - start.getTime()) / MS_PER_DAY;
-    return diffDays <= PRESCRIPTION_RECENT_DAYS;
+    return diffDays <= windowDays;
 };
+
+const isRecentPrescription = (rx: Prescription, anchor: Date): boolean =>
+    isWithinRecentDays(rx.startDate, anchor, PRESCRIPTION_RECENT_DAYS);
+
+const isRecentMedicationStatement = (
+    stmt: MedicationStatement,
+    anchor: Date,
+): boolean =>
+    isWithinRecentDays(stmt.startDate, anchor, PRESCRIPTION_RECENT_DAYS);
 
 const prescriptionKey = (rx: Prescription): string =>
     `${rx.source.recordType}:${rx.source.recordId}`;
@@ -197,6 +213,35 @@ const findReminderForClaim = (
                 rem.source.recordId === ref.recordId,
         );
         if (r !== undefined) return r;
+    }
+    return null;
+};
+
+const medicationStatementKey = (stmt: MedicationStatement): string =>
+    `${stmt.source.recordType}:${stmt.source.recordId}`;
+
+/**
+ * Inverse of {@link medicationStatementKey}. Used by §4.6.6's
+ * `medicationStatementBranch` to recover the list record id from
+ * the typed follow-up params.
+ */
+export const parseMedicationStatementKey = (key: string): {
+    readonly recordType: string;
+    readonly recordId: string;
+} | null => parsePrescriptionKey(key);
+
+const findMedicationStatementForClaim = (
+    claim: Claim,
+    statements: readonly MedicationStatement[],
+): MedicationStatement | null => {
+    if (claim.category !== 'medication_statement') return null;
+    for (const ref of claim.sourceReferences) {
+        const s = statements.find(
+            (stmt) =>
+                stmt.source.recordType === ref.recordType &&
+                stmt.source.recordId === ref.recordId,
+        );
+        if (s !== undefined) return s;
     }
     return null;
 };
@@ -285,6 +330,40 @@ export const generateFollowUps = (
             groundedInClaimIds: [claim.id],
         });
         reminderCount++;
+    }
+
+    const statementsIn = snapshot.medications;
+    const statements: readonly MedicationStatement[] =
+        'kind' in statementsIn ? [] : statementsIn;
+    const seenStatementKeys = new Set<string>();
+    let stmtCount = 0;
+    for (const claim of accepted) {
+        if (stmtCount >= MEDICATION_STATEMENT_DETAIL_CAP) break;
+        const stmt = findMedicationStatementForClaim(claim, statements);
+        if (stmt === null) continue;
+        // Surface a chip when there's something a clinician would
+        // want to drill into: a recently-started entry OR one that
+        // names its information source ("family reports..."). Pure
+        // "patient said" entries with old start dates and no extra
+        // context don't usually need a chip — the briefing line is
+        // enough.
+        const isRecent = isRecentMedicationStatement(stmt, anchor);
+        const hasInformationSource = stmt.informationSource !== null;
+        if (!isRecent && !hasInformationSource) continue;
+        const key = medicationStatementKey(stmt);
+        if (seenStatementKeys.has(key)) continue;
+        seenStatementKeys.add(key);
+        const params: SuggestedFollowUpParams = {
+            type: 'medication_statement_detail',
+            listId: key,
+        };
+        out.push({
+            id: stableId(conversationId, params),
+            displayText: `What did the patient say about ${stmt.name}?`,
+            params,
+            groundedInClaimIds: [claim.id],
+        });
+        stmtCount++;
     }
 
     if (findEncountersHaveExternal(snapshot)) {

@@ -220,6 +220,13 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                         openEmrBaseUrl: deps.openEmrBaseUrl,
                         ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
                     },
+                    medicationStatementDetail: {
+                        client: deps.agentHttpClient,
+                        token,
+                        siteId: envelope.siteId,
+                        openEmrBaseUrl: deps.openEmrBaseUrl,
+                        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+                    },
                 }
                 : {}),
             ...(deps.checkpointer !== undefined ? { checkpointer: deps.checkpointer } : {}),

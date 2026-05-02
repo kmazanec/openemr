@@ -48,6 +48,28 @@ export interface ReminderDetail {
 }
 
 /**
+ * Provenance for a single patient-reported medication returned by
+ * the §4.6.6 `medication_statement_provenance.php` endpoint. Mirrors
+ * the PHP-side `MedicationStatementProvenance::toArray()` shape.
+ *
+ * `linkedPrescriptionId`, when present, is the foreign key to the
+ * clinic's `prescriptions.id` for this self-reported entry — lets
+ * the briefing distinguish "patient reports taking the metformin
+ * we prescribed" from "patient is on Tylenol nobody wrote down."
+ */
+export interface MedicationStatementProvenance {
+    readonly listId: string;
+    readonly name: string;
+    readonly dose: string | null;
+    readonly usageCategory: string | null;
+    readonly informationSource: string | null;
+    readonly adherenceAssertedAt: string | null;
+    readonly startDate: string | null;
+    readonly stopDate: string | null;
+    readonly linkedPrescriptionId: string | null;
+}
+
+/**
  * JSON-shape decoders for the four narrow agent endpoints. Each
  * narrow endpoint returns a slim JSON envelope with only its own
  * data; these helpers walk that envelope into the same typed DTOs
@@ -142,6 +164,11 @@ const expectIntAsString = (path: string, v: unknown): string => {
     return String(v);
 };
 
+const optionalIntAsString = (path: string, v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    return expectIntAsString(path, v);
+};
+
 export const decodePrescriptionProvenanceResponse = (raw: unknown): PrescriptionProvenance => {
     const obj = expectObject('prescriptionProvenanceResponse', raw);
     const prov = expectObject(
@@ -220,6 +247,54 @@ export const decodeReminderDetailResponse = (raw: unknown): ReminderDetail => {
         ruleDescription: optionalString(
             'reminderDetailResponse.detail.ruleDescription',
             detail['ruleDescription'] ?? null,
+        ),
+    };
+};
+
+export const decodeMedicationStatementProvenanceResponse = (
+    raw: unknown,
+): MedicationStatementProvenance => {
+    const obj = expectObject('medicationStatementProvenanceResponse', raw);
+    const prov = expectObject(
+        'medicationStatementProvenanceResponse.provenance',
+        requireKey('medicationStatementProvenanceResponse', obj, 'provenance'),
+    );
+    return {
+        listId: expectIntAsString(
+            'medicationStatementProvenanceResponse.provenance.listId',
+            prov['listId'],
+        ),
+        name: expectString(
+            'medicationStatementProvenanceResponse.provenance.name',
+            prov['name'],
+        ),
+        dose: optionalString(
+            'medicationStatementProvenanceResponse.provenance.dose',
+            prov['dose'] ?? null,
+        ),
+        usageCategory: optionalString(
+            'medicationStatementProvenanceResponse.provenance.usageCategory',
+            prov['usageCategory'] ?? null,
+        ),
+        informationSource: optionalString(
+            'medicationStatementProvenanceResponse.provenance.informationSource',
+            prov['informationSource'] ?? null,
+        ),
+        adherenceAssertedAt: optionalString(
+            'medicationStatementProvenanceResponse.provenance.adherenceAssertedAt',
+            prov['adherenceAssertedAt'] ?? null,
+        ),
+        startDate: optionalString(
+            'medicationStatementProvenanceResponse.provenance.startDate',
+            prov['startDate'] ?? null,
+        ),
+        stopDate: optionalString(
+            'medicationStatementProvenanceResponse.provenance.stopDate',
+            prov['stopDate'] ?? null,
+        ),
+        linkedPrescriptionId: optionalIntAsString(
+            'medicationStatementProvenanceResponse.provenance.linkedPrescriptionId',
+            prov['linkedPrescriptionId'] ?? null,
         ),
     };
 };
