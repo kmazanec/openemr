@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { generateFollowUps } from '../../src/graph/followUps.js';
+import { generateFollowUps, parseMedicationKey } from '../../src/graph/followUps.js';
 import type {
     BriefingSnapshot,
     Claim,
@@ -348,6 +348,17 @@ describe('generateFollowUps', () => {
                 expect(acceptedIds.has(id)).toBe(true);
             }
         }
+    });
+
+    it('parseMedicationKey round-trips a recordId containing a colon', () => {
+        // Today every recordType is colon-free, but a future external id
+        // (URN-style, FHIR canonical, etc.) could bring colons. `lastIndexOf`
+        // splits on the rightmost separator so the recordType stays whole.
+        const key = 'MedicationRequest:urn:uuid:abc-123';
+        const parsed = parseMedicationKey(key);
+        expect(parsed).not.toBeNull();
+        expect(parsed?.recordType).toBe('MedicationRequest:urn:uuid');
+        expect(parsed?.recordId).toBe('abc-123');
     });
 
     it('uses the appointment.startAt date as the medication-recency anchor when present', () => {

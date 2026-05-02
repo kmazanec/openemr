@@ -99,7 +99,13 @@ const findMedicationForClaim = (
     claim: Claim,
     medications: readonly Medication[],
 ): Medication | null => {
-    if (claim.category !== 'medication') return null;
+    // `medication_change` is the §4.3 UC3 category (deterministic branch
+    // emits these); `medication` is the §3 default-briefing category.
+    // Both should generate the same `Why was X started?` chip when the
+    // backing record is recent — without this, a default briefing whose
+    // synthesizer happens to emit a `medication_change`-flavored claim
+    // (or a future UC that does so) would never see the chip.
+    if (claim.category !== 'medication' && claim.category !== 'medication_change') return null;
     for (const ref of claim.sourceReferences) {
         const med = medications.find(
             (m) =>
@@ -141,7 +147,12 @@ export const parseMedicationKey = (key: string): {
     readonly recordType: string;
     readonly recordId: string;
 } | null => {
-    const idx = key.indexOf(':');
+    // Split on the LAST `:` rather than the first so a recordId
+    // containing `:` (e.g. URN-style external ids) round-trips cleanly
+    // through the `${recordType}:${recordId}` shape that medicationKey
+    // emits. Today's record types are all colon-free, so this is
+    // pin-the-invariant rather than fix-a-live-bug.
+    const idx = key.lastIndexOf(':');
     if (idx <= 0 || idx === key.length - 1) return null;
     return {
         recordType: key.slice(0, idx),
