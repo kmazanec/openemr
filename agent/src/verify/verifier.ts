@@ -337,11 +337,20 @@ const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[] => {
     return stops;
 };
 
-const isStoppedCategory = (category: Claim['category'], stops: readonly HardStop[]): boolean => {
+/**
+ * Shared rule deciding whether a hard stop suppresses a given claim
+ * category. Exported so `format.ts` (per-segment redaction) and any
+ * UC-specific branch (e.g. UC3 medChangeBranch's pre-network short-circuit)
+ * apply the exact same suppression policy. Accepts `readonly string[]` —
+ * `VerifiedLedger.safetyHardStops` widens `HardStop` at the type boundary,
+ * and the inclusions check below is narrow enough to handle the wider
+ * type without losing exhaustiveness.
+ */
+export const isStoppedCategory = (
+    category: Claim['category'],
+    stops: readonly string[],
+): boolean => {
     if (stops.length === 0) return false;
-    // medication_change is a medication-category claim: the same
-    // safety rules apply — if allergies-unavailable hard stop fires,
-    // suppress UC3 output too. Mirrored in format.ts:isCategorySuppressed.
     if (category === 'medication' || category === 'medication_change') return true;
     if (category === 'allergy' && stops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) return true;
     return false;

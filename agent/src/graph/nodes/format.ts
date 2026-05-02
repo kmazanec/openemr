@@ -2,6 +2,7 @@ import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
     HARD_STOP_MEDICATIONS_UNAVAILABLE,
+    isStoppedCategory,
 } from '../../verify/verifier.js';
 import { generateFollowUps } from '../followUps.js';
 import type {
@@ -53,22 +54,6 @@ const HARD_STOP_GAPS: Record<string, Gap> = {
     },
 };
 
-const isCategorySuppressed = (
-    category: Claim['category'],
-    stops: readonly string[],
-): boolean => {
-    // Mirror `isStoppedCategory` in verifier.ts: a hard stop suppresses
-    // medications unconditionally; an allergies-unavailable stop also
-    // suppresses allergy claims (because we cannot trust an empty allergy
-    // list to mean "none known"). Diagnoses, labs, encounters, identity,
-    // and appointments stay visible — they are independent of the safety
-    // pivot.
-    if (stops.length === 0) return false;
-    if (category === 'medication' || category === 'medication_change') return true;
-    if (category === 'allergy' && stops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) return true;
-    return false;
-};
-
 const redactedSegment = (): AssistantMessageSegment => ({
     text: REDACTION_TEXT,
     claims: [],
@@ -98,7 +83,7 @@ const formatSegment = (
         if (suppressedIds.has(id)) {
             return redactedSegment();
         }
-        if (isCategorySuppressed(claim.category, stops)) {
+        if (isStoppedCategory(claim.category, stops)) {
             return redactedSegment();
         }
         resolved.push(claim);
