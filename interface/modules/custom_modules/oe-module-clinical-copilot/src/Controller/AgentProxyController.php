@@ -63,7 +63,7 @@ final readonly class AgentProxyController
      *
      * @var list<string>
      */
-    private const JSON_GET_ACTIONS = ['latest_conversation', 'conversation_history'];
+    private const JSON_GET_ACTIONS = ['latest_conversation', 'conversation_history', 'schedule_briefings'];
 
     /**
      * Per-action whitelist of additional query parameters the proxy
@@ -82,6 +82,8 @@ final readonly class AgentProxyController
         'latest_conversation' => ['conversation'],
         // §4.7 history sidebar pagination.
         'conversation_history' => ['limit', 'before_updated_at', 'before_id'],
+        // §5.4 schedule-view annotations: keyed by (practitioner, day).
+        'schedule_briefings' => ['practitioner_uuid', 'date'],
     ];
 
     public function __construct(

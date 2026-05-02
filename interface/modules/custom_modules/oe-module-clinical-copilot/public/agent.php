@@ -24,6 +24,9 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolver;
 use OpenEMR\Modules\ClinicalCopilot\Auth\PolicyGate;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SessionContext;
 use OpenEMR\Modules\ClinicalCopilot\Controller\AgentProxyController;
+use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
+use OpenEMR\Modules\ClinicalCopilot\Schedule\MorningPrepGate;
+use OpenEMR\Modules\ClinicalCopilot\Settings\SettingsRepository;
 use Symfony\Component\HttpFoundation\Request;
 
 $request = Request::createFromGlobals();
@@ -112,6 +115,21 @@ $agentRequest = new AgentRequest(
     requestedScopes: $gate->defaultScopesFor($action),
     extraQueryParams: $extraQueryParams,
 );
+
+// §5.4 short-circuit: don't mint a token or call upstream when the
+// schedule-view annotations action runs against a practitioner who has
+// not opted into morning-prep. The agent's own route returns
+// `{briefings: []}` for the cold-cache case, so the contract is
+// identical — but the round-trip is wasted work on every page load.
+if ($action === 'schedule_briefings' && $resolvedFhirUser !== null) {
+    $morningPrepGate = new MorningPrepGate(new SettingsRepository(AgentDbalConnection::get()));
+    if (!$morningPrepGate->isEnabledFor($resolvedFhirUser->uuid)) {
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode(['briefings' => []], JSON_THROW_ON_ERROR);
+        return;
+    }
+}
 
 $body = $request->getContent();
 

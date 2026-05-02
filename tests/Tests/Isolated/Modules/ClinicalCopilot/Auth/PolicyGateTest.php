@@ -300,6 +300,55 @@ final class PolicyGateTest extends TestCase
         }
     }
 
+    public function testScheduleBriefingsActionAllowsDayLookupWithoutPatientContext(): void
+    {
+        // §5.4 schedule-view annotations. The action is read-only over
+        // the agent's `schedule_briefings` cache and is keyed by
+        // (practitioner, date) — no `pid`. The gate's patient-match
+        // rule only fires when the request names a patient, so a null
+        // `requestedPatientPid` correctly skips it.
+        $gate = new PolicyGate();
+        $session = new SessionContext(
+            authUserId: '42',
+            authUser: 'admin',
+            siteId: 'default',
+            patientPid: null,
+            fhirUser: $this->stubFhirUser(),
+        );
+        $request = new AgentRequest(
+            action: 'schedule_briefings',
+            siteId: 'default',
+            requestedPatientPid: null,
+            requestedScopes: $gate->defaultScopesFor('schedule_briefings'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertTrue($decision->allowed);
+        $this->assertSame(['openid', 'fhirUser'], $gate->defaultScopesFor('schedule_briefings'));
+    }
+
+    public function testScheduleBriefingsDeniesChartScopeRequest(): void
+    {
+        // The annotations route does not need any FHIR scopes — the
+        // cached rows live in the agent's own state store. A request
+        // that pads the scope list (e.g. trying to mint a chart-read
+        // token under the cheap action) must be denied.
+        $gate = new PolicyGate();
+        $session = new SessionContext('42', 'admin', 'default', null, $this->stubFhirUser());
+        $request = new AgentRequest(
+            action: 'schedule_briefings',
+            siteId: 'default',
+            requestedPatientPid: null,
+            requestedScopes: ['user/Patient.rs'],
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertFalse($decision->allowed);
+        $this->assertSame(PolicyDenyReason::ScopeNotPermitted, $decision->reason);
+    }
+
     private function stubFhirUser(): ResolvedFhirUser
     {
         return new ResolvedFhirUser(

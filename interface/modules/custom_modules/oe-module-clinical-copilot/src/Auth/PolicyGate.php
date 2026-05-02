@@ -79,6 +79,15 @@ final readonly class PolicyGate
             'openid',
             'fhirUser',
         ],
+        // §5.4 schedule-view annotations: read-only against the
+        // agent's `schedule_briefings` cache, self-only on the agent
+        // side (principal.sub must equal practitioner_uuid). No chart
+        // scopes — the precomputed rows already exist; this read does
+        // not access FHIR resources.
+        'schedule_briefings' => [
+            'openid',
+            'fhirUser',
+        ],
     ];
 
     public function evaluate(SessionContext $session, AgentRequest $request): PolicyDecision
