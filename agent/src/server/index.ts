@@ -23,6 +23,11 @@ import {
     createPgConversationStore,
     type ConversationStore,
 } from '../state/conversationStore.js';
+import {
+    createPgConversationSuggestionStore,
+    type ConversationSuggestionStore,
+} from '../state/conversationSuggestions.js';
+import { stableId } from '../graph/followUps.js';
 import { createPgUnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
 import type { JWK } from 'jose';
 
@@ -51,6 +56,13 @@ interface AppDeps {
         readonly conversationMessages: ConversationMessagesStore;
         readonly resumeWindowHours: number;
     };
+    /**
+     * Suggestion-chip provenance gate. When wired, follow-up turns whose
+     * `followUp` params don't match a chip ID this conversation actually
+     * surfaced are rejected as `unknown_chip_id` before the runner runs.
+     * Optional so legacy tests stay green; production always sets this.
+     */
+    readonly conversationSuggestions?: ConversationSuggestionStore;
 }
 
 // `analyte` is an identifier we feed into a SQL `LIKE` pattern downstream.
@@ -127,7 +139,12 @@ export const stringifyFollowUp = (params: SuggestedFollowUpParams): string | nul
     }
 };
 
-export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): Hono => {
+export const createApp = ({
+    auth,
+    briefingRunner,
+    conversationApi,
+    conversationSuggestions,
+}: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
 
@@ -189,6 +206,39 @@ export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): H
                 await writeEvent({ type: 'error', code: 'site_mismatch' });
                 return;
             }
+            // Suggestion-chip provenance gate. A typed `followUp` carries
+            // params we can re-hash (`stableId(conversationId, params)`)
+            // into the same chip ID the §4.1 generator emitted on a
+            // previous default-briefing turn. Reject if no such ID was
+            // ever shown in this conversation. Fail-closed by design:
+            // if the briefingRunner failed to persist the chip set on
+            // the prior turn (logged-and-swallowed there), the lookup
+            // returns false and the follow-up is rejected — the panel
+            // surfaces the same generic "request was malformed" UI the
+            // user already understands.
+            if (
+                parsed.data.followUp !== undefined
+                && conversationSuggestions !== undefined
+            ) {
+                const chipId = stableId(parsed.data.conversationId, parsed.data.followUp);
+                const known = await conversationSuggestions.hasChip(
+                    parsed.data.conversationId,
+                    chipId,
+                );
+                if (!known) {
+                    logger.warn(
+                        {
+                            conversationId: parsed.data.conversationId,
+                            requestId: parsed.data.requestId,
+                            followUpType: parsed.data.followUp.type,
+                        },
+                        'unknown chip ID — followUp rejected',
+                    );
+                    await writeEvent({ type: 'error', code: 'unknown_chip_id' });
+                    return;
+                }
+            }
+
             // §4.1 → §4.2/§4.3/§4.4 transitional shim: bridge a typed
             // `followUp` into the §4.5 free-text path for follow-up
             // types whose UC-specific branch hasn't shipped yet. §4.2
@@ -476,12 +526,17 @@ export const start = async (port: number): Promise<void> => {
     await conversationMessages.setup();
     logger.info('conversation_messages table ready');
 
+    const conversationSuggestions = createPgConversationSuggestionStore({ connectionString: databaseUrl });
+    await conversationSuggestions.setup();
+    logger.info('conversation_suggestion_chips table ready');
+
     const counters = createInMemoryCounters();
     const briefingRunner = buildProductionBriefingRunner({
         openEmrBaseUrl,
         unverifiedClaimsLog,
         conversationStore,
         conversationMessages,
+        conversationSuggestions,
         checkpointer,
         counters,
     });
@@ -512,6 +567,7 @@ export const start = async (port: number): Promise<void> => {
             conversationMessages,
             resumeWindowHours: 12,
         },
+        conversationSuggestions,
     });
     serve({ fetch: app.fetch, port });
     logger.info({ port }, 'agent service listening');

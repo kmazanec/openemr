@@ -43,7 +43,16 @@ const EXTERNAL_LOOKBACK_DAYS = 365;
 
 const MS_PER_DAY = 86_400_000;
 
-const stableId = (conversationId: string, params: SuggestedFollowUpParams): string => {
+/**
+ * Deterministic chip ID derived from `(conversationId, params)`.
+ * Exported so the server's chip-ID validation can recompute the same
+ * value from the incoming follow-up params and look it up against the
+ * persisted suggestion set without a round-trip ID column.
+ */
+export const stableId = (
+    conversationId: string,
+    params: SuggestedFollowUpParams,
+): string => {
     const hash = createHash('sha1');
     hash.update(JSON.stringify({ conversationId, params }));
     return hash.digest('hex').slice(0, 12);

@@ -4,6 +4,7 @@ import { createAgentJwtVerifier } from '../../src/auth/verify.js';
 import type { BriefingRunner } from '../../src/server/briefingRunner.js';
 import type { ConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import type { ConversationStore } from '../../src/state/conversationStore.js';
+import type { ConversationSuggestionStore } from '../../src/state/conversationSuggestions.js';
 import { generateTestKey } from '../auth/testKeys.js';
 import type { Hono } from 'hono';
 import type { KeyLike } from 'jose';
@@ -33,6 +34,7 @@ export interface AuthedAppOptions {
         readonly conversationMessages: ConversationMessagesStore;
         readonly windowHours?: number;
     };
+    readonly conversationSuggestions?: ConversationSuggestionStore;
 }
 
 const stubBriefingRunner: BriefingRunner = () => Promise.resolve([]);
@@ -63,6 +65,9 @@ export const buildAuthedApp = async (options: AuthedAppOptions = {}): Promise<Au
                           resumeWindowHours: conversationApi.resumeWindowHours ?? 12,
                       },
                   }
+                : {}),
+            ...(options.conversationSuggestions !== undefined
+                ? { conversationSuggestions: options.conversationSuggestions }
                 : {}),
         }),
         privateKey,

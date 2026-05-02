@@ -11,6 +11,7 @@ import { createLogger } from '../observability/logger.js';
 import { buildIdentityTags } from '../observability/traceMetadata.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
+import type { ConversationSuggestionStore } from '../state/conversationSuggestions.js';
 import { createAgentHttpClient } from '../tools/agentHttp.js';
 import type { AgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
@@ -91,6 +92,13 @@ export interface BriefingRunnerDeps {
      * graph nodes fall back to a noop sink.
      */
     readonly counters?: Counters;
+    /**
+     * Persisted suggestion-chip set per default-briefing turn. Optional —
+     * when omitted, the runner skips the chip recording (defense-in-depth
+     * is degraded but the user-visible turn still completes). Production
+     * always wires this and pairs it with the route-level validation.
+     */
+    readonly conversationSuggestions?: ConversationSuggestionStore;
 }
 
 /**
@@ -249,6 +257,36 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         });
         await deps.conversationStore.touch(conversationId);
 
+        // Record the suggestion-chip IDs offered on a default-briefing
+        // turn. Validation is the route's job; this side-channel only has
+        // to land before the next user turn arrives, so failures are
+        // logged-and-swallowed — the panel still gets its briefing, and
+        // the next follow-up will fail closed against the missing chip set.
+        if (
+            canonicalEnvelope.task === 'default_briefing'
+            && deps.conversationSuggestions !== undefined
+            && out.formatted.suggestedFollowUps.length > 0
+        ) {
+            const chipIds = out.formatted.suggestedFollowUps.map((s) => s.id);
+            try {
+                await deps.conversationSuggestions.record({
+                    conversationId,
+                    requestId: canonicalEnvelope.requestId,
+                    chipIds,
+                });
+            } catch (err: unknown) {
+                logger.warn(
+                    {
+                        err,
+                        conversationId,
+                        requestId: canonicalEnvelope.requestId,
+                        chipCount: chipIds.length,
+                    },
+                    'failed to record suggested-follow-up chip IDs; continuing',
+                );
+            }
+        }
+
         return eventsForBriefing(canonicalEnvelope, out.formatted, out.persisted);
     };
 };
@@ -258,6 +296,7 @@ export interface ProductionRunnerOptions {
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
     readonly conversationMessages: ConversationMessagesStore;
+    readonly conversationSuggestions: ConversationSuggestionStore;
     readonly checkpointer: BaseCheckpointSaver;
     readonly counters: Counters;
 }
@@ -287,6 +326,7 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         unverifiedClaimsLog: options.unverifiedClaimsLog,
         conversationStore: options.conversationStore,
         conversationMessages: options.conversationMessages,
+        conversationSuggestions: options.conversationSuggestions,
         checkpointer: options.checkpointer,
         counters: options.counters,
         fetchLabHistory,
