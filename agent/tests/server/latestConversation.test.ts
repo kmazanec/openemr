@@ -4,7 +4,12 @@ import type { AssistantMessage } from '../../src/graph/types.js';
 import { createInMemoryConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import { createInMemoryConversationStore } from '../../src/state/conversationStore.js';
 import { mintTestToken } from '../auth/testKeys.js';
-import { TEST_AUDIENCE, TEST_ISSUER, buildAuthedApp } from './buildAuthedApp.js';
+import {
+    TEST_AUDIENCE,
+    TEST_ISSUER,
+    buildAuthedApp,
+    type AuthedApp,
+} from './buildAuthedApp.js';
 
 const ASSISTANT: AssistantMessage = {
     segments: [
@@ -42,11 +47,11 @@ const PRACTITIONER = 'Practitioner/dr-patel';
 const PID = 92;
 
 const buildAuthedRequest = async (
-    appBuilder: { app: { request: (...args: unknown[]) => Promise<Response> }; privateKey: unknown },
+    appBuilder: AuthedApp,
     pidQuery: string,
     subject = PRACTITIONER,
 ): Promise<Response> => {
-    const token = await mintTestToken(appBuilder.privateKey as Parameters<typeof mintTestToken>[0], {
+    const token = await mintTestToken(appBuilder.privateKey, {
         issuer: TEST_ISSUER,
         audience: TEST_AUDIENCE,
         subject,
