@@ -36,6 +36,7 @@ use OpenEMR\Modules\ClinicalCopilot\Controller\LabsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationProvenanceController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PatientContextController;
+use OpenEMR\Modules\ClinicalCopilot\Controller\ScheduleController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosureListener;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryAgentRequestLogRecorder;
@@ -49,6 +50,8 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceAdapter
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ScheduleAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ScheduleDataSource;
 use OpenEMR\Seed\PatientArchetype;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\ArchetypeChartFactory;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAllergyDataSource;
@@ -71,6 +74,8 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentActorResolver.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/Adapter/MedicationProvenanceDataSource.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/Adapter/ScheduleDataSource.php';
 
 final class NarrowAgentControllersTest extends TestCase
 {
@@ -116,6 +121,9 @@ final class NarrowAgentControllersTest extends TestCase
         require_once self::MODULE_DIR . '/Controller/EncountersController.php';
         require_once self::MODULE_DIR . '/Controller/PatientContextController.php';
         require_once self::MODULE_DIR . '/Controller/MedicationProvenanceController.php';
+        require_once self::MODULE_DIR . '/Snapshot/ScheduleSlot.php';
+        require_once self::MODULE_DIR . '/Snapshot/Adapter/ScheduleAdapter.php';
+        require_once self::MODULE_DIR . '/Controller/ScheduleController.php';
 
         if (self::$keypair === null) {
             self::$keypair = self::generateKeypair();
@@ -488,6 +496,237 @@ final class NarrowAgentControllersTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Schedule endpoint (§5.1 UC5)
+    // ------------------------------------------------------------------
+
+    public function testScheduleHappyPathReturnsDayList(): void
+    {
+        $token = $this->mintToken(['user/Appointment.rs']);
+        $rows = [
+            $this->scheduleRow('apt-1', 4242, '2026-05-01', '09:00:00', 900, 'office-visit', 'diabetes follow-up'),
+            $this->scheduleRow('apt-2', 4243, '2026-05-01', '10:30:00', 1800, 'office-visit', 'med refill'),
+        ];
+
+        [$status, $body, $events] = $this->dispatchSchedule(
+            $token,
+            $this->actorUuid(),
+            '2026-05-01',
+            $rows,
+        );
+
+        $this->assertSame(200, $status);
+        $this->assertNotNull($body);
+        $this->assertArrayHasKey('schedule', $body);
+        $this->assertIsArray($body['schedule']);
+        $this->assertCount(2, $body['schedule']);
+        $first = $body['schedule'][0];
+        $this->assertIsArray($first);
+        $this->assertSame('apt-1', $first['appointmentId']);
+        $this->assertSame(4242, $first['pid']);
+        // One disclosure row per patient on the schedule — the audit
+        // record is "actor saw appointment for patient X", and the
+        // existing AgentDisclosure shape requires patientPid. This
+        // gives compliance a per-patient trail of which charts the
+        // morning-prep flow touched.
+        $this->assertCount(2, $events);
+        $this->assertSame(['schedule', 'schedule'], array_map(static fn($e) => $e->action, $events));
+        $this->assertSame([['appointment'], ['appointment']], array_map(static fn($e) => $e->categories, $events));
+        $this->assertSame([4242, 4243], array_map(static fn($e) => $e->patientPid, $events));
+    }
+
+    public function testScheduleEmptyDayReturnsEmptyListAndNoDisclosures(): void
+    {
+        // No appointments → nothing was disclosed → no audit rows.
+        // This is what makes the disabled-default cost story in
+        // §5 ("zero tokens, zero rows") true at the audit layer too.
+        $token = $this->mintToken(['user/Appointment.rs']);
+        [$status, $body, $events] = $this->dispatchSchedule(
+            $token,
+            $this->actorUuid(),
+            '2026-05-01',
+            [],
+        );
+
+        $this->assertSame(200, $status);
+        $this->assertNotNull($body);
+        $this->assertSame([], $body['schedule']);
+        $this->assertSame([], $events);
+    }
+
+    public function testScheduleRejectsTokenLackingScope(): void
+    {
+        $token = $this->mintToken(['user/Patient.rs']);
+        [$status, $body, $events] = $this->dispatchSchedule(
+            $token,
+            $this->actorUuid(),
+            '2026-05-01',
+            [],
+        );
+        $this->assertSame(403, $status);
+        $this->assertSame(['error' => 'scope_not_permitted'], $body);
+        $this->assertSame([], $events);
+    }
+
+    public function testScheduleRejectsMissingToken(): void
+    {
+        [$status, $body] = $this->dispatchSchedule(
+            null,
+            $this->actorUuid(),
+            '2026-05-01',
+            [],
+        );
+        $this->assertSame(401, $status);
+        $this->assertSame(['error' => 'missing_token'], $body);
+    }
+
+    public function testScheduleRejectsMissingPractitioner(): void
+    {
+        $token = $this->mintToken(['user/Appointment.rs']);
+        [$status, $body, $events] = $this->dispatchSchedule(
+            $token,
+            null,
+            '2026-05-01',
+            [],
+        );
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'missing_practitioner'], $body);
+        $this->assertSame([], $events);
+    }
+
+    public function testScheduleRejectsMalformedPractitioner(): void
+    {
+        $token = $this->mintToken(['user/Appointment.rs']);
+        [$status, $body] = $this->dispatchSchedule(
+            $token,
+            'not-a-uuid',
+            '2026-05-01',
+            [],
+        );
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'invalid_practitioner'], $body);
+    }
+
+    public function testScheduleRejectsMissingDate(): void
+    {
+        $token = $this->mintToken(['user/Appointment.rs']);
+        [$status, $body] = $this->dispatchSchedule(
+            $token,
+            $this->actorUuid(),
+            null,
+            [],
+        );
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'missing_date'], $body);
+    }
+
+    public function testScheduleRejectsMalformedDate(): void
+    {
+        $token = $this->mintToken(['user/Appointment.rs']);
+        [$status, $body] = $this->dispatchSchedule(
+            $token,
+            $this->actorUuid(),
+            '2026-13-99',
+            [],
+        );
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'invalid_date'], $body);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function scheduleRow(
+        string $eid,
+        int $pid,
+        string $eventDate,
+        string $startTime,
+        int $durationSeconds,
+        ?string $catname,
+        ?string $title,
+    ): array {
+        return [
+            'pc_eid' => $eid,
+            'pc_pid' => $pid,
+            'pc_eventDate' => $eventDate,
+            'pc_startTime' => $startTime,
+            'pc_duration' => $durationSeconds,
+            'pc_catname' => $catname,
+            'pc_title' => $title,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows rows the data source returns
+     * @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>}
+     */
+    private function dispatchSchedule(
+        ?string $token,
+        ?string $practitionerUuid,
+        ?string $dateIso,
+        array $rows,
+    ): array {
+        $logger = new NullLogger();
+
+        $disclosureSink = new InMemoryDisclosureRecorder();
+        $requestLogSink = new InMemoryAgentRequestLogRecorder();
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(
+            AgentDisclosedEvent::EVENT_HANDLE,
+            new AgentDisclosureListener($disclosureSink, $requestLogSink, $logger),
+        );
+
+        $resolver = new NarrowControllerStubResolver(
+            new ResolvedAgentActor(7, 'patel', $this->actorUuid()),
+            true,
+        );
+
+        $auth = new AgentEndpointAuth(
+            new OpenEmrJwtVerifier(
+                publicKeyPem: self::keypair()['public'],
+                issuer: self::ISSUER,
+                audience: AgentTokenMinter::AGENT_CLIENT_ID,
+                clock: $this->fixedClock(),
+            ),
+            $resolver,
+            $logger,
+            'default',
+        );
+
+        $controller = new ScheduleController(
+            auth: $auth,
+            adapter: new ScheduleAdapter(new NarrowControllerStubScheduleSource($rows)),
+            eventDispatcher: $dispatcher,
+            logger: $logger,
+            siteId: 'default',
+            clock: self::staticFixedClock(),
+        );
+
+        ob_start();
+        try {
+            $controller->handle($token, $practitionerUuid, $dateIso, null);
+        } finally {
+            $output = ob_get_clean();
+        }
+
+        $status = http_response_code();
+        $this->assertIsInt($status);
+
+        $decoded = null;
+        if ($output !== '') {
+            $raw = json_decode((string) $output, true);
+            $this->assertIsArray($raw);
+            $stringKeyed = [];
+            foreach ($raw as $key => $value) {
+                $this->assertIsString($key);
+                $stringKeyed[$key] = $value;
+            }
+            $decoded = $stringKeyed;
+        }
+
+        return [$status, $decoded, $requestLogSink->all()];
+    }
+
+    // ------------------------------------------------------------------
     // Dispatch helpers
     // ------------------------------------------------------------------
 
@@ -830,5 +1069,21 @@ final readonly class NarrowControllerStubProvenanceSource implements MedicationP
     public function findByPrescriptionId(int $pid, int $prescriptionId): ?array
     {
         return $this->row;
+    }
+}
+
+final readonly class NarrowControllerStubScheduleSource implements ScheduleDataSource
+{
+    /** @param list<array<string, mixed>> $rows */
+    public function __construct(private array $rows)
+    {
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findScheduleByPractitioner(string $practitionerUuid, \DateTimeImmutable $date): array
+    {
+        return $this->rows;
     }
 }
