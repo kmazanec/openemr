@@ -22,9 +22,9 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterDataSource;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionDataSource;
 
 final readonly class InMemoryPatientDataSource implements PatientDataSource
 {
@@ -50,15 +50,15 @@ final readonly class InMemoryConditionDataSource implements ConditionDataSource
     }
 }
 
-final readonly class InMemoryMedicationDataSource implements MedicationDataSource
+final readonly class InMemoryPrescriptionDataSource implements PrescriptionDataSource
 {
     public function __construct(private ArchetypeChart $chart)
     {
     }
 
-    public function findActiveForPid(int $pid): array
+    public function findRecentForPid(int $pid, int $lookbackDays): array
     {
-        return $pid === $this->chart->pid ? $this->chart->medicationRows : [];
+        return $pid === $this->chart->pid ? $this->chart->prescriptionRows : [];
     }
 }
 

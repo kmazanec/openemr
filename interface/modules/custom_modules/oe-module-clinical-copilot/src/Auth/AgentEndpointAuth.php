@@ -2,7 +2,7 @@
 
 /**
  * Shared bearer-auth + scope check used by every narrow agent
- * snapshot endpoint (medications, labs, encounters, patientContext).
+ * snapshot endpoint (prescriptions, labs, encounters, patientContext).
  *
  * Each narrow controller maps 1:1 to a single OpenEMR endpoint and
  * runs only its own adapter. The work that is genuinely shared —

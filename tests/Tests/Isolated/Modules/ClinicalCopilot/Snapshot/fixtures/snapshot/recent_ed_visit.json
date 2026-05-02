@@ -42,7 +42,7 @@
       }
     }
   ],
-  "medications": [],
+  "prescriptions": [],
   "allergies": [
     {
       "substance": "Shellfish",

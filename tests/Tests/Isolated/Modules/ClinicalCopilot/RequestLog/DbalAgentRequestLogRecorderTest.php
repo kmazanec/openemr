@@ -75,7 +75,7 @@ final class DbalAgentRequestLogRecorderTest extends TestCase
             conversationId: 'conv-1',
             action: 'briefing',
             requestId: 'jti-deadbeef',
-            categories: ['allergy', 'diagnosis', 'medication'],
+            categories: ['allergy', 'diagnosis', 'prescription'],
             destination: 'openemr-clinical-copilot-agent',
         );
 
@@ -93,7 +93,7 @@ final class DbalAgentRequestLogRecorderTest extends TestCase
         self::assertSame('briefing', $row['action']);
         self::assertSame('jti-deadbeef', $row['request_id']);
         self::assertIsString($row['categories']);
-        self::assertSame(['allergy', 'diagnosis', 'medication'], json_decode($row['categories'], true));
+        self::assertSame(['allergy', 'diagnosis', 'prescription'], json_decode($row['categories'], true));
         self::assertSame('openemr-clinical-copilot-agent', $row['destination']);
     }
 

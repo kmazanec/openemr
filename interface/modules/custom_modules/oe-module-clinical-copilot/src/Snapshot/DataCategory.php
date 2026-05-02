@@ -22,7 +22,7 @@ namespace OpenEMR\Modules\ClinicalCopilot\Snapshot;
 enum DataCategory: string
 {
     case Diagnosis = 'diagnosis';
-    case Medication = 'medication';
+    case Prescription = 'prescription';
     case Allergy = 'allergy';
     case Lab = 'lab';
     case Encounter = 'encounter';
@@ -40,7 +40,7 @@ enum DataCategory: string
     {
         return match ($this) {
             self::Diagnosis => 'user/Condition.rs',
-            self::Medication => 'user/MedicationRequest.rs',
+            self::Prescription => 'user/MedicationRequest.rs',
             self::Allergy => 'user/AllergyIntolerance.rs',
             self::Lab => 'user/Observation.rs',
             self::Encounter => 'user/Encounter.rs',

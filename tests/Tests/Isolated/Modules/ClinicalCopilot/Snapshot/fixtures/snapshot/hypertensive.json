@@ -55,7 +55,7 @@
       }
     }
   ],
-  "medications": [
+  "prescriptions": [
     {
       "name": "Lisinopril 10 MG Oral Tablet",
       "dose": "10 mg",

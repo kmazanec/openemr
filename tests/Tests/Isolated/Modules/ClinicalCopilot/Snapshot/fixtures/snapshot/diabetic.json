@@ -55,7 +55,7 @@
       }
     }
   ],
-  "medications": [
+  "prescriptions": [
     {
       "name": "Metformin hydrochloride 500 MG Oral Tablet",
       "dose": "500 mg",

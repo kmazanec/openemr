@@ -21,7 +21,7 @@ final readonly class ArchetypeChart
     /**
      * @param array<string, mixed> $patientRow
      * @param list<array<string, mixed>> $conditionRows
-     * @param list<array<string, mixed>> $medicationRows
+     * @param list<array<string, mixed>> $prescriptionRows
      * @param list<array<string, mixed>> $allergyRows
      * @param list<array<string, mixed>> $encounterRows
      * @param list<array<string, mixed>> $externalEncounterRows
@@ -34,7 +34,7 @@ final readonly class ArchetypeChart
         public string $uuid,
         public array $patientRow,
         public array $conditionRows,
-        public array $medicationRows,
+        public array $prescriptionRows,
         public array $allergyRows,
         public array $encounterRows,
         public array $observationRows,

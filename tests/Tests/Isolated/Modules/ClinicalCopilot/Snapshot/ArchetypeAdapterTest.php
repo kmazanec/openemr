@@ -29,18 +29,18 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
 use OpenEMR\Seed\PatientArchetype;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\ArchetypeChartFactory;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAllergyDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAppointmentDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryConditionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEncounterDataSource;
-use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryMedicationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPrescriptionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\RequireModuleClasses;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\SnapshotBuilder;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -105,13 +105,13 @@ final class ArchetypeAdapterTest extends TestCase
     }
 
     #[DataProvider('archetypes')]
-    public function testMedicationAdapterSurfacesArchetypeRequiredDrugs(PatientArchetype $archetype): void
+    public function testPrescriptionAdapterSurfacesArchetypeRequiredDrugs(PatientArchetype $archetype): void
     {
         $chart = $this->factory()->build($archetype);
-        $meds = (new MedicationAdapter(new InMemoryMedicationDataSource($chart)))
-            ->fetchActive($chart->pid);
+        $prescriptions = (new PrescriptionAdapter(new InMemoryPrescriptionDataSource($chart)))
+            ->fetchRecent($chart->pid, SnapshotBuilder::LOOKBACK_DAYS);
 
-        $names = array_map(static fn($m): string => $m->name, $meds);
+        $names = array_map(static fn($p): string => $p->name, $prescriptions);
         if ($chart->groundTruth->requiredMedicationDrugs === []) {
             $this->assertSame([], $chart->groundTruth->requiredMedicationDrugs);
             return;
@@ -198,8 +198,8 @@ final class ArchetypeAdapterTest extends TestCase
         foreach ($snapshot->diagnoses as $d) {
             $this->assertSame('Condition', $d->source->recordType);
         }
-        foreach ($snapshot->medications as $m) {
-            $this->assertSame('MedicationRequest', $m->source->recordType);
+        foreach ($snapshot->prescriptions as $p) {
+            $this->assertSame('MedicationRequest', $p->source->recordType);
         }
         foreach ($snapshot->allergies as $a) {
             $this->assertSame('AllergyIntolerance', $a->source->recordType);

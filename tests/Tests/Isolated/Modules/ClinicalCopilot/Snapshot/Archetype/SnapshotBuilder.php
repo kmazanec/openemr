@@ -22,9 +22,9 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\ChartSnapshot;
 
 final readonly class SnapshotBuilder
@@ -40,8 +40,8 @@ final readonly class SnapshotBuilder
             ->fetch($chart->pid);
         $diagnoses = (new ConditionAdapter(new InMemoryConditionDataSource($chart)))
             ->fetchActive($chart->pid);
-        $medications = (new MedicationAdapter(new InMemoryMedicationDataSource($chart)))
-            ->fetchActive($chart->pid);
+        $prescriptions = (new PrescriptionAdapter(new InMemoryPrescriptionDataSource($chart)))
+            ->fetchRecent($chart->pid, self::LOOKBACK_DAYS);
         $allergies = (new AllergyAdapter(new InMemoryAllergyDataSource($chart)))
             ->fetchActive($chart->pid);
         $encounters = (new EncounterAdapter(new InMemoryEncounterDataSource($chart)))
@@ -55,7 +55,7 @@ final readonly class SnapshotBuilder
             patient: $patient,
             appointment: $appointment,
             diagnoses: $diagnoses,
-            medications: $medications,
+            prescriptions: $prescriptions,
             allergies: $allergies,
             labs: $labs,
             encounters: $encounters,

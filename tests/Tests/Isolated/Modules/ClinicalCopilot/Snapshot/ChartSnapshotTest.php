@@ -26,7 +26,7 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Demographics;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Diagnosis;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Encounter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\LabObservation;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Medication;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Prescription;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\SourceReference;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -45,7 +45,7 @@ final class ChartSnapshotTest extends TestCase
             'Demographics.php',
             'Appointment.php',
             'Diagnosis.php',
-            'Medication.php',
+            'Prescription.php',
             'Allergy.php',
             'LabObservation.php',
             'Encounter.php',
@@ -67,7 +67,7 @@ final class ChartSnapshotTest extends TestCase
         yield 'Demographics' => [Demographics::class];
         yield 'Appointment' => [Appointment::class];
         yield 'Diagnosis' => [Diagnosis::class];
-        yield 'Medication' => [Medication::class];
+        yield 'Prescription' => [Prescription::class];
         yield 'Allergy' => [Allergy::class];
         yield 'LabObservation' => [LabObservation::class];
         yield 'Encounter' => [Encounter::class];
@@ -131,9 +131,9 @@ final class ChartSnapshotTest extends TestCase
         );
     }
 
-    public function testMedicationToArrayShape(): void
+    public function testPrescriptionToArrayShape(): void
     {
-        $med = new Medication(
+        $rx = new Prescription(
             name: 'metformin',
             dose: '500 mg',
             route: 'oral',
@@ -165,7 +165,7 @@ final class ChartSnapshotTest extends TestCase
                     'recordedAt' => null,
                 ],
             ],
-            $med->toArray(),
+            $rx->toArray(),
         );
     }
 
@@ -341,8 +341,8 @@ final class ChartSnapshotTest extends TestCase
                     source: $this->ref('Condition', 'cond-1'),
                 ),
             ],
-            medications: [
-                new Medication(
+            prescriptions: [
+                new Prescription(
                     name: 'metformin',
                     dose: '500 mg',
                     route: 'oral',
@@ -405,7 +405,7 @@ final class ChartSnapshotTest extends TestCase
             ),
             appointment: null,
             diagnoses: [],
-            medications: [],
+            prescriptions: [],
             allergies: [],
             labs: [],
             encounters: [],
@@ -431,7 +431,7 @@ final class ChartSnapshotTest extends TestCase
             appointment: null,
             // @phpstan-ignore argument.type
             diagnoses: ['not a Diagnosis'],
-            medications: [],
+            prescriptions: [],
             allergies: [],
             labs: [],
             encounters: [],

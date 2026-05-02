@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Data-source seam for {@see MedicationProvenanceAdapter}.
+ * Data-source seam for {@see PrescriptionProvenanceAdapter}.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter;
 
-interface MedicationProvenanceDataSource
+interface PrescriptionProvenanceDataSource
 {
     /**
      * Look up a single prescription by id, scoped to the patient. The pid

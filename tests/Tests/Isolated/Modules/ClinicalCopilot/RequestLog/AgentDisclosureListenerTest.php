@@ -191,7 +191,7 @@ final class AgentDisclosureListenerTest extends TestCase
             conversationId: null,
             action: 'briefing',
             requestId: $requestId,
-            categories: ['allergy', 'medication'],
+            categories: ['allergy', 'prescription'],
             destination: 'openemr-clinical-copilot-agent',
         );
     }

@@ -26,7 +26,7 @@ use TypeError;
  * @phpstan-import-type DemographicsArray from Demographics
  * @phpstan-import-type AppointmentArray from Appointment
  * @phpstan-import-type DiagnosisArray from Diagnosis
- * @phpstan-import-type MedicationArray from Medication
+ * @phpstan-import-type PrescriptionArray from Prescription
  * @phpstan-import-type AllergyArray from Allergy
  * @phpstan-import-type LabObservationArray from LabObservation
  * @phpstan-import-type EncounterArray from Encounter
@@ -35,7 +35,7 @@ use TypeError;
  *     patient: DemographicsArray,
  *     appointment: ?AppointmentArray,
  *     diagnoses: list<DiagnosisArray>,
- *     medications: list<MedicationArray>,
+ *     prescriptions: list<PrescriptionArray>,
  *     allergies: list<AllergyArray>,
  *     labs: list<LabObservationArray>,
  *     encounters: list<EncounterArray>,
@@ -46,8 +46,8 @@ final readonly class ChartSnapshot
     /** @var list<Diagnosis> */
     public array $diagnoses;
 
-    /** @var list<Medication> */
-    public array $medications;
+    /** @var list<Prescription> */
+    public array $prescriptions;
 
     /** @var list<Allergy> */
     public array $allergies;
@@ -60,7 +60,7 @@ final readonly class ChartSnapshot
 
     /**
      * @param list<Diagnosis> $diagnoses
-     * @param list<Medication> $medications
+     * @param list<Prescription> $prescriptions
      * @param list<Allergy> $allergies
      * @param list<LabObservation> $labs
      * @param list<Encounter> $encounters
@@ -69,19 +69,19 @@ final readonly class ChartSnapshot
         public Demographics $patient,
         public ?Appointment $appointment,
         array $diagnoses,
-        array $medications,
+        array $prescriptions,
         array $allergies,
         array $labs,
         array $encounters,
     ) {
         self::assertItemTypes($diagnoses, Diagnosis::class, 'diagnoses');
-        self::assertItemTypes($medications, Medication::class, 'medications');
+        self::assertItemTypes($prescriptions, Prescription::class, 'prescriptions');
         self::assertItemTypes($allergies, Allergy::class, 'allergies');
         self::assertItemTypes($labs, LabObservation::class, 'labs');
         self::assertItemTypes($encounters, Encounter::class, 'encounters');
 
         $this->diagnoses = $diagnoses;
-        $this->medications = $medications;
+        $this->prescriptions = $prescriptions;
         $this->allergies = $allergies;
         $this->labs = $labs;
         $this->encounters = $encounters;
@@ -96,7 +96,7 @@ final readonly class ChartSnapshot
             'patient' => $this->patient->toArray(),
             'appointment' => $this->appointment?->toArray(),
             'diagnoses' => array_map(fn (Diagnosis $d): array => $d->toArray(), $this->diagnoses),
-            'medications' => array_map(fn (Medication $m): array => $m->toArray(), $this->medications),
+            'prescriptions' => array_map(fn (Prescription $p): array => $p->toArray(), $this->prescriptions),
             'allergies' => array_map(fn (Allergy $a): array => $a->toArray(), $this->allergies),
             'labs' => array_map(fn (LabObservation $l): array => $l->toArray(), $this->labs),
             'encounters' => array_map(fn (Encounter $e): array => $e->toArray(), $this->encounters),

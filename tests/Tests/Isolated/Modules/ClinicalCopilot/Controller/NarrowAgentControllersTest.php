@@ -2,7 +2,7 @@
 
 /**
  * Isolated tests for the four narrow agent controllers
- * (medications, labs, encounters, patientContext).
+ * (prescriptions, labs, encounters, patientContext).
  *
  * Each narrow endpoint maps 1:1 to one tool on the agent side and
  * runs only the adapters it needs. The four controllers share
@@ -33,9 +33,9 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedFhirUser;
 use OpenEMR\Modules\ClinicalCopilot\Controller\EncountersController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\LabHistoryController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\LabsController;
-use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationProvenanceController;
-use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PatientContextController;
+use OpenEMR\Modules\ClinicalCopilot\Controller\PrescriptionProvenanceController;
+use OpenEMR\Modules\ClinicalCopilot\Controller\PrescriptionsController;
 use OpenEMR\Modules\ClinicalCopilot\Controller\ScheduleController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosureListener;
@@ -45,11 +45,11 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AllergyAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionProvenanceAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionProvenanceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ScheduleAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ScheduleDataSource;
 use OpenEMR\Seed\PatientArchetype;
@@ -58,9 +58,9 @@ use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAl
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryConditionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEncounterDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryExternalEncounterDataSource;
-use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryMedicationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPrescriptionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\RequireModuleClasses;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -73,7 +73,7 @@ require_once __DIR__
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/AgentActorResolver.php';
 require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/Adapter/MedicationProvenanceDataSource.php';
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/Adapter/PrescriptionProvenanceDataSource.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/Adapter/ScheduleDataSource.php';
 
@@ -115,12 +115,12 @@ final class NarrowAgentControllersTest extends TestCase
         ] as $f) {
             require_once $auth . '/' . $f;
         }
-        require_once self::MODULE_DIR . '/Controller/MedicationsController.php';
+        require_once self::MODULE_DIR . '/Controller/PrescriptionsController.php';
         require_once self::MODULE_DIR . '/Controller/LabsController.php';
         require_once self::MODULE_DIR . '/Controller/LabHistoryController.php';
         require_once self::MODULE_DIR . '/Controller/EncountersController.php';
         require_once self::MODULE_DIR . '/Controller/PatientContextController.php';
-        require_once self::MODULE_DIR . '/Controller/MedicationProvenanceController.php';
+        require_once self::MODULE_DIR . '/Controller/PrescriptionProvenanceController.php';
         require_once self::MODULE_DIR . '/Snapshot/ScheduleSlot.php';
         require_once self::MODULE_DIR . '/Snapshot/Adapter/ScheduleAdapter.php';
         require_once self::MODULE_DIR . '/Controller/ScheduleController.php';
@@ -131,52 +131,52 @@ final class NarrowAgentControllersTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // Medications endpoint
+    // Prescriptions endpoint
     // ------------------------------------------------------------------
 
-    public function testMedicationsHappyPathReturnsActiveMeds(): void
+    public function testPrescriptionsHappyPathReturnsRecentRx(): void
     {
         $token = $this->mintToken(['user/MedicationRequest.rs']);
-        [$status, $body, $events] = $this->dispatchMedications($token, 4242);
+        [$status, $body, $events] = $this->dispatchPrescriptions($token, 4242);
 
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
-        $this->assertArrayHasKey('medications', $body);
-        $this->assertIsArray($body['medications']);
-        $this->assertNotEmpty($body['medications']);
+        $this->assertArrayHasKey('prescriptions', $body);
+        $this->assertIsArray($body['prescriptions']);
+        $this->assertNotEmpty($body['prescriptions']);
         // §4.3: each row carries indication + prescriptionId so the
-        // briefing can mention indication and the medication-change
+        // briefing can mention indication and the prescription-change
         // follow-up can address a single prescription by id.
-        $first = $body['medications'][0];
+        $first = $body['prescriptions'][0];
         // Narrowing assertion — `$first` is `mixed` after the index, and
         // PHPStan needs this before the assertArrayHasKey calls below.
         $this->assertIsArray($first);
         $this->assertArrayHasKey('indication', $first);
         $this->assertArrayHasKey('prescriptionId', $first);
         $this->assertCount(1, $events);
-        $this->assertSame('medications', $events[0]->action);
-        $this->assertSame(['medication'], $events[0]->categories);
+        $this->assertSame('prescriptions', $events[0]->action);
+        $this->assertSame(['prescription'], $events[0]->categories);
     }
 
-    public function testMedicationsRejectsTokenLackingScope(): void
+    public function testPrescriptionsRejectsTokenLackingScope(): void
     {
         $token = $this->mintToken(['user/Patient.rs']);
-        [$status, $body] = $this->dispatchMedications($token, 4242);
+        [$status, $body] = $this->dispatchPrescriptions($token, 4242);
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
     }
 
-    public function testMedicationsRejectsMissingToken(): void
+    public function testPrescriptionsRejectsMissingToken(): void
     {
-        [$status, $body] = $this->dispatchMedications(null, 4242);
+        [$status, $body] = $this->dispatchPrescriptions(null, 4242);
         $this->assertSame(401, $status);
         $this->assertSame(['error' => 'missing_token'], $body);
     }
 
-    public function testMedicationsRejectsMissingPid(): void
+    public function testPrescriptionsRejectsMissingPid(): void
     {
         $token = $this->mintToken(['user/MedicationRequest.rs']);
-        [$status, $body] = $this->dispatchMedications($token, null);
+        [$status, $body] = $this->dispatchPrescriptions($token, null);
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'missing_pid'], $body);
     }
@@ -341,16 +341,16 @@ final class NarrowAgentControllersTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // Medication provenance endpoint (§4.3 UC3)
+    // Prescription provenance endpoint (§4.3 UC3)
     // ------------------------------------------------------------------
 
-    public function testMedicationProvenanceHappyPathReturnsRow(): void
+    public function testPrescriptionProvenanceHappyPathReturnsRow(): void
     {
         $token = $this->mintToken(['user/MedicationRequest.rs']);
-        [$status, $body, $events] = $this->dispatchMedicationProvenance(
+        [$status, $body, $events] = $this->dispatchPrescriptionProvenance(
             $token,
             pid: 4242,
-            medicationId: 7001,
+            prescriptionId: 7001,
             row: $this->lisinoprilProvenanceRow(),
         );
 
@@ -363,31 +363,31 @@ final class NarrowAgentControllersTest extends TestCase
         $this->assertSame('Patel, Maya', $body['provenance']['prescriber']);
         $this->assertSame('new-onset hypertension', $body['provenance']['indication']);
         $this->assertCount(1, $events);
-        $this->assertSame('medication_provenance', $events[0]->action);
-        $this->assertSame(['medication'], $events[0]->categories);
+        $this->assertSame('prescription_provenance', $events[0]->action);
+        $this->assertSame(['prescription'], $events[0]->categories);
     }
 
-    public function testMedicationProvenanceRejectsMissingMedicationId(): void
+    public function testPrescriptionProvenanceRejectsMissingPrescriptionId(): void
     {
         $token = $this->mintToken(['user/MedicationRequest.rs']);
-        [$status, $body, $events] = $this->dispatchMedicationProvenance(
+        [$status, $body, $events] = $this->dispatchPrescriptionProvenance(
             $token,
             pid: 4242,
-            medicationId: null,
+            prescriptionId: null,
             row: $this->lisinoprilProvenanceRow(),
         );
         $this->assertSame(400, $status);
-        $this->assertSame(['error' => 'missing_medication_id'], $body);
+        $this->assertSame(['error' => 'missing_prescription_id'], $body);
         $this->assertCount(0, $events);
     }
 
-    public function testMedicationProvenanceUnknownIdReturnsNotFound(): void
+    public function testPrescriptionProvenanceUnknownIdReturnsNotFound(): void
     {
         $token = $this->mintToken(['user/MedicationRequest.rs']);
-        [$status, $body, $events] = $this->dispatchMedicationProvenance(
+        [$status, $body, $events] = $this->dispatchPrescriptionProvenance(
             $token,
             pid: 4242,
-            medicationId: 9999,
+            prescriptionId: 9999,
             row: null,
         );
         $this->assertSame(404, $status);
@@ -396,13 +396,13 @@ final class NarrowAgentControllersTest extends TestCase
         $this->assertCount(0, $events);
     }
 
-    public function testMedicationProvenanceRejectsTokenLackingScope(): void
+    public function testPrescriptionProvenanceRejectsTokenLackingScope(): void
     {
         $token = $this->mintToken(['user/Patient.rs']);
-        [$status, $body] = $this->dispatchMedicationProvenance(
+        [$status, $body] = $this->dispatchPrescriptionProvenance(
             $token,
             pid: 4242,
-            medicationId: 7001,
+            prescriptionId: 7001,
             row: $this->lisinoprilProvenanceRow(),
         );
         $this->assertSame(403, $status);
@@ -426,10 +426,10 @@ final class NarrowAgentControllersTest extends TestCase
      * @param array<string, mixed>|null $row null → controller emits 404
      * @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>}
      */
-    private function dispatchMedicationProvenance(
+    private function dispatchPrescriptionProvenance(
         ?string $token,
         ?int $pid,
-        ?int $medicationId,
+        ?int $prescriptionId,
         ?array $row,
     ): array {
         $logger = new NullLogger();
@@ -459,9 +459,9 @@ final class NarrowAgentControllersTest extends TestCase
             'default',
         );
 
-        $controller = new MedicationProvenanceController(
+        $controller = new PrescriptionProvenanceController(
             auth: $auth,
-            adapter: new MedicationProvenanceAdapter(
+            adapter: new PrescriptionProvenanceAdapter(
                 new NarrowControllerStubProvenanceSource($row),
             ),
             eventDispatcher: $dispatcher,
@@ -472,7 +472,7 @@ final class NarrowAgentControllersTest extends TestCase
 
         ob_start();
         try {
-            $controller->handle($token, $pid, $medicationId, null);
+            $controller->handle($token, $pid, $prescriptionId, null);
         } finally {
             $output = ob_get_clean();
         }
@@ -731,12 +731,12 @@ final class NarrowAgentControllersTest extends TestCase
     // ------------------------------------------------------------------
 
     /** @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>} */
-    private function dispatchMedications(?string $token, ?int $pid): array
+    private function dispatchPrescriptions(?string $token, ?int $pid): array
     {
         $chart = $this->chart();
-        return $this->dispatchWith(static fn($auth, $dispatcher, $logger) => new MedicationsController(
+        return $this->dispatchWith(static fn($auth, $dispatcher, $logger) => new PrescriptionsController(
             auth: $auth,
-            medicationAdapter: new MedicationAdapter(new InMemoryMedicationDataSource($chart)),
+            prescriptionAdapter: new PrescriptionAdapter(new InMemoryPrescriptionDataSource($chart)),
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -889,7 +889,7 @@ final class NarrowAgentControllersTest extends TestCase
      * four narrow controllers share the same `handle()` shape so they
      * are interchangeable here.
      *
-     * @param callable(AgentEndpointAuth, EventDispatcher, NullLogger): (MedicationsController|LabsController|EncountersController|PatientContextController) $factory
+     * @param callable(AgentEndpointAuth, EventDispatcher, NullLogger): (PrescriptionsController|LabsController|EncountersController|PatientContextController) $factory
      * @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>}
      */
     private function dispatchWith(callable $factory, ?string $token, ?int $pid): array
@@ -1059,7 +1059,7 @@ final readonly class NarrowControllerStubResolver implements \OpenEMR\Modules\Cl
     }
 }
 
-final readonly class NarrowControllerStubProvenanceSource implements MedicationProvenanceDataSource
+final readonly class NarrowControllerStubProvenanceSource implements PrescriptionProvenanceDataSource
 {
     /** @param array<string, mixed>|null $row */
     public function __construct(private ?array $row)

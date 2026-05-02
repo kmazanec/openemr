@@ -49,7 +49,7 @@ final class AgentDisclosureTest extends TestCase
             conversationId: 'conv-xyz',
             action: 'briefing',
             requestId: 'jti-1234567890abcdef',
-            categories: ['allergy', 'diagnosis', 'medication'],
+            categories: ['allergy', 'diagnosis', 'prescription'],
             destination: 'openemr-clinical-copilot-agent',
         );
 
@@ -62,7 +62,7 @@ final class AgentDisclosureTest extends TestCase
         self::assertSame('conv-xyz', $d->conversationId);
         self::assertSame('briefing', $d->action);
         self::assertSame('jti-1234567890abcdef', $d->requestId);
-        self::assertSame(['allergy', 'diagnosis', 'medication'], $d->categories);
+        self::assertSame(['allergy', 'diagnosis', 'prescription'], $d->categories);
         self::assertSame('openemr-clinical-copilot-agent', $d->destination);
     }
 
@@ -101,11 +101,11 @@ final class AgentDisclosureTest extends TestCase
             conversationId: null,
             action: 'briefing',
             requestId: 'jti-1',
-            categories: ['medication', 'allergy', 'diagnosis'],
+            categories: ['prescription', 'allergy', 'diagnosis'],
             destination: 'openemr-clinical-copilot-agent',
         );
 
-        self::assertSame(['allergy', 'diagnosis', 'medication'], $d->categories);
+        self::assertSame(['allergy', 'diagnosis', 'prescription'], $d->categories);
     }
 
     public function testDisclosureRejectsEmptyActionAndRequestId(): void

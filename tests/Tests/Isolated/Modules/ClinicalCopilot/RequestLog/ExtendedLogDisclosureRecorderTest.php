@@ -71,7 +71,7 @@ final class ExtendedLogDisclosureRecorderTest extends TestCase
             conversationId: null,
             action: 'briefing',
             requestId: 'jti-1',
-            categories: ['allergy', 'medication'],
+            categories: ['allergy', 'prescription'],
             destination: 'openemr-clinical-copilot-agent',
         ));
 
@@ -84,7 +84,7 @@ final class ExtendedLogDisclosureRecorderTest extends TestCase
         self::assertSame('2026-04-30 08:00:00', $row['date']);
         self::assertIsString($row['description']);
         self::assertStringContainsString('allergy', $row['description']);
-        self::assertStringContainsString('medication', $row['description']);
+        self::assertStringContainsString('prescription', $row['description']);
     }
 
     public function testDedupesOnSameActorPatientDay(): void
@@ -166,7 +166,7 @@ final class ExtendedLogDisclosureRecorderTest extends TestCase
             conversationId: null,
             action: 'briefing',
             requestId: 'jti-cats',
-            categories: ['medication', 'allergy', 'lab'],
+            categories: ['prescription', 'allergy', 'lab'],
             destination: 'openemr-clinical-copilot-agent',
         ));
 
@@ -175,7 +175,7 @@ final class ExtendedLogDisclosureRecorderTest extends TestCase
         // AgentDisclosure constructor sorts categories alphabetically; the
         // recorder echoes them in that order so two requests with the same
         // categories produce identical description strings.
-        self::assertStringContainsString('allergy, lab, medication', $description);
+        self::assertStringContainsString('allergy, lab, prescription', $description);
     }
 
     public function testEmptyCategoriesProduceLegibleDescription(): void
@@ -217,7 +217,7 @@ final class ExtendedLogDisclosureRecorderTest extends TestCase
             conversationId: null,
             action: 'briefing',
             requestId: $requestId,
-            categories: ['allergy', 'medication'],
+            categories: ['allergy', 'prescription'],
             destination: 'openemr-clinical-copilot-agent',
         );
     }

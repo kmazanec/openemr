@@ -59,7 +59,7 @@ final readonly class ArchetypeChartFactory
 
         $patientRow = $this->buildPatientRow($faker, $archetype, $pid);
         $conditionRows = $this->buildConditionRows($faker, $archetype, $pid);
-        $medicationRows = $this->buildMedicationRows($faker, $archetype, $pid);
+        $prescriptionRows = $this->buildPrescriptionRows($faker, $archetype, $pid);
         $allergyRows = $this->buildAllergyRows($faker, $archetype, $pid);
         $encounterRows = $this->buildEncounterRows($faker, $archetype);
         $observationRows = $this->buildObservationRows($faker, $archetype);
@@ -76,7 +76,7 @@ final readonly class ArchetypeChartFactory
             uuid: $uuid,
             patientRow: $patientRow,
             conditionRows: $conditionRows,
-            medicationRows: $medicationRows,
+            prescriptionRows: $prescriptionRows,
             allergyRows: $allergyRows,
             encounterRows: $encounterRows,
             observationRows: $observationRows,
@@ -141,7 +141,7 @@ final readonly class ArchetypeChartFactory
     /**
      * @return list<array<string, mixed>>
      */
-    private function buildMedicationRows(Faker $faker, PatientArchetype $archetype, int $pid): array
+    private function buildPrescriptionRows(Faker $faker, PatientArchetype $archetype, int $pid): array
     {
         $generator = new MedListGenerator($faker);
         $rows = [];
@@ -153,7 +153,7 @@ final readonly class ArchetypeChartFactory
                 rxcui: $rxcui,
                 indication: $archetype->indicationForRxcui($rxcui),
             );
-            $rows[] = $this->mapMedicationRow($seedRow, ++$id);
+            $rows[] = $this->mapPrescriptionRow($seedRow, ++$id);
         }
         return $rows;
     }
@@ -162,21 +162,25 @@ final readonly class ArchetypeChartFactory
      * @param array<string, mixed> $seedRow
      * @return array<string, mixed>
      */
-    private function mapMedicationRow(array $seedRow, int $id): array
+    private function mapPrescriptionRow(array $seedRow, int $id): array
     {
-        // MedicationAdapter consumes id/drug/dosage/route_title/interval_title/
-        // date_added/prescriber/indication. Seed row provides drug+dosage+
-        // start_date+date_added+indication. route_title and interval_title
-        // come from OpenEMR's prescriptions JOIN onto list_options in
-        // production; the test fixture supplies fixed values (not exercised
-        // by the seed generator).
+        // PrescriptionAdapter consumes id/drug/dosage/active/route_title/
+        // interval_title/date_added/date_modified/prescriber/indication.
+        // Seed row provides drug+dosage+start_date+date_added+indication.
+        // route_title and interval_title come from OpenEMR's prescriptions
+        // JOIN onto list_options in production; the test fixture supplies
+        // fixed values (not exercised by the seed generator). All
+        // archetype rows ship as active=1; inactive-with-stop coverage
+        // lives in the adapter unit test.
         return [
             'id'              => $id,
             'drug'            => $seedRow['drug'],
             'dosage'          => $seedRow['dosage'],
+            'active'          => 1,
             'route_title'     => 'Oral',
             'interval_title'  => 'Twice a day',
             'date_added'      => $seedRow['date_added'],
+            'date_modified'   => null,
             'prescriber'      => 'Patel, Maya',
             'indication'      => $seedRow['indication'] ?? null,
         ];

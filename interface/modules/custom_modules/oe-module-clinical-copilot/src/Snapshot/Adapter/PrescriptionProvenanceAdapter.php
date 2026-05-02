@@ -1,12 +1,13 @@
 <?php
 
 /**
- * Builds a single {@see MedicationProvenance} from a prescription row.
+ * Builds a single {@see PrescriptionProvenance} from a prescription
+ * row.
  *
- * Used by the §4.3 medication-change branch's narrow tool. The adapter
- * intentionally does not filter `active = 1`: UC3 may ask about a med
- * that was just discontinued, and discontinuation is the question's
- * answer, not a 404.
+ * Used by the §4.3 prescription-change branch's narrow tool. The
+ * adapter intentionally does not filter `active = 1`: UC3 may ask
+ * about a med that was just discontinued, and discontinuation is the
+ * question's answer, not a 404.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -20,17 +21,17 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter;
 
 use DomainException;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\MedicationProvenance;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Normalize;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\PrescriptionProvenance;
 
-final readonly class MedicationProvenanceAdapter
+final readonly class PrescriptionProvenanceAdapter
 {
     public function __construct(
-        private MedicationProvenanceDataSource $source,
+        private PrescriptionProvenanceDataSource $source,
     ) {
     }
 
-    public function fetchByPid(int $pid, int $prescriptionId): ?MedicationProvenance
+    public function fetchByPid(int $pid, int $prescriptionId): ?PrescriptionProvenance
     {
         $row = $this->source->findByPrescriptionId($pid, $prescriptionId);
         if ($row === null) {
@@ -42,7 +43,7 @@ final readonly class MedicationProvenanceAdapter
     /**
      * @param array<string, mixed> $row
      */
-    private function mapRow(array $row, int $prescriptionId): ?MedicationProvenance
+    private function mapRow(array $row, int $prescriptionId): ?PrescriptionProvenance
     {
         $name = Normalize::toOptionalString(Normalize::stringField($row, 'drug'));
         if ($name === null) {
@@ -74,7 +75,7 @@ final readonly class MedicationProvenanceAdapter
                 'date' => $prescribingDate?->format('Y-m-d'),
             ]];
 
-        return new MedicationProvenance(
+        return new PrescriptionProvenance(
             prescriptionId: $prescriptionId,
             drugName: $name,
             prescriber: Normalize::toOptionalString(Normalize::stringField($row, 'prescriber')),

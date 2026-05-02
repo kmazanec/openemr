@@ -65,17 +65,17 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\AllergyServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\AppointmentServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ConditionServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\EncounterServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ExternalEncounterServiceDataSource;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\MedicationServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\ObservationServiceDataSource;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PatientServiceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PrescriptionServiceDataSource;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -140,7 +140,7 @@ $controller = new AgentSnapshotController(
     actorResolver: new SqlAgentActorResolver(),
     patientAdapter: new PatientAdapter(new PatientServiceDataSource()),
     conditionAdapter: new ConditionAdapter(new ConditionServiceDataSource()),
-    medicationAdapter: new MedicationAdapter(new MedicationServiceDataSource()),
+    prescriptionAdapter: new PrescriptionAdapter(new PrescriptionServiceDataSource()),
     allergyAdapter: new AllergyAdapter(new AllergyServiceDataSource()),
     observationAdapter: new ObservationAdapter(new ObservationServiceDataSource()),
     encounterAdapter: new EncounterAdapter(new EncounterServiceDataSource()),

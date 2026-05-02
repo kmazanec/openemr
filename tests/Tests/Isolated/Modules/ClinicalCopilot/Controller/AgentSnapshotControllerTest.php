@@ -42,9 +42,9 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
 use OpenEMR\Seed\PatientArchetype;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\ArchetypeChartFactory;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAllergyDataSource;
@@ -52,9 +52,9 @@ use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryAp
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryConditionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryEncounterDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryExternalEncounterDataSource;
-use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryMedicationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryObservationDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPatientDataSource;
+use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\InMemoryPrescriptionDataSource;
 use OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Archetype\RequireModuleClasses;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -192,7 +192,7 @@ final class AgentSnapshotControllerTest extends TestCase
         $this->assertNotNull($body);
         $this->assertArrayHasKey('patient', $body);
         $this->assertArrayHasKey('diagnoses', $body);
-        $this->assertArrayHasKey('medications', $body);
+        $this->assertArrayHasKey('prescriptions', $body);
         $this->assertArrayHasKey('allergies', $body);
         $this->assertArrayHasKey('labs', $body);
         $this->assertArrayHasKey('encounters', $body);
@@ -204,7 +204,7 @@ final class AgentSnapshotControllerTest extends TestCase
         $this->assertSame(4242, $event->patientPid);
         $this->assertSame(self::FIXED_JTI, $event->requestId);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'medication'],
+            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription'],
             $event->categories,
         );
     }
@@ -231,17 +231,17 @@ final class AgentSnapshotControllerTest extends TestCase
 
     public function testCategoryFilterMasksOmittedCategories(): void
     {
-        // Request only diagnosis + medication — labs/encounters/appointment
+        // Request only diagnosis + prescription — labs/encounters/appointment
         // must be empty/null even though the snapshot has data.
         [$status, $body, $events] = $this->runWithEventCapture(
             token: $this->validToken(),
             pid: 4242,
-            categories: ['diagnosis', 'medication'],
+            categories: ['diagnosis', 'prescription'],
         );
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
         $this->assertNotEmpty($body['diagnoses']);
-        $this->assertNotEmpty($body['medications']);
+        $this->assertNotEmpty($body['prescriptions']);
         $this->assertSame([], $body['labs'], 'labs must be masked');
         $this->assertSame([], $body['encounters'], 'encounters must be masked');
         $this->assertNull($body['appointment'], 'appointment must be masked');
@@ -249,7 +249,7 @@ final class AgentSnapshotControllerTest extends TestCase
 
         $this->assertCount(1, $events);
         $this->assertSame(
-            ['diagnosis', 'medication'],
+            ['diagnosis', 'prescription'],
             $events[0]->categories,
             'event categories reflect what was asked, sorted',
         );
@@ -317,7 +317,7 @@ final class AgentSnapshotControllerTest extends TestCase
             actorResolver: $resolver,
             patientAdapter: new PatientAdapter(new InMemoryPatientDataSource($chart)),
             conditionAdapter: new ConditionAdapter(new InMemoryConditionDataSource($chart)),
-            medicationAdapter: new MedicationAdapter(new InMemoryMedicationDataSource($chart)),
+            prescriptionAdapter: new PrescriptionAdapter(new InMemoryPrescriptionDataSource($chart)),
             allergyAdapter: new AllergyAdapter(new InMemoryAllergyDataSource($chart)),
             observationAdapter: new ObservationAdapter(new InMemoryObservationDataSource($chart)),
             encounterAdapter: new EncounterAdapter(new InMemoryEncounterDataSource($chart)),

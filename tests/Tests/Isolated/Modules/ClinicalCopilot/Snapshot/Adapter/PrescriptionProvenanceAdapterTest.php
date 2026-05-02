@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Isolated tests for MedicationProvenanceAdapter (§4.3 UC3).
+ * Isolated tests for PrescriptionProvenanceAdapter (§4.3 UC3).
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -14,11 +14,11 @@ declare(strict_types=1);
 
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot\Adapter;
 
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionProvenanceAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionProvenanceDataSource;
 use PHPUnit\Framework\TestCase;
 
-final class MedicationProvenanceAdapterTest extends TestCase
+final class PrescriptionProvenanceAdapterTest extends TestCase
 {
     private const MODULE_SNAPSHOT_DIR = __DIR__
         . '/../../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot';
@@ -26,9 +26,9 @@ final class MedicationProvenanceAdapterTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         require_once self::MODULE_SNAPSHOT_DIR . '/Normalize.php';
-        require_once self::MODULE_SNAPSHOT_DIR . '/MedicationProvenance.php';
-        require_once self::MODULE_SNAPSHOT_DIR . '/Adapter/MedicationProvenanceDataSource.php';
-        require_once self::MODULE_SNAPSHOT_DIR . '/Adapter/MedicationProvenanceAdapter.php';
+        require_once self::MODULE_SNAPSHOT_DIR . '/PrescriptionProvenance.php';
+        require_once self::MODULE_SNAPSHOT_DIR . '/Adapter/PrescriptionProvenanceDataSource.php';
+        require_once self::MODULE_SNAPSHOT_DIR . '/Adapter/PrescriptionProvenanceAdapter.php';
     }
 
     public function testHappyPathReturnsProvenance(): void
@@ -41,7 +41,7 @@ final class MedicationProvenanceAdapterTest extends TestCase
             'indication' => 'new-onset hypertension',
             'prescriber' => 'Patel, Maya',
         ];
-        $prov = (new MedicationProvenanceAdapter($this->source($row)))->fetchByPid(101, 7001);
+        $prov = (new PrescriptionProvenanceAdapter($this->source($row)))->fetchByPid(101, 7001);
 
         $this->assertNotNull($prov);
         $this->assertSame(7001, $prov->prescriptionId);
@@ -66,7 +66,7 @@ final class MedicationProvenanceAdapterTest extends TestCase
             'indication' => null,
             'prescriber' => 'Patel, Maya',
         ];
-        $prov = (new MedicationProvenanceAdapter($this->source($row)))->fetchByPid(101, 7002);
+        $prov = (new PrescriptionProvenanceAdapter($this->source($row)))->fetchByPid(101, 7002);
         $this->assertNotNull($prov);
         $this->assertNull($prov->indication);
     }
@@ -81,20 +81,20 @@ final class MedicationProvenanceAdapterTest extends TestCase
             'indication' => 'new-onset hypertension',
             'prescriber' => null,
         ];
-        $prov = (new MedicationProvenanceAdapter($this->source($row)))->fetchByPid(101, 7003);
+        $prov = (new PrescriptionProvenanceAdapter($this->source($row)))->fetchByPid(101, 7003);
         $this->assertNotNull($prov);
         $this->assertNull($prov->prescriber);
     }
 
     public function testRowNotFoundReturnsNull(): void
     {
-        $source = new class implements MedicationProvenanceDataSource {
+        $source = new class implements PrescriptionProvenanceDataSource {
             public function findByPrescriptionId(int $pid, int $prescriptionId): ?array
             {
                 return null;
             }
         };
-        $this->assertNull((new MedicationProvenanceAdapter($source))->fetchByPid(101, 9999));
+        $this->assertNull((new PrescriptionProvenanceAdapter($source))->fetchByPid(101, 9999));
     }
 
     public function testEmptyDoseAndDateProducesEmptyAdjustmentsList(): void
@@ -110,7 +110,7 @@ final class MedicationProvenanceAdapterTest extends TestCase
             'indication' => null,
             'prescriber' => null,
         ];
-        $prov = (new MedicationProvenanceAdapter($this->source($row)))->fetchByPid(101, 7004);
+        $prov = (new PrescriptionProvenanceAdapter($this->source($row)))->fetchByPid(101, 7004);
         $this->assertNotNull($prov);
         $this->assertSame([], $prov->doseAdjustments);
     }
@@ -128,16 +128,16 @@ final class MedicationProvenanceAdapterTest extends TestCase
             'prescriber' => null,
         ];
         $this->assertNull(
-            (new MedicationProvenanceAdapter($this->source($row)))->fetchByPid(101, 7005),
+            (new PrescriptionProvenanceAdapter($this->source($row)))->fetchByPid(101, 7005),
         );
     }
 
     /**
      * @param array<string, mixed> $row
      */
-    private function source(array $row): MedicationProvenanceDataSource
+    private function source(array $row): PrescriptionProvenanceDataSource
     {
-        return new class ($row) implements MedicationProvenanceDataSource {
+        return new class ($row) implements PrescriptionProvenanceDataSource {
             /** @param array<string, mixed> $row */
             public function __construct(private readonly array $row)
             {

@@ -25,9 +25,9 @@ use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\AppointmentAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ConditionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\EncounterAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ExternalEncounterAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\ObservationAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\ChartSnapshot;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategory;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\DataCategorySet;
@@ -61,7 +61,7 @@ final readonly class AgentSnapshotController
         private AgentActorResolver $actorResolver,
         private PatientAdapter $patientAdapter,
         private ConditionAdapter $conditionAdapter,
-        private MedicationAdapter $medicationAdapter,
+        private PrescriptionAdapter $prescriptionAdapter,
         private AllergyAdapter $allergyAdapter,
         private ObservationAdapter $observationAdapter,
         private EncounterAdapter $encounterAdapter,
@@ -210,8 +210,8 @@ final readonly class AgentSnapshotController
         $diagnoses = $categories->contains(DataCategory::Diagnosis)
             ? $this->conditionAdapter->fetchActive($pid)
             : [];
-        $medications = $categories->contains(DataCategory::Medication)
-            ? $this->medicationAdapter->fetchActive($pid)
+        $prescriptions = $categories->contains(DataCategory::Prescription)
+            ? $this->prescriptionAdapter->fetchRecent($pid, self::DEFAULT_LOOKBACK_DAYS)
             : [];
         $allergies = $categories->contains(DataCategory::Allergy)
             ? $this->allergyAdapter->fetchActive($pid)
@@ -244,7 +244,7 @@ final readonly class AgentSnapshotController
             patient: $patient,
             appointment: $appointment,
             diagnoses: $diagnoses,
-            medications: $medications,
+            prescriptions: $prescriptions,
             allergies: $allergies,
             labs: $labs,
             encounters: $encounters,

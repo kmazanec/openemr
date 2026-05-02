@@ -32,11 +32,12 @@ final class DataCategorySetTest extends TestCase
     public function testEnumCoversTheArchitectureCategorySet(): void
     {
         // ARCHITECTURE.md §"Verification > Claim Ledger" enumerates:
-        // medication, lab, allergy, diagnosis, encounter, appointment.
+        // prescription, lab, allergy, diagnosis, encounter, appointment.
+        // Phase 4.6 adds medication_statement and reminder.
         $names = array_map(static fn (DataCategory $c): string => $c->value, DataCategory::cases());
         sort($names);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'medication'],
+            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription'],
             $names,
         );
     }
@@ -47,7 +48,7 @@ final class DataCategorySetTest extends TestCase
 
         $this->assertTrue($set->contains(DataCategory::Diagnosis));
         $this->assertTrue($set->contains(DataCategory::Allergy));
-        $this->assertFalse($set->contains(DataCategory::Medication));
+        $this->assertFalse($set->contains(DataCategory::Prescription));
     }
 
     public function testDeduplicatesRepeatedCategories(): void

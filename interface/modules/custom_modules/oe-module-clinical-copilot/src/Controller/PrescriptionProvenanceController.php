@@ -1,6 +1,16 @@
 <?php
 
 /**
+ * Narrow agent endpoint for the §4.3 prescription-change drill-down
+ * (USERS.md UC3). Returns the documented provenance of a single
+ * prescription — date, prescriber, indication, dose — so the
+ * `prescriptionChangeBranch` graph node can build a deterministic
+ * claim from source fields rather than asking the model to infer them.
+ *
+ * Maps 1:1 to `public/snapshot/prescription_provenance.php` and to the
+ * agent's `getPrescriptionProvenance` tool. Audit row carries
+ * `action='prescription_provenance'`.
+ *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
  * @author    Keith Mazanec <keith@devforward.com>
@@ -16,26 +26,15 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\AgentEndpointAuth;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ClockInterface;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionProvenanceAdapter;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
-/**
- * Narrow agent endpoint that returns active medications for a patient.
- *
- * Maps 1:1 to `public/snapshot/medications.php` and to the agent's
- * `getMedications` tool. Runs only the {@see MedicationAdapter} —
- * no other adapters touch this request — so the conversational
- * follow-up path pays exactly the cost of the data the model needs.
- *
- * Audit row carries `action='medications'` so a compliance reviewer
- * can distinguish a narrow follow-up from a full briefing snapshot.
- */
-final readonly class MedicationsController
+final readonly class PrescriptionProvenanceController
 {
     public function __construct(
         private AgentEndpointAuth $auth,
-        private MedicationAdapter $medicationAdapter,
+        private PrescriptionProvenanceAdapter $adapter,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -46,6 +45,7 @@ final readonly class MedicationsController
     public function handle(
         ?string $bearerToken,
         ?int $pid,
+        ?int $prescriptionId,
         ?string $conversationId,
     ): void {
         $request = $this->auth->authorize($bearerToken, 'user/MedicationRequest.rs');
@@ -58,14 +58,29 @@ final readonly class MedicationsController
             return;
         }
 
+        if ($prescriptionId === null || $prescriptionId <= 0) {
+            $this->respondError(400, 'missing_prescription_id');
+            return;
+        }
+
         try {
-            $medications = $this->medicationAdapter->fetchActive($pid);
+            $provenance = $this->adapter->fetchByPid($pid, $prescriptionId);
         } catch (\RuntimeException | \Doctrine\DBAL\Exception $e) {
-            $this->logger->error('Agent medications fetch failed', [
+            $this->logger->error('Agent prescription provenance fetch failed', [
                 'pid' => $pid,
+                'prescriptionId' => $prescriptionId,
                 'exception' => $e,
             ]);
             $this->respondError(503, 'snapshot_unavailable');
+            return;
+        }
+
+        if ($provenance === null) {
+            // An unknown prescription id (or one that doesn't belong to
+            // this patient) is a deterministic answer the branch must
+            // surface — never a 5xx. The branch will render a "no record
+            // found" connector segment from this.
+            $this->respondError(404, 'not_found');
             return;
         }
 
@@ -80,16 +95,17 @@ final readonly class MedicationsController
                     patientPid: $pid,
                     patientUuid: null,
                     conversationId: $conversationId,
-                    action: 'medications',
+                    action: 'prescription_provenance',
                     requestId: $request->verified->jti,
-                    categories: ['medication'],
+                    categories: ['prescription'],
                     destination: $request->verified->audience,
                 )),
                 AgentDisclosedEvent::EVENT_HANDLE,
             );
         } catch (\RuntimeException | \Doctrine\DBAL\Exception $e) {
-            $this->logger->error('Agent medications disclosure write failed', [
+            $this->logger->error('Agent prescription provenance disclosure write failed', [
                 'pid' => $pid,
+                'prescriptionId' => $prescriptionId,
                 'exception' => $e,
             ]);
             $this->respondError(503, 'disclosure_unavailable');
@@ -97,7 +113,7 @@ final readonly class MedicationsController
         }
 
         $this->respondJson(200, [
-            'medications' => array_map(static fn($m) => $m->toArray(), $medications),
+            'provenance' => $provenance->toArray(),
         ]);
     }
 

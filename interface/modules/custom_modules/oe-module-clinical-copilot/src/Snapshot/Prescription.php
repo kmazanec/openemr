@@ -1,7 +1,19 @@
 <?php
 
 /**
- * Active or recently-discontinued medication line.
+ * Clinic-written prescription line.
+ *
+ * Sourced from OpenEMR's `prescriptions` table — represents what *this
+ * clinic* has prescribed (FHIR `MedicationRequest`). Distinct from
+ * `MedicationStatement` (Phase 4.6.4) which captures what the patient
+ * reports they're taking (OTC, supplements, prescriptions from
+ * elsewhere).
+ *
+ * The default snapshot includes both active rows AND inactive rows
+ * modified within the last lookback window so the briefing surfaces
+ * recent discontinuations (a med stopped two weeks ago is clinically
+ * relevant). The narrow §4.3 prescription-change endpoint never filters
+ * `active` — it always answers the question UC3 asked.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -19,7 +31,7 @@ use DateTimeImmutable;
 /**
  * @phpstan-import-type SourceReferenceArray from SourceReference
  *
- * @phpstan-type MedicationArray array{
+ * @phpstan-type PrescriptionArray array{
  *     name: string,
  *     dose: ?string,
  *     route: ?string,
@@ -32,7 +44,7 @@ use DateTimeImmutable;
  *     source: SourceReferenceArray,
  * }
  */
-final readonly class Medication
+final readonly class Prescription
 {
     public function __construct(
         public string $name,
@@ -40,20 +52,25 @@ final readonly class Medication
         public ?string $route,
         public ?string $frequency,
         public ?DateTimeImmutable $startDate,
+        // stopDate populates from `prescriptions.date_modified` only
+        // when `active = 0`. For active rows we leave it null —
+        // date_modified moves on any edit (typo, route correction), so
+        // using it as a stopDate would falsely "stop" the med on a
+        // benign edit. The adapter enforces this rule at the source.
         public ?DateTimeImmutable $stopDate,
         public ?string $prescriber,
         public ?string $indication,
-        // Same value the SourceReference carries as `recordId` (a string),
-        // surfaced here as a top-level int so the §4.3 medication-change
-        // branch and its narrow tool can address a single prescription
-        // without spelunking through the citation.
+        // Same value the SourceReference carries as `recordId` (a
+        // string), surfaced here as a top-level int so the §4.3
+        // prescription-change branch and its narrow tool can address a
+        // single prescription without spelunking through the citation.
         public ?int $prescriptionId,
         public SourceReference $source,
     ) {
     }
 
     /**
-     * @return MedicationArray
+     * @return PrescriptionArray
      */
     public function toArray(): array
     {

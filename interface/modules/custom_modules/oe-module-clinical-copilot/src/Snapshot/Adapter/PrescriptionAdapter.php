@@ -1,7 +1,12 @@
 <?php
 
 /**
- * Builds the active medication list for a ChartSnapshot.
+ * Builds the prescription list for a ChartSnapshot — active rows plus
+ * inactive rows modified within the lookback window.
+ *
+ * Sourced from OpenEMR's `prescriptions` table (FHIR
+ * `MedicationRequest`). Distinct from `MedicationStatement` (Phase
+ * 4.6.4) which captures patient-reported / OTC entries.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -15,28 +20,36 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter;
 
 use DomainException;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Medication;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Normalize;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Prescription;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\SourceReference;
 
-final readonly class MedicationAdapter
+final readonly class PrescriptionAdapter
 {
+    /**
+     * Default lookback for inactive scripts in the briefing snapshot.
+     * Matches `AgentSnapshotController::DEFAULT_LOOKBACK_DAYS` so all
+     * snapshot temporal scopes (labs, encounters, prescriptions) stay
+     * in lockstep.
+     */
+    public const DEFAULT_LOOKBACK_DAYS = 365;
+
     public function __construct(
-        private MedicationDataSource $source,
+        private PrescriptionDataSource $source,
     ) {
     }
 
     /**
-     * @return list<Medication>
+     * @return list<Prescription>
      */
-    public function fetchActive(int $pid): array
+    public function fetchRecent(int $pid, int $lookbackDays = self::DEFAULT_LOOKBACK_DAYS): array
     {
-        $rows = $this->source->findActiveForPid($pid);
+        $rows = $this->source->findRecentForPid($pid, $lookbackDays);
         $out = [];
         foreach ($rows as $row) {
-            $med = $this->mapRow($row);
-            if ($med !== null) {
-                $out[] = $med;
+            $rx = $this->mapRow($row);
+            if ($rx !== null) {
+                $out[] = $rx;
             }
         }
         return $out;
@@ -45,7 +58,7 @@ final readonly class MedicationAdapter
     /**
      * @param array<string, mixed> $row
      */
-    private function mapRow(array $row): ?Medication
+    private function mapRow(array $row): ?Prescription
     {
         $name = Normalize::toOptionalString(Normalize::stringField($row, 'drug'));
         if ($name === null) {
@@ -60,20 +73,26 @@ final readonly class MedicationAdapter
 
         $startDate = Normalize::toDateImmutable(Normalize::stringField($row, 'date_added'));
 
-        return new Medication(
+        // stopDate populates from `date_modified` only when active = 0
+        // (genuinely stopped). For active rows, date_modified moves on
+        // benign edits (typo fixes, route corrections), so using it
+        // would falsely "stop" the med. The DTO comments this rule.
+        // Missing/non-numeric `active` defaults to active=1 (the column
+        // default in `prescriptions`); only an explicit zero flips
+        // stopDate on.
+        $activeRaw = Normalize::intOrStringField($row, 'active');
+        $isActive = $activeRaw === null || (int) $activeRaw === 1;
+        $stopDate = $isActive
+            ? null
+            : Normalize::toDateImmutable(Normalize::stringField($row, 'date_modified'));
+
+        return new Prescription(
             name: $name,
             dose: Normalize::toOptionalString(Normalize::stringField($row, 'dosage')),
             route: Normalize::toOptionalString(Normalize::stringField($row, 'route_title')),
             frequency: Normalize::toOptionalString(Normalize::stringField($row, 'interval_title')),
             startDate: $startDate,
-            // stopDate intentionally null: this adapter only surfaces
-            // active prescriptions (production query filters active = 1),
-            // and prescriptions has no explicit discontinuation column —
-            // date_modified is the last-edit timestamp, which is wrong
-            // for stopDate (a typo fix would falsely "stop" the med).
-            // When inactive meds are surfaced, source this from a real
-            // stop column.
-            stopDate: null,
+            stopDate: $stopDate,
             prescriber: Normalize::toOptionalString(Normalize::stringField($row, 'prescriber')),
             indication: Normalize::toOptionalString(Normalize::stringField($row, 'indication')),
             prescriptionId: (int) $recordId,

@@ -1,12 +1,12 @@
 <?php
 
 /**
- * Production-wired {@see MedicationProvenanceDataSource} reading a
+ * Production-wired {@see PrescriptionProvenanceDataSource} reading a
  * single prescription row by id, scoped to the patient.
  *
- * Mirrors the JOIN shape from {@see MedicationServiceDataSource} so
- * route/interval/prescriber resolve identically. Does **not** filter
- * `active = 1`: UC3 may ask about a med that was just discontinued.
+ * Mirrors the JOIN shape from {@see PrescriptionServiceDataSource} so
+ * prescriber resolves identically. Does **not** filter `active = 1`:
+ * UC3 may ask about a med that was just discontinued.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -20,9 +20,9 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production;
 
 use OpenEMR\Common\Database\QueryUtils;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationProvenanceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionProvenanceDataSource;
 
-final readonly class MedicationProvenanceServiceDataSource implements MedicationProvenanceDataSource
+final readonly class PrescriptionProvenanceServiceDataSource implements PrescriptionProvenanceDataSource
 {
     public function findByPrescriptionId(int $pid, int $prescriptionId): ?array
     {

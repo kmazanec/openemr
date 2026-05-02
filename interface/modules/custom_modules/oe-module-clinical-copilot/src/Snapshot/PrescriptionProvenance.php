@@ -2,7 +2,7 @@
 
 /**
  * Provenance for a single prescription — the documented fields that
- * back UC3's medication-change drill-down (§4.3 of the implementation
+ * back UC3's prescription-change drill-down (§4.3 of the implementation
  * plan; USERS.md UC3): when, by whom, and for what indication a med
  * was started, plus its dose.
  *
@@ -34,7 +34,7 @@ use DateTimeImmutable;
  *     date: ?string,
  * }
  *
- * @phpstan-type MedicationProvenanceArray array{
+ * @phpstan-type PrescriptionProvenanceArray array{
  *     prescriptionId: int,
  *     drugName: string,
  *     prescriber: ?string,
@@ -43,7 +43,7 @@ use DateTimeImmutable;
  *     doseAdjustments: list<DoseAdjustmentArray>,
  * }
  */
-final readonly class MedicationProvenance
+final readonly class PrescriptionProvenance
 {
     /**
      * @param list<array{dose: ?string, date: ?string}> $doseAdjustments
@@ -59,7 +59,7 @@ final readonly class MedicationProvenance
     }
 
     /**
-     * @return MedicationProvenanceArray
+     * @return PrescriptionProvenanceArray
      */
     public function toArray(): array
     {

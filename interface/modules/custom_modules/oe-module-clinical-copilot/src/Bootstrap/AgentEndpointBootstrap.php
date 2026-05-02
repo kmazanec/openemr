@@ -2,7 +2,7 @@
 
 /**
  * Shared wiring helper for the narrow agent snapshot endpoints
- * (medications.php, labs.php, encounters.php, patientContext.php).
+ * (prescriptions.php, labs.php, encounters.php, patientContext.php).
  *
  * Centralizes the three pieces every endpoint needs:
  *   - JWT verifier built against the site's OAuth2 issuer

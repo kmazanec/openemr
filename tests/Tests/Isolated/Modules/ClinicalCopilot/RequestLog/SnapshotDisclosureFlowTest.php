@@ -103,7 +103,7 @@ final class SnapshotDisclosureFlowTest extends TestCase
         $this->assertSame($disclosure->requestId, $recorded->requestId);
         $this->assertSame($disclosure->destination, $recorded->destination);
         $this->assertSame(
-            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'medication'],
+            ['allergy', 'appointment', 'diagnosis', 'encounter', 'lab', 'prescription'],
             $recorded->categories,
             'AgentDisclosure must alphabetize categories at construction time',
         );
@@ -138,7 +138,7 @@ final class SnapshotDisclosureFlowTest extends TestCase
                 conversationId: null,
                 action: 'briefing',
                 requestId: 'jti-content-pin',
-                categories: [DataCategory::Diagnosis->value, DataCategory::Medication->value],
+                categories: [DataCategory::Diagnosis->value, DataCategory::Prescription->value],
                 destination: 'openemr-clinical-copilot-agent',
             )),
             AgentDisclosedEvent::EVENT_HANDLE,
@@ -210,8 +210,8 @@ final class SnapshotDisclosureFlowTest extends TestCase
         if ($snapshot->diagnoses !== []) {
             $needles[] = $snapshot->diagnoses[0]->label;
         }
-        if ($snapshot->medications !== []) {
-            $needles[] = $snapshot->medications[0]->name;
+        if ($snapshot->prescriptions !== []) {
+            $needles[] = $snapshot->prescriptions[0]->name;
         }
         if ($snapshot->labs !== []) {
             $needles[] = $snapshot->labs[0]->analyte;

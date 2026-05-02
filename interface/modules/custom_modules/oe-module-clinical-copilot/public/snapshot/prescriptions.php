@@ -1,16 +1,17 @@
 <?php
 
 /**
- * Narrow agent endpoint: active medications only.
+ * Narrow agent endpoint: recent prescriptions (active + inactive within
+ * the lookback window).
  *
- * 1:1 with the agent's `getMedications` tool. Runs only the
- * MedicationAdapter — no other adapters touch this request — so the
+ * 1:1 with the agent's `getPrescriptions` tool. Runs only the
+ * PrescriptionAdapter — no other adapters touch this request — so the
  * conversational follow-up path pays exactly the cost of the data
  * the model needs.
  *
  * URL surface:
  *   /interface/modules/custom_modules/oe-module-clinical-copilot/
- *     public/snapshot/medications.php?pid=<pid>&site=<id>&conversation=<id?>
+ *     public/snapshot/prescriptions.php?pid=<pid>&site=<id>&conversation=<id?>
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -29,9 +30,9 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\AgentEndpointAuth;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SqlAgentActorResolver;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SystemClock;
 use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
-use OpenEMR\Modules\ClinicalCopilot\Controller\MedicationsController;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\MedicationAdapter;
-use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\MedicationServiceDataSource;
+use OpenEMR\Modules\ClinicalCopilot\Controller\PrescriptionsController;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PrescriptionAdapter;
+use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\Production\PrescriptionServiceDataSource;
 use Symfony\Component\HttpFoundation\Request;
 
 $parsed = AgentEndpointBootstrap::parseRequest(Request::createFromGlobals());
@@ -39,9 +40,9 @@ $logger = AgentEndpointBootstrap::logger();
 $dispatcher = AgentEndpointBootstrap::buildDispatcher($logger);
 $verifier = AgentEndpointBootstrap::buildVerifier($parsed->siteId);
 
-$controller = new MedicationsController(
+$controller = new PrescriptionsController(
     auth: new AgentEndpointAuth($verifier, new SqlAgentActorResolver(), $logger, $parsed->siteId),
-    medicationAdapter: new MedicationAdapter(new MedicationServiceDataSource()),
+    prescriptionAdapter: new PrescriptionAdapter(new PrescriptionServiceDataSource()),
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $parsed->siteId,
