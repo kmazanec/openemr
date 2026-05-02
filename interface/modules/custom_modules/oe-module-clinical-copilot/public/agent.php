@@ -30,7 +30,16 @@ $request = Request::createFromGlobals();
 $session = SessionWrapperFactory::getInstance()->getActiveSession();
 $globals = OEGlobalsBag::getInstance();
 
-$action = $request->query->getAlnum('action');
+// Action names are drawn from PolicyGate's allowlist, which contains
+// underscore-separated identifiers like `latest_conversation`. We
+// cannot use Symfony's `getAlnum()` here because it strips
+// underscores and turns those names into ones the gate then rejects
+// as `UnknownAction`. PolicyGate is still the trust point — this is
+// just a shape filter at the boundary.
+$actionRaw = $request->query->get('action');
+$action = (is_string($actionRaw) && preg_match('/\A[a-z_]{1,64}\z/', $actionRaw) === 1)
+    ? $actionRaw
+    : '';
 
 $pidParam = $request->query->get('pid');
 $requestedPid = (is_string($pidParam) && $pidParam !== '' && $pidParam !== '0')
