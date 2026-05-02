@@ -3,6 +3,7 @@ import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
     HARD_STOP_MEDICATIONS_UNAVAILABLE,
 } from '../../verify/verifier.js';
+import { generateFollowUps } from '../followUps.js';
 import type {
     AssistantMessage,
     AssistantMessageSegment,
@@ -146,6 +147,11 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
     const formatted: AssistantMessage = {
         segments,
         gaps: collectGaps(verified),
+        suggestedFollowUps: generateFollowUps(
+            state.envelope.conversationId,
+            verified,
+            state.snapshot,
+        ),
     };
 
     return { formatted };

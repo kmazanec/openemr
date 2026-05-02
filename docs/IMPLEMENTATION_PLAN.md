@@ -1003,10 +1003,10 @@ Sequencing inside this phase: UC2 (lab trend) → UC3 (med change) → UC4
 target + golden cases.
 
 ### 4.1 Suggested-follow-ups generator
-- [ ] During `Format`, the graph emits 3-5 suggested follow-ups grounded
+- [x] During `Format`, the graph emits 3-5 suggested follow-ups grounded
   in claims that actually appeared in the briefing (no generic
   suggestions)
-- [ ] Each suggestion has a stable ID and a typed parameter set
+- [x] Each suggestion has a stable ID and a typed parameter set
   (`{type: 'lab_trend', analyte: 'A1c'}` etc.) so the follow-up turn
   doesn't re-parse natural language
 

@@ -8,6 +8,9 @@ import type {
     Medication,
     SourceReference,
 } from '../snapshot/types.js';
+import type { SuggestedFollowUp, SuggestedFollowUpParams } from './followUps.js';
+
+export type { SuggestedFollowUp, SuggestedFollowUpParams };
 
 /**
  * Request envelope OpenEMR sends to the agent. Mirrors ARCHITECTURE.md
@@ -33,6 +36,15 @@ export interface RequestEnvelope {
      * from a typed suggestion or free text.
      */
     readonly question?: string;
+    /**
+     * §4.1 typed suggested-follow-up parameter set. Mutually exclusive
+     * with `question` at the schema layer — the boundary parses one or
+     * the other into the envelope, never both. The §4.1 server bridges
+     * a typed `followUp` into a deterministic `question` so the existing
+     * free-text path runs end-to-end; §4.2/§4.3/§4.4 will replace that
+     * bridge with UC-specific graph branches.
+     */
+    readonly followUp?: SuggestedFollowUpParams;
 }
 
 /**
@@ -143,6 +155,15 @@ export interface AssistantMessage {
      * assistant bubble.
      */
     readonly gaps: readonly Gap[];
+    /**
+     * §4.1 suggested follow-ups. Always present, possibly empty. Each
+     * suggestion is grounded in claims that actually appeared in the
+     * verified ledger — there are no generic "Recap the chart" filler
+     * suggestions. The renderer shows these as tap-to-run chips below
+     * the assistant bubble; clicking a chip POSTs the typed `followUp`
+     * params back through the briefing endpoint.
+     */
+    readonly suggestedFollowUps: readonly SuggestedFollowUp[];
 }
 
 export interface PersistedRecord {

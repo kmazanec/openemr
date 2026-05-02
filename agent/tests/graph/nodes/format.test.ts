@@ -43,6 +43,21 @@ const snapshot: BriefingSnapshot = {
     encounters: [],
 };
 
+const snapshotWithA1cLab: BriefingSnapshot = {
+    ...snapshot,
+    labs: [
+        {
+            analyte: 'A1c',
+            value: '8.4',
+            unit: '%',
+            referenceRange: null,
+            abnormalFlag: 'H',
+            observedAt: null,
+            source: sourceRef('Observation', 'lab-1'),
+        },
+    ],
+};
+
 const dxClaim: Claim = {
     id: 'dx-1',
     text: 'Type 2 diabetes (E11.9)',
@@ -86,9 +101,15 @@ const draftSegments = (
     ...segments: { text: string; claimIds: string[] }[]
 ): DraftBriefing => ({ segments });
 
-const baseState = (overrides: { draft?: DraftBriefing; verified?: VerifiedLedger } = {}) => ({
+const baseState = (
+    overrides: {
+        draft?: DraftBriefing;
+        verified?: VerifiedLedger;
+        snapshot?: BriefingSnapshot;
+    } = {},
+) => ({
     envelope,
-    snapshot,
+    snapshot: overrides.snapshot ?? snapshot,
     draft: overrides.draft ?? draftSegments(),
     claimLedger: { claims: [dxClaim, medClaim, allergyClaim, labClaim] },
     verified: overrides.verified ?? cleanVerified,
@@ -259,5 +280,29 @@ describe('format', () => {
         if (f === null || f === undefined) throw new Error('formatted missing');
         expect(f.segments).toEqual([]);
         expect(f.gaps).toEqual([]);
+    });
+
+    it('§4.1 attaches an empty suggestedFollowUps array when no claims qualify', async () => {
+        const draft = draftSegments({ text: 'Type 2 diabetes (E11.9).', claimIds: ['dx-1'] });
+        const out = await format(baseState({ draft }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.suggestedFollowUps).toEqual([]);
+    });
+
+    it('§4.1 populates suggestedFollowUps when an accepted lab claim links to a recognized analyte', async () => {
+        const draft = draftSegments(
+            { text: 'A1c is 8.4%.', claimIds: ['lab-1'] },
+        );
+        const out = await format(baseState({ draft, snapshot: snapshotWithA1cLab }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.suggestedFollowUps.length).toBeGreaterThan(0);
+        const labTrend = f.suggestedFollowUps.find((s) => s.params.type === 'lab_trend');
+        expect(labTrend).toBeDefined();
+        if (labTrend?.params.type === 'lab_trend') {
+            expect(labTrend.params.analyte).toBe('A1c');
+        }
+        expect(labTrend?.groundedInClaimIds).toContain('lab-1');
     });
 });

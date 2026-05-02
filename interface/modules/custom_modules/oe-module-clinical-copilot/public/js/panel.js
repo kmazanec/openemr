@@ -174,7 +174,25 @@
     const messageForCode = (code) =>
         BRIEFING_ERROR_MESSAGES[code] || BRIEFING_ERROR_MESSAGES.briefing_failed;
 
-    const renderBubble = (entry) => {
+    /**
+     * §4.1 suggested follow-ups. Chips render below the assistant bubble
+     * the message belongs to. Click handler POSTs the typed `followUp`
+     * params back through the briefing endpoint (no `question` field).
+     * The chip's `displayText` becomes the user-side message in the
+     * thread so the UI reads as a normal back-and-forth.
+     */
+    const renderSuggestionsRail = (suggestions, bubbleIndex) => {
+        if (!Array.isArray(suggestions) || suggestions.length === 0) return '';
+        const chips = suggestions
+            .map(
+                (s, i) =>
+                    `<button type="button" class="copilot-suggestion" data-role="suggestion" data-bubble="${bubbleIndex}" data-suggestion-index="${i}">${escapeText(s.displayText)}</button>`,
+            )
+            .join('');
+        return `<div class="copilot-suggestions" data-role="suggestions">${chips}</div>`;
+    };
+
+    const renderBubble = (entry, index) => {
         if (!entry) return '';
         if (entry.role === 'assistant' && entry.error) {
             return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--error" data-role="bubble" data-state="error">
@@ -184,9 +202,11 @@
         if (entry.role === 'assistant' && entry.message) {
             const segments = (entry.message.segments || []).map(renderSegment).join(' ');
             const gaps = renderGapsBanner(entry.message.gaps);
-            return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered">
+            const suggestions = renderSuggestionsRail(entry.message.suggestedFollowUps, index);
+            return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered" data-bubble-index="${index}">
                 ${gaps}
                 <div class="copilot-bubble__body">${segments}</div>
+                ${suggestions}
             </article>`;
         }
         if (entry.role === 'user' && entry.text) {
@@ -199,7 +219,7 @@
 
     const renderThread = () => {
         if (!threadEl) return;
-        threadEl.innerHTML = thread.map(renderBubble).join('');
+        threadEl.innerHTML = thread.map((entry, i) => renderBubble(entry, i)).join('');
     };
 
     const handleAssistantMessage = (data) => {
@@ -348,6 +368,56 @@
         } finally {
             composerBusy = false;
         }
+    };
+
+    /**
+     * §4.1 chip click. POSTs the typed follow-up params (no `question`
+     * field — the agent's transitional bridge stringifies the params
+     * into a question for the free-text path until §4.2/§4.3/§4.4
+     * replace the bridge with UC-specific graph branches). The chip's
+     * `displayText` enters the thread as the user-side bubble so the UI
+     * reads as a normal turn.
+     */
+    const submitTypedFollowUp = async (suggestion) => {
+        if (composerBusy) return;
+        if (!suggestion || !suggestion.params) return;
+        composerBusy = true;
+        thread.push({ role: 'user', text: suggestion.displayText });
+        renderThread();
+        setStatus('Asking…', 'streaming');
+        try {
+            await streamTurn({
+                envelope: {
+                    conversationId,
+                    requestId: `req-${pid}-${Date.now()}`,
+                    siteId,
+                    patient: { pid, uuid: '' },
+                    task: 'follow_up',
+                    followUp: suggestion.params,
+                },
+                errorTag: 'follow-up-chip',
+            });
+        } finally {
+            composerBusy = false;
+        }
+    };
+
+    const wireSuggestionsClicks = () => {
+        if (!threadEl) return;
+        threadEl.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const chip = target.closest('[data-role="suggestion"]');
+            if (!chip) return;
+            const bubbleIdx = Number.parseInt(chip.dataset.bubble || '', 10);
+            const sIdx = Number.parseInt(chip.dataset.suggestionIndex || '', 10);
+            if (!Number.isInteger(bubbleIdx) || !Number.isInteger(sIdx)) return;
+            const entry = thread[bubbleIdx];
+            if (!entry || entry.role !== 'assistant' || !entry.message) return;
+            const suggestion = (entry.message.suggestedFollowUps || [])[sIdx];
+            if (!suggestion) return;
+            submitTypedFollowUp(suggestion);
+        });
     };
 
     const wireComposer = () => {
@@ -608,6 +678,7 @@
     const start = async () => {
         wireComposer();
         wireHistoryInfiniteScroll();
+        wireSuggestionsClicks();
         setStatus('Connecting to Co-Pilot…', 'connecting');
 
         // Resume lookup and history fetch are independent — fire them

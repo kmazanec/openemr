@@ -11,7 +11,7 @@ import {
 } from '../auth/middleware.js';
 import { createLocalKeyResolver, createRemoteKeyResolver } from '../auth/jwks.js';
 import { createAgentJwtVerifier, type AgentJwtVerifier } from '../auth/verify.js';
-import type { RequestEnvelope } from '../graph/types.js';
+import type { RequestEnvelope, SuggestedFollowUpParams } from '../graph/types.js';
 import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
@@ -53,23 +53,55 @@ interface AppDeps {
     };
 }
 
-const briefingRequestSchema = z.object({
-    conversationId: z.string().min(1),
-    requestId: z.string().min(1),
-    siteId: z.string().min(1),
-    patient: z.object({
-        pid: z.number().int().positive(),
-        // Browser callers don't always have the FHIR UUID handy; the
-        // snapshot endpoint resolves the patient by pid behind the bearer
-        // token, so the uuid travels in the envelope for tracing and
-        // future cross-system references but is not load-bearing today.
-        uuid: z.string().default(''),
-    }),
-    task: z.union([z.literal('default_briefing'), z.literal('follow_up')]).default('default_briefing'),
-    // §4.5 free-text follow-up. Bounded to keep the prompt + trace logs
-    // tractable; the panel composer enforces the same cap client-side.
-    question: z.string().min(1).max(2000).optional(),
-});
+const followUpParamsSchema = z.discriminatedUnion('type', [
+    z.object({ type: z.literal('lab_trend'), analyte: z.string().min(1).max(200) }),
+    z.object({ type: z.literal('medication_change'), medicationId: z.string().min(1).max(200) }),
+    z.object({ type: z.literal('external_care'), lookbackDays: z.number().int().positive().max(3650) }),
+]);
+
+const briefingRequestSchema = z
+    .object({
+        conversationId: z.string().min(1),
+        requestId: z.string().min(1),
+        siteId: z.string().min(1),
+        patient: z.object({
+            pid: z.number().int().positive(),
+            // Browser callers don't always have the FHIR UUID handy; the
+            // snapshot endpoint resolves the patient by pid behind the bearer
+            // token, so the uuid travels in the envelope for tracing and
+            // future cross-system references but is not load-bearing today.
+            uuid: z.string().default(''),
+        }),
+        task: z.union([z.literal('default_briefing'), z.literal('follow_up')]).default('default_briefing'),
+        // §4.5 free-text follow-up. Bounded to keep the prompt + trace logs
+        // tractable; the panel composer enforces the same cap client-side.
+        question: z.string().min(1).max(2000).optional(),
+        // §4.1 typed suggested-follow-up parameter set. Mutually exclusive
+        // with `question` — the boundary parses one or the other into the
+        // envelope, never both.
+        followUp: followUpParamsSchema.optional(),
+    })
+    .refine(
+        (v) => !(v.question !== undefined && v.followUp !== undefined),
+        { message: 'question and followUp are mutually exclusive', path: ['followUp'] },
+    );
+
+/**
+ * §4.1→§4.2 transitional bridge. Stringifies a typed follow-up parameter
+ * set into the deterministic question that the existing free-text
+ * follow-up path already understands. §4.2/§4.3/§4.4 will replace this
+ * with UC-specific graph branches; the typed envelope shape stays.
+ */
+export const stringifyFollowUp = (params: SuggestedFollowUpParams): string => {
+    switch (params.type) {
+        case 'lab_trend':
+            return `Show me the lab trend for ${params.analyte}.`;
+        case 'medication_change':
+            return `Why was this medication started? (${params.medicationId})`;
+        case 'external_care':
+            return `Summarize external care from the last ${params.lookbackDays} days.`;
+    }
+};
 
 export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): Hono => {
     const app = new Hono();
@@ -133,6 +165,10 @@ export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): H
                 await writeEvent({ type: 'error', code: 'site_mismatch' });
                 return;
             }
+            // §4.1 transitional shim: bridge a typed `followUp` into the existing free-text path; §4.2 replaces this with UC-specific graph branches.
+            const bridgedQuestion =
+                parsed.data.question ??
+                (parsed.data.followUp !== undefined ? stringifyFollowUp(parsed.data.followUp) : undefined);
             const envelope: RequestEnvelope = {
                 conversationId: parsed.data.conversationId,
                 requestId: parsed.data.requestId,
@@ -140,7 +176,8 @@ export const createApp = ({ auth, briefingRunner, conversationApi }: AppDeps): H
                 actor: { userId: principal.sub, fhirUser: principal.fhirUser },
                 patient: parsed.data.patient,
                 task: parsed.data.task,
-                ...(parsed.data.question !== undefined ? { question: parsed.data.question } : {}),
+                ...(bridgedQuestion !== undefined ? { question: bridgedQuestion } : {}),
+                ...(parsed.data.followUp !== undefined ? { followUp: parsed.data.followUp } : {}),
             };
 
             try {

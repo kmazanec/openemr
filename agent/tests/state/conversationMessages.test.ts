@@ -30,6 +30,7 @@ const ASSISTANT_MESSAGE: AssistantMessage = {
         },
     ],
     gaps: [],
+    suggestedFollowUps: [],
 };
 
 describe('createInMemoryConversationMessagesStore', () => {

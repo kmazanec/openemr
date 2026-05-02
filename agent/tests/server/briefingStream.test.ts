@@ -38,6 +38,7 @@ const buildMessage = (overrides: Partial<AssistantMessage> = {}): AssistantMessa
         { text: 'She has type 2 diabetes (E11.9).', claims: [dxClaim], redacted: false },
     ],
     gaps: [],
+    suggestedFollowUps: [],
     ...overrides,
 });
 

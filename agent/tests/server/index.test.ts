@@ -181,6 +181,7 @@ describe('POST /v1/agent/briefing', () => {
                         },
                     ],
                     gaps: [],
+                    suggestedFollowUps: [],
                 },
             },
             { type: 'done', persistedAt: '2026-04-30T12:00:00.000Z' },
@@ -258,6 +259,94 @@ describe('POST /v1/agent/briefing', () => {
                 ...briefingBody,
                 task: 'follow_up',
                 question: '',
+            }),
+        });
+        expect(res.status).toBe(200);
+        const text = await res.text();
+        expect(text).toContain('event: error');
+        expect(text).toContain('"code":"invalid_envelope"');
+    });
+
+    it('§4.1 forwards a typed followUp param and bridges it into a deterministic question', async () => {
+        const seen: { task: string | null; question: string | undefined; followUp: unknown } = {
+            task: null,
+            question: undefined,
+            followUp: undefined,
+        };
+        const runner: BriefingRunner = ({ envelope }) => {
+            seen.task = envelope.task;
+            seen.question = envelope.question;
+            seen.followUp = envelope.followUp;
+            return Promise.resolve([]);
+        };
+        const { app, privateKey } = await buildAuthedApp({ briefingRunner: runner });
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                ...briefingBody,
+                task: 'follow_up',
+                followUp: { type: 'lab_trend', analyte: 'A1c' },
+            }),
+        });
+        expect(res.status).toBe(200);
+        await res.text();
+        expect(seen.task).toBe('follow_up');
+        expect(seen.question).toContain('A1c');
+        expect(seen.followUp).toEqual({ type: 'lab_trend', analyte: 'A1c' });
+    });
+
+    it('§4.1 rejects a request that carries both `question` and `followUp`', async () => {
+        const { app, privateKey } = await buildAuthedApp();
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                ...briefingBody,
+                task: 'follow_up',
+                question: 'What was her last A1c?',
+                followUp: { type: 'lab_trend', analyte: 'A1c' },
+            }),
+        });
+        expect(res.status).toBe(200);
+        const text = await res.text();
+        expect(text).toContain('event: error');
+        expect(text).toContain('"code":"invalid_envelope"');
+    });
+
+    it('§4.1 rejects a followUp with an unknown discriminator type', async () => {
+        const { app, privateKey } = await buildAuthedApp();
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                ...briefingBody,
+                task: 'follow_up',
+                followUp: { type: 'unknown_type', analyte: 'A1c' },
             }),
         });
         expect(res.status).toBe(200);
