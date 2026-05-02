@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBriefingGraph } from '../../src/graph/index.js';
-import { createMedChangeBranch } from '../../src/graph/nodes/medChangeBranch.js';
+import { createPrescriptionChangeBranch } from '../../src/graph/nodes/prescriptionChangeBranch.js';
 import type { BriefingState } from '../../src/graph/state.js';
 import type { Synthesizer } from '../../src/graph/nodes/synthesize.js';
 import type { BriefingSnapshot, Gap, RequestEnvelope } from '../../src/graph/types.js';
@@ -262,19 +262,21 @@ describe('§4.3 prescriptionChangeBranch', () => {
             },
             appointment: null,
             diagnoses: [],
-            medications: [],
+            prescriptions: [],
             // Cast: the public type forbids Gap on `allergies` today, but
             // the verifier hard-stops on that shape and so does this branch.
             allergies: allergiesGap as unknown as readonly never[],
             labs: [],
             encounters: [],
+            reminders: [],
+            medications: [],
             labHistory: null,
         };
 
         const get = vi.fn((): Promise<unknown> => {
             throw new Error('getMedicationProvenance must not run when allergies are unavailable');
         });
-        const branch = createMedChangeBranch({
+        const branch = createPrescriptionChangeBranch({
             client: { get },
             token: TOKEN,
             siteId: 'default',

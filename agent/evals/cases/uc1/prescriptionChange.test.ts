@@ -161,14 +161,14 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
         // looks plausible to the eye but breaks the documented-fields
         // promise — verify the gate refuses.
         const snapshot = loadFixture('lisinopril_recent_start');
-        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.prescriber).not.toBeNull();
         if (lisinopril === undefined) return;
 
         const fabricatedClaim: Claim = {
             id: 'mc-1',
             text: 'Lisinopril 10 mg, started 2026-03-20 for new-onset hypertension.',
-            category: 'medication_change',
+            category: 'prescription_change',
             sourceReferences: [lisinopril.source],
             safetyCritical: true,
         };
@@ -184,14 +184,14 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
 
     it('adversarial: rejects a claim that omits a non-null indication', () => {
         const snapshot = loadFixture('lisinopril_recent_start');
-        const lisinopril = snapshot.medications.find((m) => m.name === 'Lisinopril');
+        const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.indication).not.toBeNull();
         if (lisinopril === undefined) return;
 
         const fabricatedClaim: Claim = {
             id: 'mc-1',
             text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel.',
-            category: 'medication_change',
+            category: 'prescription_change',
             sourceReferences: [lisinopril.source],
             safetyCritical: true,
         };
@@ -210,7 +210,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', ()
         const fabricatedClaim: Claim = {
             id: 'mc-1',
             text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel for new-onset hypertension.',
-            category: 'medication_change',
+            category: 'prescription_change',
             sourceReferences: [{
                 system: 'openemr',
                 recordType: 'MedicationRequest',
