@@ -11,7 +11,7 @@ import {
 } from '../auth/middleware.js';
 import { createLocalKeyResolver, createRemoteKeyResolver } from '../auth/jwks.js';
 import { createAgentJwtVerifier, type AgentJwtVerifier } from '../auth/verify.js';
-import type { RequestEnvelope, SuggestedFollowUpParams } from '../graph/types.js';
+import type { AssistantMessage, RequestEnvelope, SuggestedFollowUpParams } from '../graph/types.js';
 import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
@@ -27,6 +27,10 @@ import {
     createPgConversationSuggestionStore,
     type ConversationSuggestionStore,
 } from '../state/conversationSuggestions.js';
+import {
+    createPgScheduleBriefingsLog,
+    type ScheduleBriefingsLog,
+} from '../state/scheduleBriefings.js';
 import { stableId } from '../graph/followUps.js';
 import { createPgUnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
 import type { JWK } from 'jose';
@@ -63,6 +67,12 @@ interface AppDeps {
      * Optional so legacy tests stay green; production always sets this.
      */
     readonly conversationSuggestions?: ConversationSuggestionStore;
+    /**
+     * §5.3 morning-prep cache. Required by the `precompute=true` branch
+     * of the briefing route; absent in legacy tests that exercise only
+     * the interactive default-briefing path.
+     */
+    readonly scheduleBriefingsLog?: ScheduleBriefingsLog;
 }
 
 // `analyte` is an identifier we feed into a SQL `LIKE` pattern downstream.
@@ -113,10 +123,27 @@ const briefingRequestSchema = z
         // with `question` — the boundary parses one or the other into the
         // envelope, never both.
         followUp: followUpParamsSchema.optional(),
+        // §5.3 morning-prep precompute. When `true` the request is
+        // routed through the schedule-briefings cache instead of the
+        // interactive conversation store; `appointmentId` becomes
+        // required and `practitionerUuid` (the cache's natural key)
+        // is taken from the JWT subject. `force` overrides idempotency.
+        precompute: z.boolean().default(false),
+        practitionerUuid: z.string().min(1).optional(),
+        appointmentId: z.string().min(1).optional(),
+        force: z.boolean().default(false),
     })
     .refine(
         (v) => !(v.question !== undefined && v.followUp !== undefined),
         { message: 'question and followUp are mutually exclusive', path: ['followUp'] },
+    )
+    .refine(
+        (v) => !v.precompute || (typeof v.appointmentId === 'string' && v.appointmentId.length > 0),
+        { message: 'appointmentId is required when precompute=true', path: ['appointmentId'] },
+    )
+    .refine(
+        (v) => !v.precompute || (typeof v.practitionerUuid === 'string' && v.practitionerUuid.length > 0),
+        { message: 'practitionerUuid is required when precompute=true', path: ['practitionerUuid'] },
     );
 
 /**
@@ -157,6 +184,7 @@ export const createApp = ({
     briefingRunner,
     conversationApi,
     conversationSuggestions,
+    scheduleBriefingsLog,
 }: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
@@ -219,6 +247,106 @@ export const createApp = ({
                 await writeEvent({ type: 'error', code: 'site_mismatch' });
                 return;
             }
+
+            // §5.3 morning-prep precompute branch. Short-circuits before
+            // the chip-provenance gate and the follow-up bridge (neither
+            // applies to a system-actor cron run). The conversation
+            // store is bypassed entirely — precompute writes only to
+            // `schedule_briefings`, which the schedule view reads
+            // separately.
+            if (parsed.data.precompute) {
+                if (scheduleBriefingsLog === undefined) {
+                    logger.error(
+                        { requestId: parsed.data.requestId },
+                        'precompute request received but scheduleBriefingsLog is not wired',
+                    );
+                    await writeEvent({ type: 'error', code: 'precompute_unavailable' });
+                    return;
+                }
+                const practitionerUuid = parsed.data.practitionerUuid ?? '';
+                const appointmentId = parsed.data.appointmentId ?? '';
+                const today = new Date().toISOString().slice(0, 10);
+                if (!parsed.data.force) {
+                    const exists = await scheduleBriefingsLog.existsForToday(
+                        { practitionerUuid, appointmentId },
+                        today,
+                    );
+                    if (exists) {
+                        await writeEvent({
+                            type: 'done',
+                            persistedAt: new Date().toISOString(),
+                            precompute: { appointmentId, outcome: 'skipped_idempotent' },
+                        });
+                        return;
+                    }
+                }
+                const precomputeEnvelope: RequestEnvelope = {
+                    conversationId: parsed.data.conversationId,
+                    requestId: parsed.data.requestId,
+                    siteId: principal.siteId,
+                    actor: { userId: principal.sub, fhirUser: principal.fhirUser },
+                    patient: parsed.data.patient,
+                    task: 'default_briefing',
+                };
+                try {
+                    const events = await briefingRunner({
+                        envelope: precomputeEnvelope,
+                        token,
+                        extraMetadata: { precompute: true },
+                    });
+                    let formattedMessage: AssistantMessage | null = null;
+                    for (const event of events) {
+                        if (event.type === 'assistantMessage') {
+                            formattedMessage = event.message;
+                        }
+                    }
+                    if (formattedMessage === null) {
+                        logger.error(
+                            { requestId: parsed.data.requestId },
+                            'precompute runner produced no assistant message',
+                        );
+                        await writeEvent({ type: 'error', code: 'briefing_failed' });
+                        return;
+                    }
+                    // Flags = the `reason` codes of any Gap entries — these
+                    // are short, machine-readable strings (e.g.
+                    // `safety-critical-rejected`) the schedule view can
+                    // light up at a glance without re-rendering the full
+                    // assistant message.
+                    const flags = formattedMessage.gaps.map((gap) => gap.reason);
+                    const recordOutcome = await scheduleBriefingsLog.record(
+                        {
+                            key: { practitionerUuid, appointmentId },
+                            summary: formattedMessage,
+                            flags,
+                            requestId: parsed.data.requestId,
+                        },
+                        { force: parsed.data.force },
+                    );
+                    await writeEvent({
+                        type: 'done',
+                        persistedAt: new Date().toISOString(),
+                        precompute: {
+                            appointmentId,
+                            outcome: recordOutcome.outcome,
+                        },
+                    });
+                } catch (err) {
+                    const code = classifyBriefingError(err);
+                    logger.error(
+                        {
+                            err,
+                            code,
+                            requestId: parsed.data.requestId,
+                            appointmentId,
+                        },
+                        'precompute briefing runner failed',
+                    );
+                    await writeEvent({ type: 'error', code });
+                }
+                return;
+            }
+
             // Suggestion-chip provenance gate. A typed `followUp` carries
             // params we can re-hash (`stableId(conversationId, params)`)
             // into the same chip ID the §4.1 generator emitted on a
@@ -544,6 +672,10 @@ export const start = async (port: number): Promise<void> => {
     await conversationSuggestions.setup();
     logger.info('conversation_suggestion_chips table ready');
 
+    const scheduleBriefingsLog = createPgScheduleBriefingsLog({ connectionString: databaseUrl });
+    await scheduleBriefingsLog.setup();
+    logger.info('schedule_briefings table ready');
+
     const counters = createInMemoryCounters();
     const briefingRunner = buildProductionBriefingRunner({
         openEmrBaseUrl,
@@ -582,6 +714,7 @@ export const start = async (port: number): Promise<void> => {
             resumeWindowHours: 12,
         },
         conversationSuggestions,
+        scheduleBriefingsLog,
     });
     serve({ fetch: app.fetch, port });
     logger.info({ port }, 'agent service listening');

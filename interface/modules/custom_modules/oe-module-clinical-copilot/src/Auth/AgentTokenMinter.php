@@ -65,6 +65,14 @@ final readonly class AgentTokenMinter
 
     /**
      * @param list<string> $scopes SMART scope strings, already filtered by PolicyGate.
+     * @param DateInterval|null $ttl Override the default 5-minute TTL.
+     *                               §5.3 morning-prep precompute uses
+     *                               `PT30M` because a single CLI run
+     *                               iterates a whole day's slots and a
+     *                               slow Anthropic latency spike can
+     *                               push past the default. Production
+     *                               browser-driven mints leave this
+     *                               null.
      *
      * @throws AgentTokenMintException
      */
@@ -72,6 +80,7 @@ final readonly class AgentTokenMinter
         ResolvedFhirUser $fhirUser,
         array $scopes,
         string $issuer,
+        ?DateInterval $ttl = null,
     ): string {
         try {
             $kid = JwksKeyId::fromPublicKey($this->signingKey->publicKeyPem);
@@ -86,6 +95,7 @@ final readonly class AgentTokenMinter
             );
 
             $now = $this->clock->now();
+            $effectiveTtl = $ttl ?? new DateInterval(self::TOKEN_TTL);
             $builder = $config->builder()
                 ->withHeader('kid', $kid)
                 ->permittedFor(self::AGENT_CLIENT_ID)
@@ -94,7 +104,7 @@ final readonly class AgentTokenMinter
                 ->identifiedBy($this->jtiGenerator->generate())
                 ->issuedAt($now)
                 ->canOnlyBeUsedAfter($now)
-                ->expiresAt($now->add(new DateInterval(self::TOKEN_TTL)))
+                ->expiresAt($now->add($effectiveTtl))
                 ->withClaim('fhirUser', $fhirUser->fhirUserUri)
                 ->withClaim('scopes', $scopes);
 

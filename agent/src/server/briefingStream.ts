@@ -33,6 +33,17 @@ export type BriefingStreamEvent =
     | {
           readonly type: 'done';
           readonly persistedAt: string;
+          /**
+           * §5.3 precompute outcome. Present only on the precompute
+           * route (`/v1/agent/briefing` with `precompute: true`); absent
+           * on the interactive default-briefing path. Lets the
+           * orchestrator distinguish a fresh write from an idempotent
+           * skip without parsing the assistant message.
+           */
+          readonly precompute?: {
+              readonly appointmentId: string;
+              readonly outcome: 'inserted' | 'overwritten' | 'skipped_idempotent';
+          };
       }
     | {
           readonly type: 'error';

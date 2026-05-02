@@ -1312,24 +1312,31 @@ clinician identity.
   `schedule_briefings` table itself lands in §5.3).
 
 ### 5.3 Background pre-compute job
-- [ ] CLI command `agent:precompute-day` that runs hourly (or on a
+- [x] CLI command `agent:precompute-day` that runs hourly (or on a
   fine-grained cron) and selects practitioners whose
   `morning_prep_enabled = TRUE` and whose `morning_prep_time_local`
   (in their `timezone`) falls within the current run window. Practitioners
   without the flag are skipped without logging a per-patient row, so
   the disabled-default cost story is "zero tokens, zero rows."
-- [ ] For each opted-in practitioner, populate
+  (Implemented as a Symfony Console command in
+  `src/Common/Command/AgentPrecomputeDayCommand.php`; the
+  PHP-side orchestrator drives the agent's `/v1/agent/briefing`
+  endpoint with `precompute=true` envelopes.)
+- [x] For each opted-in practitioner, populate
   `schedule_briefings(appointment_id, practitioner_uuid, summary,
   flags, generated_at, request_id)` in agent Postgres. Reuses the UC1
   graph; results are cached, not re-run on each schedule view.
-- [ ] Per-practitioner daily token + cost counters logged through the
+- [x] Per-practitioner daily token + cost counters logged through the
   existing §6.1 LangSmith metadata path so a clinician's
-  morning-prep cost is visible per day.
-- [ ] Idempotency: re-running the job for a practitioner+date that
+  morning-prep cost is visible per day. (Surfaced via
+  `metadata.precompute = true` on the briefing graph invocation; the
+  existing `Counters` snapshot logger and per-trace identity tags
+  roll up by clinician without new infrastructure.)
+- [x] Idempotency: re-running the job for a practitioner+date that
   already has `schedule_briefings` rows is a no-op (UNIQUE on
   `(practitioner_uuid, appointment_id, generated_at::date)`). Manual
-  re-run for debug requires `--force`.
-- [ ] Cost-projection note in `docs/COST_ANALYSIS.md` covering both
+  re-run for debug requires `--force` (delete-then-insert overwrite).
+- [x] Cost-projection note in `docs/COST_ANALYSIS.md` covering both
   the disabled-default case (zero) and the fully-opted-in 300-clinician
   hospital tier (the worst case PRESEARCH §2 calls out).
 

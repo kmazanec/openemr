@@ -5,6 +5,7 @@ import type { BriefingRunner } from '../../src/server/briefingRunner.js';
 import type { ConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import type { ConversationStore } from '../../src/state/conversationStore.js';
 import type { ConversationSuggestionStore } from '../../src/state/conversationSuggestions.js';
+import type { ScheduleBriefingsLog } from '../../src/state/scheduleBriefings.js';
 import { generateTestKey } from '../auth/testKeys.js';
 import type { Hono } from 'hono';
 import type { KeyLike } from 'jose';
@@ -35,6 +36,7 @@ export interface AuthedAppOptions {
         readonly windowHours?: number;
     };
     readonly conversationSuggestions?: ConversationSuggestionStore;
+    readonly scheduleBriefingsLog?: ScheduleBriefingsLog;
 }
 
 const stubBriefingRunner: BriefingRunner = () => Promise.resolve([]);
@@ -68,6 +70,9 @@ export const buildAuthedApp = async (options: AuthedAppOptions = {}): Promise<Au
                 : {}),
             ...(options.conversationSuggestions !== undefined
                 ? { conversationSuggestions: options.conversationSuggestions }
+                : {}),
+            ...(options.scheduleBriefingsLog !== undefined
+                ? { scheduleBriefingsLog: options.scheduleBriefingsLog }
                 : {}),
         }),
         privateKey,

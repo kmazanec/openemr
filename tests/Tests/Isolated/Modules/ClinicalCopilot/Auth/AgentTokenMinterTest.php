@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Auth;
 
+use DateInterval;
 use DateTimeImmutable;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentSigningKey;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentTokenMinter;
@@ -179,9 +180,25 @@ final class AgentTokenMinterTest extends TestCase
     }
 
     /**
+     * §5.3 morning-prep precompute mints with a longer TTL because a
+     * single CLI run iterates a whole day's slots and a slow Anthropic
+     * latency spike can push past the default 5-minute window. The
+     * default-TTL path is not affected.
+     */
+    public function testCustomTtlOverridesTheDefaultExpiry(): void
+    {
+        $token = $this->mint([], new DateInterval('PT30M'));
+        [, $payload] = $this->decodeUnverified($token);
+
+        $now = (new DateTimeImmutable(self::FIXED_NOW))->getTimestamp();
+        $this->assertSame($now, $payload['iat'] ?? null);
+        $this->assertSame($now + 1800, $payload['exp'] ?? null, '30-minute TTL');
+    }
+
+    /**
      * @param list<string> $scopes
      */
-    private function mint(array $scopes): string
+    private function mint(array $scopes, ?DateInterval $ttl = null): string
     {
         $minter = new AgentTokenMinter(
             signingKey: new AgentSigningKey(
@@ -199,6 +216,7 @@ final class AgentTokenMinterTest extends TestCase
             ),
             $scopes,
             self::ISSUER,
+            $ttl,
         );
     }
 

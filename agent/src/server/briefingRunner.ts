@@ -45,6 +45,14 @@ import { eventsForBriefing, type BriefingStreamEvent } from './briefingStream.js
 export type BriefingRunner = (input: {
     readonly envelope: RequestEnvelope;
     readonly token: string;
+    /**
+     * §5.3: extra LangSmith run metadata merged into the graph
+     * invocation's metadata block. Used by the precompute path to set
+     * `precompute: true` so the dashboard rolls up morning-prep cost
+     * separately from interactive briefings. Keys here must be
+     * non-PHI — the metadata object is uploaded to LangSmith.
+     */
+    readonly extraMetadata?: Readonly<Record<string, string | number | boolean>>;
 }) => Promise<readonly BriefingStreamEvent[]>;
 
 export interface BriefingRunnerDeps {
@@ -126,7 +134,7 @@ const isUuid = (s: string): boolean => UUID_RE.test(s);
 
 export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner => {
     const logger = createLogger('briefingRunner');
-    return async ({ envelope, token }) => {
+    return async ({ envelope, token, extraMetadata }) => {
         // Resolve the conversation row for this turn based on the task.
         // Default briefings always mint; follow-ups must target an
         // existing row the principal owns.
@@ -245,6 +253,7 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                     site_id: envelope.siteId,
                     task: envelope.task,
                     request_id: envelope.requestId,
+                    ...(extraMetadata ?? {}),
                 },
             },
         );
