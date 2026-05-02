@@ -1284,25 +1284,32 @@ Pre-compute is gated by a per-practitioner setting stored in OpenEMR
 before any agent work fires, and clinician-visible settings belong with
 clinician identity.
 
-- [ ] New table `agent_practitioner_settings(practitioner_uuid PK,
+- [x] New table `agent_practitioner_settings(practitioner_uuid PK,
   morning_prep_enabled BOOL DEFAULT FALSE, morning_prep_time_local
   TIME DEFAULT '07:50', timezone VARCHAR DEFAULT 'America/Chicago',
   updated_at)`. Doctrine migration under `db/Migrations/`. Default off
   — opt-in.
-- [ ] Settings page in the module: a small Twig form under the existing
+- [x] Settings page in the module: a small Twig form under the existing
   module page that lets the logged-in practitioner toggle
   `morning_prep_enabled`, set `morning_prep_time_local`, and pick
   `timezone` (default to OpenEMR's site timezone). The settings page
   writes only the acting user's row — no admin-edits-others surface
   this sprint.
-- [ ] PolicyGate action `morning-prep-settings:write` scoped to the
+- [x] PolicyGate action `morning-prep-settings:write` scoped to the
   acting practitioner's own uuid. Settings reads are unauthenticated
   inside the precompute scheduler (it runs server-side as a system
   actor) but writes go through the standard module page auth.
-- [ ] PHPUnit isolated coverage for the settings controller: a user
+  (Implemented as a parallel `SettingsPolicyGate` rather than an entry
+  in the agent-token `PolicyGate` allowlist — the settings page does
+  not go through the agent proxy, so the gates take different inputs;
+  the action string `morning-prep-settings:write` lives on
+  `SettingsPolicyGate::ACTION_WRITE`.)
+- [x] PHPUnit isolated coverage for the settings controller: a user
   can only update their own row; the time field rejects invalid
   values; toggling `morning_prep_enabled` to false cancels any
-  scheduled run for that practitioner (idempotent).
+  scheduled run for that practitioner (idempotent — verified through
+  the contract `findEnabledPractitioners()` will read; the
+  `schedule_briefings` table itself lands in §5.3).
 
 ### 5.3 Background pre-compute job
 - [ ] CLI command `agent:precompute-day` that runs hourly (or on a

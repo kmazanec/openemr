@@ -1,0 +1,88 @@
+{# Clinical Co-Pilot — per-practitioner morning-prep settings form.
+
+   Rendered by public/settings.php. The form posts back to the same URL
+   with `morning_prep_enabled`, `morning_prep_time_local` (HTML5 time
+   input → `H:i`), and `timezone`. CSRF is enforced server-side via
+   CsrfUtils::verifyCsrfToken; the hidden input below carries the token.
+
+   Errors are field-keyed: `errors.morning_prep_time_local`,
+   `errors.timezone`, `errors.policy`. The page renders inline next to
+   each input. A success flash shows when `savedAt` is set.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ 'Clinical Co-Pilot — Settings'|xlt }}</title>
+    {{ commonHeader|raw }}
+</head>
+<body class="container py-4">
+    <main class="copilot-settings">
+        <header class="mb-4">
+            <h1 class="h3">{{ 'Clinical Co-Pilot — Morning prep'|xlt }}</h1>
+            <p class="text-muted">
+                {{ 'Pre-compute briefings for your scheduled patients before clinic starts. Off by default — turn this on if you want to spend tokens to save time at the start of your day.'|xlt }}
+            </p>
+        </header>
+
+        {% if savedAt is not null %}
+            <div class="alert alert-success" role="status">
+                {{ 'Settings saved.'|xlt }}
+            </div>
+        {% endif %}
+
+        {% if errors.policy is defined %}
+            <div class="alert alert-danger" role="alert">
+                {{ 'You may only update your own settings.'|xlt }}
+            </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            <input type="hidden" name="csrf_token_form" value="{{ csrfToken }}" />
+
+            <div class="form-group form-check mb-3">
+                <input type="checkbox"
+                       class="form-check-input"
+                       id="morning_prep_enabled"
+                       name="morning_prep_enabled"
+                       value="1"
+                       {% if enabled %}checked{% endif %} />
+                <label class="form-check-label" for="morning_prep_enabled">
+                    {{ 'Enable morning pre-compute'|xlt }}
+                </label>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="morning_prep_time_local">{{ 'Pre-compute time (local)'|xlt }}</label>
+                <input type="time"
+                       class="form-control{% if errors.morning_prep_time_local is defined %} is-invalid{% endif %}"
+                       id="morning_prep_time_local"
+                       name="morning_prep_time_local"
+                       value="{{ timeLocal }}"
+                       required />
+                {% if errors.morning_prep_time_local is defined %}
+                    <div class="invalid-feedback">{{ errors.morning_prep_time_local|xlt }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="timezone">{{ 'Timezone'|xlt }}</label>
+                <select class="form-control{% if errors.timezone is defined %} is-invalid{% endif %}"
+                        id="timezone"
+                        name="timezone"
+                        required>
+                    {% for tz in timezones %}
+                        <option value="{{ tz }}"{% if tz == timezone %} selected{% endif %}>{{ tz }}</option>
+                    {% endfor %}
+                </select>
+                {% if errors.timezone is defined %}
+                    <div class="invalid-feedback">{{ errors.timezone|xlt }}</div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-primary">{{ 'Save'|xlt }}</button>
+        </form>
+    </main>
+</body>
+</html>

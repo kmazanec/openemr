@@ -22,4 +22,8 @@ enum PolicyDenyReason
     case MissingPatient;
     case ScopeNotPermitted;
     case UnknownAction;
+    // §5.2 self-only writes: the acting user attempted to write a settings
+    // row that does not belong to them. Distinct from PatientMismatch
+    // (which is patient-shaped) so log readers can tell the cases apart.
+    case NotOwnRow;
 }
