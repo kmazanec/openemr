@@ -146,25 +146,71 @@ export const createSynthesize = (
 
 /**
  * Default `Synthesizer` backed by ChatAnthropic + structured output.
- * The model is read from `ANTHROPIC_MODEL` env (default
- * `claude-sonnet-4-6`). Strict JSON via
- * `withStructuredOutput(zodSchema)` — LangChain handles JSON-coercion
- * and retry-on-parse-error.
+ * Strict JSON via `withStructuredOutput(zodSchema)` — LangChain handles
+ * JSON-coercion and retry-on-parse-error.
+ *
+ * Per-task model routing. The briefing path is dominated by
+ * structured retrieval over a known snapshot; the follow-up path
+ * answers free-form clinician questions and benefits from the larger
+ * model. Each task reads its own env var, falling back to a hardcoded
+ * default. Both defaults match the price table in `traceMetadata.ts`.
+ *
+ *   ANTHROPIC_MODEL_BRIEFING  → briefing path (default haiku)
+ *   ANTHROPIC_MODEL_FOLLOW_UP → free-text follow-up (default sonnet)
+ *
+ * Callers can still pin a single model via `options.model` (used by
+ * tests and the eval experiment runner that wants apples-to-apples
+ * cost numbers).
  */
+const DEFAULT_BRIEFING_MODEL = 'claude-haiku-4-5';
+const DEFAULT_FOLLOW_UP_MODEL = 'claude-sonnet-4-6';
+
+const resolveModel = (
+    override: string | undefined,
+    taskEnvVar: string,
+    fallbackModel: string,
+): string => {
+    if (override !== undefined) return override;
+    const taskModel = process.env[taskEnvVar];
+    if (taskModel !== undefined && taskModel.length > 0) return taskModel;
+    return fallbackModel;
+};
+
 export const createAnthropicSynthesizer = (options?: {
+    /**
+     * If set, pins both the briefing and follow-up paths to this
+     * single model. Used by tests and eval runners that want
+     * apples-to-apples comparisons. Production omits this and lets
+     * env vars route per task.
+     */
     readonly model?: string;
     readonly apiKey?: string;
 }): Synthesizer => {
-    const model = options?.model ?? process.env['ANTHROPIC_MODEL'] ?? 'claude-sonnet-4-6';
+    const briefingModel = resolveModel(
+        options?.model,
+        'ANTHROPIC_MODEL_BRIEFING',
+        DEFAULT_BRIEFING_MODEL,
+    );
+    const followUpModel = resolveModel(
+        options?.model,
+        'ANTHROPIC_MODEL_FOLLOW_UP',
+        DEFAULT_FOLLOW_UP_MODEL,
+    );
     const apiKey = options?.apiKey ?? process.env['ANTHROPIC_API_KEY'];
     if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('ANTHROPIC_API_KEY is required to build the default synthesizer');
     }
-    const llm = new ChatAnthropic({ model, apiKey, temperature: 0 });
-    const structured = llm.withStructuredOutput(synthesisOutputSchema, {
-        name: 'briefing_with_claim_ledger',
-        includeRaw: true,
-    });
+
+    const buildClient = (model: string) =>
+        new ChatAnthropic({ model, apiKey, temperature: 0 }).withStructuredOutput(
+            synthesisOutputSchema,
+            { name: 'briefing_with_claim_ledger', includeRaw: true },
+        );
+
+    const briefingClient = buildClient(briefingModel);
+    // Lazy: building the follow-up client also when briefing == follow-up
+    // double-allocates two identical clients. Skip when models match.
+    const followUpClient = followUpModel === briefingModel ? briefingClient : buildClient(followUpModel);
 
     return async ({ snapshot, envelope }) => {
         // §4.5: a free-text follow-up swaps both the system prompt and
@@ -178,10 +224,13 @@ export const createAnthropicSynthesizer = (options?: {
             envelope.question.length > 0
                 ? envelope.question
                 : null;
-        const systemPrompt = question !== null ? FOLLOW_UP_SYSTEM_PROMPT : SYSTEM_PROMPT;
-        const userMessage = question !== null
+        const isFollowUp = question !== null;
+        const systemPrompt = isFollowUp ? FOLLOW_UP_SYSTEM_PROMPT : SYSTEM_PROMPT;
+        const userMessage = isFollowUp
             ? buildFollowUpUserMessage(snapshot, question)
             : buildUserMessage(snapshot);
+        const structured = isFollowUp ? followUpClient : briefingClient;
+        const model = isFollowUp ? followUpModel : briefingModel;
         const result = await structured.invoke([
             new SystemMessage(systemPrompt),
             new HumanMessage(userMessage),

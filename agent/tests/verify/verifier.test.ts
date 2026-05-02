@@ -195,6 +195,71 @@ describe('verifyLedger — deterministic checks per category', () => {
         expect(out.accepted).toHaveLength(1);
     });
 
+    /**
+     * NKDA records carry the substance literal `"NKDA"` rather than a
+     * real allergen. Forcing the claim text to literally include
+     * "NKDA" would reject every accurately-paraphrased "no known drug
+     * allergies" statement (which is what Haiku produced when the
+     * §3.6 hypertensive eval first ran). The verifier handles NKDA
+     * specially against a small allow-list of phrasings — these
+     * tests pin the closed set.
+     */
+    const nkdaSnapshot = (): BriefingSnapshot =>
+        baseSnapshot({
+            allergies: [
+                {
+                    substance: 'NKDA',
+                    reaction: null,
+                    severity: null,
+                    source: sourceRef('AllergyIntolerance', 'a-nkda'),
+                },
+            ],
+        });
+
+    it.each([
+        'No known drug allergies',
+        'NKDA',
+        'Patient has no known allergies on file',
+        'Allergies: none reported',
+        'Patient denies drug allergies',
+        'No reported allergies',
+    ])('accepts NKDA-shaped allergy claim: %s', (text) => {
+        const out = verifyLedger(
+            nkdaSnapshot(),
+            single(
+                claim({
+                    category: 'allergy',
+                    text,
+                    sourceReferences: [sourceRef('AllergyIntolerance', 'a-nkda')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.rejected).toHaveLength(0);
+    });
+
+    it.each([
+        'Penicillin causes hives',
+        'No penicillin allergy',
+        'Allergic to sulfa',
+    ])('rejects a non-NKDA-shaped claim grounded against an NKDA record: %s', (text) => {
+        const out = verifyLedger(
+            nkdaSnapshot(),
+            single(
+                claim({
+                    category: 'allergy',
+                    text,
+                    sourceReferences: [sourceRef('AllergyIntolerance', 'a-nkda')],
+                    safetyCritical: true,
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected).toHaveLength(1);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
     it('accepts a diagnosis claim that mentions either ICD code or label', () => {
         const byCode = verifyLedger(
             baseSnapshot(),

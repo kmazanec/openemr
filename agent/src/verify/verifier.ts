@@ -119,9 +119,38 @@ const matchesLab = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boo
     return containsCI(claim.text, lab.analyte) && containsCI(claim.text, lab.value);
 };
 
+/**
+ * NKDA ("no known drug allergies") is the data-layer encoding for
+ * "patient has no allergies on file" — it is a marker, not a substance.
+ * Clinicians and models phrase it many ways ("no known drug allergies",
+ * "NKDA", "none reported", "patient denies allergies"). The substring
+ * rule we use for real allergens (`containsCI(claim.text, substance)`)
+ * is the wrong shape here: there is no substance to mention, and the
+ * claim *should* be allowed to use natural prose.
+ *
+ * The list below is the closed set of phrasings the verifier accepts
+ * for an NKDA-grounded claim. New phrasings should be added with a
+ * unit test (see `verifier.test.ts` "accepts NKDA-shaped allergy
+ * claims …"). We deliberately keep this short — the verifier is the
+ * deterministic gate, and a permissive `/no.*allerg/i` would also
+ * accept "no penicillin allergy" against an NKDA record, which is
+ * not the same statement.
+ */
+const NKDA_PATTERNS: readonly RegExp[] = [
+    /\bnkda\b/i,
+    /\bno known (drug )?allerg(y|ies)\b/i,
+    /\bno (drug )?allergies on file\b/i,
+    /\bnone reported\b/i,
+    /\bpatient denies (drug )?allergies\b/i,
+    /\bno reported allergies\b/i,
+];
+
 const matchesAllergy = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const allergy = idx.allergies.get(ref.recordId);
     if (allergy === undefined) return false;
+    if (allergy.substance.toUpperCase() === 'NKDA') {
+        return NKDA_PATTERNS.some((p) => p.test(claim.text));
+    }
     return containsCI(claim.text, allergy.substance);
 };
 
