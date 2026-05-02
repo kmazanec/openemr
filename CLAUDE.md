@@ -116,6 +116,42 @@ Review the diff before committing. See the
 [fixtures README](tests/Tests/Isolated/Common/Twig/fixtures/render/README.md)
 for details on adding new test cases.
 
+### Agent evals (`agent/evals/`)
+
+Whenever you add or change agent functionality (new tool, new graph
+node, new verifier rule, new safety policy, new use-case branch),
+update the evals alongside the code. The suite has three layers and
+each one matters:
+
+- **Per-MR Vitest gate** — `agent/evals/cases/<uc>/*.test.ts` runs in
+  CI's `test:agent` job on every push. Stub the synthesizer; assert
+  the deterministic gate's behavior (verifier accepts/rejects, hard
+  stops fire, segments redact). This layer protects against
+  structural regressions, not model quality.
+- **Fixture data** — `agent/evals/fixtures/<uc>/*.json` is generated
+  by `agent/evals/fixtures/regenerate.ts`. Always edit the regenerator
+  and run `npm run evals:regenerate-fixtures`; never hand-edit the
+  JSON. Archetype shapes mirror `bin/seed/PatientArchetype.php` so
+  evals stay aligned with the real seed pipeline.
+- **Nightly LangSmith experiment** — `agent/evals/runners/experiment.ts`
+  runs the real Anthropic synthesizer against the dataset on
+  schedules. New ground truth goes in `langsmithDataset.ts`'s
+  `groundTruth()`. Bumping the dataset shape means renaming
+  `DATASET_NAME` (e.g. `…-golden-v1` → `…-v2`) so old experiments
+  stay comparable.
+
+When a prod incident exposes a gap, capture the failing
+`ChartSnapshot` (the Persist node already saves it) into
+`agent/evals/fixtures/<uc>/regression-<id>.json` and add a Vitest case
+that pins what the gate should have caught. This is where the eval
+suite earns its keep — every incident becomes a permanent regression
+test.
+
+Don't replace the stub synthesizer in Vitest cases with a real
+Anthropic call to "make the test more realistic." Per-MR cost balloons
+and the test becomes nondeterministic. Real-model coverage belongs in
+the nightly experiment.
+
 ## Code Quality
 
 These run on the host (requires local PHP/Node):
