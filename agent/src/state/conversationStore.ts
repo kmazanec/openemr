@@ -161,12 +161,28 @@ const INSERT_SQL = `
     RETURNING id, user_id, patient_pid, appointment_id, created_at, updated_at
 `;
 
+/**
+ * Every read path filters out conversations with zero persisted
+ * messages. The runner inserts the `conversations` row before the
+ * briefing graph runs (so a graph failure can be diagnosed against
+ * a real id), but if the graph then throws — typical cause: snapshot
+ * 403, model timeout — no message is ever appended. Surfacing those
+ * empty rows to resume strands the user on a "0 turns" thread with
+ * no recourse, so we treat "has at least one message" as the
+ * visibility predicate. The
+ * `conversation_messages_thread_idx (conversation_id, created_at)`
+ * index makes the EXISTS lookup a single index probe.
+ */
 const FIND_RESUMABLE_SQL = `
     SELECT id, updated_at
-    FROM conversations
+    FROM conversations c
     WHERE user_id = $1
       AND patient_pid = $2
       AND updated_at > now() - make_interval(hours => $3)
+      AND EXISTS (
+          SELECT 1 FROM conversation_messages m
+          WHERE m.conversation_id = c.id
+      )
     ORDER BY updated_at DESC
     LIMIT 1
 `;
@@ -177,8 +193,12 @@ const TOUCH_SQL = `
 
 const FIND_OWNED_BY_ID_SQL = `
     SELECT id, user_id, patient_pid, appointment_id, created_at, updated_at
-    FROM conversations
+    FROM conversations c
     WHERE id = $1 AND user_id = $2 AND patient_pid = $3
+      AND EXISTS (
+          SELECT 1 FROM conversation_messages m
+          WHERE m.conversation_id = c.id
+      )
     LIMIT 1
 `;
 
@@ -190,6 +210,10 @@ const FIND_OWNED_BY_ID_SQL = `
  * under a millisecond. Cursor mode (`updated_at < $4`) is opt-in;
  * the LIST_FIRST variant omits the cursor for the first page so the
  * planner picks the resume index directly.
+ *
+ * Empty rows (no persisted messages) are filtered out for the same
+ * reason as `FIND_RESUMABLE_SQL` — they're orphans from a failed
+ * briefing graph, never something the clinician is meant to see.
  */
 const LIST_FIRST_PAGE_SQL = `
     SELECT
@@ -204,6 +228,10 @@ const LIST_FIRST_PAGE_SQL = `
             LIMIT 1) AS first_question
     FROM conversations c
     WHERE c.user_id = $1 AND c.patient_pid = $2
+      AND EXISTS (
+          SELECT 1 FROM conversation_messages m
+          WHERE m.conversation_id = c.id
+      )
     ORDER BY c.updated_at DESC, c.id DESC
     LIMIT $3
 `;
@@ -223,6 +251,10 @@ const LIST_NEXT_PAGE_SQL = `
     WHERE c.user_id = $1
       AND c.patient_pid = $2
       AND (c.updated_at, c.id) < ($3, $4)
+      AND EXISTS (
+          SELECT 1 FROM conversation_messages m
+          WHERE m.conversation_id = c.id
+      )
     ORDER BY c.updated_at DESC, c.id DESC
     LIMIT $5
 `;
@@ -430,12 +462,26 @@ export const createInMemoryConversationStore = (
             updatedAt: row.updatedAt.toISOString(),
         });
     };
-    const findResumable = (
+    /**
+     * Mirror of the production `EXISTS (... conversation_messages ...)`
+     * predicate. When the projection is wired (production-shape tests
+     * and the real in-memory pairing in `index.ts`), an empty thread
+     * is treated as "not yet visible" so a failed briefing's orphan
+     * row never gets returned for resume. Tests that omit the
+     * projection retain the previous "all rows visible" semantics —
+     * those tests don't exercise the resume → empty-thread path.
+     */
+    const hasMessages = async (conversationId: string): Promise<boolean> => {
+        if (messages === undefined) return true;
+        const persisted = await messages.listMessagesForListing(conversationId);
+        return persisted.length > 0;
+    };
+    const findResumable = async (
         userId: string,
         patientPid: number,
         withinHours: number,
     ): Promise<ResumableConversation | null> => {
-        if (withinHours <= 0) return Promise.resolve(null);
+        if (withinHours <= 0) return null;
         const cutoff = Date.now() - withinHours * 60 * 60 * 1000;
         const candidates = rows
             .filter((r) => r.userId === userId && r.patientPid === patientPid)
@@ -445,9 +491,12 @@ export const createInMemoryConversationStore = (
                 if (dt !== 0) return dt;
                 return b.touchSeq - a.touchSeq;
             });
-        const top = candidates[0];
-        if (top === undefined) return Promise.resolve(null);
-        return Promise.resolve({ id: top.id, updatedAt: top.updatedAt.toISOString() });
+        for (const row of candidates) {
+            if (await hasMessages(row.id)) {
+                return { id: row.id, updatedAt: row.updatedAt.toISOString() };
+            }
+        }
+        return null;
     };
     const touch = (conversationId: string): Promise<void> => {
         const row = rows.find((r) => r.id === conversationId);
@@ -457,7 +506,7 @@ export const createInMemoryConversationStore = (
         }
         return Promise.resolve();
     };
-    const findOwnedById = (
+    const findOwnedById = async (
         conversationId: string,
         userId: string,
         patientPid: number,
@@ -465,15 +514,16 @@ export const createInMemoryConversationStore = (
         const row = rows.find(
             (r) => r.id === conversationId && r.userId === userId && r.patientPid === patientPid,
         );
-        if (row === undefined) return Promise.resolve(null);
-        return Promise.resolve({
+        if (row === undefined) return null;
+        if (!(await hasMessages(row.id))) return null;
+        return {
             id: row.id,
             userId: row.userId,
             patientPid: row.patientPid,
             appointmentId: row.appointmentId,
             createdAt: row.createdAt.toISOString(),
             updatedAt: row.updatedAt.toISOString(),
-        });
+        };
     };
     const listForUserAndPatient = async (
         userId: string,
@@ -504,13 +554,16 @@ export const createInMemoryConversationStore = (
                 if (a.id < b.id) return 1;
                 if (a.id > b.id) return -1;
                 return 0;
-            })
-            .slice(0, limit);
+            });
         const items: ConversationListItem[] = [];
         for (const row of candidates) {
+            if (items.length >= limit) break;
             const persisted = messages !== undefined
                 ? await messages.listMessagesForListing(row.id)
                 : [];
+            // Mirror of the production EXISTS filter — orphans from
+            // a failed briefing graph never appear in the sidebar.
+            if (messages !== undefined && persisted.length === 0) continue;
             items.push({
                 id: row.id,
                 createdAt: row.createdAt.toISOString(),

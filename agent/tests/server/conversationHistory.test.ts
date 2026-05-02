@@ -137,15 +137,54 @@ describe('GET /v1/agent/conversation_history', () => {
         expect(body.items).toEqual([]);
     });
 
+    it('hides orphan rows (zero persisted messages) from the sidebar', async () => {
+        // The runner inserts the conversations row before the briefing
+        // graph runs; if the graph then throws (snapshot 403, model
+        // timeout, etc.) the row is left without any messages. The
+        // sidebar must filter those out so a clinician never gets
+        // stranded on a "0 turns" thread with no recourse.
+        const conversationApi = buildConversationApi();
+        const orphan = await conversationApi.conversationStore.create({
+            userId: PRACTITIONER,
+            patientPid: PID,
+            appointmentId: null,
+        });
+        const real = await conversationApi.conversationStore.create({
+            userId: PRACTITIONER,
+            patientPid: PID,
+            appointmentId: null,
+        });
+        await conversationApi.conversationMessages.append({
+            conversationId: real.id,
+            role: 'assistant',
+            message: ASSISTANT,
+        });
+        const built = await buildAuthedApp({ conversationApi });
+        const res = await authedRequest(built, `/v1/agent/conversation_history?pid=${PID}`);
+        const body = (await res.json()) as {
+            items: readonly { conversationId: string }[];
+        };
+        expect(body.items.map((i) => i.conversationId)).toEqual([real.id]);
+        expect(body.items.map((i) => i.conversationId)).not.toContain(orphan.id);
+    });
+
     it('paginates: full page returns nextBefore, short page returns null', async () => {
         const conversationApi = buildConversationApi();
         // 3 rows, ask for limit=2 → first page is full (nextBefore set);
-        // second page has 1 row (nextBefore null).
+        // second page has 1 row (nextBefore null). Each row needs at
+        // least one persisted message to appear in the list — orphans
+        // (failed-briefing rows with zero messages) are intentionally
+        // hidden from the sidebar.
         for (let i = 0; i < 3; i++) {
-            await conversationApi.conversationStore.create({
+            const seed = await conversationApi.conversationStore.create({
                 userId: PRACTITIONER,
                 patientPid: PID,
                 appointmentId: null,
+            });
+            await conversationApi.conversationMessages.append({
+                conversationId: seed.id,
+                role: 'assistant',
+                message: ASSISTANT,
             });
             await new Promise((r) => setTimeout(r, 2));
         }

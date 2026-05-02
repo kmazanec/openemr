@@ -39,10 +39,16 @@ const ASSISTANT: AssistantMessage = {
     suggestedFollowUps: [],
 };
 
-const buildResume = () => ({
-    conversationStore: createInMemoryConversationStore(),
-    conversationMessages: createInMemoryConversationMessagesStore(),
-});
+const buildResume = () => {
+    // Wire the messages projection into the conversation store so the
+    // in-memory implementation mirrors the production EXISTS filter
+    // (orphan rows with zero messages are hidden from resume + history).
+    const conversationMessages = createInMemoryConversationMessagesStore();
+    return {
+        conversationStore: createInMemoryConversationStore(conversationMessages),
+        conversationMessages,
+    };
+};
 
 const PRACTITIONER = 'Practitioner/dr-patel';
 const PID = 92;
@@ -170,5 +176,37 @@ describe('GET /v1/agent/latest_conversation', () => {
         const built = await buildAuthedApp({});
         const res = await buildAuthedRequest(built, String(PID));
         expect(res.status).toBe(404);
+    });
+
+    it('skips orphan rows (zero messages) and resumes the prior real thread', async () => {
+        // Reproduces the prod-403 incident: the runner created the
+        // conversations row, the snapshot fetch 403'd, and the row was
+        // left without any messages. On the next reload the resume
+        // endpoint surfaced the orphan, the panel rendered an empty
+        // "resumed" thread, and the user had no way to retry.
+        const resume = buildResume();
+        const realThread = await resume.conversationStore.create({
+            userId: PRACTITIONER,
+            patientPid: PID,
+            appointmentId: null,
+        });
+        await resume.conversationMessages.append({
+            conversationId: realThread.id,
+            role: 'assistant',
+            message: ASSISTANT,
+        });
+        // Mint a later orphan to confirm we walk past it instead of
+        // taking the most-recent-by-time row blindly.
+        await new Promise((r) => setTimeout(r, 5));
+        await resume.conversationStore.create({
+            userId: PRACTITIONER,
+            patientPid: PID,
+            appointmentId: null,
+        });
+        const built = await buildAuthedApp({ resume });
+        const res = await buildAuthedRequest(built, String(PID));
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { conversationId: string };
+        expect(body.conversationId).toBe(realThread.id);
     });
 });
