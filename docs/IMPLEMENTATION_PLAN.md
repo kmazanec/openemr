@@ -1144,12 +1144,22 @@ defensible in a cost review — clinicians who use it pay for it,
 clinicians who don't aren't billing tokens for briefings they'd never
 read.
 
-### 5.1 Schedule extension
-- [ ] Extend OpenEMR's FHIR Appointment endpoint to accept the standard
-  `practitioner` search parameter (PRESEARCH §7); fall back to a custom
-  REST endpoint at `/api/provider/{uuid}/schedule` if the change is
-  larger than ~50 lines
-- [ ] PHPUnit api-test for the new search parameter
+### 5.1 Schedule endpoint
+- [x] Add `ScheduleController` + `public/snapshot/schedule.php` to
+  `oe-module-clinical-copilot`, returning the day's appointments for a
+  given practitioner uuid via the same agent-token + `AgentEndpointAuth`
+  pattern as the existing narrow controllers (PRESEARCH §7's FHIR
+  framing is superseded by the custom-DAO pattern that all other
+  agent → OpenEMR calls already follow; the `practitioner`-filtered
+  FHIR Appointment endpoint stays unimplemented and the fallback
+  custom endpoint is what we ship). Audit emits one `AgentDisclosure`
+  per slot so compliance gets a per-patient trail and an empty schedule
+  produces zero rows.
+- [x] Isolated PHPUnit coverage for the new `ScheduleController`
+  (token, scope, missing/malformed params, happy path, per-slot
+  disclosure events, empty-day → zero rows) and the new
+  `ScheduleAdapter` (ordering, empty result, defensive row skip,
+  argument forwarding)
 
 ### 5.2 Per-practitioner settings
 Pre-compute is gated by a per-practitioner setting stored in OpenEMR
