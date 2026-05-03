@@ -1146,96 +1146,96 @@ Hard cutover (no deprecation alias) — agent and PHP module deploy
 together. `DATASET_NAME` bumps to `clinical-copilot-uc1-golden-v3`.
 
 #### 4.6.1 PHP rename: medications → prescriptions
-- [ ] Rename DTOs/adapters/controllers/endpoints `Medication*` →
+- [x] Rename DTOs/adapters/controllers/endpoints `Medication*` →
   `Prescription*` under
   `interface/modules/custom_modules/oe-module-clinical-copilot/`
-- [ ] `findActiveForPid` → `findRecentForPid` (active OR
+- [x] `findActiveForPid` → `findRecentForPid` (active OR
   `date_modified >= NOW() - INTERVAL 365 DAY`); `stopDate` populates
   from `date_modified` only when `active=0`
-- [ ] `DataCategory::Medication` → `DataCategory::Prescription`;
+- [x] `DataCategory::Medication` → `DataCategory::Prescription`;
   `ChartSnapshot.toArray()` emits `prescriptions`
-- [ ] PHPStan level 10 + isolated PHPUnit green; manual curl on the
+- [x] PHPStan level 10 + isolated PHPUnit green; manual curl on the
   bulk endpoint returns recent inactive scripts
 
 #### 4.6.2 TS rename to match
-- [ ] `agent/src/snapshot/types.ts`: `Medication` → `Prescription`;
+- [x] `agent/src/snapshot/types.ts`: `Medication` → `Prescription`;
   `ChartSnapshot.medications` → `prescriptions`
-- [ ] `verifier.ts`: `matchesMedication`/`matchesMedicationChange`
+- [x] `verifier.ts`: `matchesMedication`/`matchesMedicationChange`
   rename, CHECKS table, hard-stop constant, `isStoppedCategory`
-- [ ] `followUps.ts`: `medication_change` → `prescription_change`,
+- [x] `followUps.ts`: `medication_change` → `prescription_change`,
   `medicationId` → `prescriptionId`
-- [ ] Branch + tools rename: `medChangeBranch.ts` →
+- [x] Branch + tools rename: `medChangeBranch.ts` →
   `prescriptionChangeBranch.ts`; `getMedications`/`getMedicationProvenance`
   → `getPrescriptions`/`getPrescriptionProvenance`
-- [ ] Regenerate UC1/UC2 fixtures; rename
+- [x] Regenerate UC1/UC2 fixtures; rename
   `medicationChange.test.ts` → `prescriptionChange.test.ts`
-- [ ] `langsmithDataset.ts`: `DATASET_NAME` → `…-golden-v3`;
+- [x] `langsmithDataset.ts`: `DATASET_NAME` → `…-golden-v3`;
   `medicationNames` → `prescriptionNames`
-- [ ] `npm run test:agent` green end-to-end across UC1/2/3
+- [x] `npm run test:agent` green end-to-end across UC1/2/3
 
 #### 4.6.3 Reminders snapshot field
-- [ ] PHP: `Reminder` DTO + adapter chain; SQL joins
+- [x] PHP: `Reminder` DTO + adapter chain; SQL joins
   `patient_reminders` to `list_options` for human-readable titles;
   filters `due_status IN ('due','overdue')`; cap 5
-- [ ] `DataCategory::Reminder` → `user/Task.rs`; add scope to the
+- [x] `DataCategory::Reminder` → `user/Task.rs`; add scope to the
   `AgentTokenMinter` allowlist
-- [ ] TS: `Reminder` interface + decoder + `BriefingSnapshot.reminders`
+- [x] TS: `Reminder` interface + decoder + `BriefingSnapshot.reminders`
   (`Gap`-tolerant; informational fail-open)
-- [ ] `verifier.ts`: `matchesReminder` requires substring match on both
+- [x] `verifier.ts`: `matchesReminder` requires substring match on both
   `itemTitle` and `dueStatus`
-- [ ] `complex_elderly` archetype gets an "Overdue mammogram"
+- [x] `complex_elderly` archetype gets an "Overdue mammogram"
   reminder; `diabetic_uncontrolled` gets "A1c follow-up due"
-- [ ] Adversarial Vitest: claim that says "due" against `overdue`
+- [x] Adversarial Vitest: claim that says "due" against `overdue`
   reminder is rejected
 
 #### 4.6.4 Patient-reported medications snapshot field
-- [ ] PHP: `MedicationStatement` DTO + adapter on
+- [x] PHP: `MedicationStatement` DTO + adapter on
   `lists`/`lists_medication` (`type='medication'`,
   `is_primary_record=0`); resolve `usage_category` and
   `medication_adherence_information_source` titles via `list_options`
   LEFT JOIN
-- [ ] `DataCategory::MedicationStatement` → `user/MedicationStatement.rs`;
+- [x] `DataCategory::MedicationStatement` → `user/MedicationStatement.rs`;
   add scope to allowlist
-- [ ] TS: `MedicationStatement` interface + decoder; `medications`
+- [x] TS: `MedicationStatement` interface + decoder; `medications`
   field reclaimed with the new type (`Gap`-tolerant)
-- [ ] `verifier.ts`: `matchesMedicationStatement` (substring match on
+- [x] `verifier.ts`: `matchesMedicationStatement` (substring match on
   `name` only — looser than prescription rule)
-- [ ] `medication_statement` claims NOT suppressed when prescriptions
+- [x] `medication_statement` claims NOT suppressed when prescriptions
   hard-stop (independent data source)
-- [ ] `complex_elderly` archetype gets an OTC Tylenol entry; new
+- [x] `complex_elderly` archetype gets an OTC Tylenol entry; new
   fixture `medstmt_otc_tylenol`
 
 #### 4.6.5 Reminder follow-up branch (`reminder_detail`)
-- [ ] PHP: `ReminderDetail` DTO + adapter; new
+- [x] PHP: `ReminderDetail` DTO + adapter; new
   `ReminderDetailController` + `public/snapshot/reminder_detail.php`
   (mirror UC3 controller — `$ignoreAuth=true`, `AgentEndpointAuth`,
   `AgentDisclosedEvent` with `action='reminder_detail'`)
-- [ ] TS: `getReminderDetail` tool + `reminderBranch` node + graph
+- [x] TS: `getReminderDetail` tool + `reminderBranch` node + graph
   routing for `followUp.type === 'reminder_detail'`; bypass synthesizer
-- [ ] `followUps.ts`: emit suggestion for accepted reminder claims
+- [x] `followUps.ts`: emit suggestion for accepted reminder claims
   with `dueStatus='overdue'`, capped 2; display
   `"When is ${itemTitle} due?"`
-- [ ] 4-case Vitest grid: happy path, 404, 5xx fail-open,
+- [x] 4-case Vitest grid: happy path, 404, 5xx fail-open,
   malformed `reminderId`
 
 #### 4.6.6 Patient-reported medication follow-up branch (`medication_statement_detail`)
-- [ ] PHP: `MedicationStatementProvenance` DTO (includes
+- [x] PHP: `MedicationStatementProvenance` DTO (includes
   `linkedPrescriptionId` from `lists_medication.prescription_id`) +
   adapter + controller + endpoint
-- [ ] TS: `getMedicationStatementDetail` tool + `medStatementBranch`
+- [x] TS: `getMedicationStatementDetail` tool + `medStatementBranch`
   + graph routing
-- [ ] `followUps.ts`: emit suggestion for accepted statement claims
+- [x] `followUps.ts`: emit suggestion for accepted statement claims
   that are recent OR carry an `informationSource`, capped 2;
   display `"What did the patient say about ${name}?"`
-- [ ] 4-case Vitest grid
+- [x] 4-case Vitest grid
 
 #### 4.6.7 Eval roll-up + dataset bump
-- [ ] `langsmithDataset.ts`: extend `groundTruth` with
+- [x] `langsmithDataset.ts`: extend `groundTruth` with
   `medicationStatementNames` and `overdueReminderItems`
-- [ ] Adversarial Vitest cases: reminder claim omitting `dueStatus`
+- [x] Adversarial Vitest cases: reminder claim omitting `dueStatus`
   rejected; statement claim fabricating `informationSource` rejected
-- [ ] `npm run evals:regenerate-fixtures` produces clean diff
-- [ ] LangSmith experiment uploaded to
+- [x] `npm run evals:regenerate-fixtures` produces clean diff
+- [x] LangSmith experiment uploaded to
   `clinical-copilot-uc1-golden-v3` (v2 left intact for comparison)
 
 **Phase 4.6 done when:** all seven sub-phases ship,
