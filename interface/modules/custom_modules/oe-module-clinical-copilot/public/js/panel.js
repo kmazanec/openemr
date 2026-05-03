@@ -262,8 +262,8 @@
         }
         if (count === 0) return '';
         const label = count === 1
-            ? '1 statement could not be verified'
-            : `${count} statements could not be verified`;
+            ? '1 additional statement could not be verified'
+            : `${count} additional statements could not be verified`;
         return `<button type="button" class="copilot-unverified"
                         data-role="unverified-chip"
                         data-bubble-idx="${bubbleIdx}"
@@ -487,16 +487,6 @@
 
     const handleEvent = (data) => {
         if (!data || typeof data !== 'object' || !data.type) return;
-        // TEMPORARY DIAGNOSTIC — remove after the SSE batching issue is
-        // confirmed fixed. Logs each event's arrival time so we can tell
-        // streamed-as-they-fire from end-of-stream batched.
-        // eslint-disable-next-line no-console
-        console.log(
-            '[copilot SSE]',
-            performance.now().toFixed(1) + 'ms',
-            data.type,
-            data.type === 'progress' ? `${data.stage}/${data.status}` : '',
-        );
         switch (data.type) {
             case 'meta':
                 // Agent-minted conversationId becomes authoritative for
