@@ -36,8 +36,11 @@ use Psr\Log\LoggerInterface;
  *      action, or out-of-scope requests.
  *   3. AgentTokenMinter signs a 5-minute JWT with OpenEMR's OAuth2 keys
  *      (no self-loopback HTTP — see PRESEARCH §18).
- *   4. Streaming Guzzle POST to the agent service preserving SSE framing.
- *   5. Pipe the response body chunk-by-chunk back to the browser.
+ *   4. Streaming POST to the agent service preserving SSE framing — cURL
+ *      with a WRITEFUNCTION callback so each chunk reaches the browser as
+ *      it lands rather than buffering until the upstream closes.
+ *   5. JSON-GET actions (history sidebar, schedule annotations) take a
+ *      separate path that buffers the upstream JSON and forwards it whole.
  *
  * The controller never logs PHI. It logs the action, deny reason, upstream
  * latency, and the actor's authUserId — never request/response bodies, and
@@ -224,15 +227,25 @@ final readonly class AgentProxyController
             header($name . ': ' . $value);
         }
 
+        // Sink the upstream response into a PSR-7 stream that fans
+        // each cURL chunk to `php://output` and immediately calls
+        // `flush()` so Apache pushes it to the browser. Guzzle wires
+        // `CURLOPT_WRITEFUNCTION` to call `$sink->write()` for every
+        // chunk cURL pulls off the socket, which gives us per-chunk
+        // delivery — reading from `getBody()` afterwards (the previous
+        // implementation) only returned data once cURL had finished
+        // the whole transfer, collapsing the SSE feed into a single
+        // end-of-stream burst and breaking the per-stage progress UI.
+        $sink = new FlushingOutputStream();
         try {
-            $response = $this->httpClient->request('POST', $upstreamUrl, [
+            $this->httpClient->request('POST', $upstreamUrl, [
                 RequestOptions::HEADERS => [
                     'Authorization' => 'Bearer ' . $bearer,
                     'Content-Type' => 'application/json',
                     'Accept' => 'text/event-stream',
                 ],
                 RequestOptions::BODY => $requestBody,
-                RequestOptions::STREAM => true,
+                RequestOptions::SINK => $sink,
             ]);
         } catch (GuzzleException $e) {
             $this->logger->error('Agent upstream connection failed', [
@@ -241,17 +254,6 @@ final readonly class AgentProxyController
             ]);
             // SSE headers already flushed above — use the in-stream envelope.
             $this->emitStreamError('upstream_unavailable');
-            return;
-        }
-
-        $body = $response->getBody();
-        while (!$body->eof()) {
-            $chunk = $body->read(8192);
-            if ($chunk === '') {
-                continue;
-            }
-            echo $chunk;
-            flush();
         }
     }
 
