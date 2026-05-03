@@ -1,26 +1,32 @@
 {% extends "patient/card/card_base.html.twig" %}
 
 {#
-    Click handler opens the panel as a peer tab in the OpenEMR shell
-    (alongside Calendar, Dashboard, Visit History, etc.) instead of
-    replacing the current iframe. `top.navigateTab` reuses the existing
-    `copilot` tab if one is already open, navigating it to the new pid
-    — that gives the right behavior on patient switch (the existing
-    Co-Pilot tab refreshes for the new patient rather than stacking up
-    one tab per patient).
+    The card auto-opens the panel as a peer tab in the OpenEMR shell
+    (alongside Calendar, Dashboard, Visit History, etc.) when the
+    dashboard renders, so the briefing is already streaming by the time
+    the clinician looks at it. The "Open Co-Pilot" button activates
+    that tab; both paths share `openCopilotTab` so the click never
+    re-navigates an iframe that's already pointing at this patient.
 
-    `href` falls through to a same-window navigation only if the tab
-    system isn't loaded (e.g. card rendered outside the main tabs UI),
-    keeping the link useful in any context.
+    Why the shared helper matters: `top.navigateTab` unconditionally
+    reloads the iframe when one with the same name already exists
+    (sets `contentWindow.location = url`). If the auto-open mounted
+    the iframe a moment ago and the user clicks the button before the
+    initial briefing finishes, a naive re-call to `navigateTab` would
+    reload mid-stream and the agent would mint a *second* conversation
+    row for the same default briefing — the doctor sees two "Briefing
+    only" entries in the history sidebar. Skipping the reload when the
+    URL matches keeps it to one.
 
-    Auto-open: when the dashboard renders, prefetch the briefing in a
-    background tab so it's already streaming by the time the clinician
-    looks at it. If a `copilot` iframe is already mounted on a *different*
-    patient (the user switched via the calendar/finder, which doesn't
-    re-navigate peer tabs), re-point it at the new pid; if it's already
-    on this pid, leave it alone so we don't yank focus or interrupt a
-    stream. `top.navigateTab` reuses the existing iframe in both cases —
-    we never stack up one tab per patient.
+    Patient-switch case: when the doctor switches patients via the
+    calendar or finder, those flows don't re-navigate peer tabs, so the
+    copilot iframe can be stranded on the previous pid. In that case
+    the URL *does* differ and we navigate as before, which re-points
+    the existing iframe at the new patient instead of stacking tabs.
+
+    Fallback: `href` falls through to a same-window navigation only if
+    the tab system isn't loaded (e.g. card rendered outside the main
+    tabs UI), keeping the link useful in any context.
 #}
 {% block content %}
     <p class="m-0">
@@ -30,7 +36,7 @@
         <a class="btn btn-primary btn-sm"
            data-role="open-copilot"
            href="{{ panelUrl|attr }}"
-           onclick="top.restoreSession(); if (top.navigateTab && top.activateTabByName) { top.navigateTab(this.href, 'copilot', function () { top.activateTabByName('copilot', true); }); return false; }">
+           onclick="return !top.openCopilotTab || !top.openCopilotTab(this.href, true);">
             <i class="fa fa-stethoscope"></i>
             {{ "Open Co-Pilot"|xlt }}
         </a>
@@ -40,31 +46,58 @@
             try {
                 if (!top || !top.navigateTab) return;
                 var panelUrl = {{ panelUrl|json_encode|raw }};
-                var existing = top.document.querySelector('iframe[name="copilot"]');
-                if (!existing) {
-                    top.navigateTab(panelUrl, 'copilot');
-                    return;
-                }
-                // Iframe already mounted. Re-navigate only if it's
-                // pointing at a different patient — switching via the
-                // calendar/finder doesn't re-nav peer tabs, so the
-                // copilot iframe can be stranded on the previous pid.
-                // Same-origin access lets us read its URL; if it
-                // throws, fall back to navigating (the worst case is
-                // a redundant reload of the right patient).
-                var sameTarget = false;
-                try {
-                    var current = existing.contentWindow && existing.contentWindow.location
-                        ? existing.contentWindow.location.href
-                        : (existing.src || '');
-                    sameTarget = current.endsWith(panelUrl)
-                        || current.indexOf(panelUrl) !== -1;
-                } catch (_) {
-                    sameTarget = false;
-                }
-                if (!sameTarget) {
-                    top.navigateTab(panelUrl, 'copilot');
-                }
+
+                // Shared open path. Returns true when the call was
+                // handled (caller should suppress the anchor's default
+                // navigation), false when the tab system isn't
+                // available and the caller should fall through to its
+                // href. `activate` foregrounds the tab on open; the
+                // auto-open passes false so it stays in the background.
+                top.openCopilotTab = function (url, activate) {
+                    if (!top.navigateTab) return false;
+                    top.restoreSession();
+                    var iframe = top.document.querySelector('iframe[name="copilot"]');
+                    var sameTarget = false;
+                    if (iframe) {
+                        // Same-origin access lets us read the iframe's
+                        // current URL. If it throws (cross-origin race
+                        // during reload), treat as different and let
+                        // navigateTab handle it — a redundant reload of
+                        // the right patient is the worst case.
+                        try {
+                            var current = iframe.contentWindow && iframe.contentWindow.location
+                                ? iframe.contentWindow.location.href
+                                : (iframe.src || '');
+                            sameTarget = current.endsWith(url)
+                                || current.indexOf(url) !== -1;
+                        } catch (_) {
+                            sameTarget = false;
+                        }
+                    }
+                    // Iframe already on this patient: skip the reload
+                    // (avoids restarting an in-flight briefing and
+                    // minting a duplicate conversation row). Just
+                    // foreground if the caller asked.
+                    if (sameTarget) {
+                        if (activate && top.activateTabByName) {
+                            top.activateTabByName('copilot', true);
+                        }
+                        return true;
+                    }
+                    if (activate && top.activateTabByName) {
+                        top.navigateTab(url, 'copilot', function () {
+                            top.activateTabByName('copilot', true);
+                        });
+                    } else {
+                        top.navigateTab(url, 'copilot');
+                    }
+                    return true;
+                };
+
+                // Auto-open in the background so the briefing is
+                // already streaming by the time the doctor switches to
+                // the tab.
+                top.openCopilotTab(panelUrl, false);
             } catch (e) {
                 // Same-origin / DOM access failures are benign here —
                 // auto-open is a convenience, not load-bearing.
