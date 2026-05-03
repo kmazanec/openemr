@@ -60,9 +60,49 @@
      *
      *   { role: 'assistant', message: AssistantMessage }
      *   { role: 'assistant', error: { code: string } }
+     *   { role: 'assistant', progress: { stages: {…}[] }, requestId }
      *   { role: 'user', text: string }
+     *
+     * The `progress` shape is a transient placeholder bubble shown
+     * while a turn is in flight. Each stage flips through
+     * `pending → active → done` as `progress` SSE events arrive; the
+     * whole bubble is replaced by the real assistant bubble when the
+     * `assistantMessage` event lands. `requestId` keys the placeholder
+     * so a fast second turn never lands its progress events into the
+     * previous turn's bubble.
      */
     const thread = [];
+
+    /**
+     * Stage list we paint up-front so the doctor sees the full
+     * pipeline before any progress event arrives. The server is the
+     * source of truth — it pushes a `progress` SSE event with stage,
+     * label, and status; we patch matching entries here. Stages the
+     * server never reaches stay `pending` and the bubble is replaced
+     * by the real assistant message before the doctor notices.
+     */
+    const PROGRESS_STAGES = [
+        { stage: 'retrieve', label: 'Reading the chart', status: 'pending' },
+        { stage: 'synthesize', label: 'Composing briefing', status: 'pending' },
+        { stage: 'verify', label: 'Verifying citations', status: 'pending' },
+        { stage: 'format', label: 'Finalizing', status: 'pending' },
+    ];
+
+    const newProgressEntry = (requestIdValue) => ({
+        role: 'assistant',
+        progress: { stages: PROGRESS_STAGES.map((s) => ({ ...s })) },
+        requestId: requestIdValue,
+    });
+
+    const findProgressIndex = (requestIdValue) => {
+        for (let i = thread.length - 1; i >= 0; i--) {
+            const entry = thread[i];
+            if (entry && entry.role === 'assistant' && entry.progress && entry.requestId === requestIdValue) {
+                return i;
+            }
+        }
+        return -1;
+    };
 
     const setStatus = (text, kind) => {
         if (!statusEl) return;
@@ -192,11 +232,40 @@
         return `<div class="copilot-suggestions" data-role="suggestions">${chips}</div>`;
     };
 
+    /**
+     * In-flight progress bubble. Each stage row is a spinner
+     * (active), checkmark (done), or neutral dot (pending). The
+     * whole bubble is replaced by the real assistant bubble when
+     * `assistantMessage` lands. Shape decisions:
+     *
+     *   - Render every stage up-front so the doctor sees what the
+     *     agent will do, not just the current step.
+     *   - Use semantic markers (✓, animated dot) rather than a raw
+     *     percentage so the bubble degrades gracefully when reduced
+     *     motion is on (the @keyframes are media-queried out in CSS).
+     *   - role="status" + aria-live="polite" so screen readers
+     *     announce stage transitions without yanking focus.
+     */
     const renderBubble = (entry, index) => {
         if (!entry) return '';
         if (entry.role === 'assistant' && entry.error) {
             return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--error" data-role="bubble" data-state="error">
                 <p class="copilot-error" role="status">${escapeText(messageForCode(entry.error.code))}</p>
+            </article>`;
+        }
+        if (entry.role === 'assistant' && entry.progress) {
+            const stages = entry.progress.stages
+                .map(
+                    (s) => `<li class="copilot-progress__step copilot-progress__step--${s.status}"
+                                data-stage="${escapeText(s.stage)}">
+                                <span class="copilot-progress__marker" aria-hidden="true"></span>
+                                <span class="copilot-progress__label">${escapeText(s.label)}</span>
+                            </li>`,
+                )
+                .join('');
+            return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--progress"
+                             data-role="bubble" data-state="progress">
+                <ol class="copilot-progress" role="status" aria-live="polite">${stages}</ol>
             </article>`;
         }
         if (entry.role === 'assistant' && entry.message) {
@@ -222,15 +291,68 @@
         threadEl.innerHTML = thread.map((entry, i) => renderBubble(entry, i)).join('');
     };
 
+    /**
+     * Track the request in flight so `progress` events land on the
+     * right placeholder bubble. The runner echoes the envelope's
+     * `requestId` on every `progress` SSE frame (via the encoder in
+     * `agent/src/server/briefingProgress.ts`); we match against this
+     * id when patching the placeholder.
+     *
+     * Cleared in the `done`/`error`/`assistantMessage` paths so a
+     * fresh turn starts with a clean slot.
+     */
+    let activeRequestId = null;
+
     const handleAssistantMessage = (data) => {
         if (!data || !data.message) return;
-        thread.push({ role: 'assistant', message: data.message });
+        // Replace the in-flight progress bubble (if any) with the
+        // real assistant message — keep the same array slot so the
+        // chat doesn't visually jump.
+        const idx = activeRequestId !== null ? findProgressIndex(activeRequestId) : -1;
+        if (idx >= 0) {
+            thread[idx] = { role: 'assistant', message: data.message };
+        } else {
+            thread.push({ role: 'assistant', message: data.message });
+        }
+        renderThread();
+    };
+
+    /**
+     * Patch the in-flight progress bubble in response to a `progress`
+     * SSE frame. `started` flips a stage to `active`; `completed`
+     * flips it to `done`. Stages we don't recognize are ignored —
+     * the panel doesn't fail closed on a future stage name.
+     */
+    const handleProgressEvent = (data) => {
+        if (activeRequestId === null) return;
+        const idx = findProgressIndex(activeRequestId);
+        if (idx < 0) return;
+        const entry = thread[idx];
+        const stages = entry.progress.stages;
+        const target = stages.find((s) => s.stage === data.stage);
+        if (!target) return;
+        if (typeof data.label === 'string' && data.label.length > 0) {
+            target.label = data.label;
+        }
+        if (data.status === 'started') {
+            target.status = 'active';
+        } else if (data.status === 'completed') {
+            target.status = 'done';
+        }
         renderThread();
     };
 
     const renderFatalError = (code) => {
         setStatus('Briefing unavailable.', 'error');
+        // Drop any in-flight progress placeholder for this turn so
+        // the error bubble takes its place rather than appending
+        // below a half-finished spinner.
+        const idx = activeRequestId !== null ? findProgressIndex(activeRequestId) : -1;
+        if (idx >= 0) {
+            thread.splice(idx, 1);
+        }
         thread.push({ role: 'assistant', error: { code: code || 'briefing_failed' } });
+        activeRequestId = null;
         renderThread();
     };
 
@@ -268,11 +390,16 @@
                 }
                 setStatus('Streaming briefing…', 'streaming');
                 break;
+            case 'progress':
+                handleProgressEvent(data);
+                break;
             case 'assistantMessage':
                 handleAssistantMessage(data);
+                activeRequestId = null;
                 break;
             case 'done':
                 setStatus('Briefing ready.', 'ready');
+                activeRequestId = null;
                 break;
             case 'error':
                 renderFatalError(data.code);
@@ -318,8 +445,16 @@
      * into the thread. Shared between the initial briefing and §4.5
      * free-text follow-ups — the only difference between the two is the
      * envelope (`task` and the optional `question`).
+     *
+     * Pushes an in-flight progress bubble before opening the stream so
+     * the doctor sees the stage list immediately. `activeRequestId`
+     * keys progress events back to this bubble, and the
+     * `assistantMessage` / `error` paths replace it.
      */
     const streamTurn = async ({ envelope, errorTag }) => {
+        activeRequestId = envelope.requestId;
+        thread.push(newProgressEntry(envelope.requestId));
+        renderThread();
         try {
             const response = await fetch(`${proxyUrl}?action=briefing&pid=${encodeURIComponent(pid)}`, {
                 method: 'POST',
