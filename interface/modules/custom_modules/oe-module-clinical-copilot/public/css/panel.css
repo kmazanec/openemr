@@ -106,12 +106,42 @@
     content: ' ';
 }
 
-.copilot-segment--redacted {
-    color: #6b6e74;
-    font-style: italic;
-    background: rgba(0, 0, 0, 0.04);
-    padding: 0 0.3em;
-    border-radius: 3px;
+/*
+ * Bubble-level "could not be verified" chip. Replaces the inline
+ * "[content withheld]" placeholders that used to appear mid-prose;
+ * one chip per bubble summarizes how many statements the verifier
+ * dropped and opens a popover on click. Amber palette so it reads as
+ * an advisory, distinct from the blue source chips.
+ */
+.copilot-unverified {
+    display: inline-block;
+    margin-left: 0.25em;
+    padding: 0.05em 0.55em;
+    font-family: inherit;
+    font-size: 0.82em;
+    line-height: 1.5;
+    color: #7a4a00;
+    background: #fff3d6;
+    border: 1px solid #f0c66a;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    vertical-align: 0.05em;
+}
+
+.copilot-unverified::before {
+    content: '⚠';
+    margin-right: 0.35em;
+    font-size: 0.95em;
+}
+
+.copilot-unverified:hover {
+    background: #ffe6a8;
+}
+
+.copilot-unverified:focus-visible {
+    outline: 2px solid #c79610;
+    outline-offset: 1px;
 }
 
 /* ───────── In-flight progress bubble ───────── */

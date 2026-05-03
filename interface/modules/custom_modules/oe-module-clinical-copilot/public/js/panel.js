@@ -6,8 +6,11 @@
  * segment of an assistant message is one inline run of prose; per-claim
  * `[source]` chips link to the OpenEMR record where practical. Redacted
  * segments — segments whose claims were rejected by the verifier or
- * suppressed by a safety hard stop — render as a muted "[content
- * withheld]" notice so the renderer never asserts an unverified fact.
+ * suppressed by a safety hard stop — are dropped from inline prose and
+ * collapsed into a single "could not be verified" chip at the end of the
+ * bubble. Clicking the chip opens a popover summarizing how many
+ * statements were withheld so the renderer never asserts an unverified
+ * fact while keeping the bubble readable.
  *
  * Failure-state policy:
  *   - Whole-stream errors render an error bubble using the typed error
@@ -226,9 +229,11 @@
 
     const renderSegment = (segment, segmentIdx, bubbleIdx) => {
         if (!segment) return '';
-        if (segment.redacted) {
-            return `<span class="copilot-segment copilot-segment--redacted" title="${escapeText('Withheld by the verification gate')}">${escapeText(segment.text)}</span>`;
-        }
+        // Redacted segments are dropped from inline prose. Their
+        // existence is surfaced by the bubble-level "could not be
+        // verified" chip; rendering them here would re-introduce the
+        // distracting in-line placeholders the chip exists to replace.
+        if (segment.redacted) return '';
         // ISO dates the synthesizer leaves embedded in prose
         // (e.g. "started on 2024-03-15") get rewritten to
         // "March 15, 2024" so the doctor reads natural-language
@@ -238,6 +243,32 @@
         const text = formatDatesInText(escapeText(segment.text));
         const chips = renderSegmentChips(segment.claims, bubbleIdx, segmentIdx);
         return `<span class="copilot-segment">${text}${chips ? ' ' + chips : ''}</span>`;
+    };
+
+    /**
+     * Bubble-level "could not be verified" chip. Replaces the inline
+     * redacted segments with a single trailing affordance that opens
+     * a popover summarizing how many statements were withheld. The
+     * agent ships only the canonical placeholder text for redacted
+     * segments (the original prose is never sent to the client by
+     * design — see agent/src/graph/nodes/format.ts), so the popover
+     * shows a count + explanation, not the withheld content.
+     */
+    const renderUnverifiedChip = (segments, bubbleIdx) => {
+        if (!Array.isArray(segments)) return '';
+        let count = 0;
+        for (const seg of segments) {
+            if (seg && seg.redacted) count++;
+        }
+        if (count === 0) return '';
+        const label = count === 1
+            ? '1 statement could not be verified'
+            : `${count} statements could not be verified`;
+        return `<button type="button" class="copilot-unverified"
+                        data-role="unverified-chip"
+                        data-bubble-idx="${bubbleIdx}"
+                        data-count="${count}"
+                        aria-label="${escapeText(label)}">${escapeText(label)}</button>`;
     };
 
     const renderGapsBanner = (gaps) => {
@@ -340,14 +371,17 @@
             </article>`;
         }
         if (entry.role === 'assistant' && entry.message) {
-            const segments = (entry.message.segments || [])
+            const messageSegments = entry.message.segments || [];
+            const segments = messageSegments
                 .map((segment, segIdx) => renderSegment(segment, segIdx, index))
+                .filter((html) => html.length > 0)
                 .join(' ');
+            const unverified = renderUnverifiedChip(messageSegments, index);
             const gaps = renderGapsBanner(entry.message.gaps);
             const suggestions = renderSuggestionsRail(entry.message.suggestedFollowUps, index);
             return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered" data-bubble-index="${index}">
                 ${gaps}
-                <div class="copilot-bubble__body">${segments}</div>
+                <div class="copilot-bubble__body">${segments}${unverified ? ' ' + unverified : ''}</div>
                 ${suggestions}
             </article>`;
         }
@@ -453,6 +487,16 @@
 
     const handleEvent = (data) => {
         if (!data || typeof data !== 'object' || !data.type) return;
+        // TEMPORARY DIAGNOSTIC — remove after the SSE batching issue is
+        // confirmed fixed. Logs each event's arrival time so we can tell
+        // streamed-as-they-fire from end-of-stream batched.
+        // eslint-disable-next-line no-console
+        console.log(
+            '[copilot SSE]',
+            performance.now().toFixed(1) + 'ms',
+            data.type,
+            data.type === 'progress' ? `${data.stage}/${data.status}` : '',
+        );
         switch (data.type) {
             case 'meta':
                 // Agent-minted conversationId becomes authoritative for
@@ -715,6 +759,39 @@
         popoverEl.dataset.placement = placeAbove ? 'above' : 'below';
     };
 
+    /**
+     * Popover body for the bubble-level "could not be verified" chip.
+     * The agent does not ship the original prose for redacted segments
+     * (fail-closed by design), so the body is a count + plain-English
+     * explanation rather than a list of withheld claims.
+     */
+    const renderUnverifiedPopoverBody = (count) => {
+        const heading = count === 1
+            ? '1 statement was withheld'
+            : `${count} statements were withheld`;
+        return `<header class="copilot-source-popover__header">
+                <span class="copilot-source-popover__category">Could not be verified</span>
+                <button type="button" class="copilot-source-popover__close"
+                        data-role="source-popover-close"
+                        aria-label="Close">×</button>
+            </header>
+            <p class="copilot-source-popover__claim">${escapeText(heading)}</p>
+            <p class="copilot-source-popover__record">The Co-Pilot drafted additional statements that could not be backed by a source in this chart, so they were withheld from the briefing. Open the chart to confirm anything you need.</p>`;
+    };
+
+    const openUnverifiedPopover = (chip, count) => {
+        const el = ensurePopover();
+        el.innerHTML = renderUnverifiedPopoverBody(count);
+        el.hidden = false;
+        popoverChip = chip;
+        positionPopover(chip);
+        window.requestAnimationFrame(() => {
+            if (popoverEl !== null && !popoverEl.hidden) {
+                popoverEl.focus();
+            }
+        });
+    };
+
     const renderPopoverBody = (claim, ref) => {
         const category = titleCaseCategory(claim.category);
         const claimText = formatDatesInText(escapeText(claim.text || ''));
@@ -761,6 +838,18 @@
         threadEl.addEventListener('click', (e) => {
             const target = e.target;
             if (!(target instanceof HTMLElement)) return;
+            const unverifiedChip = target.closest('[data-role="unverified-chip"]');
+            if (unverifiedChip) {
+                e.preventDefault();
+                const count = Number.parseInt(unverifiedChip.dataset.count || '', 10);
+                if (!Number.isInteger(count) || count <= 0) return;
+                if (popoverChip === unverifiedChip && popoverEl !== null && !popoverEl.hidden) {
+                    closePopover();
+                    return;
+                }
+                openUnverifiedPopover(unverifiedChip, count);
+                return;
+            }
             const chip = target.closest('[data-role="source-chip"]');
             if (!chip) return;
             e.preventDefault();
@@ -799,10 +888,12 @@
             }
             // Outside-click dismissal — but only if the popover is
             // open AND the click landed outside the popover and
-            // outside any source chip (chip clicks are handled above).
+            // outside any chip that owns it (chip clicks are handled
+            // above).
             if (popoverEl === null || popoverEl.hidden) return;
             if (popoverEl.contains(target)) return;
             if (target.closest('[data-role="source-chip"]')) return;
+            if (target.closest('[data-role="unverified-chip"]')) return;
             closePopover();
         });
         document.addEventListener('keydown', (e) => {
