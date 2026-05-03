@@ -21,6 +21,13 @@ export interface Demographics {
     readonly displayName: string;
     readonly sex: string | null;
     readonly dateOfBirth: string | null;
+    /**
+     * Whole years between `dateOfBirth` and the snapshot time, computed
+     * by the PHP-side adapter. Carried alongside DOB so the model does
+     * not have to do birthday-vs-year arithmetic itself — that math
+     * was a recurring off-by-one source. Null iff DOB is null.
+     */
+    readonly ageYears: number | null;
     readonly source: SourceReference;
 }
 

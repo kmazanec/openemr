@@ -32,12 +32,17 @@ const fixturesDir = resolve(
 
 const PINNED_DATE = '2026-04-30';
 const PINNED_DATETIME = '2026-04-30T09:00:00+00:00';
+// `ageYears` is masked because it slides with the system clock just like
+// DOB does; substitute a pinned non-zero integer so the decoder's
+// integer-typed contract holds.
+const PINNED_AGE_YEARS = 60;
 
 const loadFixture = (filename: string): unknown => {
     const raw = readFileSync(join(fixturesDir, filename), 'utf8');
     const substituted = raw
         .replaceAll('"<DATE>"', JSON.stringify(PINNED_DATE))
-        .replaceAll('"<DATETIME>"', JSON.stringify(PINNED_DATETIME));
+        .replaceAll('"<DATETIME>"', JSON.stringify(PINNED_DATETIME))
+        .replaceAll('"<AGE>"', String(PINNED_AGE_YEARS));
     return JSON.parse(substituted);
 };
 

@@ -43,12 +43,14 @@ final readonly class PatientAdapter
             throw new RuntimeException('patient row missing uuid for pid ' . $pid);
         }
 
+        $dob = Normalize::toDateImmutable(Normalize::stringField($row, 'DOB'));
         return new Demographics(
             pid: $pid,
             uuid: $uuid,
             displayName: self::displayName($row),
             sex: Normalize::toOptionalString(Normalize::stringField($row, 'sex')),
-            dateOfBirth: Normalize::toDateImmutable(Normalize::stringField($row, 'DOB')),
+            dateOfBirth: $dob,
+            ageYears: Normalize::ageYears($dob),
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'Patient',

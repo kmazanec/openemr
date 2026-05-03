@@ -34,6 +34,34 @@ import { fileURLToPath } from 'node:url';
 import type { BriefingSnapshot } from '../../src/graph/types.js';
 import type { LabObservation, SourceReference } from '../../src/snapshot/types.js';
 
+/**
+ * UC2 fixtures pin patient identity to the matching UC1 archetype, so
+ * `ageYears` is computed against the same reference date the UC1
+ * regenerator uses (`2026-05-01`). Mirror inline to keep regenerators
+ * zero-dependency.
+ */
+const FIXTURE_AS_OF_DATE = '2026-05-01';
+
+const ageYearsAt = (dateOfBirth: string, asOf = FIXTURE_AS_OF_DATE): number => {
+    const [by, bm, bd] = dateOfBirth.split('-').map((s) => Number.parseInt(s, 10));
+    const [ay, am, ad] = asOf.split('-').map((s) => Number.parseInt(s, 10));
+    if (
+        by === undefined ||
+        bm === undefined ||
+        bd === undefined ||
+        ay === undefined ||
+        am === undefined ||
+        ad === undefined
+    ) {
+        throw new Error(`ageYearsAt: bad date input ${dateOfBirth} or ${asOf}`);
+    }
+    let age = ay - by;
+    if (am < bm || (am === bm && ad < bd)) {
+        age -= 1;
+    }
+    return age;
+};
+
 const sourceRef = (
     recordType: string,
     recordId: string,
@@ -79,6 +107,7 @@ const trendUp: Uc2Fixture = {
             displayName: 'Carter, Marcus',
             sex: 'M',
             dateOfBirth: '1960-11-20',
+            ageYears: ageYearsAt('1960-11-20'),
             source: sourceRef('Patient', '4004'),
         },
         appointment: {
@@ -153,6 +182,7 @@ const trendStable: Uc2Fixture = {
             displayName: 'Patel, Maya',
             sex: 'F',
             dateOfBirth: '1958-03-15',
+            ageYears: ageYearsAt('1958-03-15'),
             source: sourceRef('Patient', '3003'),
         },
         appointment: {
@@ -227,6 +257,7 @@ const noHistory: Uc2Fixture = {
             displayName: 'Reyes, Jordan',
             sex: 'M',
             dateOfBirth: '1988-06-12',
+            ageYears: ageYearsAt('1988-06-12'),
             source: sourceRef('Patient', '1001'),
         },
         appointment: {

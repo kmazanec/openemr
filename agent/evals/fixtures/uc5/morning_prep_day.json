@@ -14,6 +14,7 @@
           "displayName": "Reyes, Jordan",
           "sex": "M",
           "dateOfBirth": "1988-06-12",
+          "ageYears": 37,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -72,6 +73,7 @@
           "displayName": "Reyes, Jordan",
           "sex": "M",
           "dateOfBirth": "1988-06-12",
+          "ageYears": 37,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -130,6 +132,7 @@
           "displayName": "Reyes, Jordan",
           "sex": "M",
           "dateOfBirth": "1988-06-12",
+          "ageYears": 37,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -188,6 +191,7 @@
           "displayName": "Reyes, Jordan",
           "sex": "M",
           "dateOfBirth": "1988-06-12",
+          "ageYears": 37,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -246,6 +250,7 @@
           "displayName": "Nguyen, Linh",
           "sex": "F",
           "dateOfBirth": "1972-09-03",
+          "ageYears": 53,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -350,6 +355,7 @@
           "displayName": "Nguyen, Linh",
           "sex": "F",
           "dateOfBirth": "1972-09-03",
+          "ageYears": 53,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -454,6 +460,7 @@
           "displayName": "Nguyen, Linh",
           "sex": "F",
           "dateOfBirth": "1972-09-03",
+          "ageYears": 53,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -558,6 +565,7 @@
           "displayName": "Nguyen, Linh",
           "sex": "F",
           "dateOfBirth": "1972-09-03",
+          "ageYears": 53,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -662,6 +670,7 @@
           "displayName": "Patel, Maya",
           "sex": "F",
           "dateOfBirth": "1958-03-15",
+          "ageYears": 68,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -782,6 +791,7 @@
           "displayName": "Patel, Maya",
           "sex": "F",
           "dateOfBirth": "1958-03-15",
+          "ageYears": 68,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -902,6 +912,7 @@
           "displayName": "Patel, Maya",
           "sex": "F",
           "dateOfBirth": "1958-03-15",
+          "ageYears": 68,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -1022,6 +1033,7 @@
           "displayName": "Patel, Maya",
           "sex": "F",
           "dateOfBirth": "1958-03-15",
+          "ageYears": 68,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -1142,6 +1154,7 @@
           "displayName": "Carter, Marcus",
           "sex": "M",
           "dateOfBirth": "1960-11-20",
+          "ageYears": 65,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -1312,6 +1325,7 @@
           "displayName": "Carter, Marcus",
           "sex": "M",
           "dateOfBirth": "1960-11-20",
+          "ageYears": 65,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -1482,6 +1496,7 @@
           "displayName": "Carter, Marcus",
           "sex": "M",
           "dateOfBirth": "1960-11-20",
+          "ageYears": 65,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -1652,6 +1667,7 @@
           "displayName": "Okafor, Adaeze",
           "sex": "F",
           "dateOfBirth": "1942-01-08",
+          "ageYears": 84,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -1854,6 +1870,7 @@
           "displayName": "Okafor, Adaeze",
           "sex": "F",
           "dateOfBirth": "1942-01-08",
+          "ageYears": 84,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -2056,6 +2073,7 @@
           "displayName": "Okafor, Adaeze",
           "sex": "F",
           "dateOfBirth": "1942-01-08",
+          "ageYears": 84,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -2258,6 +2276,7 @@
           "displayName": "Hassan, Omar",
           "sex": "M",
           "dateOfBirth": "1979-04-30",
+          "ageYears": 47,
           "source": {
             "system": "openemr",
             "recordType": "Patient",
@@ -2331,6 +2350,7 @@
           "displayName": "Hassan, Omar",
           "sex": "M",
           "dateOfBirth": "1979-04-30",
+          "ageYears": 47,
           "source": {
             "system": "openemr",
             "recordType": "Patient",

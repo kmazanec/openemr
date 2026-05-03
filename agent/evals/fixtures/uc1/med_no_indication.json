@@ -5,6 +5,7 @@
     "displayName": "Tran, Bao",
     "sex": "M",
     "dateOfBirth": "1965-07-22",
+    "ageYears": 60,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

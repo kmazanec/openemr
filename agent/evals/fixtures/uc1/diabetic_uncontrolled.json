@@ -5,6 +5,7 @@
     "displayName": "Carter, Marcus",
     "sex": "M",
     "dateOfBirth": "1960-11-20",
+    "ageYears": 65,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

@@ -42,6 +42,44 @@ import type { ChartSnapshot, SourceReference } from '../../src/snapshot/types.js
 const PRNG_SEED = 0xc0ffee;
 
 /**
+ * Reference "today" used to compute `ageYears` for fixture builders.
+ * Pinned to match the appointment day the agent fixtures already use
+ * (`apt-3003.startAt = 2026-05-01T11:00:00Z` etc.), so the carried
+ * age aligns with the visit context the model sees in eval runs.
+ *
+ * Production code computes age from `new DateTimeImmutable('today')`
+ * inside `PatientAdapter`; this constant is the eval-fixture analogue.
+ * Bumping the eval reference date means `npm run evals:regenerate-*`
+ * and reviewing the diff.
+ */
+const FIXTURE_AS_OF_DATE = '2026-05-01';
+
+/**
+ * Whole-year age between an ISO `YYYY-MM-DD` DOB and `FIXTURE_AS_OF_DATE`.
+ * Mirrors the production `Normalize::ageYears` PHP helper. Inline
+ * because `regenerate*.ts` files are zero-dependency by design.
+ */
+const ageYearsAt = (dateOfBirth: string, asOf = FIXTURE_AS_OF_DATE): number => {
+    const [by, bm, bd] = dateOfBirth.split('-').map((s) => Number.parseInt(s, 10));
+    const [ay, am, ad] = asOf.split('-').map((s) => Number.parseInt(s, 10));
+    if (
+        by === undefined ||
+        bm === undefined ||
+        bd === undefined ||
+        ay === undefined ||
+        am === undefined ||
+        ad === undefined
+    ) {
+        throw new Error(`ageYearsAt: bad date input ${dateOfBirth} or ${asOf}`);
+    }
+    let age = ay - by;
+    if (am < bm || (am === bm && ad < bd)) {
+        age -= 1;
+    }
+    return age;
+};
+
+/**
  * Population mix mirrored from `PatientArchetype::distribution()`. The
  * actual PHP seed pipeline applies these as relative weights against a
  * `--count`. For evals we emit one canonical fixture per archetype — the
@@ -122,6 +160,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Reyes, Jordan',
                 sex: 'M',
                 dateOfBirth: '1988-06-12',
+                ageYears: ageYearsAt('1988-06-12'),
                 source: sourceRef('Patient', '1001'),
             },
             appointment: {
@@ -157,6 +196,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Nguyen, Linh',
                 sex: 'F',
                 dateOfBirth: '1972-09-03',
+                ageYears: ageYearsAt('1972-09-03'),
                 source: sourceRef('Patient', '2002'),
             },
             appointment: {
@@ -220,6 +260,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Patel, Maya',
                 sex: 'F',
                 dateOfBirth: '1958-03-15',
+                ageYears: ageYearsAt('1958-03-15'),
                 source: sourceRef('Patient', '3003'),
             },
             appointment: {
@@ -293,6 +334,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Carter, Marcus',
                 sex: 'M',
                 dateOfBirth: '1960-11-20',
+                ageYears: ageYearsAt('1960-11-20'),
                 source: sourceRef('Patient', '4004'),
             },
             appointment: {
@@ -399,6 +441,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Okafor, Adaeze',
                 sex: 'F',
                 dateOfBirth: '1942-01-08',
+                ageYears: ageYearsAt('1942-01-08'),
                 source: sourceRef('Patient', '5005'),
             },
             appointment: {
@@ -519,6 +562,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Hassan, Omar',
                 sex: 'M',
                 dateOfBirth: '1979-04-30',
+                ageYears: ageYearsAt('1979-04-30'),
                 source: sourceRef('Patient', '6006'),
             },
             appointment: {
@@ -575,6 +619,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Patel, Maya',
                 sex: 'F',
                 dateOfBirth: '1958-03-15',
+                ageYears: ageYearsAt('1958-03-15'),
                 source: sourceRef('Patient', '7001'),
             },
             appointment: {
@@ -658,6 +703,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Tran, Bao',
                 sex: 'M',
                 dateOfBirth: '1965-07-22',
+                ageYears: ageYearsAt('1965-07-22'),
                 source: sourceRef('Patient', '7002'),
             },
             appointment: {
@@ -708,6 +754,7 @@ const builders: readonly ArchetypeFixtureBuilder[] = [
                 displayName: 'Lopez, Ana',
                 sex: 'F',
                 dateOfBirth: '1970-12-04',
+                ageYears: ageYearsAt('1970-12-04'),
                 source: sourceRef('Patient', '7003'),
             },
             appointment: {

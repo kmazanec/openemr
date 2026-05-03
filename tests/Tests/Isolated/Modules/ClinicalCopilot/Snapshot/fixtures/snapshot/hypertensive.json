@@ -5,6 +5,7 @@
     "displayName": "Blanda, Maryjane",
     "sex": "Female",
     "dateOfBirth": "<DATE>",
+    "ageYears": "<AGE>",
     "source": {
       "system": "openemr",
       "recordType": "Patient",

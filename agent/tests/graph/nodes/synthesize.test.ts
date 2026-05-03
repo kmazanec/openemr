@@ -32,6 +32,7 @@ const snapshot: BriefingSnapshot = {
         displayName: 'Mrs. Patel',
         sex: 'F',
         dateOfBirth: '1968-03-15',
+        ageYears: 58,
         source: sourceRef('Patient', '42'),
     },
     appointment: null,

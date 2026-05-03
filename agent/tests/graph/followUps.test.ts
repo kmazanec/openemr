@@ -33,6 +33,7 @@ const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapsh
         displayName: 'Patel, Maya',
         sex: 'F',
         dateOfBirth: '1958-03-15',
+        ageYears: 58,
         source: sourceRef('Patient', '42'),
     },
     appointment: null,

@@ -5,6 +5,7 @@
     "displayName": "Nguyen, Linh",
     "sex": "F",
     "dateOfBirth": "1972-09-03",
+    "ageYears": 53,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

@@ -30,6 +30,7 @@ use DateTimeImmutable;
  *     displayName: string,
  *     sex: ?string,
  *     dateOfBirth: ?string,
+ *     ageYears: ?int,
  *     source: SourceReferenceArray,
  * }
  */
@@ -41,6 +42,11 @@ final readonly class Demographics
         public string $displayName,
         public ?string $sex,
         public ?DateTimeImmutable $dateOfBirth,
+        // Computed at adapter time from DOB and the current date. Carried
+        // alongside DOB so the model never has to derive age from the date —
+        // it kept getting that off-by-one because the year arithmetic
+        // crosses the birthday differently in different prompts.
+        public ?int $ageYears,
         public SourceReference $source,
     ) {
     }
@@ -56,6 +62,7 @@ final readonly class Demographics
             'displayName' => $this->displayName,
             'sex' => $this->sex,
             'dateOfBirth' => $this->dateOfBirth?->format('Y-m-d'),
+            'ageYears' => $this->ageYears,
             'source' => $this->source->toArray(),
         ];
     }

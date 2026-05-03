@@ -41,6 +41,7 @@ const baseSnapshot = (): BriefingSnapshot => ({
         displayName: 'Test Patient',
         sex: 'F',
         dateOfBirth: '1950-01-01',
+        ageYears: 58,
         source: sourceRef('openemr', 'Patient', '1'),
     },
     appointment: {

@@ -5,6 +5,7 @@
     "displayName": "Lopez, Ana",
     "sex": "F",
     "dateOfBirth": "1970-12-04",
+    "ageYears": 55,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

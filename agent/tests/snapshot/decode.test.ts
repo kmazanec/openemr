@@ -9,6 +9,7 @@ const validJson = {
         displayName: 'Mrs. Patel',
         sex: 'F',
         dateOfBirth: '1968-03-15',
+        ageYears: 58,
         source: {
             system: 'openemr',
             recordType: 'Patient',
@@ -121,6 +122,7 @@ describe('decodeChartSnapshot', () => {
 
         expect(out.patient.pid).toBe(42);
         expect(out.patient.uuid).toBe('patient-uuid');
+        expect(out.patient.ageYears).toBe(58);
         expect(out.appointment?.appointmentId).toBe('apt-1');
         expect(out.diagnoses).toHaveLength(1);
         expect(out.diagnoses[0]!.code).toBe('E11.9');
@@ -281,5 +283,28 @@ describe('decodeChartSnapshot', () => {
             prescriptions: [{ ...validJson.prescriptions[0], prescriptionId: '7001' }],
         };
         expect(() => decodeChartSnapshot(broken)).toThrow(/prescriptions\[0\]\.prescriptionId/);
+    });
+
+    it('treats a missing ageYears as null (additive contract for older fixtures)', () => {
+        const patient = { ...validJson.patient } as Record<string, unknown>;
+        delete patient['ageYears'];
+        const out = decodeChartSnapshot({ ...validJson, patient });
+        expect(out.patient.ageYears).toBeNull();
+    });
+
+    it('decodes a null ageYears when DOB was missing on the source row', () => {
+        const out = decodeChartSnapshot({
+            ...validJson,
+            patient: { ...validJson.patient, dateOfBirth: null, ageYears: null },
+        });
+        expect(out.patient.ageYears).toBeNull();
+    });
+
+    it('rejects a non-integer ageYears', () => {
+        const broken = {
+            ...validJson,
+            patient: { ...validJson.patient, ageYears: '58' },
+        };
+        expect(() => decodeChartSnapshot(broken)).toThrow(/patient\.ageYears/);
     });
 });

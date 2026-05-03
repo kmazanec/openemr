@@ -135,7 +135,10 @@ final class ChartSnapshotFixtureTest extends TestCase
     /**
      * Replace every Y-m-d (and ISO-8601 datetime) string in the snapshot
      * payload with a stable placeholder. Operates on the decoded array so we
-     * compare structure, not pretty-printed bytes.
+     * compare structure, not pretty-printed bytes. `ageYears` is derived
+     * from DOB at snapshot time (`new DateTimeImmutable('today')`), so it
+     * slides as the clock advances exactly like DOB-formatted strings;
+     * mask it the same way.
      *
      * @param array<int|string, mixed> $value
      * @return array<int|string, mixed>
@@ -145,6 +148,10 @@ final class ChartSnapshotFixtureTest extends TestCase
         foreach ($value as $k => $v) {
             if (is_array($v)) {
                 $value[$k] = self::maskVolatileDates($v);
+                continue;
+            }
+            if ($k === 'ageYears' && is_int($v)) {
+                $value[$k] = '<AGE>';
                 continue;
             }
             if (!is_string($v)) {

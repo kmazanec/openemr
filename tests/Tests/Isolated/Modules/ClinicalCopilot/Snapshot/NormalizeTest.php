@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot;
 
+use DateTimeImmutable;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Normalize;
 use PHPUnit\Framework\TestCase;
 
@@ -130,5 +131,51 @@ final class NormalizeTest extends TestCase
         // same sentinel — reject so a stringly-typed read doesn't slip past.
         $this->expectException(\DomainException::class);
         Normalize::requireRecordId('0');
+    }
+
+    public function testAgeYearsReturnsNullForMissingDob(): void
+    {
+        $this->assertNull(Normalize::ageYears(null));
+    }
+
+    public function testAgeYearsBeforeBirthdayInReferenceYear(): void
+    {
+        // DOB Feb 14 1968, reference Feb 13 2026 → 57 (birthday hasn't
+        // landed yet that year). Pin the reference so the test does not
+        // slide with the system clock.
+        $age = Normalize::ageYears(
+            new DateTimeImmutable('1968-02-14'),
+            new DateTimeImmutable('2026-02-13'),
+        );
+        $this->assertSame(57, $age);
+    }
+
+    public function testAgeYearsOnBirthday(): void
+    {
+        $age = Normalize::ageYears(
+            new DateTimeImmutable('1968-02-14'),
+            new DateTimeImmutable('2026-02-14'),
+        );
+        $this->assertSame(58, $age);
+    }
+
+    public function testAgeYearsAfterBirthday(): void
+    {
+        $age = Normalize::ageYears(
+            new DateTimeImmutable('1968-02-14'),
+            new DateTimeImmutable('2026-12-31'),
+        );
+        $this->assertSame(58, $age);
+    }
+
+    public function testAgeYearsReturnsNullForFutureDob(): void
+    {
+        // A DOB in the future is data corruption — treat as missing
+        // rather than returning a negative or zero age.
+        $age = Normalize::ageYears(
+            new DateTimeImmutable('2030-01-01'),
+            new DateTimeImmutable('2026-05-03'),
+        );
+        $this->assertNull($age);
     }
 }

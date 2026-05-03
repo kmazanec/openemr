@@ -70,6 +70,16 @@ const optionalString = (path: string, v: unknown): string | null => {
     return v;
 };
 
+const optionalInt = (path: string, v: unknown): number | null => {
+    if (v === null) {
+        return null;
+    }
+    if (typeof v !== 'number' || !Number.isInteger(v)) {
+        throw new ChartSnapshotDecodeError(path, 'expected an integer or null');
+    }
+    return v;
+};
+
 /**
  * PHP encodes integer ids as JSON numbers, but every id in this decoder's
  * output shape is held as a string (the snapshot's SourceReference does
@@ -105,6 +115,10 @@ const decodeDemographics = (path: string, raw: unknown): Demographics => {
         displayName: expectString(`${path}.displayName`, obj['displayName']),
         sex: optionalString(`${path}.sex`, obj['sex'] ?? null),
         dateOfBirth: optionalString(`${path}.dateOfBirth`, obj['dateOfBirth'] ?? null),
+        // `ageYears` is additive — older fixtures predating server-side
+        // age computation omit the key, and the decoder defaults those
+        // to null rather than forcing a synchronized regen.
+        ageYears: optionalInt(`${path}.ageYears`, obj['ageYears'] ?? null),
         source: decodeSource(`${path}.source`, obj['source']),
     };
 };

@@ -5,6 +5,7 @@
     "displayName": "Okafor, Adaeze",
     "sex": "F",
     "dateOfBirth": "1942-01-08",
+    "ageYears": 84,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

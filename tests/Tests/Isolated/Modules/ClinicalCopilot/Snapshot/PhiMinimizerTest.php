@@ -90,7 +90,7 @@ final class PhiMinimizerTest extends TestCase
     {
         // Sanity: the exclusion list must not name any field that the
         // Demographics DTO actually carries — that would be contradictory.
-        $carriedKeys = ['pid', 'uuid', 'displayName', 'sex', 'dateOfBirth', 'source'];
+        $carriedKeys = ['pid', 'uuid', 'displayName', 'sex', 'dateOfBirth', 'ageYears', 'source'];
         $overlap = array_intersect($carriedKeys, PhiMinimizer::EXCLUDED_FROM_DEMOGRAPHICS);
         $this->assertSame(
             [],
@@ -107,6 +107,7 @@ final class PhiMinimizerTest extends TestCase
             displayName: 'Patel, Maya',
             sex: 'F',
             dateOfBirth: new DateTimeImmutable('1968-02-14'),
+            ageYears: 58,
             source: new SourceReference(
                 system: 'openemr',
                 recordType: 'Patient',

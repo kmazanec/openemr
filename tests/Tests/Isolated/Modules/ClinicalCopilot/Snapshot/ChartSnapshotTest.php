@@ -365,6 +365,7 @@ final class ChartSnapshotTest extends TestCase
             displayName: 'Patel, Maya',
             sex: 'F',
             dateOfBirth: new DateTimeImmutable('1968-02-14'),
+            ageYears: 58,
             source: $this->ref('Patient', '101'),
         );
 
@@ -375,6 +376,7 @@ final class ChartSnapshotTest extends TestCase
                 'displayName' => 'Patel, Maya',
                 'sex' => 'F',
                 'dateOfBirth' => '1968-02-14',
+                'ageYears' => 58,
                 'source' => [
                     'system' => 'openemr',
                     'recordType' => 'Patient',
@@ -396,6 +398,7 @@ final class ChartSnapshotTest extends TestCase
                 displayName: 'Patel, Maya',
                 sex: 'F',
                 dateOfBirth: new DateTimeImmutable('1968-02-14'),
+                ageYears: 58,
                 source: $this->ref('Patient', '101'),
             ),
             appointment: new Appointment(
@@ -501,6 +504,7 @@ final class ChartSnapshotTest extends TestCase
                 displayName: 'Patel, Maya',
                 sex: 'F',
                 dateOfBirth: new DateTimeImmutable('1968-02-14'),
+                ageYears: 58,
                 source: $this->ref('Patient', '101'),
             ),
             appointment: null,
@@ -526,6 +530,7 @@ final class ChartSnapshotTest extends TestCase
                 displayName: 'Patel, Maya',
                 sex: 'F',
                 dateOfBirth: new DateTimeImmutable('1968-02-14'),
+                ageYears: 58,
                 source: $this->ref('Patient', '101'),
             ),
             appointment: null,

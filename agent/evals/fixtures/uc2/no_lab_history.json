@@ -5,6 +5,7 @@
     "displayName": "Reyes, Jordan",
     "sex": "M",
     "dateOfBirth": "1988-06-12",
+    "ageYears": 37,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

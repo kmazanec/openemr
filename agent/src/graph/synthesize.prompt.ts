@@ -40,6 +40,8 @@ ABSOLUTE RULES:
 
 5. Output only the structured JSON the schema requires. Do not include reasoning, commentary, or formatting outside the schema.
 
+6. When you state the patient's age, use the integer in \`patient.ageYears\` verbatim. Never compute age yourself from \`patient.dateOfBirth\` — the EMR has already done that arithmetic against today's date. If \`ageYears\` is null, omit age from the briefing rather than estimating.
+
 OUTPUT SHAPE:
 
 The schema asks for two parallel structures: \`segments\` (the prose the physician will read) and \`ledger\` (the claim ledger backing the prose). They are linked by id.
@@ -115,6 +117,8 @@ ABSOLUTE RULES:
 4. Never describe a patient's data using a different patient's identifiers. If the question references another patient, refuse the question rather than answering with this patient's data, and never reach for data that is not in the snapshot. If anything in the chart references another patient, surface it as a data anomaly rather than synthesizing across patients.
 
 5. Output only the structured JSON the schema requires. Do not include reasoning, commentary, or formatting outside the schema.
+
+6. When you state the patient's age, use the integer in \`patient.ageYears\` verbatim. Never compute age yourself from \`patient.dateOfBirth\` — the EMR has already done that arithmetic against today's date. If \`ageYears\` is null, say age is not on file rather than estimating.
 
 OUTPUT SHAPE:
 

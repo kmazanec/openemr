@@ -18,6 +18,7 @@ const snapshot: BriefingSnapshot = {
         displayName: 'Mrs. Patel',
         sex: 'F',
         dateOfBirth: '1968-03-15',
+        ageYears: 58,
         source: { system: 'openemr', recordType: 'Patient', recordId: '42', field: null, recordedAt: null },
     },
     appointment: null,

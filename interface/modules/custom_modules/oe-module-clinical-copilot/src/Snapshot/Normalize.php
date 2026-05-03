@@ -64,6 +64,25 @@ final class Normalize
     }
 
     /**
+     * Whole years between `$dob` and `$asOf` (default: today). Returns
+     * null when DOB is missing or in the future. Computed server-side so
+     * the model never has to do birthday-vs-year arithmetic itself.
+     */
+    public static function ageYears(
+        ?DateTimeImmutable $dob,
+        ?DateTimeImmutable $asOf = null,
+    ): ?int {
+        if ($dob === null) {
+            return null;
+        }
+        $reference = $asOf ?? new DateTimeImmutable('today');
+        if ($dob > $reference) {
+            return null;
+        }
+        return $reference->diff($dob)->y;
+    }
+
+    /**
      * Trim and treat empty/whitespace-only as missing.
      */
     public static function toOptionalString(?string $value): ?string

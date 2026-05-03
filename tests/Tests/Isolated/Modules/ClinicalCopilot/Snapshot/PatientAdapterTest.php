@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot;
 
+use DateTimeImmutable;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientAdapter;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\Adapter\PatientDataSource;
 use PHPUnit\Framework\TestCase;
@@ -56,6 +57,13 @@ final class PatientAdapterTest extends TestCase
         $this->assertSame('1968-02-14', $demo->dateOfBirth->format('Y-m-d'));
         $this->assertSame('Patient', $demo->source->recordType);
         $this->assertSame('101', $demo->source->recordId);
+
+        // Age computation uses "today" — pin it to whole-year arithmetic
+        // against the DOB rather than a fixed expected number, so the
+        // test does not need to be reseeded annually.
+        $expectedAge = (new DateTimeImmutable('today'))
+            ->diff(new DateTimeImmutable('1968-02-14'))->y;
+        $this->assertSame($expectedAge, $demo->ageYears);
     }
 
     public function testZeroDobNormalizesToNull(): void
@@ -73,6 +81,7 @@ final class PatientAdapterTest extends TestCase
 
         $this->assertNull($demo->dateOfBirth);
         $this->assertNull($demo->sex);
+        $this->assertNull($demo->ageYears);
     }
 
     public function testIncludesMiddleNameWhenPresent(): void

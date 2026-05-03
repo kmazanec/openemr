@@ -5,6 +5,7 @@
     "displayName": "Patel, Maya",
     "sex": "F",
     "dateOfBirth": "1958-03-15",
+    "ageYears": 68,
     "source": {
       "system": "openemr",
       "recordType": "Patient",

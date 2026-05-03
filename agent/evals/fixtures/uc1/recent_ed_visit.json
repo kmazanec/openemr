@@ -5,6 +5,7 @@
     "displayName": "Hassan, Omar",
     "sex": "M",
     "dateOfBirth": "1979-04-30",
+    "ageYears": 47,
     "source": {
       "system": "openemr",
       "recordType": "Patient",
