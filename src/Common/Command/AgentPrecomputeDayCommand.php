@@ -103,6 +103,12 @@ class AgentPrecomputeDayCommand extends Command
                 null,
                 InputOption::VALUE_NONE,
                 'Loop the in-window practitioner set and log decisions, but do not POST to the agent.',
+            )
+            ->addOption(
+                'now',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Override the current instant for the run (any format DateTimeImmutable accepts, e.g. "2026-05-04T07:30:00"). Useful for testing/demos against a future or past day.',
             );
     }
 
@@ -120,6 +126,18 @@ class AgentPrecomputeDayCommand extends Command
         $practitioner = is_string($practitionerRaw) && $practitionerRaw !== '' ? $practitionerRaw : null;
         $force = (bool) $input->getOption('force');
         $dryRun = (bool) $input->getOption('dry-run');
+
+        $nowRaw = $input->getOption('now');
+        if (is_string($nowRaw) && $nowRaw !== '') {
+            try {
+                $now = new DateTimeImmutable($nowRaw);
+            } catch (\DateMalformedStringException) {
+                $io->error('--now must be a valid datetime string (e.g. "2026-05-04T07:30:00")');
+                return Command::INVALID;
+            }
+        } else {
+            $now = new DateTimeImmutable();
+        }
 
         $options = new RunOptions(
             window: new DateInterval('PT' . (string) $windowMinutes . 'M'),
@@ -139,7 +157,6 @@ class AgentPrecomputeDayCommand extends Command
             return Command::FAILURE;
         }
 
-        $now = new DateTimeImmutable();
         $summary = $runner->runForWindow($now, $options);
 
         $io->section('Precompute summary');

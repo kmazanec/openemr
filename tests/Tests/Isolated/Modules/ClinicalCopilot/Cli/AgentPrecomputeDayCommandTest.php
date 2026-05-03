@@ -77,6 +77,26 @@ final class AgentPrecomputeDayCommandTest extends TestCase
         $this->assertSame(30, $options->window->i);
     }
 
+    public function testForwardsNowOverrideToTheRunner(): void
+    {
+        $runner = new RecordingRunner(new RunSummary(0, 0, 0, 0, 0, 0, 0));
+        $tester = $this->build($runner);
+        $tester->execute(['--now' => '2026-05-04T07:30:00+00:00']);
+        $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
+        $this->assertNotNull($runner->lastNow);
+        $this->assertSame('2026-05-04T07:30:00+00:00', $runner->lastNow->format(\DateTimeInterface::ATOM));
+    }
+
+    public function testRejectsInvalidNowOverride(): void
+    {
+        $runner = new RecordingRunner(new RunSummary(0, 0, 0, 0, 0, 0, 0));
+        $tester = $this->build($runner);
+        $tester->execute(['--now' => 'not-a-date']);
+        $this->assertSame(Command::INVALID, $tester->getStatusCode());
+        $this->assertStringContainsString('--now must be a valid datetime string', $tester->getDisplay());
+        $this->assertNull($runner->lastNow);
+    }
+
     public function testRejectsZeroWindowMinutes(): void
     {
         $runner = new RecordingRunner(new RunSummary(0, 0, 0, 0, 0, 0, 0));

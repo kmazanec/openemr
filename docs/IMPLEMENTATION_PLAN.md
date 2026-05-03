@@ -1336,6 +1336,13 @@ clinician identity.
   already has `schedule_briefings` rows is a no-op (UNIQUE on
   `(practitioner_uuid, appointment_id, generated_at::date)`). Manual
   re-run for debug requires `--force` (delete-then-insert overwrite).
+- [x] `--now=<datetime>` option lets operators override the current
+  instant for testing/demos (anything `DateTimeImmutable` parses, e.g.
+  `--now=2026-05-04T07:30:00-04:00`). The `InWindowPredicate` and the
+  per-practitioner local-day computation both consume this `$now`, so
+  invoking the command on a Sunday with a Monday `--now` exercises the
+  full cron path against Monday's seeded calendar. Without the flag,
+  behavior is unchanged (`new DateTimeImmutable()`).
 - [x] Cost-projection note in `docs/COST_ANALYSIS.md` covering both
   the disabled-default case (zero) and the fully-opted-in 300-clinician
   hospital tier (the worst case PRESEARCH §2 calls out).
