@@ -124,12 +124,12 @@ export const createPgScheduleBriefingsLog = (
 export interface PoolLike {
     readonly query: (sql: string, params?: readonly unknown[]) => Promise<{
         readonly rowCount: number | null;
-        readonly rows: ReadonlyArray<Record<string, unknown>>;
+        readonly rows: readonly Record<string, unknown>[];
     }>;
     readonly connect: () => Promise<{
         readonly query: (sql: string, params?: readonly unknown[]) => Promise<{
             readonly rowCount: number | null;
-            readonly rows: ReadonlyArray<Record<string, unknown>>;
+            readonly rows: readonly Record<string, unknown>[];
         }>;
         readonly release: () => void;
     }>;

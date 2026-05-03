@@ -36,13 +36,13 @@ interface FakePool extends PoolLike {
 }
 
 const buildFakePool = (
-    plan: ReadonlyArray<{ rowCount: number; rows?: ReadonlyArray<Record<string, unknown>> }>,
+    plan: readonly { rowCount: number; rows?: readonly Record<string, unknown>[] }[],
 ): FakePool => {
     const calls: QueryCall[] = [];
     const clientReleased = { count: 0 };
     let planIdx = 0;
 
-    const respond = (sql: string): { rowCount: number; rows: ReadonlyArray<Record<string, unknown>> } => {
+    const respond = (sql: string): { rowCount: number; rows: readonly Record<string, unknown>[] } => {
         const trimmed = sql.trim().toUpperCase();
         if (trimmed === 'BEGIN' || trimmed === 'COMMIT' || trimmed === 'ROLLBACK') {
             return { rowCount: 0, rows: [] };
@@ -54,22 +54,22 @@ const buildFakePool = (
         return { rowCount: next.rowCount, rows: next.rows ?? [] };
     };
 
-    const poolQuery: PoolLike['query'] = async (sql, params) => {
+    const poolQuery: PoolLike['query'] = (sql, params) => {
         calls.push({ sql, params, via: 'pool' });
-        return respond(sql);
+        return Promise.resolve(respond(sql));
     };
 
     const client = {
-        query: (async (sql: string, params?: readonly unknown[]) => {
+        query: ((sql: string, params?: readonly unknown[]) => {
             calls.push({ sql, params, via: 'client' });
-            return respond(sql);
+            return Promise.resolve(respond(sql));
         }) as Awaited<ReturnType<PoolLike['connect']>>['query'],
         release: () => {
             clientReleased.count += 1;
         },
     };
 
-    const connect: PoolLike['connect'] = async () => client;
+    const connect: PoolLike['connect'] = () => Promise.resolve(client);
 
     return {
         query: poolQuery,

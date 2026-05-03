@@ -41,7 +41,7 @@ const finishedAssistantEvent: BriefingStreamEvent = {
 interface FakeLogState {
     readonly recorded: ScheduleBriefingRecord[];
     readonly forceFlags: boolean[];
-    readonly existsCalls: Array<{ practitionerUuid: string; appointmentId: string; today: string }>;
+    readonly existsCalls: { practitionerUuid: string; appointmentId: string; today: string }[];
 }
 
 const buildFakeLog = (
@@ -146,7 +146,7 @@ describe('POST /v1/agent/briefing — precompute branch', () => {
     it('runs the runner with precompute metadata and writes a row when not idempotent', async () => {
         let observedExtra: Record<string, unknown> | undefined;
         const runner: BriefingRunner = ({ extraMetadata }) => {
-            observedExtra = extraMetadata as Record<string, unknown> | undefined;
+            observedExtra = extraMetadata;
             return Promise.resolve([
                 {
                     type: 'meta',
