@@ -10,7 +10,25 @@
 # don't validate it because the connection never leaves the Droplet.
 # The user-facing cert (real Let's Encrypt) is unaffected.
 
+# Security headers (§6.3). HSTS uses a one-year max-age and
+# includeSubDomains but **no preload** — preload submission is permanent
+# for the domain, and this header set is meant to be reversible. If
+# something breaks, drop the Strict-Transport-Security line and the
+# cached state expires per max-age. `-Server` strips Caddy's own
+# server-identifier header.
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Permissions-Policy        "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+}
+
 {$OE_DOMAIN} {
+    import security_headers
     reverse_proxy openemr:443 {
         transport http {
             tls
@@ -27,6 +45,7 @@
 # and would need to be re-uploaded after a Droplet rebuild — acceptable
 # because it's placeholder content, not load-bearing infrastructure.
 {$APEX_DOMAIN} {
+    import security_headers
     root * /srv/site
     file_server
     encode gzip zstd
