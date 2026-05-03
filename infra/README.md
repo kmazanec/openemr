@@ -1,6 +1,8 @@
 # Infra
 
-Deployment scripts for OpenEMR.
+Deployment scripts for OpenEMR. Day-2 operations (incident response,
+backup restore, secrets rotation) live in
+[`docs/RUNBOOK.md`](../docs/RUNBOOK.md).
 
 ## Current target: DigitalOcean
 
