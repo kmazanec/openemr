@@ -1,6 +1,6 @@
 # DigitalOcean deploy stack for OpenEMR.
 #
-# Four services on a single Droplet:
+# Services on a single Droplet:
 #   - mysql:    MariaDB, internal network only.
 #   - redis:    PHP session store + general-purpose cache. Internal
 #               network only. Set REDIS_SERVER on the openemr service
@@ -12,6 +12,11 @@
 #               for the Clinical Co-Pilot agent service. Internal-only,
 #               no host port. Schema migrations are applied by the agent
 #               at boot via PostgresSaver.setup() — no init scripts here.
+#   - agent-pg-backup: Sidecar that dumps agent-postgres daily and
+#               uploads to DigitalOcean Spaces (S3-compatible) for
+#               disaster recovery. Built from ./agent-pg-backup; runs
+#               only if the SPACES_* env vars in /etc/openemr/.env are
+#               set. See docs/RUNBOOK.md for restore procedure.
 #   - agent:    Clinical Co-Pilot agent service. Built from /agent in
 #               the deploy tree. Internal-only — the OpenEMR proxy at
 #               /interface/modules/custom_modules/oe-module-clinical-copilot/
@@ -51,6 +56,10 @@
 #   LANGSMITH_API_KEY      LangSmith API key for §6.1 trace upload.
 #                          Same handling as ANTHROPIC_API_KEY: secret,
 #                          read from /etc/openemr/.env, never baked.
+#   SPACES_BUCKET          DO Spaces bucket for agent-postgres backups.
+#   SPACES_REGION          Spaces region (e.g. nyc3, sfo3).
+#   SPACES_KEY             Spaces access key (read+write on the bucket).
+#   SPACES_SECRET          Spaces secret key.
 
 # Pin the compose project name. Without this, compose derives the name
 # from the parent directory of the compose file — so moving the file
@@ -124,6 +133,32 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
+
+  # Daily pg_dump → DigitalOcean Spaces. Refuses to start if any of
+  # SPACES_BUCKET / SPACES_REGION / SPACES_KEY / SPACES_SECRET is unset,
+  # so a fresh Droplet without those filled in just shows the container
+  # crash-looping in `docker compose ps` rather than silently skipping
+  # backups. Manual run: `docker compose run --rm agent-pg-backup once`.
+  agent-pg-backup:
+    build:
+      context: ./agent-pg-backup
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    depends_on:
+      agent-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: agent-postgres
+      POSTGRES_DB: agent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${AGENT_PG_PASSWORD}
+      SPACES_BUCKET: ${SPACES_BUCKET}
+      SPACES_REGION: ${SPACES_REGION}
+      SPACES_KEY: ${SPACES_KEY}
+      SPACES_SECRET: ${SPACES_SECRET}
+    volumes:
+    - agentpgbackupvolume:/backups
 
   agent:
     build:
@@ -268,6 +303,7 @@ volumes:
   logvolume: {}
   redisvolume: {}
   agentpgvolume: {}
+  agentpgbackupvolume: {}
   couchdbstub: {}
   caddydata: {}
   caddyconfig: {}

@@ -129,6 +129,16 @@ OE_USER=admin
 OE_PASS=__OE_PASS__
 MYSQL_ROOT_PASSWORD=__MYSQL_ROOT_PASSWORD__
 AGENT_PG_PASSWORD=__AGENT_PG_PASSWORD__
+
+# DigitalOcean Spaces credentials for agent-postgres backups (§6.3).
+# Left blank intentionally — operator fills these in post-bootstrap.
+# The agent-pg-backup container refuses to start until they are set,
+# so backups won't silently no-op. See docs/RUNBOOK.md for the
+# bucket-creation + key-provisioning steps.
+SPACES_BUCKET=
+SPACES_REGION=
+SPACES_KEY=
+SPACES_SECRET=
 EOF
     chown gitlab-runner:gitlab-runner "${ENV_FILE}"
     chmod 600 "${ENV_FILE}"
