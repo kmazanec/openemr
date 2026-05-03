@@ -775,10 +775,22 @@
      * only — never invoked on URLs or HTML attribute values, since it
      * runs *after* `escapeText()` and is only spliced into element
      * bodies.
+     *
+     * Full ISO timestamps (`YYYY-MM-DDTHH:MM:SSZ`) are reformatted
+     * whole — we feed the whole string to Date and render the date
+     * portion in the same long form, dropping the time component.
+     * Time-of-day in a clinical citation is rarely actionable for
+     * the doctor and just adds noise.
      */
     const formatDatesInText = (html) => {
         if (typeof html !== 'string') return '';
-        return html.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (match, y, mo, d) => {
+        // Match ISO timestamp first (more specific) so the bare-date
+        // pattern doesn't claim its prefix and leave the time tail
+        // dangling. The non-capturing optional `T...` group makes
+        // both shapes one expression with the same replacement
+        // pipeline.
+        const isoPattern = /\b(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z?)?\b/g;
+        return html.replace(isoPattern, (match, y, mo, d) => {
             const month = Number.parseInt(mo, 10);
             const day = Number.parseInt(d, 10);
             if (month < 1 || month > 12 || day < 1 || day > 31) return match;
