@@ -1468,12 +1468,15 @@ These are tracked separately but worked in parallel as each UC lands.
   precompute, retention)
 
 ### 6.3 Production-readiness checklist
-- [ ] Caddy hardening (HSTS, security headers)
-- [ ] Container resource limits and restart policies in compose
-- [ ] Backup procedure for agent Postgres (daily dump → DO Spaces)
-- [ ] Runbook entry: "agent service down" → graceful degradation;
+- [x] Caddy hardening (HSTS, security headers)
+- [x] Container resource limits and restart policies in compose
+- [x] Backup procedure for agent Postgres (daily dump → DO Spaces)
+- [x] Runbook entry: "agent service down" → graceful degradation;
   briefing panel shows unavailable, OpenEMR remains usable
-- [ ] Secrets rotation procedure documented in `infra/README.md`
+- [x] Secrets rotation procedure documented in ~~`infra/README.md`~~
+  `docs/RUNBOOK.md` (consolidated with the runbook entries; the
+  `infra/README.md` doc gets a one-line cross-link instead — both
+  procedures stay in one place)
 - [ ] Migrate `snapshot.php` from `interface/modules/.../public/` to
   `/apis/` (or a thin dispatch shim that lives under `/apis/`). Today it
   sits next to `agent.php` (browser session cookie) but uses bearer-JWT
@@ -1481,7 +1484,34 @@ These are tracked separately but worked in parallel as each UC lands.
   preserve the `Authorization` header. Moving it inherits
   `apis/.htaccess`, the rate-limit middleware, and the existing audit
   trail. The current placement was a §1.4 expedience; this is the
-  follow-up.
+  follow-up. **Deferred** — other agents are touching adjacent
+  surfaces in the copilot module concurrently; revisit near the end
+  of Phase 6 once those land to avoid avoidable merge conflicts.
+
+  Implementation notes (2026-05-02):
+  - Caddy `(security_headers)` snippet imported by both site blocks
+    (`docker/digitalocean/Caddyfile`). HSTS uses `max-age=31536000;
+    includeSubDomains` deliberately *without* `preload` so the header
+    is reversible if a production incident forces a fallback.
+  - `mem_limit` + `cpus` set per service in
+    `docker/digitalocean/docker-compose.yml`, sized for a 4 GB / 2
+    vCPU Droplet. Restart policies were already `unless-stopped`.
+  - Agent-Postgres backup is a hand-rolled sidecar at
+    `docker/digitalocean/agent-pg-backup/` (Dockerfile + entrypoint.sh).
+    Off-the-shelf images either don't speak S3, use minute-based
+    retention, or are archived. The sidecar runs `pg_dump` daily at
+    02:30 UTC and uploads to DO Spaces; retention is 7 daily + 4
+    weekly. Refuses to start without `SPACES_*` env vars set, so a
+    fresh Droplet without keys filled in surfaces a crash-loop in
+    `docker compose ps` rather than silently skipping backups.
+  - `infra/cloud-init.sh.template` seeds `SPACES_BUCKET`,
+    `SPACES_REGION`, `SPACES_KEY`, `SPACES_SECRET` as blank in
+    `/etc/openemr/.env`; operator fills them in post-bootstrap.
+  - `docs/RUNBOOK.md` is new — it covers agent-down triage, restore
+    from Spaces, Caddy cert renewal, OOM-kill ad-hoc bumps, and a
+    rotation procedure for every secret currently in
+    `/etc/openemr/.env` (DB passwords, OE_PASS, Anthropic, LangSmith,
+    Spaces keys, OAuth2 keypair).
 
 ### 6.4 Documentation
 - [ ] `README.md` — top-level project overview and demo-deploy URL (PDF
