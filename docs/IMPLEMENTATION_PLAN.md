@@ -1514,13 +1514,40 @@ These are tracked separately but worked in parallel as each UC lands.
     Spaces keys, OAuth2 keypair).
 
 ### 6.4 Documentation
-- [ ] `README.md` — top-level project overview and demo-deploy URL (PDF
-  hard gate for every submission)
-- [ ] `agent/README.md` — service-level docs
-- [ ] `docs/EVAL_RESULTS.md` — current eval suite output, updated each
-  submission
-- [ ] Update `CLAUDE.md` with any new dev commands the agent introduces
-- [ ] Audit document depth pass against PDF Stage 3 categories. The PDF
+- [x] `README.md` — top-level project overview and demo-deploy URL (PDF
+  hard gate for every submission) *(Clinical Co-Pilot section inserted
+  above the upstream OpenEMR README — preserves upstream-merge
+  cleanliness per the no-repo-wide-reformat rule. Points to
+  `emr.biograph.dev`, `ARCHITECTURE.md`, `USERS.md`, `AUDIT.md`,
+  `agent/README.md`, `docs/RUNBOOK.md`, `docs/EVAL_RESULTS.md`,
+  `docs/COST_ANALYSIS.md`, plus the architecture deck and UI mockup.)*
+- [x] `agent/README.md` — service-level docs *(Routes table refreshed
+  to reflect the seven Phase-3+ routes — `briefing`,
+  `latest_conversation`, `conversation_history`, `schedule_briefings`,
+  `respond`, `echo`, plus the open `/health` — replacing the stale
+  Phase-1 echo-only table. Env-var section moved Anthropic/LangSmith
+  from "coming in later phases" to required (with PHI-suppression
+  defaults documented). New "Evals" section linking to
+  `docs/EVAL_RESULTS.md` and the §6.1 trace surface.)*
+- [x] `docs/EVAL_RESULTS.md` — current eval suite output, updated each
+  submission *(Headline 65 files / 432 passed / 1 skipped; per-area
+  breakdown across the 8 Vitest dirs + evals/runners + evals/cases;
+  per-UC eval-case inventory (UC1: 16 across 7 files, UC2: 6 across
+  3, UC5: 2 across 2 = 24 files / 34 tests in `evals/cases/`); the
+  three LangSmith datasets — `clinical-copilot-uc1-golden-v3`,
+  `…-uc2-trend-v1`, `…-uc5-morning-prep-v1`; and the
+  finding→case→regression-fixture loop. Public LangSmith share link
+  is a §6.5 deliverable and stays as a placeholder until the dataset
+  is made public.)*
+- [x] Update `CLAUDE.md` with any new dev commands the agent introduces
+  *(New "Agent service (`agent/`)" subsection in the Testing section,
+  documenting `npm test`, `test:watch`, `typecheck`, `lint`, `format`,
+  `build`, `dev`, plus the eval scripts — `evals:regenerate-fixtures`,
+  the per-UC variants, `evals:upload-dataset`, `evals:experiment` —
+  with their key requirements (`LANGSMITH_API_KEY`,
+  `ANTHROPIC_API_KEY`). Sits above the existing "Agent evals"
+  subsection; the latter is the *why*, the new one is the *how*.)*
+- [x] Audit document depth pass against PDF Stage 3 categories. The PDF
   asks for five distinct passes — security, performance, architecture,
   data quality, compliance & regulatory. Read `AUDIT.md` against that
   list and confirm each one has its own section with concrete findings
@@ -1529,7 +1556,18 @@ These are tracked separately but worked in parallel as each UC lands.
   is the easiest section to under-cover). Backfill any gap. Output is a
   short note in the audit's summary tying findings to architecture
   decisions, so the interview question "how did the audit change your
-  AI integration plan?" has a written trace.
+  AI integration plan?" has a written trace. *(All five sections
+  confirmed present at adequate depth — performance audit has 7
+  subsections including a concrete "agent budget P50 5–8s, hard
+  ceiling 30s, defer >5s to BackgroundServiceRunner" recommendation.
+  Added `## 6. How the audit shaped the AI integration plan` as the
+  written trace — a finding→decision→where-it-lives table covering
+  the ten load-bearing audit findings (mandatory disclosure audit,
+  typed `ChartSnapshot` over raw FHIR, separate Node service to
+  escape PHP-FPM's 60s budget, typed adapters for the FK-less
+  schema, scoped JWT for the role/section ACL gap, the bounded
+  context, PHI redaction, HSTS, the verification gate as
+  architectural centerpiece, Anthropic chosen on BAA strength).)*
 
 ### 6.5 Submission deliverables (per PDF §"Submission Requirements")
 - [ ] Demo video 3-5 min (one per submission)

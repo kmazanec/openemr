@@ -116,6 +116,47 @@ Review the diff before committing. See the
 [fixtures README](tests/Tests/Isolated/Common/Twig/fixtures/render/README.md)
 for details on adding new test cases.
 
+### Agent service (`agent/`)
+
+The agent runs as a Node/TypeScript service alongside OpenEMR. Its
+test, lint, and type-check commands run on the host (no Docker
+required) from the `agent/` directory:
+
+```bash
+cd agent
+npm install                # first time only
+npm test                   # Vitest, single run — covers tests/ + evals/cases/
+npm run test:watch         # Vitest, watch mode
+npm run typecheck          # tsc -p tsconfig.test.json (covers src + tests + evals)
+npm run lint               # ESLint, type-aware
+npm run lint:fix           # ESLint --fix
+npm run format             # Prettier --write
+npm run format:check       # Prettier --check
+npm run build              # tsc -p tsconfig.json → dist/
+npm run dev                # tsx watch on src/server/index.ts (port 8080)
+```
+
+Eval-specific scripts:
+
+```bash
+npm run evals:regenerate-fixtures        # regenerate evals/fixtures/uc1/*.json
+npm run evals:regenerate-uc2-fixtures    # regenerate evals/fixtures/uc2/*.json
+npm run evals:regenerate-uc5-fixtures    # regenerate evals/fixtures/uc5/*.json
+npm run evals:upload-dataset             # push the LangSmith golden datasets (idempotent)
+npm run evals:experiment                 # run the real synthesizer against the dataset
+```
+
+`evals:upload-dataset` and `evals:experiment` no-op without
+`LANGSMITH_API_KEY`; the experiment additionally requires
+`ANTHROPIC_API_KEY`.
+
+For the bigger eval picture (the three-layer architecture, when to
+bump dataset versions, the regression-fixture pattern), see the
+"Agent evals" subsection below. For service-level docs (routes, env,
+Docker, schema init), see [`agent/README.md`](agent/README.md).
+Headline test counts and per-UC eval breakdown live in
+[`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
+
 ### Agent evals (`agent/evals/`)
 
 Whenever you add or change agent functionality (new tool, new graph

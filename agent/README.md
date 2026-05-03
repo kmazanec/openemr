@@ -19,14 +19,15 @@ curl http://localhost:8080/health
 
 ## Routes
 
-Phase-1 skeletons (echo only — graph wiring lands in phase 3):
-
-| Method | Path                       | Returns                                                                  |
-| ------ | -------------------------- | ------------------------------------------------------------------------ |
-| GET    | `/health`                  | `{ status: 'ok' }` (unauthenticated)                                     |
-| POST   | `/v1/agent/echo`           | `{ ok, action: 'echo', fhirUser, received }` framed as SSE — smoke probe |
-| POST   | `/v1/agent/respond`        | `{ received: <body>, fhirUser }` (JSON)                                  |
-| POST   | `/v1/agent/respond/stream` | `{ received: <body>, fhirUser }` framed as SSE                           |
+| Method | Path                              | Auth      | Purpose                                                                                                                                                                                                                            |
+| ------ | --------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                         | Open      | Docker healthcheck. Returns `{ status: 'ok' }`.                                                                                                                                                                                    |
+| POST   | `/v1/agent/briefing`              | JWT       | §3.4 default-briefing entry. Runs the LangGraph briefing graph and emits the `briefingStream.ts` SSE sequence (`metadata` → `chip-id` → `section/*` → `done` / `error`). `precompute=true` branch backs §5.3 morning-prep cron.   |
+| GET    | `/v1/agent/latest_conversation`   | JWT       | §3.5 conversation resume. Returns the most recent conversation for `(principal.sub, pid)`, or a specific one when `?conversation=<uuid>` is supplied. Owner-and-patient scoping enforced server-side.                              |
+| GET    | `/v1/agent/conversation_history`  | JWT       | §3.5 conversation list. Cursor-paginated by `(updated_at, id)`; scoped to `(principal.sub, pid)`.                                                                                                                                  |
+| GET    | `/v1/agent/schedule_briefings`    | JWT       | §5.4 schedule-view annotations. Returns the cached briefings the §5.3 precompute job wrote, keyed by `(practitioner_uuid, date)`. Self-only — `principal.sub` must equal `practitioner_uuid`.                                      |
+| POST   | `/v1/agent/respond`               | JWT       | Legacy non-stream echo. Returns `{ received, fhirUser }`. Kept for §1.6 smoke tests.                                                                                                                                                |
+| POST   | `/v1/agent/echo`                  | JWT       | §1.6 trust-boundary smoke. Single SSE frame with `{ ok, action: 'echo', fhirUser, received }`.                                                                                                                                      |
 
 ## Scripts
 
@@ -51,10 +52,18 @@ Phase-1 skeletons (echo only — graph wiring lands in phase 3):
 | `NODE_ENV`  | `development`                | `production` switches off pretty logging |
 | `LOG_LEVEL` | `debug` (dev), `info` (prod) | Pino level                               |
 
-Coming in later phases (placeholder — not yet read by any code):
+Required for the LLM/observability path (Phase 3+):
 
-- `ANTHROPIC_API_KEY` — Sonnet 4 calls (phase 3)
-- `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_TRACING` — observability (phase 6.1)
+- `ANTHROPIC_API_KEY` — Sonnet model calls (Synthesize node).
+- `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_TRACING` — trace
+  emission, dataset upload, and the nightly experiment runner. The
+  service runs without these set; metric metadata simply doesn't reach
+  LangSmith and `LANGSMITH_HIDE_INPUTS` / `LANGSMITH_HIDE_OUTPUTS`
+  default to `true` so prompts/completions never reach the trace
+  surface.
+- `LANGSMITH_TAG_SALT` — HMAC salt for hashing principal/patient
+  identifiers into trace tags so the LangSmith UI stays PHI-free
+  (§6.1).
 
 In addition, the service requires:
 
@@ -100,6 +109,26 @@ evals/
   runners/        LangSmith dataset/experiment helpers (phase 3.6)
 tests/            Vitest unit + integration tests
 ```
+
+## Evals
+
+Three layers, documented in [`/CLAUDE.md` § "Agent evals"](../CLAUDE.md):
+
+- **Per-MR Vitest gate** — `evals/cases/<uc>/*.test.ts`, run by
+  `npm test`. Stubs the synthesizer; asserts deterministic-gate
+  behavior. CI runs this on every push.
+- **Fixture data** — `evals/fixtures/<uc>/*.json`, regenerated by
+  `npm run evals:regenerate-fixtures` (and the per-UC variants
+  `evals:regenerate-uc2-fixtures`, `evals:regenerate-uc5-fixtures`).
+  Never hand-edit the JSON.
+- **Nightly LangSmith experiment** — `evals/runners/cli.ts`. Upload
+  the dataset with `npm run evals:upload-dataset`; run the experiment
+  against the real Anthropic synthesizer with `npm run evals:experiment`.
+  Both no-op without `LANGSMITH_API_KEY`.
+
+Headline result counts and the per-UC breakdown live in
+[`docs/EVAL_RESULTS.md`](../docs/EVAL_RESULTS.md), refreshed each
+submission.
 
 ## Authentication
 

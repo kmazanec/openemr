@@ -335,6 +335,39 @@ Two patterns coexist; **use the custom_modules pattern**:
 
 ---
 
+## 6. How the audit shaped the AI integration plan
+
+The five audits above were not academic. Each one produced concrete
+constraints that became architectural decisions, captured here so the
+interview-stage question *"how did the audit change your AI
+integration plan?"* has a written trace from finding → decision →
+where it lives in the build.
+
+| Audit finding | Where it surfaces in the audit | Architectural decision it produced | Where the decision lives |
+| --- | --- | --- | --- |
+| Read-side audit is configurable, not mandatory | §1.4, §1.6, §5.1 | The agent ships its own **mandatory** disclosure-audit class dispatched *before* the network call, persisted before `await`. We do not rely on `audit_events_*` flags. | `ARCHITECTURE.md` §"Disclosure Audit"; build steps `IMPLEMENTATION_PLAN.md` §2.4 |
+| Standard FHIR/REST controllers return full PHI (SSN, address) | §1.6 risk #2, §5.6 (no de-id utilities) | Agent never calls `/fhir/*` directly. It pulls a **typed `ChartSnapshot`** through narrow custom controllers that omit identifiers the prompt doesn't need; the §2.3 PHI minimizer is the choke point. | `ARCHITECTURE.md` §"ChartSnapshot"; memory `feedback_agent_uses_custom_dao_endpoints` |
+| 60s `max_execution_time`, no message queue, ~hundreds-of-ms bootstrap | §2.4, §2.6, §2.7 | Agent runs as a **separate Node service** behind a thin PHP proxy, not as PHP-FPM workers running LangGraph. Synchronous LLM calls are budgeted P50 5–8 s, hard ceiling 30 s; the §5.3 morning-prep precompute moves heavy work off the request thread. | `ARCHITECTURE.md` §"Component Overview" + §"Cost Model"; `IMPLEMENTATION_PLAN.md` §1.1, §5.3 |
+| No FK constraints; non-unique `pubpid`; `0000-00-00` sentinels; 38 form tables | §4.1–§4.7 | Every read goes through a **typed adapter** (`PatientChartReader` / per-domain DAO) that normalizes dates, resolves list_options, asserts MRN-of-record, and fails closed on missing required fields. The verifier rejects any claim whose `sourceReferences` don't resolve in the indexed snapshot. | `ARCHITECTURE.md` §"Tool And Adapter Layer", §"Verification Architecture"; `IMPLEMENTATION_PLAN.md` §2.2, §3.3 |
+| ACL is role/section, not per-patient/per-encounter | §1.2, §5.5 | The proxy controller mints a **scoped JWT** that pins (practitioner, patient, site); the agent re-checks scope on every callback; cross-patient access returns 403 from the proxy with **zero tokens spent**. Pinned by `evals/cases/uc1/crossPatient.test.ts`. | `ARCHITECTURE.md` §"Trust Boundaries", §"OpenEMR Policy Gate"; `IMPLEMENTATION_PLAN.md` §1.4, §1.5 |
+| Read-time auth coverage is path-dependent (FHIR vs REST vs documents) | §1.2 gap, §5.5 | Agent endpoints are a **new bounded context**: their own custom module, their own controller, their own audit class, their own consent gate. Agent code does not reach into `$GLOBALS`, raw `sqlStatement`, or form tables. | Module at `interface/modules/custom_modules/oe-module-clinical-copilot/`; PHPStan rules under `tests/PHPStan/Rules/` |
+| No de-identification utilities; PHI redaction not built into logs | §1.4, §5.6 | **PHI redactor** is a dependency of the agent's logger and the LangSmith trace surface. `LANGSMITH_HIDE_INPUTS` / `LANGSMITH_HIDE_OUTPUTS` default to `true`; identifiers are HMAC-hashed before becoming run tags. Verified by `tests/observability/scanRecentTraces.test.ts`. | `agent/src/observability/logger.ts`; `IMPLEMENTATION_PLAN.md` §6.1 |
+| TLS not enforced at app layer; HSTS absent from `apis/.htaccess` | §1.4, §5.4 | TLS 1.2+ enforced in the outbound LLM HTTP client; **HSTS + security headers** added to Caddy in `docker/digitalocean/Caddyfile` (deliberately without `preload` so it's reversible). | `IMPLEMENTATION_PLAN.md` §6.3; `docs/RUNBOOK.md` |
+| Claim ledger / verification not present anywhere in OpenEMR | §3.8 (clean slate) | We get to design the **verification gate** from scratch as the architectural centerpiece. Every claim must cite a `sourceReferences` entry that resolves in the indexed snapshot; uncited claims are dropped. | `ARCHITECTURE.md` §"Verification Architecture"; `agent/src/verify/verifier.ts` |
+| BAA posture varies by provider | §5.8 | **Anthropic** chosen as the LLM provider on the strength of its enterprise BAA + no-training settings. Decision recorded with the alternatives evaluated. | `docs/PRESEARCH.md` §"LLM provider"; `ARCHITECTURE.md` §"Production Compliance Assumptions" |
+
+The throughline: the audit told us where OpenEMR was permissive and
+where it was strong. The architecture leans on the strong parts —
+PSR-11 DI, custom_modules pattern, OAuth2/OIDC + SMART scopes,
+`CryptoGen`, the events bus — and treats the permissive parts as
+hostile-by-default. Everything PHI-touching is mediated by the agent's
+own bounded context with its own audit, its own consent gate, its own
+typed snapshots, and its own verification layer. Nothing in the agent
+code path trusts a flag in `$GLOBALS` to be set the way the audit
+hoped it would be.
+
+---
+
 ## Appendix A — Files referenced
 
 Security: `src/Common/Auth/AuthUtils.php`, `src/Common/Auth/AuthHash.php`, `src/Common/Auth/MfaUtils.php`, `src/Common/Session/SessionTracker.php`, `src/Common/Acl/AclMain.php`, `src/Common/Crypto/CryptoGen.php`, `src/RestControllers/Authorization/BearerTokenAuthorizationStrategy.php`, `src/RestControllers/SMART/ScopePermissionParser.php`, `src/Common/Logging/EventAuditLogger.php`, `tests/PHPStan/Rules/`.
