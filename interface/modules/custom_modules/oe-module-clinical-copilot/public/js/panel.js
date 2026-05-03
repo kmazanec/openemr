@@ -143,16 +143,32 @@
         }
     };
 
-    const renderSourceChip = (source) => {
+    /**
+     * Render a `[source]` chip as a button. The chip itself doesn't
+     * navigate anywhere on click — instead it opens a popover with
+     * the claim text, source identity, and a "View full record" link
+     * (the link is the same URL the chip used to navigate to). This
+     * gives the doctor in-place context for the citation rather than
+     * yanking them off-page on every click.
+     *
+     * The triple-index (bubble/claim/source) lets the click handler
+     * recover the exact `Claim` + `SourceReference` from the in-memory
+     * `thread[]` without serializing the whole object into the DOM.
+     */
+    const renderSourceChip = (source, indices) => {
         if (!source) {
             return '';
         }
         const tooltip = `${source.recordType || 'record'} ${source.recordId || ''}`.trim();
-        const url = sourceLinkUrl(source);
-        if (url) {
-            return `<a class="copilot-source" href="${escapeText(url)}" title="${escapeText(tooltip)}">[source]</a>`;
-        }
-        return `<span class="copilot-source copilot-source--inert" title="${escapeText(tooltip)}">[source]</span>`;
+        const inert = sourceLinkUrl(source) === null ? ' copilot-source--inert' : '';
+        return `<button type="button" class="copilot-source${inert}"
+                        data-role="source-chip"
+                        data-bubble-idx="${indices.bubble}"
+                        data-segment-idx="${indices.segment}"
+                        data-claim-idx="${indices.claim}"
+                        data-source-idx="${indices.source}"
+                        title="${escapeText(tooltip)}"
+                        aria-label="Source: ${escapeText(tooltip)}">[source]</button>`;
     };
 
     /**
@@ -161,25 +177,40 @@
      * cross-cited fact); we render one chip per ref so the clinician
      * can audit each provenance independently.
      */
-    const renderSegmentChips = (claims) => {
+    const renderSegmentChips = (claims, bubbleIdx, segmentIdx) => {
         if (!Array.isArray(claims) || claims.length === 0) return '';
         const chips = [];
-        for (const claim of claims) {
+        for (let claimIdx = 0; claimIdx < claims.length; claimIdx++) {
+            const claim = claims[claimIdx];
             const refs = (claim && claim.sourceReferences) || [];
-            for (const ref of refs) {
-                chips.push(renderSourceChip(ref));
+            for (let srcIdx = 0; srcIdx < refs.length; srcIdx++) {
+                chips.push(
+                    renderSourceChip(refs[srcIdx], {
+                        bubble: bubbleIdx,
+                        segment: segmentIdx,
+                        claim: claimIdx,
+                        source: srcIdx,
+                    }),
+                );
             }
         }
         return chips.join(' ');
     };
 
-    const renderSegment = (segment) => {
+    const renderSegment = (segment, segmentIdx, bubbleIdx) => {
         if (!segment) return '';
         if (segment.redacted) {
             return `<span class="copilot-segment copilot-segment--redacted" title="${escapeText('Withheld by the verification gate')}">${escapeText(segment.text)}</span>`;
         }
-        const chips = renderSegmentChips(segment.claims);
-        return `<span class="copilot-segment">${escapeText(segment.text)}${chips ? ' ' + chips : ''}</span>`;
+        // ISO dates the synthesizer leaves embedded in prose
+        // (e.g. "started on 2024-03-15") get rewritten to
+        // "March 15, 2024" so the doctor reads natural-language
+        // dates. Applied AFTER escapeText so we operate on a string
+        // that's already HTML-safe; we never feed dates through
+        // attribute values or URLs.
+        const text = formatDatesInText(escapeText(segment.text));
+        const chips = renderSegmentChips(segment.claims, bubbleIdx, segmentIdx);
+        return `<span class="copilot-segment">${text}${chips ? ' ' + chips : ''}</span>`;
     };
 
     const renderGapsBanner = (gaps) => {
@@ -269,7 +300,9 @@
             </article>`;
         }
         if (entry.role === 'assistant' && entry.message) {
-            const segments = (entry.message.segments || []).map(renderSegment).join(' ');
+            const segments = (entry.message.segments || [])
+                .map((segment, segIdx) => renderSegment(segment, segIdx, index))
+                .join(' ');
             const gaps = renderGapsBanner(entry.message.gaps);
             const suggestions = renderSuggestionsRail(entry.message.suggestedFollowUps, index);
             return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered" data-bubble-index="${index}">
@@ -555,6 +588,215 @@
         });
     };
 
+    /**
+     * Source-chip popover.
+     *
+     * One shared <div> appended lazily to <body> on first chip click.
+     * The popover renders from in-memory claim data only — no fetch —
+     * so a chip click is instant. Content: claim category, claim
+     * text (with ISO dates rewritten to a human form), the cited
+     * source identity, and a "View full record" link that hits the
+     * same OpenEMR page the chip used to navigate to. When no link
+     * is mapped for the recordType the link is rendered disabled with
+     * a tooltip explaining why.
+     *
+     * Dismiss triggers: outside click, Escape, page scroll, viewport
+     * resize, or clicking another chip. Returning focus to the
+     * triggering chip on close keeps keyboard users on track.
+     */
+    let popoverEl = null;
+    let popoverChip = null;
+
+    const titleCaseCategory = (category) => {
+        if (typeof category !== 'string' || category.length === 0) return 'Source';
+        return category
+            .split('_')
+            .map((part) => (part.length === 0 ? '' : part[0].toUpperCase() + part.slice(1)))
+            .join(' ');
+    };
+
+    const ensurePopover = () => {
+        if (popoverEl !== null) return popoverEl;
+        const el = document.createElement('div');
+        el.className = 'copilot-source-popover';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'false');
+        el.setAttribute('tabindex', '-1');
+        el.hidden = true;
+        document.body.appendChild(el);
+        popoverEl = el;
+        return el;
+    };
+
+    const closePopover = () => {
+        if (popoverEl === null || popoverEl.hidden) return;
+        popoverEl.hidden = true;
+        popoverEl.innerHTML = '';
+        const chipToFocus = popoverChip;
+        popoverChip = null;
+        if (chipToFocus instanceof HTMLElement) {
+            chipToFocus.focus();
+        }
+    };
+
+    /**
+     * Place the popover below the chip when there's room, above it
+     * otherwise. Horizontal position is clamped to the viewport so
+     * the popover never floats off-screen on narrow windows.
+     */
+    const positionPopover = (chip) => {
+        if (popoverEl === null) return;
+        const rect = chip.getBoundingClientRect();
+        const popRect = popoverEl.getBoundingClientRect();
+        const margin = 8;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const placeAbove = spaceBelow < popRect.height + margin && rect.top > popRect.height + margin;
+        const top = placeAbove
+            ? rect.top - popRect.height - margin
+            : rect.bottom + margin;
+        const rawLeft = rect.left + rect.width / 2 - popRect.width / 2;
+        const left = Math.max(
+            margin,
+            Math.min(window.innerWidth - popRect.width - margin, rawLeft),
+        );
+        popoverEl.style.top = `${top + window.scrollY}px`;
+        popoverEl.style.left = `${left + window.scrollX}px`;
+        popoverEl.dataset.placement = placeAbove ? 'above' : 'below';
+    };
+
+    const renderPopoverBody = (claim, ref) => {
+        const category = titleCaseCategory(claim.category);
+        const claimText = formatDatesInText(escapeText(claim.text || ''));
+        const recordLine = `${escapeText(ref.recordType || 'record')} ${escapeText(ref.recordId || '')}`.trim();
+        const url = sourceLinkUrl(ref);
+        const recordedAt = typeof ref.recordedAt === 'string' && ref.recordedAt.length > 0
+            ? `<p class="copilot-source-popover__recorded">Recorded ${formatDatesInText(escapeText(ref.recordedAt))}</p>`
+            : '';
+        const linkRow = url
+            ? `<a class="copilot-source-popover__link" href="${escapeText(url)}">View full record →</a>`
+            : `<span class="copilot-source-popover__link copilot-source-popover__link--disabled"
+                     title="${escapeText('No deep link available for this record type')}">No deep link available</span>`;
+        return `<header class="copilot-source-popover__header">
+                <span class="copilot-source-popover__category">${escapeText(category)}</span>
+                <button type="button" class="copilot-source-popover__close"
+                        data-role="source-popover-close"
+                        aria-label="Close">×</button>
+            </header>
+            <p class="copilot-source-popover__claim">${claimText}</p>
+            <p class="copilot-source-popover__record">${recordLine}</p>
+            ${recordedAt}
+            <div class="copilot-source-popover__footer">${linkRow}</div>`;
+    };
+
+    const openPopover = (chip, claim, ref) => {
+        const el = ensurePopover();
+        // Populate before measuring so getBoundingClientRect on the
+        // popover reflects its real size.
+        el.innerHTML = renderPopoverBody(claim, ref);
+        el.hidden = false;
+        popoverChip = chip;
+        positionPopover(chip);
+        // Defer focus to the next tick so screen readers settle
+        // before we move focus into the dialog.
+        window.requestAnimationFrame(() => {
+            if (popoverEl !== null && !popoverEl.hidden) {
+                popoverEl.focus();
+            }
+        });
+    };
+
+    const wireSourceChipClicks = () => {
+        if (!threadEl) return;
+        threadEl.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const chip = target.closest('[data-role="source-chip"]');
+            if (!chip) return;
+            e.preventDefault();
+            const bubbleIdx = Number.parseInt(chip.dataset.bubbleIdx || '', 10);
+            const segmentIdx = Number.parseInt(chip.dataset.segmentIdx || '', 10);
+            const claimIdx = Number.parseInt(chip.dataset.claimIdx || '', 10);
+            const sourceIdx = Number.parseInt(chip.dataset.sourceIdx || '', 10);
+            if (!Number.isInteger(bubbleIdx) || !Number.isInteger(segmentIdx)
+                || !Number.isInteger(claimIdx) || !Number.isInteger(sourceIdx)) {
+                return;
+            }
+            const entry = thread[bubbleIdx];
+            if (!entry || entry.role !== 'assistant' || !entry.message) return;
+            const segment = (entry.message.segments || [])[segmentIdx];
+            if (!segment) return;
+            const claim = (segment.claims || [])[claimIdx];
+            if (!claim) return;
+            const ref = (claim.sourceReferences || [])[sourceIdx];
+            if (!ref) return;
+            // Re-clicking the chip the popover is anchored to closes
+            // it; clicking a different chip moves the popover there.
+            if (popoverChip === chip && popoverEl !== null && !popoverEl.hidden) {
+                closePopover();
+                return;
+            }
+            openPopover(chip, claim, ref);
+        });
+        // The close button inside the popover lives outside the
+        // thread's DOM subtree so we delegate from the popover itself.
+        document.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (target.closest('[data-role="source-popover-close"]')) {
+                closePopover();
+                return;
+            }
+            // Outside-click dismissal — but only if the popover is
+            // open AND the click landed outside the popover and
+            // outside any source chip (chip clicks are handled above).
+            if (popoverEl === null || popoverEl.hidden) return;
+            if (popoverEl.contains(target)) return;
+            if (target.closest('[data-role="source-chip"]')) return;
+            closePopover();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && popoverEl !== null && !popoverEl.hidden) {
+                closePopover();
+            }
+        });
+        // Scroll/resize repositioning would race with active layout;
+        // simpler to dismiss so the popover doesn't float orphaned
+        // mid-page after a scroll. {passive: true} avoids penalizing
+        // scroll responsiveness.
+        window.addEventListener('scroll', closePopover, { passive: true });
+        window.addEventListener('resize', closePopover);
+    };
+
+    /**
+     * Rewrite ISO `YYYY-MM-DD` dates inside an already-HTML-escaped
+     * string into "March 15, 2024" form. Validates month 1–12 and
+     * day 1–31 before reformatting so version strings like
+     * "1234-56-78" pass through unchanged. Operates on text content
+     * only — never invoked on URLs or HTML attribute values, since it
+     * runs *after* `escapeText()` and is only spliced into element
+     * bodies.
+     */
+    const formatDatesInText = (html) => {
+        if (typeof html !== 'string') return '';
+        return html.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (match, y, mo, d) => {
+            const month = Number.parseInt(mo, 10);
+            const day = Number.parseInt(d, 10);
+            if (month < 1 || month > 12 || day < 1 || day > 31) return match;
+            const dt = new Date(`${y}-${mo}-${d}T00:00:00Z`);
+            if (Number.isNaN(dt.getTime())) return match;
+            try {
+                return dt.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    timeZone: 'UTC',
+                });
+            } catch (err) {
+                return match;
+            }
+        });
+    };
+
     const wireComposer = () => {
         const form = root.querySelector('[data-role="composer"]');
         if (!form) return;
@@ -836,6 +1078,7 @@
         wireComposer();
         wireHistoryInfiniteScroll();
         wireSuggestionsClicks();
+        wireSourceChipClicks();
         setStatus('Connecting to Co-Pilot…', 'connecting');
 
         // Resume lookup and history fetch are independent — fire them
