@@ -103,6 +103,48 @@ export interface Encounter {
 }
 
 /**
+ * Single vital-sign reading taken at one point in time. Mirrors the
+ * PHP-side `VitalSign::toArray()` shape; numeric fields are preserved
+ * as strings so qualifiers and source-side rounding survive the round
+ * trip — the verifier compares displayed claim text against these.
+ *
+ * Each field is null when the lab/clinic did not record that vital
+ * for this reading. A returned row is guaranteed to carry at least
+ * one non-null vital field (the adapter strips empty rows).
+ */
+export interface VitalSign {
+    readonly observedAt: string | null;
+    readonly bpSystolic: string | null;
+    readonly bpDiastolic: string | null;
+    readonly pulse: string | null;
+    readonly respiration: string | null;
+    readonly temperatureF: string | null;
+    readonly weightLbs: string | null;
+    readonly heightInches: string | null;
+    readonly bmi: string | null;
+    readonly oxygenSaturation: string | null;
+    readonly source: SourceReference;
+}
+
+/**
+ * SOAP note attached to a single encounter. Sourced from
+ * `form_soap`; an encounter can carry multiple rows (amendments,
+ * multi-author docs) so {@link decodeEncounterNotesResponse} returns
+ * an array. Field strings are preserved verbatim so the verifier
+ * can quote them.
+ */
+export interface EncounterNote {
+    readonly encounterId: string;
+    readonly noteId: string;
+    readonly noteDate: string | null;
+    readonly subjective: string | null;
+    readonly objective: string | null;
+    readonly assessment: string | null;
+    readonly plan: string | null;
+    readonly source: SourceReference;
+}
+
+/**
  * Patient-reported medication line — what the patient says they're
  * actually taking (FHIR `MedicationStatement`). Includes OTC,
  * supplements, and prescriptions written by other clinics.

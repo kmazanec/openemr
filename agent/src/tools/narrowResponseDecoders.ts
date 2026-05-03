@@ -4,8 +4,11 @@ import type {
     Demographics,
     Diagnosis,
     Encounter,
+    EncounterNote,
     LabObservation,
     Prescription,
+    SourceReference,
+    VitalSign,
 } from '../snapshot/types.js';
 
 /**
@@ -113,7 +116,10 @@ const requireKey = (path: string, obj: Record<string, unknown>, key: string): un
 
 export const decodePrescriptionsResponse = (raw: unknown): readonly Prescription[] => {
     const obj = expectObject('prescriptionsResponse', raw);
-    const arr = expectArray('prescriptionsResponse.prescriptions', requireKey('prescriptionsResponse', obj, 'prescriptions'));
+    const arr = expectArray(
+        'prescriptionsResponse.prescriptions',
+        requireKey('prescriptionsResponse', obj, 'prescriptions'),
+    );
     return arr.map((item, idx) =>
         decodePrescriptionForNarrow(`prescriptionsResponse.prescriptions[${String(idx)}]`, item),
     );
@@ -224,22 +230,13 @@ export const decodeReminderDetailResponse = (raw: unknown): ReminderDetail => {
             detail['reminderId'],
         ),
         item: expectString('reminderDetailResponse.detail.item', detail['item']),
-        itemTitle: expectString(
-            'reminderDetailResponse.detail.itemTitle',
-            detail['itemTitle'],
-        ),
-        category: expectString(
-            'reminderDetailResponse.detail.category',
-            detail['category'],
-        ),
+        itemTitle: expectString('reminderDetailResponse.detail.itemTitle', detail['itemTitle']),
+        category: expectString('reminderDetailResponse.detail.category', detail['category']),
         categoryTitle: expectString(
             'reminderDetailResponse.detail.categoryTitle',
             detail['categoryTitle'],
         ),
-        dueStatus: expectString(
-            'reminderDetailResponse.detail.dueStatus',
-            detail['dueStatus'],
-        ),
+        dueStatus: expectString('reminderDetailResponse.detail.dueStatus', detail['dueStatus']),
         createdAt: optionalString(
             'reminderDetailResponse.detail.createdAt',
             detail['createdAt'] ?? null,
@@ -264,10 +261,7 @@ export const decodeMedicationStatementProvenanceResponse = (
             'medicationStatementProvenanceResponse.provenance.listId',
             prov['listId'],
         ),
-        name: expectString(
-            'medicationStatementProvenanceResponse.provenance.name',
-            prov['name'],
-        ),
+        name: expectString('medicationStatementProvenanceResponse.provenance.name', prov['name']),
         dose: optionalString(
             'medicationStatementProvenanceResponse.provenance.dose',
             prov['dose'] ?? null,
@@ -297,6 +291,68 @@ export const decodeMedicationStatementProvenanceResponse = (
             prov['linkedPrescriptionId'] ?? null,
         ),
     };
+};
+
+const decodeSourceReference = (path: string, raw: unknown): SourceReference => {
+    const obj = expectObject(path, raw);
+    return {
+        system: expectString(`${path}.system`, obj['system']),
+        recordType: expectString(`${path}.recordType`, obj['recordType']),
+        recordId: expectString(`${path}.recordId`, obj['recordId']),
+        field: optionalString(`${path}.field`, obj['field'] ?? null),
+        recordedAt: optionalString(`${path}.recordedAt`, obj['recordedAt'] ?? null),
+    };
+};
+
+const decodeVital = (path: string, raw: unknown): VitalSign => {
+    const obj = expectObject(path, raw);
+    return {
+        observedAt: optionalString(`${path}.observedAt`, obj['observedAt'] ?? null),
+        bpSystolic: optionalString(`${path}.bpSystolic`, obj['bpSystolic'] ?? null),
+        bpDiastolic: optionalString(`${path}.bpDiastolic`, obj['bpDiastolic'] ?? null),
+        pulse: optionalString(`${path}.pulse`, obj['pulse'] ?? null),
+        respiration: optionalString(`${path}.respiration`, obj['respiration'] ?? null),
+        temperatureF: optionalString(`${path}.temperatureF`, obj['temperatureF'] ?? null),
+        weightLbs: optionalString(`${path}.weightLbs`, obj['weightLbs'] ?? null),
+        heightInches: optionalString(`${path}.heightInches`, obj['heightInches'] ?? null),
+        bmi: optionalString(`${path}.bmi`, obj['bmi'] ?? null),
+        oxygenSaturation: optionalString(
+            `${path}.oxygenSaturation`,
+            obj['oxygenSaturation'] ?? null,
+        ),
+        source: decodeSourceReference(`${path}.source`, requireKey(path, obj, 'source')),
+    };
+};
+
+export const decodeVitalsResponse = (raw: unknown): readonly VitalSign[] => {
+    const obj = expectObject('vitalsResponse', raw);
+    const arr = expectArray('vitalsResponse.vitals', requireKey('vitalsResponse', obj, 'vitals'));
+    return arr.map((item, idx) => decodeVital(`vitalsResponse.vitals[${String(idx)}]`, item));
+};
+
+const decodeEncounterNote = (path: string, raw: unknown): EncounterNote => {
+    const obj = expectObject(path, raw);
+    return {
+        encounterId: expectString(`${path}.encounterId`, obj['encounterId']),
+        noteId: expectString(`${path}.noteId`, obj['noteId']),
+        noteDate: optionalString(`${path}.noteDate`, obj['noteDate'] ?? null),
+        subjective: optionalString(`${path}.subjective`, obj['subjective'] ?? null),
+        objective: optionalString(`${path}.objective`, obj['objective'] ?? null),
+        assessment: optionalString(`${path}.assessment`, obj['assessment'] ?? null),
+        plan: optionalString(`${path}.plan`, obj['plan'] ?? null),
+        source: decodeSourceReference(`${path}.source`, requireKey(path, obj, 'source')),
+    };
+};
+
+export const decodeEncounterNotesResponse = (raw: unknown): readonly EncounterNote[] => {
+    const obj = expectObject('encounterNotesResponse', raw);
+    const arr = expectArray(
+        'encounterNotesResponse.notes',
+        requireKey('encounterNotesResponse', obj, 'notes'),
+    );
+    return arr.map((item, idx) =>
+        decodeEncounterNote(`encounterNotesResponse.notes[${String(idx)}]`, item),
+    );
 };
 
 export const decodePatientContextResponse = (raw: unknown): PatientContextResponse => {
