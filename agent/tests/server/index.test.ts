@@ -241,7 +241,7 @@ describe('POST /v1/agent/briefing', () => {
             });
             await onEvent({
                 type: 'assistantMessage',
-                message: { segments: [], gaps: [], suggestedFollowUps: [] },
+                message: { segments: [], gaps: [], suggestedFollowUps: [], archetypeFlags: [] },
             });
             await onEvent({ type: 'done', persistedAt: '2026-04-30T12:00:00.000Z' });
             return [];
