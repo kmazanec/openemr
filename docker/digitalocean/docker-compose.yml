@@ -60,9 +60,21 @@
 name: openemr
 
 services:
+  # ---------------------------------------------------------------------------
+  # Resource budget (§6.3 — sized for the 4 GB / 2 vCPU production Droplet)
+  # ---------------------------------------------------------------------------
+  # Per-service caps prevent a runaway from OOM-killing its neighbors. Sum of
+  # `mem_limit` is ~3.4 GB out of 4 GB physical, leaving headroom for the OS,
+  # the Docker daemon, and short bursts above steady-state. CPU shares are
+  # soft caps — services can burst above their `cpus:` quota when neighbors
+  # are idle. Bump a single limit ad-hoc with `docker update --memory ...`
+  # without editing this file (see docs/RUNBOOK.md).
+
   mysql:
     image: mariadb:11.8.6@sha256:78a5047d3ba33975f183f183c2464cc7f1eab13ec8667e57cc9a5821d6da7577
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
     command: ['mariadbd', '--character-set-server=utf8mb4']
     volumes:
     - databasevolume:/var/lib/mysql
@@ -79,6 +91,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
     # Light persistence: snapshot to disk if at least 1 key changed in
     # the last 60s. Sessions are the primary use case, so we don't need
     # AOF; an occasional snapshot is enough that a redis crash doesn't
@@ -95,6 +109,8 @@ services:
   agent-postgres:
     image: postgres:16-alpine@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
     restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
     environment:
       POSTGRES_USER: agent
       POSTGRES_PASSWORD: ${AGENT_PG_PASSWORD}
@@ -113,6 +129,8 @@ services:
     build:
       context: /srv/openemr/current/agent
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.75
     depends_on:
       agent-postgres:
         condition: service_healthy
@@ -155,6 +173,8 @@ services:
   openemr:
     image: openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.5
     depends_on:
       mysql:
         condition: service_healthy
@@ -221,6 +241,8 @@ services:
   caddy:
     image: caddy:2-alpine@sha256:834468128c7696cec0ceea6172f7d692daf645ae51983ca76e39da54a97c570d
     restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.25
     ports:
     - '80:80'
     - '443:443'
