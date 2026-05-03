@@ -1584,7 +1584,7 @@ UC1), free-text adversarial prompts (§4.5). Gaps below are explicit
 RBAC-tier and model-misbehavior cases that don't yet have a pinned
 test.
 
-- [ ] **Authorization-tier evals.** PRESEARCH §12 commits to OpenEMR's
+- [x] **Authorization-tier evals.** PRESEARCH §12 commits to OpenEMR's
   three-tier ACL model (physician / nurse / admin). Add eval cases
   asserting the agent honors that boundary: a nurse principal querying
   a chart they don't have access to gets a 403 from the proxy with
@@ -1592,14 +1592,42 @@ test.
   physician's patient (outside their assigned panel) is blocked at
   the policy gate. Lives alongside §3.6's cross-patient case;
   fixtures use the seeded role users from `db/seeds/`.
-- [ ] **Hidden-data extraction.** A claim that asks the agent to
+
+  Implementation notes (2026-05-02):
+  - The agent-side property is principal-agnostic: *any* 403 from the
+    snapshot proxy short-circuits before token spend. Whether the 403
+    came from a nurse without ACL or a physician outside their panel
+    is decided by the PHP `PolicyGate` / `AgentSnapshotController`
+    and pinned in
+    `tests/Tests/Isolated/Modules/ClinicalCopilot/`. The eval at
+    `agent/evals/cases/uc1/authTier.test.ts` parameterizes
+    `describe.each` across the two denial reasons named in the
+    checkbox and asserts each one fails closed identically: graph
+    rejects with `SnapshotHttpError`, synthesizer never invoked,
+    `counters.modelUsage === {}`. Mirrors `crossPatient.test.ts`.
+  - The "seeded role users from `db/seeds/`" reference is stale
+    relative to the current `baseline.sql.gz`, which ships only
+    admin / clinician / portal / phimail / accountant — no nurse
+    user, no physician panel separation. The agent-layer eval doesn't
+    need a real principal; the snapshot-client stub is what models
+    the proxy's deny.
+- [x] **Hidden-data extraction.** A claim that asks the agent to
   surface a field that's deliberately excluded from the snapshot
   (SSN, full address, prescriber's home phone) must produce no
   citation and no leaked value. Stub the synthesizer to emit a claim
   citing such a field; assert the verifier rejects it because the
   field isn't in the indexed snapshot. Pins that PHI minimization is
   a tested property, not an assumed one.
-- [ ] **Malformed model output.** PDF §"Failure Modes" asks what
+  (`agent/evals/cases/uc1/hiddenDataExtraction.test.ts` —
+  `it.each` across SSN / full address / prescriber home phone. Each
+  case stubs an "overreaching" synthesizer that emits a claim citing
+  a fabricated `recordId` for an excluded data class; the verifier
+  rejects with `source-record-not-in-snapshot`, the format node
+  redacts the leaking segment, and the canonical leaked token is
+  scanned out of every non-redacted segment. Distinct *threat model*
+  from §3.6's promptInjection.test.ts — model overreach, no attacker
+  payload — even though the rejection rides the same rule.)
+- [x] **Malformed model output.** PDF §"Failure Modes" asks what
   happens "when the model returns something unexpected." Today the
   Zod schema in `synthesize.ts` rejects bad output and the verifier
   rejects sourceless claims (§3.3). Add an eval case: stub the
@@ -1607,11 +1635,31 @@ test.
   a claim with an empty `sourceReferences` array, assert the graph
   surfaces a structured error rather than a malformed response or
   crash. One test per failure shape.
-- [ ] **Cross-conversation leakage.** Conversation state is keyed by
+  (`agent/evals/cases/uc1/malformedModelOutput.test.ts` — three
+  tests. (1) Synthesizer throws a malformed-JSON-shaped Error: graph
+  rejects with the same Error instance, verify counters stay at
+  zero. (2) Synthesizer throws `ZodError`: graph surfaces the typed
+  error. (3) Synthesizer returns a claim with `sourceReferences: []`:
+  verifier rejects with `missing-source-references`
+  (`REJECT_NO_SOURCE` at `verifier.ts:38`), the segment is redacted.
+  The `Synthesizer` injection point sits *after* Zod parsing, so the
+  test doesn't literally feed malformed JSON; it stubs the errors a
+  Zod-backed synthesizer would throw. Pins that the verifier remains
+  a second gate even if Zod is loosened on `sourceReferences.min(1)`.)
+- [x] **Cross-conversation leakage.** Conversation state is keyed by
   `(user, patient)` per PRESEARCH "Open Decisions" #6. Add a case:
   invoke the graph with a follow-up envelope whose conversation_id
   belongs to a different patient than the envelope's `pid`; assert
   the runner rejects rather than blending state across conversations.
+  (`agent/evals/cases/uc1/crossConversation.test.ts` — drives
+  `createBriefingRunner` end-to-end with two different-pid threads
+  pre-seeded in an in-memory `conversationStore`. The follow-up
+  envelope cites the other-patient thread's id while claiming
+  `principal.pid`. Asserts `BriefingContractError`, synthesizer
+  never invoked, `counters.modelUsage === {}`, the legitimate
+  other-patient thread's message list still empty. Adds the
+  "0 tokens spent" framing the existing unit test in
+  `tests/server/briefingRunner.test.ts:234-260` doesn't pin.)
 
 ---
 
