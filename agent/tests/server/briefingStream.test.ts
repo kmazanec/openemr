@@ -134,4 +134,16 @@ describe('encodeStreamEvent', () => {
         const out = encodeStreamEvent({ type: 'error', code: 'briefing_failed' });
         expect(out).toBe('event: error\ndata: {"type":"error","code":"briefing_failed"}\n\n');
     });
+
+    it('encodes progress event with stage, label and status payload', () => {
+        const out = encodeStreamEvent({
+            type: 'progress',
+            stage: 'retrieve',
+            label: 'Reading the chart',
+            status: 'started',
+        });
+        expect(out).toBe(
+            'event: progress\ndata: {"type":"progress","stage":"retrieve","label":"Reading the chart","status":"started"}\n\n',
+        );
+    });
 });

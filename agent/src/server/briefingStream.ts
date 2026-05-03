@@ -19,12 +19,29 @@ import type { AssistantMessage, PersistedRecord, RequestEnvelope } from '../grap
  * changing the message-level contract.
  */
 
+/**
+ * Pipeline stages exposed to the renderer as a `progress` event. A
+ * subset of the LangGraph node names — only the ones a clinician
+ * benefits from seeing while waiting (sub-millisecond plumbing nodes
+ * like `loadState` / `planContext` / `persist` are deliberately
+ * omitted). The `label` rides the wire so the server is the single
+ * source of truth for user-facing text; future stages can be added
+ * without a paired frontend change.
+ */
+export type ProgressStage = 'retrieve' | 'synthesize' | 'verify' | 'format';
+
 export type BriefingStreamEvent =
     | {
           readonly type: 'meta';
           readonly conversationId: string;
           readonly requestId: string;
           readonly siteId: string;
+      }
+    | {
+          readonly type: 'progress';
+          readonly stage: ProgressStage;
+          readonly label: string;
+          readonly status: 'started' | 'completed';
       }
     | {
           readonly type: 'assistantMessage';
