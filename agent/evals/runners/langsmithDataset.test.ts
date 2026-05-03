@@ -4,7 +4,12 @@ import type { Client } from 'langsmith';
 
 import { ARCHETYPES } from '../fixtures/regenerate.js';
 
-import { DATASET_NAME, uploadDataset } from './langsmithDataset.js';
+import {
+    DATASET_NAME,
+    UC5_DATASET_NAME,
+    uploadDataset,
+    uploadUc5Dataset,
+} from './langsmithDataset.js';
 
 /**
  * §3.6 uploader unit tests. Two branches matter:
@@ -71,5 +76,53 @@ describe('uploadDataset', () => {
         expect(args.map((a) => a.metadata.archetype).sort()).toEqual([...ARCHETYPES].sort());
         expect(result.created).toBe(true);
         expect(result.exampleCount).toBe(ARCHETYPES.length);
+    });
+});
+
+describe('uploadUc5Dataset', () => {
+    it('skips when LANGSMITH_API_KEY is unset', async () => {
+        const result = await uploadUc5Dataset({ apiKey: '' });
+        expect(result.created).toBe(false);
+        expect(result.skippedReason).toBe('LANGSMITH_API_KEY not set');
+        expect(result.datasetName).toBe(UC5_DATASET_NAME);
+        expect(result.exampleCount).toBe(0);
+    });
+
+    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // The bump-on-shape-change rule lives in the dataset module's
+        // docblock; pinning the suffix here means a future shape change
+        // is forced through a name change rather than silent reuse.
+        expect(UC5_DATASET_NAME.endsWith('-v1')).toBe(true);
+    });
+
+    it('creates the dataset and one example per slot when missing', async () => {
+        const hasDataset = vi.fn(() => Promise.resolve(false));
+        const fakeDataset = { id: 'ds-uc5-1', name: UC5_DATASET_NAME };
+        const createDataset = vi.fn(() => Promise.resolve(fakeDataset));
+        const createExamples = vi.fn((_uploads: readonly unknown[]) => Promise.resolve([]));
+        const client = {
+            hasDataset,
+            createDataset: createDataset as unknown as Client['createDataset'],
+            createExamples: createExamples as unknown as Client['createExamples'],
+        } as unknown as Client;
+
+        const result = await uploadUc5Dataset({ apiKey: 'fake', client });
+
+        expect(hasDataset).toHaveBeenCalledWith({ datasetName: UC5_DATASET_NAME });
+        expect(createDataset).toHaveBeenCalledTimes(1);
+        expect(createExamples).toHaveBeenCalledTimes(1);
+        const firstCall = createExamples.mock.calls[0];
+        if (firstCall === undefined) {
+            throw new Error('expected createExamples to have been called');
+        }
+        const args = firstCall[0] as readonly {
+            metadata: { archetype: string; appointmentId: string };
+            outputs: { archetypeFlags: readonly string[] };
+        }[];
+        expect(args).toHaveLength(20);
+        const flagged = args.filter((a) => a.outputs.archetypeFlags.length > 0);
+        expect(flagged).toHaveLength(8);
+        expect(result.created).toBe(true);
+        expect(result.exampleCount).toBe(20);
     });
 });

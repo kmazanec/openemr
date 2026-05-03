@@ -13,6 +13,7 @@ const ASSISTANT: AssistantMessage = {
     segments: [{ text: 'briefing.', claims: [], redacted: false }],
     gaps: [],
     suggestedFollowUps: [],
+    archetypeFlags: [],
 };
 
 const baseKey = (overrides: Partial<ConversationKey> = {}): ConversationKey => ({

@@ -39,6 +39,7 @@ const buildMessage = (overrides: Partial<AssistantMessage> = {}): AssistantMessa
     ],
     gaps: [],
     suggestedFollowUps: [],
+    archetypeFlags: [],
     ...overrides,
 });
 

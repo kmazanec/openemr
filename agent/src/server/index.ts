@@ -314,12 +314,21 @@ export const createApp = ({
                         await writeEvent({ type: 'error', code: 'briefing_failed' });
                         return;
                     }
-                    // Flags = the `reason` codes of any Gap entries — these
-                    // are short, machine-readable strings (e.g.
-                    // `safety-critical-rejected`) the schedule view can
-                    // light up at a glance without re-rendering the full
-                    // assistant message.
-                    const flags = formattedMessage.gaps.map((gap) => gap.reason);
+                    // Flags carry two families of short, machine-readable
+                    // codes the schedule view chips off without
+                    // re-rendering the full assistant message:
+                    //
+                    //   1. `gaps[].reason` — verifier-derived issues for
+                    //      this turn (e.g. `safety-critical-rejected`).
+                    //   2. `archetypeFlags`  — §5.5 snapshot-derived
+                    //      labels (e.g. `archetype:diabetic_uncontrolled`).
+                    //
+                    // Both ride into `schedule_briefings.flags[]`; the
+                    // §5.4 shim renders one chip per entry.
+                    const flags = [
+                        ...formattedMessage.gaps.map((gap) => gap.reason),
+                        ...formattedMessage.archetypeFlags,
+                    ];
                     const recordOutcome = await scheduleBriefingsLog.record(
                         {
                             key: { practitionerUuid, appointmentId },

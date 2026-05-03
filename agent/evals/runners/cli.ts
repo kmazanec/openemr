@@ -7,7 +7,7 @@
  */
 
 import { runExperiment } from './experiment.js';
-import { uploadDataset } from './langsmithDataset.js';
+import { uploadDataset, uploadUc5Dataset } from './langsmithDataset.js';
 
 const usage = (): string =>
     'Usage: tsx evals/runners/cli.ts <upload-dataset|experiment>';
@@ -16,8 +16,13 @@ const main = async (): Promise<void> => {
     const cmd = process.argv[2];
     switch (cmd) {
         case 'upload-dataset': {
-            const result = await uploadDataset();
-            process.stdout.write(`${JSON.stringify(result)}\n`);
+            // Each uploader is idempotent (no-op if the dataset
+            // already exists). UC2's uploader is wired into its own
+            // sub-target, not here, to keep the original UC1 surface
+            // untouched. UC5 ships in §5.5 alongside UC1.
+            const uc1 = await uploadDataset();
+            const uc5 = await uploadUc5Dataset();
+            process.stdout.write(`${JSON.stringify({ uc1, uc5 })}\n`);
             return;
         }
         case 'experiment': {

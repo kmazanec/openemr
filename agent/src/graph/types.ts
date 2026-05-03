@@ -202,6 +202,14 @@ export interface AssistantMessage {
      * params back through the briefing endpoint.
      */
     readonly suggestedFollowUps: readonly SuggestedFollowUp[];
+    /**
+     * §5.5 archetype-derived chips that the §5.4 schedule view rolls
+     * into the row's `flags[]`. Pure function over the snapshot — see
+     * `graph/archetypeFlags.ts`. Empty for snapshots whose data does
+     * not match any archetype rule. Distinct from `gaps[]` (verifier
+     * issues) and from `suggestedFollowUps` (UI chips).
+     */
+    readonly archetypeFlags: readonly string[];
 }
 
 export interface PersistedRecord {

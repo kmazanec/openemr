@@ -182,6 +182,7 @@ describe('POST /v1/agent/briefing', () => {
                     ],
                     gaps: [],
                     suggestedFollowUps: [],
+                    archetypeFlags: [],
                 },
             },
             { type: 'done', persistedAt: '2026-04-30T12:00:00.000Z' },

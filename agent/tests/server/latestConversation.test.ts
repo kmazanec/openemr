@@ -37,6 +37,7 @@ const ASSISTANT: AssistantMessage = {
     ],
     gaps: [],
     suggestedFollowUps: [],
+    archetypeFlags: [],
 };
 
 const buildResume = () => {

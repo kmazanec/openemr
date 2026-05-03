@@ -12,6 +12,7 @@ const summary: AssistantMessage = {
     segments: [],
     gaps: [],
     suggestedFollowUps: [],
+    archetypeFlags: [],
 };
 
 const fixtureRecord = (): ScheduleBriefingRecord => ({

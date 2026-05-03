@@ -17,7 +17,13 @@
 import { Client } from 'langsmith';
 
 import type { BriefingSnapshot } from '../../src/graph/types.js';
-import { loadFixture, loadUc2Fixture, type Uc2Scenario } from '../fixtures/load.js';
+import {
+    loadFixture,
+    loadUc2Fixture,
+    loadUc5MorningPrepDay,
+    type Uc2Scenario,
+    type Uc5LoadedSlot,
+} from '../fixtures/load.js';
 import { ARCHETYPES, type ArchetypeKey } from '../fixtures/regenerate.js';
 import { UC2_SCENARIOS } from '../fixtures/regenerate-uc2.js';
 
@@ -270,3 +276,84 @@ export const uploadUc2Dataset = async (
         exampleCount: examples.length,
     };
 };
+
+// ---------------------------------------------------------------------
+// §5.5 UC5 morning-prep dataset
+// ---------------------------------------------------------------------
+
+export const UC5_DATASET_NAME = 'clinical-copilot-uc5-morning-prep-v1';
+
+const UC5_DATASET_DESCRIPTION =
+    'UC5 (schedule-aware morning prep) — one example per slot in the synthetic 20-patient day fixture. Inputs are the slot snapshot + appointment metadata; outputs encode the expected `archetypeFlags` deriveArchetypeFlags() should produce for that slot (e.g. `archetype:diabetic_uncontrolled`). The flagged subset is 8 of 20 (3 diabetic_uncontrolled, 3 complex_elderly_new_med, 2 recent_ed_visit). Bumping the example shape means renaming this constant to `…-v2`; old experiments stay comparable.';
+
+const buildUc5Examples = (): readonly {
+    inputs: {
+        snapshot: BriefingSnapshot;
+        appointmentId: string;
+        practitionerUuid: string;
+        startAt: string;
+        archetype: string;
+    };
+    outputs: { archetypeFlags: readonly string[] };
+    metadata: { archetype: string; appointmentId: string };
+}[] => {
+    const day = loadUc5MorningPrepDay();
+    return day.slots.map((slot: Uc5LoadedSlot) => ({
+        inputs: {
+            snapshot: slot.snapshot,
+            appointmentId: slot.appointmentId,
+            practitionerUuid: slot.practitionerUuid,
+            startAt: slot.startAt,
+            archetype: slot.archetype,
+        },
+        outputs: { archetypeFlags: slot.expectedArchetypeFlags },
+        metadata: { archetype: slot.archetype, appointmentId: slot.appointmentId },
+    }));
+};
+
+export const uploadUc5Dataset = async (
+    options: { readonly client?: Client; readonly apiKey?: string } = {},
+): Promise<UploadResult> => {
+    const apiKey = options.apiKey ?? process.env['LANGSMITH_API_KEY'];
+    if (apiKey === undefined || apiKey.length === 0) {
+        return {
+            created: false,
+            datasetName: UC5_DATASET_NAME,
+            exampleCount: 0,
+            skippedReason: 'LANGSMITH_API_KEY not set',
+        };
+    }
+
+    const client = options.client ?? new Client({ apiKey });
+
+    const exists = await client.hasDataset({ datasetName: UC5_DATASET_NAME });
+    if (exists) {
+        return {
+            created: false,
+            datasetName: UC5_DATASET_NAME,
+            exampleCount: 0,
+            skippedReason: 'dataset already exists',
+        };
+    }
+
+    const dataset = await client.createDataset(UC5_DATASET_NAME, {
+        description: UC5_DATASET_DESCRIPTION,
+        dataType: 'kv',
+    });
+
+    const examples = buildUc5Examples().map((ex) => ({
+        inputs: ex.inputs,
+        outputs: ex.outputs,
+        metadata: ex.metadata,
+        dataset_id: dataset.id,
+    }));
+
+    await client.createExamples(examples);
+    return {
+        created: true,
+        datasetName: UC5_DATASET_NAME,
+        exampleCount: examples.length,
+    };
+};
+
+export const __uc5InternalsForTesting = { buildUc5Examples };

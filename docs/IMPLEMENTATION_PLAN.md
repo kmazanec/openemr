@@ -1372,19 +1372,55 @@ clinician identity.
   fast-path on the panel.)
 
 ### 5.5 Evals
-- [ ] Eval case: a synthetic 20-patient day with the practitioner
+- [x] Eval case: a synthetic 20-patient day with the practitioner
   opted in; assert the right subset is flagged
   (Diabetic-Uncontrolled, RecentEdVisit, ComplexElderly with a new
   med)
-- [ ] Eval case: same 20-patient day with the practitioner opted
+  (Vitest gate at `agent/evals/cases/uc5/morningPrepFlagging.test.ts`
+  drives the precompute route over the 20-slot
+  `agent/evals/fixtures/uc5/morning_prep_day.json` fixture; the
+  flagged subset is 8 of 20 — 3 diabetic_uncontrolled, 3
+  complex_elderly, 2 recent_ed_visit. Flag derivation is a new pure
+  function in `agent/src/graph/archetypeFlags.ts` whose output rides
+  into `schedule_briefings.flags[]` alongside `gaps[].reason`. The
+  PHP-side mirror at
+  `tests/Tests/Isolated/Modules/ClinicalCopilot/Cli/PrecomputeUc5EvalTest.php::testTwentyPatientDayCountsByArchetype`
+  pins the orchestrator's row count + envelope shape; flag content
+  stays in Vitest because the orchestrator never sees the assistant
+  message.)
+- [x] Eval case: same 20-patient day with the practitioner opted
   **out**; assert zero `schedule_briefings` rows are written and
   zero LLM tokens are spent
-- [ ] Idempotency case: running the precompute twice for an
+  (PHPUnit isolated case
+  `PrecomputeUc5EvalTest::testOptOutDayProducesZeroRowsAndZeroHttpCalls`.
+  The opt-out gate is in PHP-side
+  `SettingsRepository::findEnabledPractitioners()`; the Vitest layer
+  cannot prove it because the agent service never sees opted-out
+  practitioners. Asserts zero HTTP calls, zero slots attempted, and
+  exactly one log line — the per-run summary.)
+- [x] Idempotency case: running the precompute twice for an
   opted-in practitioner produces the same rows and zero additional
   tokens
-- [ ] Settings-flip case: toggling `morning_prep_enabled` from TRUE
+  (Vitest gate at `agent/evals/cases/uc5/idempotency.test.ts`. With
+  `existsForToday` returning `true` for every slot the route
+  short-circuits to `skipped_idempotent` before invoking the
+  briefing runner, so "zero additional tokens" maps to "runner
+  invocation count is 0" — asserted directly. Backstop at the SQL
+  layer is the existing `agent/tests/state/scheduleBriefings.test.ts`
+  UNIQUE-conflict case.)
+- [x] Settings-flip case: toggling `morning_prep_enabled` from TRUE
   to FALSE before the next run window prevents any further rows
   for that practitioner
+  (PHPUnit isolated case
+  `PrecomputeUc5EvalTest::testSettingsFlipPreventsRowsForFlippedPractitioner`:
+  two opted-in practitioners run #1 → both POST; flip A's row off
+  via the in-memory provider → run #2 only POSTs B's slots. Mirrors
+  what `SettingsRepository` would surface after a settings-page
+  toggle. LangSmith dataset
+  `clinical-copilot-uc5-morning-prep-v1` ships in
+  `agent/evals/runners/langsmithDataset.ts` so the nightly experiment
+  can score real-model precompute output against the same 20-slot
+  ground truth.)
 
 **Phase 5 done when:** morning precompute runs against the
 seed-deployed schedule for opted-in practitioners only, opt-out is

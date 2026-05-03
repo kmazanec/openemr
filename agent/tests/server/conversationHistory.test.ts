@@ -15,6 +15,7 @@ const ASSISTANT: AssistantMessage = {
     segments: [{ text: 'briefing.', claims: [], redacted: false }],
     gaps: [],
     suggestedFollowUps: [],
+    archetypeFlags: [],
 };
 
 const PRACTITIONER = 'Practitioner/dr-patel';

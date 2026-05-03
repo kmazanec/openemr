@@ -4,6 +4,7 @@ import {
     HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
     isStoppedCategory,
 } from '../../verify/verifier.js';
+import { deriveArchetypeFlags } from '../archetypeFlags.js';
 import { generateFollowUps } from '../followUps.js';
 import type {
     AssistantMessage,
@@ -143,6 +144,7 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
         segments,
         gaps: collectGaps(verified),
         suggestedFollowUps,
+        archetypeFlags: deriveArchetypeFlags(state.snapshot),
     };
 
     return { formatted };

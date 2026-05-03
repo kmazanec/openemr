@@ -35,6 +35,26 @@ const finishedAssistantEvent: BriefingStreamEvent = {
             },
         ],
         suggestedFollowUps: [],
+        archetypeFlags: [],
+    },
+};
+
+const flaggedAssistantEvent: BriefingStreamEvent = {
+    type: 'assistantMessage',
+    message: {
+        segments: [],
+        gaps: [
+            {
+                kind: 'gap',
+                reason: 'safety-critical-rejected',
+                message: 'a critical claim could not be verified',
+            },
+        ],
+        suggestedFollowUps: [],
+        // §5.5: archetype-derived chip from the snapshot. The route
+        // concatenates this with `gaps[].reason` codes into the row's
+        // `flags[]`, so the schedule view sees both families.
+        archetypeFlags: ['archetype:diabetic_uncontrolled'],
     },
 };
 
@@ -191,6 +211,45 @@ describe('POST /v1/agent/briefing — precompute branch', () => {
             appointmentId: baseEnvelope.appointmentId,
         });
         expect(state.forceFlags[0]).toBe(false);
+    });
+
+    it('§5.5 merges archetypeFlags into the recorded flags[] alongside gap reasons', async () => {
+        // Two flag families ride into `flags[]`: gap reasons from the
+        // verifier and archetype labels from the snapshot. The route
+        // concatenates them in [gaps, archetype] order so the schedule
+        // view's chip ordering matches the assistant message's gap
+        // banner ordering.
+        const runner: BriefingRunner = () => Promise.resolve([
+            flaggedAssistantEvent,
+            { type: 'done', persistedAt: '2026-05-02T12:00:00.000Z' },
+        ]);
+        const { log, state } = buildFakeLog({
+            existsForToday: false,
+            recordOutcome: { written: true, outcome: 'inserted' },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            briefingRunner: runner,
+            scheduleBriefingsLog: log,
+        });
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(baseEnvelope),
+        });
+        expect(res.status).toBe(200);
+        expect(state.recorded).toHaveLength(1);
+        expect(state.recorded[0]?.flags).toEqual([
+            'safety-critical-rejected',
+            'archetype:diabetic_uncontrolled',
+        ]);
     });
 
     it('passes force=true through to record() and skips the existence check', async () => {

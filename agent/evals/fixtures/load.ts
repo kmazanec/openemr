@@ -42,3 +42,104 @@ export const loadUc2Fixture = (scenario: Uc2Scenario): BriefingSnapshot => {
     const path = resolve(UC2_FIXTURES_DIR, `${scenario}.json`);
     return JSON.parse(readFileSync(path, 'utf8')) as BriefingSnapshot;
 };
+
+const UC5_FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc5');
+
+export interface Uc5LoadedSlot {
+    readonly appointmentId: string;
+    readonly practitionerUuid: string;
+    readonly startAt: string;
+    readonly archetype: string;
+    readonly snapshot: BriefingSnapshot;
+    readonly expectedArchetypeFlags: readonly string[];
+}
+
+export interface Uc5LoadedDay {
+    readonly practitionerUuid: string;
+    readonly day: string;
+    readonly slots: readonly Uc5LoadedSlot[];
+}
+
+/**
+ * Load the §5.5 morning-prep day fixture. Adapts each slot's wire-shape
+ * snapshot (number ids) into the in-graph `BriefingSnapshot` shape
+ * (string ids + `labHistory: null`) so callers can drive the briefing
+ * graph directly.
+ */
+export const loadUc5MorningPrepDay = (): Uc5LoadedDay => {
+    const path = resolve(UC5_FIXTURES_DIR, 'morning_prep_day.json');
+    interface RawSlot {
+        readonly appointmentId: string;
+        readonly practitionerUuid: string;
+        readonly startAt: string;
+        readonly archetype: string;
+        readonly snapshot: Record<string, unknown>;
+        readonly expectedArchetypeFlags: readonly string[];
+    }
+    interface RawDay {
+        readonly practitionerUuid: string;
+        readonly day: string;
+        readonly slots: readonly RawSlot[];
+    }
+    // Narrow a wire-shape id (`number | null` on the JSON side, held
+    // as `string | null` everywhere on the TS side) into the in-graph
+    // representation without leaning on `String(unknown)` — that
+    // route stringifies arbitrary objects to `[object Object]`,
+    // which the eslint `no-base-to-string` rule (correctly) bans.
+    const stringifyId = (raw: unknown): string | null => {
+        if (raw === null || raw === undefined) {
+            return null;
+        }
+        if (typeof raw === 'string') {
+            return raw;
+        }
+        if (typeof raw === 'number' || typeof raw === 'bigint') {
+            return raw.toString();
+        }
+        throw new TypeError(`unexpected wire-shape id (${typeof raw})`);
+    };
+    const raw = JSON.parse(readFileSync(path, 'utf8')) as RawDay;
+    return {
+        practitionerUuid: raw.practitionerUuid,
+        day: raw.day,
+        slots: raw.slots.map((slot): Uc5LoadedSlot => {
+            const wire = slot.snapshot;
+            const prescriptionsRaw = wire['prescriptions'];
+            const prescriptions = Array.isArray(prescriptionsRaw)
+                ? prescriptionsRaw.map((p: Record<string, unknown>) => ({
+                    ...p,
+                    prescriptionId: stringifyId(p['prescriptionId']),
+                }))
+                : prescriptionsRaw;
+            const remindersRaw = wire['reminders'];
+            const reminders = Array.isArray(remindersRaw)
+                ? remindersRaw.map((r: Record<string, unknown>) => ({
+                    ...r,
+                    reminderId: stringifyId(r['reminderId']),
+                }))
+                : remindersRaw;
+            const medsRaw = wire['medications'];
+            const medications = Array.isArray(medsRaw)
+                ? medsRaw.map((m: Record<string, unknown>) => ({
+                    ...m,
+                    listId: stringifyId(m['listId']),
+                }))
+                : medsRaw;
+            const adapted = {
+                ...wire,
+                prescriptions,
+                reminders,
+                medications,
+                labHistory: null,
+            } as unknown as BriefingSnapshot;
+            return {
+                appointmentId: slot.appointmentId,
+                practitionerUuid: slot.practitionerUuid,
+                startAt: slot.startAt,
+                archetype: slot.archetype,
+                snapshot: adapted,
+                expectedArchetypeFlags: slot.expectedArchetypeFlags,
+            };
+        }),
+    };
+};
