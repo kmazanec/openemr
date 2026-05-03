@@ -1461,10 +1461,10 @@ These are tracked separately but worked in parallel as each UC lands.
     LangSmith when `LANGSMITH_API_KEY` is set.
 
 ### 6.2 Cost analysis
-- [ ] `docs/COST_ANALYSIS.md` covering 100 / 1K / 10K / 100K user tiers
-- [ ] Inputs from PRESEARCH §8 metrics (patients/day, % with briefing,
+- [x] `docs/COST_ANALYSIS.md` covering 100 / 1K / 10K / 100K user tiers
+- [x] Inputs from PRESEARCH §8 metrics (patients/day, % with briefing,
   follow-ups per briefing, etc.)
-- [ ] Architectural changes called out per tier (caching, schedule
+- [x] Architectural changes called out per tier (caching, schedule
   precompute, retention)
 
 ### 6.3 Production-readiness checklist
@@ -1571,7 +1571,7 @@ These are tracked separately but worked in parallel as each UC lands.
 
 ### 6.5 Submission deliverables (per PDF §"Submission Requirements")
 - [ ] Demo video 3-5 min (one per submission)
-- [ ] AI cost analysis (lives in `docs/COST_ANALYSIS.md`)
+- [x] AI cost analysis (lives in `docs/COST_ANALYSIS.md`)
 - [ ] Eval dataset + results posted publicly via LangSmith share link
 - [ ] Social post (final submission only)
 
