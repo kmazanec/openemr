@@ -540,7 +540,7 @@ describe('createBriefingRunner — progress event emission', () => {
             conversationMessages,
         });
 
-        const sink: Array<{ type: string; stage?: string; status?: string }> = [];
+        const sink: { type: string; stage?: string; status?: string }[] = [];
         const returned = await runner({
             envelope: buildEnvelope(),
             token: 'tok',
