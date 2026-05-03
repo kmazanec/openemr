@@ -291,9 +291,9 @@ const noHistory: Uc2Fixture = {
 
 const fixtures: readonly Uc2Fixture[] = [trendUp, trendStable, noHistory];
 
-const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc2');
+const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'lab-trends');
 
-export interface RegenerateUc2Result {
+export interface RegenerateLabTrendResult {
     readonly name: string;
     readonly path: string;
 }
@@ -327,9 +327,9 @@ const toWireFormat = (snapshot: BriefingSnapshot): unknown => {
     return { ...snapshot, prescriptions, reminders, medications };
 };
 
-export const regenerateUc2 = (): readonly RegenerateUc2Result[] => {
+export const regenerate = (): readonly RegenerateLabTrendResult[] => {
     mkdirSync(FIXTURES_DIR, { recursive: true });
-    const written: RegenerateUc2Result[] = [];
+    const written: RegenerateLabTrendResult[] = [];
     for (const fixture of fixtures) {
         const path = resolve(FIXTURES_DIR, `${fixture.name}.json`);
         // 2-space indent + trailing newline matches the repo's
@@ -343,13 +343,13 @@ export const regenerateUc2 = (): readonly RegenerateUc2Result[] => {
     return written;
 };
 
-export type Uc2ScenarioName = (typeof fixtures)[number]['name'];
+export type LabTrendScenarioName = (typeof fixtures)[number]['name'];
 
-export const UC2_SCENARIOS: readonly Uc2ScenarioName[] = fixtures.map((f) => f.name);
+export const LAB_TREND_SCENARIOS: readonly LabTrendScenarioName[] = fixtures.map((f) => f.name);
 
 const isMain = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {
-    const written = regenerateUc2();
+    const written = regenerate();
     for (const { name, path } of written) {
         process.stdout.write(`wrote ${name} → ${path}\n`);
     }

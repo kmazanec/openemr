@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createBriefingGraph } from '../../../src/graph/index.js';
 import { createNullUnverifiedClaimsLog } from '../../../src/verify/unverifiedClaimsLog.js';
-import { ARCHETYPES, type ArchetypeKey } from '../../fixtures/regenerate.js';
+import { ARCHETYPES, type ArchetypeKey } from '../../fixtures/regenerate-archetypes.js';
 
 import { baseEnvelope, buildClient, buildFaithfulSynth, loadFixture } from './_helpers.js';
 

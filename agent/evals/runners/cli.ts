@@ -1,28 +1,33 @@
 /**
- * Tiny CLI for the §3.6 LangSmith runners. Exists so `package.json`
- * can wire `npm run evals:upload-dataset` and `npm run evals:experiment`
- * to single tsx invocations. Both subcommands no-op when their
- * required env vars are unset, so wiring them into CI is safe even on
- * branches that don't have access to the LangSmith secret.
+ * Tiny CLI for the LangSmith runners. `package.json` wires
+ * `npm run evals:upload-dataset` and `npm run evals:experiment` to
+ * single tsx invocations. Both subcommands no-op when their required
+ * env vars are unset, so wiring them into CI is safe even on
+ * branches without LangSmith access.
+ *
+ * Both subcommands iterate every suite in `suites.ts` — adding a new
+ * suite means writing `<name>Suite.ts` and appending it to the
+ * registry; this file does not change.
  */
 
 import { runExperiment } from './experiment.js';
-import { uploadDataset, uploadUc5Dataset } from './langsmithDataset.js';
+import { SUITES } from './suites.js';
 
-const usage = (): string =>
-    'Usage: tsx evals/runners/cli.ts <upload-dataset|experiment>';
+const usage = (): string => 'Usage: tsx evals/runners/cli.ts <upload-dataset|experiment>';
 
 const main = async (): Promise<void> => {
     const cmd = process.argv[2];
     switch (cmd) {
         case 'upload-dataset': {
             // Each uploader is idempotent (no-op if the dataset
-            // already exists). UC2's uploader is wired into its own
-            // sub-target, not here, to keep the original UC1 surface
-            // untouched. UC5 ships in §5.5 alongside UC1.
-            const uc1 = await uploadDataset();
-            const uc5 = await uploadUc5Dataset();
-            process.stdout.write(`${JSON.stringify({ uc1, uc5 })}\n`);
+            // already exists). Run them sequentially so a single
+            // missing API key surfaces the same `skippedReason`
+            // shape for every suite.
+            const results = await Promise.all(SUITES.map((s) => s.uploadDataset()));
+            const summary = Object.fromEntries(
+                SUITES.map((s, i) => [s.name, results[i]]),
+            );
+            process.stdout.write(`${JSON.stringify(summary)}\n`);
             return;
         }
         case 'experiment': {

@@ -5,22 +5,21 @@ import { fileURLToPath } from 'node:url';
 import type { BriefingSnapshot } from '../../src/graph/types.js';
 import type { ChartSnapshot } from '../../src/snapshot/types.js';
 
-const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc1');
+const ARCHETYPES_FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'archetypes');
 
 /**
- * Load a UC1 fixture and adapt it to the in-graph `BriefingSnapshot`
- * shape. UC1 fixtures are pinned `ChartSnapshot` JSON; the only
- * difference between the two shapes is `labHistory`, which UC1 turns
- * never populate (UC2 has its own fixture loader).
+ * Load an archetype fixture and adapt it to the in-graph `BriefingSnapshot`
+ * shape. Archetype fixtures are pinned `ChartSnapshot` JSON; the only
+ * difference between the two shapes is `labHistory`, which archetype turns
+ * never populate (the lab-trends suite has its own fixture loader).
  *
- * Per user direction, §4.3 keeps UC3 fixtures colocated under `uc1/`
- * rather than splitting into a `uc3/` sibling — loader accepts any
- * string key (UC1's ArchetypeKey or one of the §4.3 named fixtures
- * like `lisinopril_recent_start`); the file must exist under
- * `evals/fixtures/uc1/`.
+ * §4.3 medication-change fixtures stay colocated here (e.g.
+ * `lisinopril_recent_start`) rather than under a sibling folder —
+ * the loader accepts any string key, the file must exist under
+ * `evals/fixtures/archetypes/`.
  */
 export const loadFixture = (archetype: string): BriefingSnapshot => {
-    const path = resolve(FIXTURES_DIR, `${archetype}.json`);
+    const path = resolve(ARCHETYPES_FIXTURES_DIR, `${archetype}.json`);
     const chart = JSON.parse(readFileSync(path, 'utf8')) as ChartSnapshot;
     return {
         ...chart,
@@ -28,22 +27,22 @@ export const loadFixture = (archetype: string): BriefingSnapshot => {
     };
 };
 
-const UC2_FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc2');
+const LAB_TRENDS_FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'lab-trends');
 
 export type Uc2Scenario = 'a1c_trend_up' | 'a1c_trend_stable' | 'no_lab_history';
 
 /**
- * Load a §4.2 UC2 fixture. Returns a `BriefingSnapshot` whose
- * `labHistory` slot is populated — that's the whole point of UC2.
- * Unlike `loadFixture`, no adaptation is needed: the regenerator
- * emits BriefingSnapshot directly.
+ * Load a §4.2 lab-trend fixture. Returns a `BriefingSnapshot` whose
+ * `labHistory` slot is populated — that's the whole point of the
+ * lab-trends suite. Unlike `loadFixture`, no adaptation is needed:
+ * the regenerator emits BriefingSnapshot directly.
  */
 export const loadUc2Fixture = (scenario: Uc2Scenario): BriefingSnapshot => {
-    const path = resolve(UC2_FIXTURES_DIR, `${scenario}.json`);
+    const path = resolve(LAB_TRENDS_FIXTURES_DIR, `${scenario}.json`);
     return JSON.parse(readFileSync(path, 'utf8')) as BriefingSnapshot;
 };
 
-const UC5_FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc5');
+const MORNING_PREP_FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'morning-prep');
 
 export interface Uc5LoadedSlot {
     readonly appointmentId: string;
@@ -67,7 +66,7 @@ export interface Uc5LoadedDay {
  * graph directly.
  */
 export const loadUc5MorningPrepDay = (): Uc5LoadedDay => {
-    const path = resolve(UC5_FIXTURES_DIR, 'morning_prep_day.json');
+    const path = resolve(MORNING_PREP_FIXTURES_DIR, 'morning_prep_day.json');
     interface RawSlot {
         readonly appointmentId: string;
         readonly practitionerUuid: string;

@@ -1,9 +1,9 @@
 /**
- * §3.6 LangSmith experiment runner. Drives the briefing graph against
- * the `clinical-copilot-uc1-golden-v1` dataset and posts results as a
- * LangSmith experiment tagged with the current git SHA. Run nightly
- * from CI (`test:agent-evals-nightly`) — the per-MR gate is the Vitest
- * suite, which is fast and deterministic.
+ * LangSmith experiment runner. Iterates every suite in the registry,
+ * driving the briefing graph against each suite's dataset and posting
+ * results as a LangSmith experiment tagged with the current git SHA.
+ * Run nightly from CI (`test:agent-evals-nightly`) — the per-MR gate
+ * is the Vitest suite, which is fast and deterministic.
  *
  * Behavior is conditional on environment:
  *
@@ -14,24 +14,16 @@
  *
  * `git_sha` defaults to `process.env.CI_COMMIT_SHA` (GitLab) and falls
  * back to whatever the caller passes. Both end up as experiment
- * metadata so a future cost-analysis step (Phase 6.2) can correlate
- * accept-rate / token-usage with the commit that produced them.
+ * metadata so a future cost-analysis step can correlate accept-rate
+ * and token-usage with the commit that produced them.
  */
 
-import { evaluate } from 'langsmith/evaluation';
-
-import { createBriefingGraph } from '../../src/graph/index.js';
-import { createAnthropicSynthesizer } from '../../src/graph/nodes/synthesize.js';
-import type { BriefingSnapshot } from '../../src/graph/types.js';
-import type { ChartSnapshot, Encounter, LabObservation } from '../../src/snapshot/types.js';
-import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
-import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaimsLog.js';
-
-import { DATASET_NAME } from './langsmithDataset.js';
+import { SUITES } from './suites.js';
+import type { ExperimentRunResult } from './shared.js';
 
 interface RunResult {
     readonly ranExperiment: boolean;
-    readonly experimentName?: string;
+    readonly results: readonly ExperimentRunResult[];
     readonly skippedReason?: string;
 }
 
@@ -45,93 +37,26 @@ interface RunOptions {
     readonly anthropicApiKey?: string;
 }
 
-/**
- * The briefing graph's snapshot client, but instead of HTTPing OpenEMR,
- * it returns the dataset example's pre-recorded `inputs.snapshot`.
- * Because the experiment loop calls our target once per example and
- * passes that example's input verbatim, we resolve the snapshot from
- * the closure rather than the URL.
- */
-const datasetClient = (snapshot: BriefingSnapshot): SnapshotClient => {
-    // The bulk snapshot endpoint never returns labs/encounters as a Gap —
-    // those come from narrow tools. UC1 fixtures only ever carry array
-    // shapes, so narrow before handing to the (ChartSnapshot-typed)
-    // client.
-    const chart: ChartSnapshot = {
-        patient: snapshot.patient,
-        appointment: snapshot.appointment,
-        diagnoses: snapshot.diagnoses,
-        prescriptions: snapshot.prescriptions,
-        allergies: snapshot.allergies,
-        labs: Array.isArray(snapshot.labs) ? snapshot.labs : [] as readonly LabObservation[],
-        encounters: Array.isArray(snapshot.encounters)
-            ? snapshot.encounters
-            : [] as readonly Encounter[],
-        reminders: Array.isArray(snapshot.reminders) ? snapshot.reminders : [],
-        medications: Array.isArray(snapshot.medications) ? snapshot.medications : [],
-    };
-    return {
-        fetchSnapshot: () => Promise.resolve(chart),
-    };
-};
-
 export const runExperiment = async (options: RunOptions = {}): Promise<RunResult> => {
     const langsmithApiKey = options.langsmithApiKey ?? process.env['LANGSMITH_API_KEY'];
     const anthropicApiKey = options.anthropicApiKey ?? process.env['ANTHROPIC_API_KEY'];
     if (langsmithApiKey === undefined || langsmithApiKey.length === 0) {
-        return { ranExperiment: false, skippedReason: 'LANGSMITH_API_KEY not set' };
+        return { ranExperiment: false, results: [], skippedReason: 'LANGSMITH_API_KEY not set' };
     }
     if (anthropicApiKey === undefined || anthropicApiKey.length === 0) {
-        return { ranExperiment: false, skippedReason: 'ANTHROPIC_API_KEY not set' };
+        return { ranExperiment: false, results: [], skippedReason: 'ANTHROPIC_API_KEY not set' };
     }
 
     const gitSha = options.gitSha ?? process.env['CI_COMMIT_SHA'] ?? 'local';
-    const synthesizer = createAnthropicSynthesizer({ apiKey: anthropicApiKey });
 
-    /**
-     * Each example feeds its `snapshot` to a per-call graph (the
-     * snapshot client is closed over the example, so the graph reads
-     * the dataset row instead of HTTPing OpenEMR). The target returns
-     * the verifier's accepted/rejected counts and the structured
-     * ground-truth assertions; LangSmith's UI compares those to the
-     * dataset row's `outputs` automatically.
-     */
-    const target = async (input: { snapshot: BriefingSnapshot; archetype: string }) => {
-        const graph = createBriefingGraph({
-            retrieve: { client: datasetClient(input.snapshot), token: 'experiment', siteId: 'default' },
-            synthesize: { synthesizer },
-            verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-        });
-        const out = await graph.invoke({
-            envelope: {
-                conversationId: `exp-${input.archetype}`,
-                requestId: `exp-${input.archetype}`,
-                siteId: 'default',
-                actor: { userId: 'experiment', fhirUser: 'https://emr/Practitioner/experiment' },
-                patient: { pid: input.snapshot.patient.pid, uuid: input.snapshot.patient.uuid },
-                task: 'default_briefing',
-            },
-        });
-        const accepted = out.verified?.accepted ?? [];
-        return {
-            verifierPassed: out.verified?.passed === true,
-            acceptedCount: accepted.length,
-            rejectedCount: out.verified?.rejected.length ?? 0,
-            hardStops: out.verified?.safetyHardStops ?? [],
-            diagnosisCodes: accepted
-                .filter((c) => c.category === 'diagnosis')
-                .map((c) => c.text),
-            medicationNames: accepted
-                .filter((c) => c.category === 'prescription')
-                .map((c) => c.text),
-        };
-    };
+    // Run suites sequentially. The langsmith client streams results
+    // back as the experiment runs, so parallelizing across suites
+    // would interleave their progress output — sequential keeps the
+    // logs readable and the cost predictable.
+    const results: ExperimentRunResult[] = [];
+    for (const suite of SUITES) {
+        results.push(await suite.runExperiment({ anthropicApiKey, gitSha }));
+    }
 
-    const results = await evaluate(target, {
-        data: DATASET_NAME,
-        experimentPrefix: `uc1-${gitSha.slice(0, 7)}`,
-        metadata: { git_sha: gitSha, suite: 'uc1-golden-v1' },
-    });
-
-    return { ranExperiment: true, experimentName: results.experimentName };
+    return { ranExperiment: true, results };
 };

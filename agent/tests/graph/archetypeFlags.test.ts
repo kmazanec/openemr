@@ -11,7 +11,7 @@ import type {
     Prescription,
     SourceReference,
 } from '../../src/snapshot/types.js';
-import { ARCHETYPES, type ArchetypeKey } from '../../evals/fixtures/regenerate.js';
+import { ARCHETYPES, type ArchetypeKey } from '../../evals/fixtures/regenerate-archetypes.js';
 import { loadFixture } from '../../evals/fixtures/load.js';
 
 /**
@@ -107,7 +107,7 @@ interface ExpectedFlags {
  * because that fixture's prescriptions started in 2008/2010 — the
  * `archetype:complex_elderly_new_med` rule keys on a prescription
  * within 30 days of the appointment. The §5.5 day fixture
- * (`regenerate-uc5.ts`) injects a recent prescription onto its
+ * (`regenerate-morning-prep.ts`) injects a recent prescription onto its
  * complex-elderly slots so the day eval surfaces the chip; this test
  * validates the rule, not the day-fixture injection.
  *

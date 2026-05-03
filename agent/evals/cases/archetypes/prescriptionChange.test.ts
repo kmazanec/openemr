@@ -12,9 +12,9 @@ import { buildClient, loadFixture } from './_helpers.js';
 /**
  * §4.3 UC3 — medication-change drill-down per-MR Vitest gate.
  *
- * Per user direction these cases live alongside the UC1 cases under
- * `uc1/` rather than a sibling `uc3/` directory. The fixtures are
- * named (not in the UC1 sampling distribution) and loaded by name.
+ * Per user direction these cases live alongside the archetype cases
+ * under `archetypes/` rather than a sibling folder. The fixtures are
+ * named (not in the archetype sampling distribution) and loaded by name.
  *
  * Each case wires the graph with a stub `AgentHttpClient` that returns
  * the matching `medication_provenance` JSON for the fixture, builds a
@@ -56,7 +56,7 @@ const buildProvenanceClient = (response: ProvenanceJson): AgentHttpClient => ({
     get: vi.fn(() => Promise.resolve<unknown>(response)),
 });
 
-describe('§4.3 UC3 medication change — eval cases (colocated under uc1/)', () => {
+describe('§4.3 UC3 medication change — eval cases (colocated under archetypes/)', () => {
     it('lisinopril_recent_start: surfaces date + prescriber + indication from documented fields', async () => {
         const snapshot = loadFixture('lisinopril_recent_start');
         const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');

@@ -139,11 +139,9 @@ npm run dev                # tsx watch on src/server/index.ts (port 8080)
 Eval-specific scripts:
 
 ```bash
-npm run evals:regenerate-fixtures        # regenerate evals/fixtures/uc1/*.json
-npm run evals:regenerate-uc2-fixtures    # regenerate evals/fixtures/uc2/*.json
-npm run evals:regenerate-uc5-fixtures    # regenerate evals/fixtures/uc5/*.json
-npm run evals:upload-dataset             # push the LangSmith golden datasets (idempotent)
-npm run evals:experiment                 # run the real synthesizer against the dataset
+npm run evals:regenerate-fixtures        # regenerate evals/fixtures/<suite>/*.json (all suites)
+npm run evals:upload-dataset             # push every suite's LangSmith dataset (idempotent)
+npm run evals:experiment                 # run the real synthesizer against every suite
 ```
 
 `evals:upload-dataset` and `evals:experiment` no-op without
@@ -154,7 +152,7 @@ For the bigger eval picture (the three-layer architecture, when to
 bump dataset versions, the regression-fixture pattern), see the
 "Agent evals" subsection below. For service-level docs (routes, env,
 Docker, schema init), see [`agent/README.md`](agent/README.md).
-Headline test counts and per-UC eval breakdown live in
+Headline test counts and per-suite eval breakdown live in
 [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md).
 
 ### Agent evals (`agent/evals/`)
@@ -164,29 +162,37 @@ node, new verifier rule, new safety policy, new use-case branch),
 update the evals alongside the code. The suite has three layers and
 each one matters:
 
-- **Per-MR Vitest gate** — `agent/evals/cases/<uc>/*.test.ts` runs in
-  CI's `test:agent` job on every push. Stub the synthesizer; assert
+- **Per-MR Vitest gate** — `agent/evals/cases/<suite>/*.test.ts` runs
+  in CI's `test:agent` job on every push. Stub the synthesizer; assert
   the deterministic gate's behavior (verifier accepts/rejects, hard
   stops fire, segments redact). This layer protects against
   structural regressions, not model quality.
-- **Fixture data** — `agent/evals/fixtures/<uc>/*.json` is generated
-  by `agent/evals/fixtures/regenerate.ts`. Always edit the regenerator
-  and run `npm run evals:regenerate-fixtures`; never hand-edit the
-  JSON. Archetype shapes mirror `bin/seed/PatientArchetype.php` so
-  evals stay aligned with the real seed pipeline.
+- **Fixture data** — `agent/evals/fixtures/<suite>/*.json` is generated
+  by per-suite regenerators (`regenerate-archetypes.ts`,
+  `regenerate-lab-trends.ts`, `regenerate-morning-prep.ts`). The
+  unified `regenerate.ts` calls every regenerator. Always edit the
+  regenerator and run `npm run evals:regenerate-fixtures`; never
+  hand-edit the JSON. Archetype shapes mirror
+  `bin/seed/PatientArchetype.php` so evals stay aligned with the real
+  seed pipeline.
 - **Nightly LangSmith experiment** — `agent/evals/runners/experiment.ts`
-  runs the real Anthropic synthesizer against the dataset on
-  schedules. New ground truth goes in `langsmithDataset.ts`'s
-  `groundTruth()`. Bumping the dataset shape means renaming
-  `DATASET_NAME` (e.g. `…-golden-v1` → `…-v2`) so old experiments
-  stay comparable.
+  iterates `suites.ts` and runs the real Anthropic synthesizer against
+  every suite's dataset. Each suite owns its dataset shape and target
+  in `<name>Suite.ts`. New ground truth goes in that suite's
+  `groundTruth()` (or equivalent). Bumping a dataset shape means
+  renaming the suite's `DATASET_NAME` (e.g. `…-v1` → `…-v2`) so old
+  experiments stay comparable.
+
+Adding a new suite is one new `agent/evals/runners/<name>Suite.ts`
+exporting an `EvalSuite` plus an entry in `suites.ts`. The CLI and
+experiment runner pick it up automatically.
 
 When a prod incident exposes a gap, capture the failing
 `ChartSnapshot` (the Persist node already saves it) into
-`agent/evals/fixtures/<uc>/regression-<id>.json` and add a Vitest case
-that pins what the gate should have caught. This is where the eval
-suite earns its keep — every incident becomes a permanent regression
-test.
+`agent/evals/fixtures/<suite>/regression-<id>.json` and add a Vitest
+case that pins what the gate should have caught. This is where the
+eval suite earns its keep — every incident becomes a permanent
+regression test.
 
 Don't replace the stub synthesizer in Vitest cases with a real
 Anthropic call to "make the test more realistic." Per-MR cost balloons

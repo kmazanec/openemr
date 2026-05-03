@@ -19,8 +19,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "evals:regenerate-fixtures": "tsx evals/fixtures/regenerate.ts",
-    "evals:regenerate-uc2-fixtures": "tsx evals/fixtures/regenerate-uc2.ts",
-    "evals:regenerate-uc5-fixtures": "tsx evals/fixtures/regenerate-uc5.ts",
     "evals:upload-dataset": "tsx --env-file-if-exists=.env evals/runners/cli.ts upload-dataset",
     "evals:experiment": "tsx --env-file-if-exists=.env evals/runners/cli.ts experiment"
   },

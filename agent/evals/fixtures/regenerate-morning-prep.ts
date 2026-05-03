@@ -1,7 +1,7 @@
 /**
  * §5.5 UC5 morning-prep day fixture regenerator.
  *
- * Emits a single JSON file under `agent/evals/fixtures/uc5/` that
+ * Emits a single JSON file under `agent/evals/fixtures/morning-prep/` that
  * encodes a synthetic 20-patient day for one practitioner. Each slot
  * carries:
  *
@@ -36,7 +36,7 @@ import type { BriefingSnapshot } from '../../src/graph/types.js';
 import type { Prescription, SourceReference } from '../../src/snapshot/types.js';
 
 import { loadFixture } from './load.js';
-import type { ArchetypeKey } from './regenerate.js';
+import type { ArchetypeKey } from './regenerate-archetypes.js';
 
 const PRACTITIONER_UUID = '11111111-1111-1111-1111-111111111111';
 const DAY = '2026-05-04';
@@ -211,14 +211,14 @@ const toWireFormat = (snapshot: BriefingSnapshot): unknown => {
     return { ...snapshot, prescriptions, reminders, medications };
 };
 
-const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'uc5');
+const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'morning-prep');
 
-export interface RegenerateUc5Result {
+export interface RegenerateMorningPrepResult {
     readonly path: string;
     readonly slotCount: number;
 }
 
-export const regenerateUc5 = (): RegenerateUc5Result => {
+export const regenerate = (): RegenerateMorningPrepResult => {
     mkdirSync(FIXTURES_DIR, { recursive: true });
     const day = buildDay();
     const wireSlots = day.slots.map((slot) => ({
@@ -240,10 +240,10 @@ export const regenerateUc5 = (): RegenerateUc5Result => {
     return { path, slotCount: day.slots.length };
 };
 
-export const UC5_SCENARIOS = ['morning_prep_day'] as const;
+export const MORNING_PREP_SCENARIOS = ['morning_prep_day'] as const;
 
 const isMain = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {
-    const result = regenerateUc5();
+    const result = regenerate();
     process.stdout.write(`wrote ${String(result.slotCount)} slots → ${result.path}\n`);
 }
