@@ -9,7 +9,7 @@
 import { Client } from 'langsmith';
 
 import type { BriefingSnapshot } from '../../src/graph/types.js';
-import type { ChartSnapshot, Encounter, LabObservation } from '../../src/snapshot/types.js';
+import type { ChartSnapshot } from '../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 
 export interface UploadResult {
@@ -126,29 +126,69 @@ export const uploadDatasetGeneric = async <I, O, M>(
 };
 
 /**
+ * Coerce a decoded id (`string | null`) back to the bulk endpoint's
+ * wire shape (`number | null`). Production `loadChartSnapshot`
+ * always re-decodes whatever its `fetchSnapshot` returns, so eval
+ * datasets must hand it wire-shape ids regardless of how the fixture
+ * was loaded — the morning-prep loader pre-decodes ids to string,
+ * the archetypes loader doesn't.
+ */
+const toWireId = (id: unknown): number | null => {
+    if (id === null || id === undefined) {
+        return null;
+    }
+    if (typeof id === 'number' && Number.isInteger(id)) {
+        return id;
+    }
+    if (typeof id === 'string') {
+        const n = Number.parseInt(id, 10);
+        return Number.isFinite(n) ? n : null;
+    }
+    return null;
+};
+
+/**
  * Snapshot client that resolves from a closed-over fixture instead
  * of HTTPing OpenEMR. Used by every suite's experiment target so
  * the briefing graph reads the dataset row's snapshot rather than
- * the live EMR. The `BriefingSnapshot → ChartSnapshot` narrowing
- * mirrors the previous experiment runner: the bulk endpoint never
- * returns labs/encounters as a Gap, so array-shaped fixtures pass
- * straight through.
+ * the live EMR.
+ *
+ * Returns wire-shape JSON (id fields as integers) because
+ * `loadChartSnapshot` always pipes the fetched value back through
+ * `decodeChartSnapshot`. Some suites' uploaders store snapshots
+ * with already-decoded ids (`prescriptionId: "22001"`); the wire
+ * coercion below makes this client work with either shape.
  */
 export const buildDatasetSnapshotClient = (snapshot: BriefingSnapshot): SnapshotClient => {
-    const chart: ChartSnapshot = {
+    const rewireId = <K extends string>(items: readonly unknown[], idKey: K): unknown[] =>
+        items.map((item) => {
+            const obj = item as Record<string, unknown>;
+            return { ...obj, [idKey]: toWireId(obj[idKey]) };
+        });
+    const prescriptions = rewireId(snapshot.prescriptions ?? [], 'prescriptionId');
+    const reminders = Array.isArray(snapshot.reminders)
+        ? rewireId(snapshot.reminders, 'reminderId')
+        : [];
+    const medications = Array.isArray(snapshot.medications)
+        ? rewireId(snapshot.medications, 'listId')
+        : [];
+    const wire = {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
         diagnoses: snapshot.diagnoses,
-        prescriptions: snapshot.prescriptions,
+        prescriptions,
         allergies: snapshot.allergies,
-        labs: Array.isArray(snapshot.labs) ? snapshot.labs : ([] as readonly LabObservation[]),
-        encounters: Array.isArray(snapshot.encounters)
-            ? snapshot.encounters
-            : ([] as readonly Encounter[]),
-        reminders: Array.isArray(snapshot.reminders) ? snapshot.reminders : [],
-        medications: Array.isArray(snapshot.medications) ? snapshot.medications : [],
+        labs: Array.isArray(snapshot.labs) ? snapshot.labs : [],
+        encounters: Array.isArray(snapshot.encounters) ? snapshot.encounters : [],
+        reminders,
+        medications,
     };
+    // `loadChartSnapshot` decodes the fetched value; the Chart cast
+    // is a lie at this boundary (ids are integers, not strings) but
+    // immediately corrected by `decodeChartSnapshot`. Casting here is
+    // simpler than threading a wire-shape DTO type the rest of the
+    // codebase doesn't use.
     return {
-        fetchSnapshot: () => Promise.resolve(chart),
+        fetchSnapshot: () => Promise.resolve(wire as unknown as ChartSnapshot),
     };
 };
