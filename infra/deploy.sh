@@ -40,10 +40,13 @@ log "deploying ${OLD_SHA} -> ${NEW_SHA}"
 # runner can always read .env. Caddyfile rides along because the compose
 # file's relative `./Caddyfile` mount resolves against /etc/openemr/.
 log "syncing compose config to ${CONFIG_DIR}"
-install -D -m 0644 "${RELEASE_DIR}/docker/digitalocean/docker-compose.yml" \
-    "${CONFIG_DIR}/docker-compose.yml"
-install -D -m 0644 "${RELEASE_DIR}/docker/digitalocean/Caddyfile" \
-    "${CONFIG_DIR}/Caddyfile"
+# rsync the whole tree so build-context subdirs (e.g. agent-pg-backup/)
+# land alongside docker-compose.yml — `compose pull` triggers a bake of
+# locally-built services, and bake resolves `build.context` relative to
+# the compose file, so a missing subdir aborts the deploy. --exclude=.env
+# preserves the env file that's only on disk in /etc/openemr/.
+rsync --archive --delete --exclude=.env \
+    "${RELEASE_DIR}/docker/digitalocean/" "${CONFIG_DIR}/"
 
 ENV_FILE="${CONFIG_DIR}/.env"
 if [[ ! -r "${ENV_FILE}" ]]; then
