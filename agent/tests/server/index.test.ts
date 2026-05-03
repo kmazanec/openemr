@@ -209,6 +209,74 @@ describe('POST /v1/agent/briefing', () => {
         expect(eventLines).toEqual(['event: meta', 'event: assistantMessage', 'event: done']);
     });
 
+    it('flushes progress events live through onEvent so the panel paints stage spinners during the run', async () => {
+        // Mock runner mimics the production runner's onEvent path: it
+        // pushes meta + a couple of progress events + the terminal pair
+        // through the callback, then returns an empty buffer (the
+        // route iterates that buffer for legacy mocks; the real runner
+        // also returns [] when onEvent is set, so the wire output is
+        // exactly what onEvent received). This pins the SSE wire
+        // contract used by panel.js — the renderer reads `event:
+        // progress` lines off the same stream as the existing event
+        // types.
+        const runner: BriefingRunner = async ({ envelope, onEvent }) => {
+            if (onEvent === undefined) return [];
+            await onEvent({
+                type: 'meta',
+                conversationId: envelope.conversationId,
+                requestId: envelope.requestId,
+                siteId: envelope.siteId,
+            });
+            await onEvent({
+                type: 'progress',
+                stage: 'retrieve',
+                label: 'Reading the chart',
+                status: 'started',
+            });
+            await onEvent({
+                type: 'progress',
+                stage: 'retrieve',
+                label: 'Reading the chart',
+                status: 'completed',
+            });
+            await onEvent({
+                type: 'assistantMessage',
+                message: { segments: [], gaps: [], suggestedFollowUps: [] },
+            });
+            await onEvent({ type: 'done', persistedAt: '2026-04-30T12:00:00.000Z' });
+            return [];
+        };
+        const { app, privateKey } = await buildAuthedApp({ briefingRunner: runner });
+        const token = await mintTestToken(privateKey, {
+            issuer: TEST_ISSUER,
+            audience: TEST_AUDIENCE,
+            subject: 'Practitioner/dr-patel',
+        });
+        const res = await app.request('/v1/agent/briefing', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(briefingBody),
+        });
+        expect(res.status).toBe(200);
+        const text = await res.text();
+        const eventLines = text.split('\n').filter((l) => l.startsWith('event: '));
+        // `progress` lines appear between `meta` and `assistantMessage` —
+        // panel.js depends on this ordering to flip its stage UI before
+        // the real bubble lands.
+        expect(eventLines).toEqual([
+            'event: meta',
+            'event: progress',
+            'event: progress',
+            'event: assistantMessage',
+            'event: done',
+        ]);
+        expect(text).toContain('"stage":"retrieve"');
+        expect(text).toContain('"label":"Reading the chart"');
+    });
+
     it('forwards the follow-up task and question into the envelope (§4.5)', async () => {
         const seen: { task: string | null; question: string | undefined } = {
             task: null,

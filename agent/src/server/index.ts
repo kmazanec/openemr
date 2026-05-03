@@ -418,7 +418,15 @@ export const createApp = ({
             };
 
             try {
-                const events = await briefingRunner({ envelope, token });
+                // Pass the SSE writer as the runner's live event sink
+                // so `meta`, `progress`, `assistantMessage` and `done`
+                // events flush to the browser as they happen — the
+                // panel sees the stage spinner advance during the run
+                // instead of one batch at the end. When `onEvent` is
+                // set the runner returns an empty array (already
+                // streamed); the iteration below is the fallback for
+                // mock runners in tests that ignore the callback.
+                const events = await briefingRunner({ envelope, token, onEvent: writeEvent });
                 for (const event of events) {
                     await writeEvent(event);
                 }

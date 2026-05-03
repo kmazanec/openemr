@@ -18,7 +18,13 @@ import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
 import type { UnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
 
-import { eventsForBriefing, type BriefingStreamEvent } from './briefingStream.js';
+import {
+    PROGRESS_STAGES,
+    completedEvent,
+    stageForNode,
+    startedEvent,
+} from './briefingProgress.js';
+import { eventsForBriefing, type BriefingStreamEvent, type ProgressStage } from './briefingStream.js';
 
 /**
  * Per-request entry point that runs the briefing graph and produces the
@@ -53,6 +59,19 @@ export type BriefingRunner = (input: {
      * non-PHI — the metadata object is uploaded to LangSmith.
      */
     readonly extraMetadata?: Readonly<Record<string, string | number | boolean>>;
+    /**
+     * Live event sink for the SSE route. When set, the runner pushes
+     * each `BriefingStreamEvent` (meta, progress, assistantMessage,
+     * done) through this callback as it happens — the panel sees
+     * stage-by-stage progress instead of a single batch at the end.
+     *
+     * When omitted, all events are buffered and returned in the
+     * resolved array exactly like the pre-streaming runner. The
+     * precompute route uses the buffered path (it only needs the
+     * terminal `assistantMessage`/`done` events) and tests can omit
+     * it for deterministic snapshotting.
+     */
+    readonly onEvent?: (event: BriefingStreamEvent) => Promise<void> | void;
 }) => Promise<readonly BriefingStreamEvent[]>;
 
 export interface BriefingRunnerDeps {
@@ -134,7 +153,22 @@ const isUuid = (s: string): boolean => UUID_RE.test(s);
 
 export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner => {
     const logger = createLogger('briefingRunner');
-    return async ({ envelope, token, extraMetadata }) => {
+    return async ({ envelope, token, extraMetadata, onEvent }) => {
+        // Two transport modes: when `onEvent` is set, push events
+        // through it as they happen (live SSE) and return an empty
+        // array so the route's legacy `for (event of events)` loop
+        // doesn't double-emit. When `onEvent` is omitted, accumulate
+        // every event into a buffer and return it — keeps the
+        // pre-streaming contract intact for the precompute path and
+        // for tests that mock the runner without a callback.
+        const buffer: BriefingStreamEvent[] = [];
+        const emit = async (event: BriefingStreamEvent): Promise<void> => {
+            if (onEvent !== undefined) {
+                await onEvent(event);
+            } else {
+                buffer.push(event);
+            }
+        };
         // Resolve the conversation row for this turn based on the task.
         // Default briefings always mint; follow-ups must target an
         // existing row the principal owns.
@@ -244,7 +278,27 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             clinicianId: envelope.actor.userId,
             patientId: envelope.patient.uuid,
         });
-        const out: BriefingState = await graph.invoke(
+        // Emit `meta` first so the panel adopts the canonical
+        // conversationId before any progress paints.
+        await emit({
+            type: 'meta',
+            conversationId: canonicalEnvelope.conversationId,
+            requestId: canonicalEnvelope.requestId,
+            siteId: canonicalEnvelope.siteId,
+        });
+        // Open the first user-visible stage immediately. The graph's
+        // first user-visible node is `retrieve`; opening it before the
+        // stream yields its first chunk keeps the panel from flashing
+        // empty progress while loadState/planContext run.
+        await emit(startedEvent('retrieve'));
+        let openStage: ProgressStage | null = 'retrieve';
+
+        // Stream the graph in `updates` mode so we see one chunk per
+        // node completion, plus `values` mode so the final chunk
+        // carries the full BriefingState. The values chunks are also
+        // the easiest way to recover the terminal state without
+        // re-running the graph.
+        const stream = await graph.stream(
             { envelope: canonicalEnvelope },
             {
                 configurable: { thread_id: conversationId },
@@ -255,8 +309,68 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                     request_id: envelope.requestId,
                     ...(extraMetadata ?? {}),
                 },
+                streamMode: ['updates', 'values'],
             },
         );
+
+        let finalState: BriefingState | null = null;
+        for await (const chunk of stream) {
+            // With `streamMode` as a 2-element array, each chunk is a
+            // `[mode, payload]` tuple. `updates` payloads are
+            // `{nodeName: nodeReturn}`; `values` payloads are the full
+            // accumulated state at that step.
+            if (!Array.isArray(chunk) || chunk.length !== 2) continue;
+            const [mode, payload] = chunk as [string, unknown];
+            if (mode === 'updates' && payload !== null && typeof payload === 'object') {
+                for (const nodeName of Object.keys(payload)) {
+                    const completedStage = stageForNode(nodeName);
+                    if (completedStage === null) continue;
+                    const completedIdx = PROGRESS_STAGES.indexOf(completedStage);
+                    const openIdx = openStage === null
+                        ? -1
+                        : PROGRESS_STAGES.indexOf(openStage);
+                    if (completedIdx < openIdx) {
+                        // A second branch under the same stage finished
+                        // (e.g. UC2/UC3/UC4 fan-out). Don't double-emit.
+                        continue;
+                    }
+                    // Close every open stage up through `completedStage`.
+                    // In practice the runner advances one stage at a time
+                    // because the graph is sequential, so this loop fires
+                    // once. The bounded loop is defense-in-depth in case a
+                    // future graph rev skips a stage entirely.
+                    for (let i = Math.max(openIdx, 0); i <= completedIdx; i++) {
+                        const stage = PROGRESS_STAGES[i];
+                        if (stage === undefined) continue;
+                        if (i > openIdx) {
+                            // Stage we never explicitly opened — open it
+                            // before closing so the renderer's stage list
+                            // doesn't have a gap.
+                            await emit(startedEvent(stage));
+                        }
+                        await emit(completedEvent(stage));
+                    }
+                    // Open the next stage so the renderer shows its
+                    // spinner immediately, even before the next node
+                    // returns. The final stage (`format`) has no
+                    // successor, so we just leave openStage at it.
+                    const nextIdx = completedIdx + 1;
+                    const nextStage = PROGRESS_STAGES[nextIdx];
+                    if (nextStage !== undefined) {
+                        await emit(startedEvent(nextStage));
+                        openStage = nextStage;
+                    } else {
+                        openStage = null;
+                    }
+                }
+            } else if (mode === 'values') {
+                finalState = payload as BriefingState;
+            }
+        }
+        if (finalState === null) {
+            throw new Error('briefing graph completed without a final state');
+        }
+        const out: BriefingState = finalState;
         if (deps.counters !== undefined) {
             deps.counters.recordBriefing({
                 clinicianId: envelope.actor.userId,
@@ -311,7 +425,16 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             }
         }
 
-        return eventsForBriefing(canonicalEnvelope, out.formatted, out.persisted);
+        // We emitted `meta` up-front, plus interleaved `progress`
+        // events as the graph ran. Now flush the terminal pair
+        // (`assistantMessage`, `done`) — `eventsForBriefing` would
+        // re-emit `meta` so we slice it off.
+        const tail = eventsForBriefing(canonicalEnvelope, out.formatted, out.persisted)
+            .filter((e) => e.type !== 'meta');
+        for (const event of tail) {
+            await emit(event);
+        }
+        return buffer;
     };
 };
 

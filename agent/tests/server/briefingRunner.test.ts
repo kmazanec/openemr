@@ -528,3 +528,74 @@ describe('createBriefingRunner — §4.6 conversation persistence and resume', (
         expect(events.find((e) => e.type === 'done')).toBeDefined();
     });
 });
+
+describe('createBriefingRunner — progress event emission', () => {
+    it('emits stage events in order through the onEvent callback (live SSE path)', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+
+        const sink: Array<{ type: string; stage?: string; status?: string }> = [];
+        const returned = await runner({
+            envelope: buildEnvelope(),
+            token: 'tok',
+            onEvent: (event) => {
+                if (event.type === 'progress') {
+                    sink.push({ type: event.type, stage: event.stage, status: event.status });
+                } else {
+                    sink.push({ type: event.type });
+                }
+            },
+        });
+
+        // When onEvent is set the runner returns an empty buffer
+        // (everything went through the callback) so the route's
+        // legacy iteration doesn't double-emit.
+        expect(returned).toHaveLength(0);
+
+        const types = sink.map((e) => e.type);
+        expect(types[0]).toBe('meta');
+        // First user-visible stage opens before the graph yields its
+        // first chunk so the panel paints a spinner immediately.
+        expect(sink[1]).toMatchObject({ type: 'progress', stage: 'retrieve', status: 'started' });
+        expect(types[types.length - 2]).toBe('assistantMessage');
+        expect(types[types.length - 1]).toBe('done');
+
+        // Every stage in the user-visible order completes; pairs are
+        // (started, completed) per stage so the renderer has both
+        // edges to flip its UI.
+        const progressOnly = sink.filter((e) => e.type === 'progress');
+        const stageStarts = progressOnly
+            .filter((e) => e.status === 'started')
+            .map((e) => e.stage);
+        const stageCompletes = progressOnly
+            .filter((e) => e.status === 'completed')
+            .map((e) => e.stage);
+        expect(stageStarts).toEqual(['retrieve', 'synthesize', 'verify', 'format']);
+        expect(stageCompletes).toEqual(['retrieve', 'synthesize', 'verify', 'format']);
+    });
+
+    it('without onEvent, returns a buffered event array (legacy contract for tests/precompute)', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+        });
+
+        const events = await runner({ envelope: buildEnvelope(), token: 'tok' });
+
+        const types = events.map((e) => e.type);
+        expect(types[0]).toBe('meta');
+        expect(types).toContain('progress');
+        expect(types[types.length - 2]).toBe('assistantMessage');
+        expect(types[types.length - 1]).toBe('done');
+    });
+});
