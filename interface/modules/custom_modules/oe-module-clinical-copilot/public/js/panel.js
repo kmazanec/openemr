@@ -61,15 +61,19 @@
      *   { role: 'assistant', message: AssistantMessage }
      *   { role: 'assistant', error: { code: string } }
      *   { role: 'assistant', progress: { stages: {…}[] }, requestId }
+     *   { role: 'assistant', thinking: true, requestId }
      *   { role: 'user', text: string }
      *
-     * The `progress` shape is a transient placeholder bubble shown
-     * while a turn is in flight. Each stage flips through
-     * `pending → active → done` as `progress` SSE events arrive; the
-     * whole bubble is replaced by the real assistant bubble when the
-     * `assistantMessage` event lands. `requestId` keys the placeholder
-     * so a fast second turn never lands its progress events into the
-     * previous turn's bubble.
+     * The `progress` and `thinking` shapes are transient placeholder
+     * bubbles shown while a turn is in flight. `progress` is the full
+     * 4-stage pipeline — used only for the initial briefing turn,
+     * where the doctor benefits from seeing the agent's full plan.
+     * `thinking` is a single-line "Thinking…" indicator used for
+     * follow-up turns, which complete in seconds and don't need the
+     * stage breakdown. Either is replaced by the real assistant
+     * bubble when the `assistantMessage` event lands. `requestId`
+     * keys the placeholder so a fast second turn never lands its
+     * progress events into the previous turn's bubble.
      */
     const thread = [];
 
@@ -93,6 +97,29 @@
         progress: { stages: PROGRESS_STAGES.map((s) => ({ ...s })) },
         requestId: requestIdValue,
     });
+
+    const newThinkingEntry = (requestIdValue) => ({
+        role: 'assistant',
+        thinking: true,
+        requestId: requestIdValue,
+    });
+
+    /**
+     * Find the in-flight placeholder for a given requestId, regardless
+     * of whether it's a `progress` (default_briefing) or `thinking`
+     * (follow_up) bubble. Both shapes are replaced by the same
+     * assistantMessage / error paths.
+     */
+    const findInflightIndex = (requestIdValue) => {
+        for (let i = thread.length - 1; i >= 0; i--) {
+            const entry = thread[i];
+            if (!entry || entry.role !== 'assistant' || entry.requestId !== requestIdValue) continue;
+            if (entry.progress || entry.thinking) {
+                return i;
+            }
+        }
+        return -1;
+    };
 
     const findProgressIndex = (requestIdValue) => {
         for (let i = thread.length - 1; i >= 0; i--) {
@@ -299,6 +326,19 @@
                 <ol class="copilot-progress" role="status" aria-live="polite">${stages}</ol>
             </article>`;
         }
+        if (entry.role === 'assistant' && entry.thinking) {
+            return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--thinking"
+                             data-role="bubble" data-state="thinking">
+                <span class="copilot-thinking" role="status" aria-live="polite">
+                    <span class="copilot-thinking__label">Thinking</span>
+                    <span class="copilot-thinking__dots" aria-hidden="true">
+                        <span class="copilot-thinking__dot"></span>
+                        <span class="copilot-thinking__dot"></span>
+                        <span class="copilot-thinking__dot"></span>
+                    </span>
+                </span>
+            </article>`;
+        }
         if (entry.role === 'assistant' && entry.message) {
             const segments = (entry.message.segments || [])
                 .map((segment, segIdx) => renderSegment(segment, segIdx, index))
@@ -338,10 +378,11 @@
 
     const handleAssistantMessage = (data) => {
         if (!data || !data.message) return;
-        // Replace the in-flight progress bubble (if any) with the
+        // Replace the in-flight placeholder (progress bubble for the
+        // initial briefing, thinking bubble for a follow-up) with the
         // real assistant message — keep the same array slot so the
         // chat doesn't visually jump.
-        const idx = activeRequestId !== null ? findProgressIndex(activeRequestId) : -1;
+        const idx = activeRequestId !== null ? findInflightIndex(activeRequestId) : -1;
         if (idx >= 0) {
             thread[idx] = { role: 'assistant', message: data.message };
         } else {
@@ -377,10 +418,10 @@
 
     const renderFatalError = (code) => {
         setStatus('Briefing unavailable.', 'error');
-        // Drop any in-flight progress placeholder for this turn so
-        // the error bubble takes its place rather than appending
-        // below a half-finished spinner.
-        const idx = activeRequestId !== null ? findProgressIndex(activeRequestId) : -1;
+        // Drop any in-flight placeholder (progress or thinking) for
+        // this turn so the error bubble takes its place rather than
+        // appending below a half-finished spinner.
+        const idx = activeRequestId !== null ? findInflightIndex(activeRequestId) : -1;
         if (idx >= 0) {
             thread.splice(idx, 1);
         }
@@ -479,14 +520,24 @@
      * free-text follow-ups — the only difference between the two is the
      * envelope (`task` and the optional `question`).
      *
-     * Pushes an in-flight progress bubble before opening the stream so
-     * the doctor sees the stage list immediately. `activeRequestId`
-     * keys progress events back to this bubble, and the
-     * `assistantMessage` / `error` paths replace it.
+     * Pushes an in-flight placeholder before opening the stream so the
+     * doctor sees activity immediately: the full 4-stage progress
+     * bubble for `default_briefing` (the doctor benefits from seeing
+     * the agent's whole pipeline on the first turn), and a compact
+     * "Thinking…" bubble for follow-ups (which run in seconds and
+     * don't need stage granularity). The server still emits stage
+     * progress for follow-ups; we route those events at the renderer
+     * (handleProgressEvent filters on `entry.progress`) so they're a
+     * no-op against a thinking bubble. `activeRequestId` keys
+     * placeholder lookups, and the `assistantMessage` / `error` paths
+     * replace either shape.
      */
     const streamTurn = async ({ envelope, errorTag }) => {
         activeRequestId = envelope.requestId;
-        thread.push(newProgressEntry(envelope.requestId));
+        const placeholder = envelope.task === 'follow_up'
+            ? newThinkingEntry(envelope.requestId)
+            : newProgressEntry(envelope.requestId);
+        thread.push(placeholder);
         renderThread();
         try {
             const response = await fetch(`${proxyUrl}?action=briefing&pid=${encodeURIComponent(pid)}`, {
