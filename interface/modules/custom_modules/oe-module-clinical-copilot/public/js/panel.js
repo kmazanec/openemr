@@ -564,6 +564,28 @@
             if (input) input.disabled = busy;
             if (submit) submit.disabled = busy;
         };
+        // Enter submits; Shift+Enter inserts a newline. The IME-composing
+        // guard (`isComposing`) is critical: without it, hitting Enter
+        // to confirm a CJK candidate fires both an input commit and a
+        // submit, sending an unintended message before the doctor
+        // finishes typing. We don't bind to the form's submit event for
+        // this — `requestSubmit()` triggers it, and the submit handler
+        // below does the real work.
+        if (input) {
+            input.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                if (e.shiftKey) return;
+                if (e.isComposing) return;
+                e.preventDefault();
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit();
+                } else {
+                    // Older browsers without requestSubmit — synthesize
+                    // a submit event so the existing handler still runs.
+                    form.dispatchEvent(new Event('submit', { cancelable: true }));
+                }
+            });
+        }
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!input) return;
