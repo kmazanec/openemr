@@ -116,7 +116,7 @@ const buildSynth = (): Synthesizer =>
     );
 
 describe('createBriefingGraph end-to-end (UC1 path)', () => {
-    it('runs LoadState → PlanContext → Retrieve → Synthesize → Verify → Format → Persist', async () => {
+    it('runs Retrieve → Synthesize → Verify → Format → Persist', async () => {
         const { client } = buildClient();
         const synth = buildSynth();
         const graph = createBriefingGraph({

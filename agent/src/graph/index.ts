@@ -1,13 +1,11 @@
 import { END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/langgraph';
 
 import { format } from './nodes/format.js';
-import { loadState } from './nodes/loadState.js';
 import {
     createMedicationStatementBranch,
     type MedicationStatementBranchDeps,
 } from './nodes/medicationStatementBranch.js';
 import { persist } from './nodes/persist.js';
-import { planContext } from './nodes/planContext.js';
 import {
     createPrescriptionChangeBranch,
     type PrescriptionChangeBranchDeps,
@@ -107,8 +105,6 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         : () => Promise.resolve({});
 
     const builder = new StateGraph(BriefingStateAnnotation)
-        .addNode('loadState', loadState)
-        .addNode('planContext', planContext)
         .addNode('retrieve', createRetrieve(deps.retrieve))
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)
         .addNode('reminderBranch', reminderNode)
@@ -117,9 +113,7 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addNode('verify', createVerify(deps.verify))
         .addNode('format', format)
         .addNode('persist', persist)
-        .addEdge(START, 'loadState')
-        .addEdge('loadState', 'planContext')
-        .addEdge('planContext', 'retrieve')
+        .addEdge(START, 'retrieve')
         .addConditionalEdges('retrieve', routeAfterRetrieve, {
             prescriptionChangeBranch: 'prescriptionChangeBranch',
             reminderBranch: 'reminderBranch',
