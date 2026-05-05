@@ -1,0 +1,26 @@
+---
+publication: USPSTF
+title: "Vitamin, Mineral, and Multivitamin Supplementation to Prevent Cardiovascular Disease and Cancer: Preventive Medication"
+section: practice-considerations
+section_label: "Practice Considerations"
+year: 2022
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication"
+license_tier: public_domain
+slug: vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication
+---
+Patient Population Under Consideration
+This recommendation applies to community-dwelling, nonpregnant adults. This recommendation does not apply to children, persons who are pregnant or may become pregnant, or persons who are chronically ill, are hospitalized, or have a known nutritional deficiency.
+The USPSTF separately recommends that all persons who are planning or capable of pregnancy take a daily supplement containing 0.4 to 0.8 mg (400-800 µg) of folic acid.4
+Treatment and Interventions
+Vitamins (eg, vitamins A, C, D, E, and K and the B vitamins) are groups of chemically diverse organic compounds that are essential to maintaining normal metabolism.5 Minerals (eg, calcium, iron, and zinc) are inorganic substances that humans also need to maintain function.6 Vitamins and minerals can be combined, with or without other substances, in multivitamin or multimineral supplements.
+Suggestions for Practice Regarding the I Statement
+Potential Preventable Burden
+Cardiovascular disease and cancer are the 2 leading causes of death and combined account for approximately half of all deaths in the US annually.2 According to 2015-2018 NHANES data, 26.1 million persons in the US have some form of cardiovascular disease (excluding hypertension).7 Cardiovascular disease accounted for 803,191 deaths in the US in 2018, approximately 30% of all deaths.2 Heart disease and stroke are most common among older adults, male individuals, and persons with low socioeconomic status and vary across racial and ethnic groups. The prevalence rates of cardiovascular disease, and notably stroke, are particularly high among Black persons and American Indian/Alaska Native persons compared with other races and ethnicities.7,8
+In 2021, an estimated 1.9 million persons were diagnosed with cancer in the US.9 Cancer is the second leading cause of death in the US and accounted for 599,274 deaths (21.1% of all deaths) in 2018.2 Black males have the highest rates of cancer incidence of any sex and racial and ethnic group, and Black persons have the highest total cancer mortality and the highest mortality rates for most major cancer types.10 Although the causes for this are not certain, it is likely because of social factors (eg, environmental exposures, systemic racism, disparities in access to care, and disparities in treatment).11 It is not known what proportion of cardiovascular disease and cancer might be potentially preventable with vitamin or mineral supplementation.
+Potential Harms
+For many of the vitamins and nutrients reviewed, there was little evidence of serious harms. However, an important harm of increased lung cancer incidence was reported with the use of beta carotene by persons who smoke tobacco or have occupational exposure to asbestos.
+Excessive doses of vitamin supplements can cause several known adverse effects; for example, moderate doses of vitamin A supplements may reduce bone mineral density, and high doses may be hepatotoxic or teratogenic. Vitamin D has potential harms, such as a risk of hypercalcemia and kidney stones, when given at high doses. The potential for harm from other supplements at high doses should be carefully considered.
+Current Practice
+Contemporary data on the prevalence with which health care professionals recommend vitamins and minerals for cardiovascular disease and cancer prevention are limited. Older data suggest that it was common for health care professionals to recommend vitamin and mineral supplements to their patients for a variety of reasons such as overall health, bone health, musculoskeletal pain, or viral infections and immune health.12,13
+Other Related USPSTF Recommendations
+The USPSTF has published several recommendations for prevention of cardiovascular disease and cancer, including recommendations for smoking cessation,14 screening for hypertension,15 statin use to prevent cardiovascular disease,16 aspirin use to prevent cardiovascular disease,17 interventions to prevent obesity-related morbidity and mortality,18 behavioral counseling to prevent cardiovascular disease in adults with risk factors,19 medication use to reduce breast cancer risk,20 behavioral counseling to decrease risk of skin cancer,21 screening for breast,22 cervical,23 colorectal,24 lung,25 and prostate cancer,26 and risk assessment, genetic counseling, and genetic testing for BRCA-related cancer.27 The USPSTF has also published several recommendations related to vitamin and mineral supplementation, including vitamin D, calcium, or combined supplementation to prevent fractures in adults,28 vitamin D supplementation to prevent falls in community-dwelling older adults,29 and folic acid to prevent neural tube defects in persons who are planning or capable of pregnancy.4

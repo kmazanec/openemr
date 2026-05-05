@@ -1,0 +1,12 @@
+---
+publication: USPSTF
+title: "Illicit Drug Use in Children, Adolescents, and Young Adults: Primary Care-Based Interventions"
+section: assessment-of-net-benefit
+section_label: "USPSTF Assessment of Magnitude of Net Benefit"
+year: 2020
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents"
+license_tier: public_domain
+slug: drug-use-illicit-primary-care-interventions-for-children-and-adolescents
+---
+Because of limited and inadequate evidence, the US Preventive Services Task Force (USPSTF) concludes that the benefits and harms of primary care–based interventions to prevent illicit drug use in children, adolescents, and young adults are uncertain and that the evidence is insufficient to assess the balance of benefits and harms. More research is needed.
+See the Table for more information on the USPSTF recommendation rationale and assessment. For more details on the methods the USPSTF uses to determine the net benefit, see the USPSTF Procedure Manual.4

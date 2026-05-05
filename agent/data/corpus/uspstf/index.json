@@ -1,0 +1,2408 @@
+{
+  "source": "uspstf",
+  "publication": "USPSTF",
+  "license_tier": "public_domain",
+  "chunk_count": 300,
+  "chunks": [
+    {
+      "file": "abdominal-aortic-aneurysm-screening--assessment-of-net-benefit.md",
+      "slug": "abdominal-aortic-aneurysm-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Abdominal Aortic Aneurysm: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/abdominal-aortic-aneurysm-screening"
+    },
+    {
+      "file": "abdominal-aortic-aneurysm-screening--importance.md",
+      "slug": "abdominal-aortic-aneurysm-screening",
+      "section": "importance",
+      "title": "Abdominal Aortic Aneurysm: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/abdominal-aortic-aneurysm-screening"
+    },
+    {
+      "file": "abdominal-aortic-aneurysm-screening--practice-considerations.md",
+      "slug": "abdominal-aortic-aneurysm-screening",
+      "section": "practice-considerations",
+      "title": "Abdominal Aortic Aneurysm: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/abdominal-aortic-aneurysm-screening"
+    },
+    {
+      "file": "abdominal-aortic-aneurysm-screening--recommendation-summary.md",
+      "slug": "abdominal-aortic-aneurysm-screening",
+      "section": "recommendation-summary",
+      "title": "Abdominal Aortic Aneurysm: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/abdominal-aortic-aneurysm-screening"
+    },
+    {
+      "file": "adolescent-idiopathic-scoliosis-screening--clinical-considerations.md",
+      "slug": "adolescent-idiopathic-scoliosis-screening",
+      "section": "clinical-considerations",
+      "title": "Adolescent Idiopathic Scoliosis: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/adolescent-idiopathic-scoliosis-screening"
+    },
+    {
+      "file": "adolescent-idiopathic-scoliosis-screening--recommendation-summary.md",
+      "slug": "adolescent-idiopathic-scoliosis-screening",
+      "section": "recommendation-summary",
+      "title": "Adolescent Idiopathic Scoliosis: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/adolescent-idiopathic-scoliosis-screening"
+    },
+    {
+      "file": "anxiety-adults-screening--assessment-of-net-benefit.md",
+      "slug": "anxiety-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Anxiety Disorders in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/anxiety-adults-screening"
+    },
+    {
+      "file": "anxiety-adults-screening--importance.md",
+      "slug": "anxiety-adults-screening",
+      "section": "importance",
+      "title": "Anxiety Disorders in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/anxiety-adults-screening"
+    },
+    {
+      "file": "anxiety-adults-screening--practice-considerations.md",
+      "slug": "anxiety-adults-screening",
+      "section": "practice-considerations",
+      "title": "Anxiety Disorders in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/anxiety-adults-screening"
+    },
+    {
+      "file": "anxiety-adults-screening--recommendation-summary.md",
+      "slug": "anxiety-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Anxiety Disorders in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/anxiety-adults-screening"
+    },
+    {
+      "file": "aspirin-to-prevent-cardiovascular-disease-preventive-medication--importance.md",
+      "slug": "aspirin-to-prevent-cardiovascular-disease-preventive-medication",
+      "section": "importance",
+      "title": "Aspirin Use to Prevent Cardiovascular Disease: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication"
+    },
+    {
+      "file": "aspirin-to-prevent-cardiovascular-disease-preventive-medication--practice-considerations.md",
+      "slug": "aspirin-to-prevent-cardiovascular-disease-preventive-medication",
+      "section": "practice-considerations",
+      "title": "Aspirin Use to Prevent Cardiovascular Disease: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication"
+    },
+    {
+      "file": "aspirin-to-prevent-cardiovascular-disease-preventive-medication--recommendation-summary.md",
+      "slug": "aspirin-to-prevent-cardiovascular-disease-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Aspirin Use to Prevent Cardiovascular Disease: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication"
+    },
+    {
+      "file": "asymptomatic-bacteriuria-in-adults-screening--assessment-of-net-benefit.md",
+      "slug": "asymptomatic-bacteriuria-in-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Asymptomatic Bacteriuria in Adults: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/asymptomatic-bacteriuria-in-adults-screening"
+    },
+    {
+      "file": "asymptomatic-bacteriuria-in-adults-screening--importance.md",
+      "slug": "asymptomatic-bacteriuria-in-adults-screening",
+      "section": "importance",
+      "title": "Asymptomatic Bacteriuria in Adults: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/asymptomatic-bacteriuria-in-adults-screening"
+    },
+    {
+      "file": "asymptomatic-bacteriuria-in-adults-screening--practice-considerations.md",
+      "slug": "asymptomatic-bacteriuria-in-adults-screening",
+      "section": "practice-considerations",
+      "title": "Asymptomatic Bacteriuria in Adults: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/asymptomatic-bacteriuria-in-adults-screening"
+    },
+    {
+      "file": "asymptomatic-bacteriuria-in-adults-screening--recommendation-summary.md",
+      "slug": "asymptomatic-bacteriuria-in-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Asymptomatic Bacteriuria in Adults: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/asymptomatic-bacteriuria-in-adults-screening"
+    },
+    {
+      "file": "atrial-fibrillation-screening--assessment-of-net-benefit.md",
+      "slug": "atrial-fibrillation-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Atrial Fibrillation: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/atrial-fibrillation-screening"
+    },
+    {
+      "file": "atrial-fibrillation-screening--importance.md",
+      "slug": "atrial-fibrillation-screening",
+      "section": "importance",
+      "title": "Atrial Fibrillation: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/atrial-fibrillation-screening"
+    },
+    {
+      "file": "atrial-fibrillation-screening--practice-considerations.md",
+      "slug": "atrial-fibrillation-screening",
+      "section": "practice-considerations",
+      "title": "Atrial Fibrillation: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/atrial-fibrillation-screening"
+    },
+    {
+      "file": "atrial-fibrillation-screening--recommendation-summary.md",
+      "slug": "atrial-fibrillation-screening",
+      "section": "recommendation-summary",
+      "title": "Atrial Fibrillation: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/atrial-fibrillation-screening"
+    },
+    {
+      "file": "autism-spectrum-disorder-in-young-children-screening--clinical-considerations.md",
+      "slug": "autism-spectrum-disorder-in-young-children-screening",
+      "section": "clinical-considerations",
+      "title": "Autism Spectrum Disorder in Young Children: Screening",
+      "year": 2016,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/autism-spectrum-disorder-in-young-children-screening"
+    },
+    {
+      "file": "autism-spectrum-disorder-in-young-children-screening--recommendation-summary.md",
+      "slug": "autism-spectrum-disorder-in-young-children-screening",
+      "section": "recommendation-summary",
+      "title": "Autism Spectrum Disorder in Young Children: Screening",
+      "year": 2016,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/autism-spectrum-disorder-in-young-children-screening"
+    },
+    {
+      "file": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening--importance.md",
+      "slug": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening",
+      "section": "importance",
+      "title": "Bacterial Vaginosis in Pregnant Persons to Prevent Preterm Delivery: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening"
+    },
+    {
+      "file": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening--practice-considerations.md",
+      "slug": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening",
+      "section": "practice-considerations",
+      "title": "Bacterial Vaginosis in Pregnant Persons to Prevent Preterm Delivery: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening"
+    },
+    {
+      "file": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening--recommendation-summary.md",
+      "slug": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening",
+      "section": "recommendation-summary",
+      "title": "Bacterial Vaginosis in Pregnant Persons to Prevent Preterm Delivery: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening"
+    },
+    {
+      "file": "bladder-cancer-in-adults-screening--clinical-considerations.md",
+      "slug": "bladder-cancer-in-adults-screening",
+      "section": "clinical-considerations",
+      "title": "Bladder Cancer in Adults: Screening",
+      "year": 2011,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bladder-cancer-in-adults-screening"
+    },
+    {
+      "file": "bladder-cancer-in-adults-screening--recommendation-summary.md",
+      "slug": "bladder-cancer-in-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Bladder Cancer in Adults: Screening",
+      "year": 2011,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bladder-cancer-in-adults-screening"
+    },
+    {
+      "file": "blood-pressure-in-children-and-adolescents-hypertension-screening--assessment-of-net-benefit.md",
+      "slug": "blood-pressure-in-children-and-adolescents-hypertension-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "High Blood Pressure in Children and Adolescents: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/blood-pressure-in-children-and-adolescents-hypertension-screening"
+    },
+    {
+      "file": "blood-pressure-in-children-and-adolescents-hypertension-screening--importance.md",
+      "slug": "blood-pressure-in-children-and-adolescents-hypertension-screening",
+      "section": "importance",
+      "title": "High Blood Pressure in Children and Adolescents: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/blood-pressure-in-children-and-adolescents-hypertension-screening"
+    },
+    {
+      "file": "blood-pressure-in-children-and-adolescents-hypertension-screening--practice-considerations.md",
+      "slug": "blood-pressure-in-children-and-adolescents-hypertension-screening",
+      "section": "practice-considerations",
+      "title": "High Blood Pressure in Children and Adolescents: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/blood-pressure-in-children-and-adolescents-hypertension-screening"
+    },
+    {
+      "file": "blood-pressure-in-children-and-adolescents-hypertension-screening--recommendation-summary.md",
+      "slug": "blood-pressure-in-children-and-adolescents-hypertension-screening",
+      "section": "recommendation-summary",
+      "title": "High Blood Pressure in Children and Adolescents: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/blood-pressure-in-children-and-adolescents-hypertension-screening"
+    },
+    {
+      "file": "brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing--clinical-considerations.md",
+      "slug": "brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing",
+      "section": "clinical-considerations",
+      "title": "BRCA-Related Cancer: Risk Assessment, Genetic Counseling, and Genetic Testing",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing"
+    },
+    {
+      "file": "brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing--recommendation-summary.md",
+      "slug": "brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing",
+      "section": "recommendation-summary",
+      "title": "BRCA-Related Cancer: Risk Assessment, Genetic Counseling, and Genetic Testing",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing"
+    },
+    {
+      "file": "breast-cancer-medications-for-risk-reduction--clinical-considerations.md",
+      "slug": "breast-cancer-medications-for-risk-reduction",
+      "section": "clinical-considerations",
+      "title": "Breast Cancer: Medication Use to Reduce Risk",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-medications-for-risk-reduction"
+    },
+    {
+      "file": "breast-cancer-medications-for-risk-reduction--recommendation-summary.md",
+      "slug": "breast-cancer-medications-for-risk-reduction",
+      "section": "recommendation-summary",
+      "title": "Breast Cancer: Medication Use to Reduce Risk",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-medications-for-risk-reduction"
+    },
+    {
+      "file": "breast-cancer-screening--assessment-of-net-benefit.md",
+      "slug": "breast-cancer-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Breast Cancer: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening"
+    },
+    {
+      "file": "breast-cancer-screening--importance.md",
+      "slug": "breast-cancer-screening",
+      "section": "importance",
+      "title": "Breast Cancer: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening"
+    },
+    {
+      "file": "breast-cancer-screening--practice-considerations.md",
+      "slug": "breast-cancer-screening",
+      "section": "practice-considerations",
+      "title": "Breast Cancer: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening"
+    },
+    {
+      "file": "breast-cancer-screening--recommendation-summary.md",
+      "slug": "breast-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Breast Cancer: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening"
+    },
+    {
+      "file": "breastfeeding-primary-care-interventions--assessment-of-net-benefit.md",
+      "slug": "breastfeeding-primary-care-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Breastfeeding: Primary Care Behavioral Counseling Interventions",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breastfeeding-primary-care-interventions"
+    },
+    {
+      "file": "breastfeeding-primary-care-interventions--importance.md",
+      "slug": "breastfeeding-primary-care-interventions",
+      "section": "importance",
+      "title": "Breastfeeding: Primary Care Behavioral Counseling Interventions",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breastfeeding-primary-care-interventions"
+    },
+    {
+      "file": "breastfeeding-primary-care-interventions--practice-considerations.md",
+      "slug": "breastfeeding-primary-care-interventions",
+      "section": "practice-considerations",
+      "title": "Breastfeeding: Primary Care Behavioral Counseling Interventions",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breastfeeding-primary-care-interventions"
+    },
+    {
+      "file": "breastfeeding-primary-care-interventions--recommendation-summary.md",
+      "slug": "breastfeeding-primary-care-interventions",
+      "section": "recommendation-summary",
+      "title": "Breastfeeding: Primary Care Behavioral Counseling Interventions",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breastfeeding-primary-care-interventions"
+    },
+    {
+      "file": "cardiovascular-disease-risk-screening-with-electrocardiography--clinical-considerations.md",
+      "slug": "cardiovascular-disease-risk-screening-with-electrocardiography",
+      "section": "clinical-considerations",
+      "title": "Cardiovascular Disease Risk: Screening With Electrocardiography",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-risk-screening-with-electrocardiography"
+    },
+    {
+      "file": "cardiovascular-disease-risk-screening-with-electrocardiography--recommendation-summary.md",
+      "slug": "cardiovascular-disease-risk-screening-with-electrocardiography",
+      "section": "recommendation-summary",
+      "title": "Cardiovascular Disease Risk: Screening With Electrocardiography",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-risk-screening-with-electrocardiography"
+    },
+    {
+      "file": "cardiovascular-disease-screening-using-nontraditional-risk-assessment--clinical-considerations.md",
+      "slug": "cardiovascular-disease-screening-using-nontraditional-risk-assessment",
+      "section": "clinical-considerations",
+      "title": "Cardiovascular Disease: Risk Assessment With Nontraditional Risk Factors",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-screening-using-nontraditional-risk-assessment"
+    },
+    {
+      "file": "cardiovascular-disease-screening-using-nontraditional-risk-assessment--recommendation-summary.md",
+      "slug": "cardiovascular-disease-screening-using-nontraditional-risk-assessment",
+      "section": "recommendation-summary",
+      "title": "Cardiovascular Disease: Risk Assessment With Nontraditional Risk Factors",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-screening-using-nontraditional-risk-assessment"
+    },
+    {
+      "file": "carotid-artery-stenosis-screening--assessment-of-net-benefit.md",
+      "slug": "carotid-artery-stenosis-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Asymptomatic Carotid Artery Stenosis: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/carotid-artery-stenosis-screening"
+    },
+    {
+      "file": "carotid-artery-stenosis-screening--importance.md",
+      "slug": "carotid-artery-stenosis-screening",
+      "section": "importance",
+      "title": "Asymptomatic Carotid Artery Stenosis: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/carotid-artery-stenosis-screening"
+    },
+    {
+      "file": "carotid-artery-stenosis-screening--practice-considerations.md",
+      "slug": "carotid-artery-stenosis-screening",
+      "section": "practice-considerations",
+      "title": "Asymptomatic Carotid Artery Stenosis: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/carotid-artery-stenosis-screening"
+    },
+    {
+      "file": "carotid-artery-stenosis-screening--recommendation-summary.md",
+      "slug": "carotid-artery-stenosis-screening",
+      "section": "recommendation-summary",
+      "title": "Asymptomatic Carotid Artery Stenosis: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/carotid-artery-stenosis-screening"
+    },
+    {
+      "file": "celiac-disease-screening--clinical-considerations.md",
+      "slug": "celiac-disease-screening",
+      "section": "clinical-considerations",
+      "title": "Celiac Disease: Screening",
+      "year": 2017,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/celiac-disease-screening"
+    },
+    {
+      "file": "celiac-disease-screening--recommendation-summary.md",
+      "slug": "celiac-disease-screening",
+      "section": "recommendation-summary",
+      "title": "Celiac Disease: Screening",
+      "year": 2017,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/celiac-disease-screening"
+    },
+    {
+      "file": "cervical-cancer-screening--clinical-considerations.md",
+      "slug": "cervical-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Cervical Cancer: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening"
+    },
+    {
+      "file": "cervical-cancer-screening--recommendation-summary.md",
+      "slug": "cervical-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Cervical Cancer: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening"
+    },
+    {
+      "file": "child-maltreatment-primary-care-interventions--assessment-of-net-benefit.md",
+      "slug": "child-maltreatment-primary-care-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Prevention of Child Maltreatment: Primary Care Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/child-maltreatment-primary-care-interventions"
+    },
+    {
+      "file": "child-maltreatment-primary-care-interventions--importance.md",
+      "slug": "child-maltreatment-primary-care-interventions",
+      "section": "importance",
+      "title": "Prevention of Child Maltreatment: Primary Care Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/child-maltreatment-primary-care-interventions"
+    },
+    {
+      "file": "child-maltreatment-primary-care-interventions--practice-considerations.md",
+      "slug": "child-maltreatment-primary-care-interventions",
+      "section": "practice-considerations",
+      "title": "Prevention of Child Maltreatment: Primary Care Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/child-maltreatment-primary-care-interventions"
+    },
+    {
+      "file": "child-maltreatment-primary-care-interventions--recommendation-summary.md",
+      "slug": "child-maltreatment-primary-care-interventions",
+      "section": "recommendation-summary",
+      "title": "Prevention of Child Maltreatment: Primary Care Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/child-maltreatment-primary-care-interventions"
+    },
+    {
+      "file": "chlamydia-and-gonorrhea-screening--assessment-of-net-benefit.md",
+      "slug": "chlamydia-and-gonorrhea-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Chlamydia and Gonorrhea: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chlamydia-and-gonorrhea-screening"
+    },
+    {
+      "file": "chlamydia-and-gonorrhea-screening--importance.md",
+      "slug": "chlamydia-and-gonorrhea-screening",
+      "section": "importance",
+      "title": "Chlamydia and Gonorrhea: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chlamydia-and-gonorrhea-screening"
+    },
+    {
+      "file": "chlamydia-and-gonorrhea-screening--practice-considerations.md",
+      "slug": "chlamydia-and-gonorrhea-screening",
+      "section": "practice-considerations",
+      "title": "Chlamydia and Gonorrhea: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chlamydia-and-gonorrhea-screening"
+    },
+    {
+      "file": "chlamydia-and-gonorrhea-screening--recommendation-summary.md",
+      "slug": "chlamydia-and-gonorrhea-screening",
+      "section": "recommendation-summary",
+      "title": "Chlamydia and Gonorrhea: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chlamydia-and-gonorrhea-screening"
+    },
+    {
+      "file": "chronic-obstructive-pulmonary-disease-screening--assessment-of-net-benefit.md",
+      "slug": "chronic-obstructive-pulmonary-disease-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Chronic Obstructive Pulmonary Disease: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-obstructive-pulmonary-disease-screening"
+    },
+    {
+      "file": "chronic-obstructive-pulmonary-disease-screening--importance.md",
+      "slug": "chronic-obstructive-pulmonary-disease-screening",
+      "section": "importance",
+      "title": "Chronic Obstructive Pulmonary Disease: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-obstructive-pulmonary-disease-screening"
+    },
+    {
+      "file": "chronic-obstructive-pulmonary-disease-screening--practice-considerations.md",
+      "slug": "chronic-obstructive-pulmonary-disease-screening",
+      "section": "practice-considerations",
+      "title": "Chronic Obstructive Pulmonary Disease: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-obstructive-pulmonary-disease-screening"
+    },
+    {
+      "file": "chronic-obstructive-pulmonary-disease-screening--recommendation-summary.md",
+      "slug": "chronic-obstructive-pulmonary-disease-screening",
+      "section": "recommendation-summary",
+      "title": "Chronic Obstructive Pulmonary Disease: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-obstructive-pulmonary-disease-screening"
+    },
+    {
+      "file": "cognitive-impairment-in-older-adults-screening--assessment-of-net-benefit.md",
+      "slug": "cognitive-impairment-in-older-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Cognitive Impairment in Older Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cognitive-impairment-in-older-adults-screening"
+    },
+    {
+      "file": "cognitive-impairment-in-older-adults-screening--importance.md",
+      "slug": "cognitive-impairment-in-older-adults-screening",
+      "section": "importance",
+      "title": "Cognitive Impairment in Older Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cognitive-impairment-in-older-adults-screening"
+    },
+    {
+      "file": "cognitive-impairment-in-older-adults-screening--practice-considerations.md",
+      "slug": "cognitive-impairment-in-older-adults-screening",
+      "section": "practice-considerations",
+      "title": "Cognitive Impairment in Older Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cognitive-impairment-in-older-adults-screening"
+    },
+    {
+      "file": "cognitive-impairment-in-older-adults-screening--recommendation-summary.md",
+      "slug": "cognitive-impairment-in-older-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Cognitive Impairment in Older Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cognitive-impairment-in-older-adults-screening"
+    },
+    {
+      "file": "colorectal-cancer-screening--assessment-of-net-benefit.md",
+      "slug": "colorectal-cancer-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Colorectal Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening"
+    },
+    {
+      "file": "colorectal-cancer-screening--importance.md",
+      "slug": "colorectal-cancer-screening",
+      "section": "importance",
+      "title": "Colorectal Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening"
+    },
+    {
+      "file": "colorectal-cancer-screening--practice-considerations.md",
+      "slug": "colorectal-cancer-screening",
+      "section": "practice-considerations",
+      "title": "Colorectal Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening"
+    },
+    {
+      "file": "colorectal-cancer-screening--recommendation-summary.md",
+      "slug": "colorectal-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Colorectal Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening"
+    },
+    {
+      "file": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents--assessment-of-net-benefit.md",
+      "slug": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents",
+      "section": "assessment-of-net-benefit",
+      "title": "Illicit Drug Use in Children, Adolescents, and Young Adults: Primary Care-Based Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents"
+    },
+    {
+      "file": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents--importance.md",
+      "slug": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents",
+      "section": "importance",
+      "title": "Illicit Drug Use in Children, Adolescents, and Young Adults: Primary Care-Based Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents"
+    },
+    {
+      "file": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents--practice-considerations.md",
+      "slug": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents",
+      "section": "practice-considerations",
+      "title": "Illicit Drug Use in Children, Adolescents, and Young Adults: Primary Care-Based Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents"
+    },
+    {
+      "file": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents--recommendation-summary.md",
+      "slug": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents",
+      "section": "recommendation-summary",
+      "title": "Illicit Drug Use in Children, Adolescents, and Young Adults: Primary Care-Based Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents"
+    },
+    {
+      "file": "drug-use-illicit-screening--assessment-of-net-benefit.md",
+      "slug": "drug-use-illicit-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Unhealthy Drug Use: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
+    },
+    {
+      "file": "drug-use-illicit-screening--importance.md",
+      "slug": "drug-use-illicit-screening",
+      "section": "importance",
+      "title": "Unhealthy Drug Use: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
+    },
+    {
+      "file": "drug-use-illicit-screening--practice-considerations.md",
+      "slug": "drug-use-illicit-screening",
+      "section": "practice-considerations",
+      "title": "Unhealthy Drug Use: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
+    },
+    {
+      "file": "drug-use-illicit-screening--recommendation-summary.md",
+      "slug": "drug-use-illicit-screening",
+      "section": "recommendation-summary",
+      "title": "Unhealthy Drug Use: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
+    },
+    {
+      "file": "falls-prevention-community-dwelling-older-adults-interventions--assessment-of-net-benefit.md",
+      "slug": "falls-prevention-community-dwelling-older-adults-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Falls Prevention in Community-Dwelling Older Adults: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/falls-prevention-community-dwelling-older-adults-interventions"
+    },
+    {
+      "file": "falls-prevention-community-dwelling-older-adults-interventions--importance.md",
+      "slug": "falls-prevention-community-dwelling-older-adults-interventions",
+      "section": "importance",
+      "title": "Falls Prevention in Community-Dwelling Older Adults: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/falls-prevention-community-dwelling-older-adults-interventions"
+    },
+    {
+      "file": "falls-prevention-community-dwelling-older-adults-interventions--practice-considerations.md",
+      "slug": "falls-prevention-community-dwelling-older-adults-interventions",
+      "section": "practice-considerations",
+      "title": "Falls Prevention in Community-Dwelling Older Adults: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/falls-prevention-community-dwelling-older-adults-interventions"
+    },
+    {
+      "file": "falls-prevention-community-dwelling-older-adults-interventions--recommendation-summary.md",
+      "slug": "falls-prevention-community-dwelling-older-adults-interventions",
+      "section": "recommendation-summary",
+      "title": "Falls Prevention in Community-Dwelling Older Adults: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/falls-prevention-community-dwelling-older-adults-interventions"
+    },
+    {
+      "file": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication--assessment-of-net-benefit.md",
+      "slug": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication",
+      "section": "assessment-of-net-benefit",
+      "title": "Folic Acid Supplementation to Prevent Neural Tube Defects: Preventive Medication",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication"
+    },
+    {
+      "file": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication--importance.md",
+      "slug": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication",
+      "section": "importance",
+      "title": "Folic Acid Supplementation to Prevent Neural Tube Defects: Preventive Medication",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication"
+    },
+    {
+      "file": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication--practice-considerations.md",
+      "slug": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication",
+      "section": "practice-considerations",
+      "title": "Folic Acid Supplementation to Prevent Neural Tube Defects: Preventive Medication",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication"
+    },
+    {
+      "file": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication--recommendation-summary.md",
+      "slug": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Folic Acid Supplementation to Prevent Neural Tube Defects: Preventive Medication",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication"
+    },
+    {
+      "file": "food-insecurity-screening--assessment-of-net-benefit.md",
+      "slug": "food-insecurity-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Food Insecurity: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/food-insecurity-screening"
+    },
+    {
+      "file": "food-insecurity-screening--importance.md",
+      "slug": "food-insecurity-screening",
+      "section": "importance",
+      "title": "Food Insecurity: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/food-insecurity-screening"
+    },
+    {
+      "file": "food-insecurity-screening--practice-considerations.md",
+      "slug": "food-insecurity-screening",
+      "section": "practice-considerations",
+      "title": "Food Insecurity: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/food-insecurity-screening"
+    },
+    {
+      "file": "food-insecurity-screening--recommendation-summary.md",
+      "slug": "food-insecurity-screening",
+      "section": "recommendation-summary",
+      "title": "Food Insecurity: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/food-insecurity-screening"
+    },
+    {
+      "file": "genital-herpes-serologic-screening--assessment-of-net-benefit.md",
+      "slug": "genital-herpes-serologic-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Genital Herpes Infection: Serologic Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/genital-herpes-serologic-screening"
+    },
+    {
+      "file": "genital-herpes-serologic-screening--importance.md",
+      "slug": "genital-herpes-serologic-screening",
+      "section": "importance",
+      "title": "Genital Herpes Infection: Serologic Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/genital-herpes-serologic-screening"
+    },
+    {
+      "file": "genital-herpes-serologic-screening--practice-considerations.md",
+      "slug": "genital-herpes-serologic-screening",
+      "section": "practice-considerations",
+      "title": "Genital Herpes Infection: Serologic Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/genital-herpes-serologic-screening"
+    },
+    {
+      "file": "genital-herpes-serologic-screening--recommendation-summary.md",
+      "slug": "genital-herpes-serologic-screening",
+      "section": "recommendation-summary",
+      "title": "Genital Herpes Infection: Serologic Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/genital-herpes-serologic-screening"
+    },
+    {
+      "file": "gestational-diabetes-screening--assessment-of-net-benefit.md",
+      "slug": "gestational-diabetes-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Gestational Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gestational-diabetes-screening"
+    },
+    {
+      "file": "gestational-diabetes-screening--importance.md",
+      "slug": "gestational-diabetes-screening",
+      "section": "importance",
+      "title": "Gestational Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gestational-diabetes-screening"
+    },
+    {
+      "file": "gestational-diabetes-screening--practice-considerations.md",
+      "slug": "gestational-diabetes-screening",
+      "section": "practice-considerations",
+      "title": "Gestational Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gestational-diabetes-screening"
+    },
+    {
+      "file": "gestational-diabetes-screening--recommendation-summary.md",
+      "slug": "gestational-diabetes-screening",
+      "section": "recommendation-summary",
+      "title": "Gestational Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gestational-diabetes-screening"
+    },
+    {
+      "file": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd--assessment-of-net-benefit.md",
+      "slug": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd",
+      "section": "assessment-of-net-benefit",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults With Cardiovascular Risk Factors: Behavioral Counseling Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd"
+    },
+    {
+      "file": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd--importance.md",
+      "slug": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd",
+      "section": "importance",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults With Cardiovascular Risk Factors: Behavioral Counseling Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd"
+    },
+    {
+      "file": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd--practice-considerations.md",
+      "slug": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd",
+      "section": "practice-considerations",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults With Cardiovascular Risk Factors: Behavioral Counseling Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd"
+    },
+    {
+      "file": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd--recommendation-summary.md",
+      "slug": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd",
+      "section": "recommendation-summary",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults With Cardiovascular Risk Factors: Behavioral Counseling Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd"
+    },
+    {
+      "file": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling--assessment-of-net-benefit.md",
+      "slug": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling",
+      "section": "assessment-of-net-benefit",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults Without Cardiovascular Disease Risk Factors: Behavioral Counseling Interventions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling"
+    },
+    {
+      "file": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling--importance.md",
+      "slug": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling",
+      "section": "importance",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults Without Cardiovascular Disease Risk Factors: Behavioral Counseling Interventions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling"
+    },
+    {
+      "file": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling--practice-considerations.md",
+      "slug": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling",
+      "section": "practice-considerations",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults Without Cardiovascular Disease Risk Factors: Behavioral Counseling Interventions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling"
+    },
+    {
+      "file": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling--recommendation-summary.md",
+      "slug": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling",
+      "section": "recommendation-summary",
+      "title": "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults Without Cardiovascular Disease Risk Factors: Behavioral Counseling Interventions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling"
+    },
+    {
+      "file": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions--assessment-of-net-benefit.md",
+      "slug": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Healthy Weight and Weight Gain In Pregnancy: Behavioral Counseling Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions"
+    },
+    {
+      "file": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions--importance.md",
+      "slug": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions",
+      "section": "importance",
+      "title": "Healthy Weight and Weight Gain In Pregnancy: Behavioral Counseling Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions"
+    },
+    {
+      "file": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions--practice-considerations.md",
+      "slug": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions",
+      "section": "practice-considerations",
+      "title": "Healthy Weight and Weight Gain In Pregnancy: Behavioral Counseling Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions"
+    },
+    {
+      "file": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions--recommendation-summary.md",
+      "slug": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions",
+      "section": "recommendation-summary",
+      "title": "Healthy Weight and Weight Gain In Pregnancy: Behavioral Counseling Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions"
+    },
+    {
+      "file": "hearing-loss-in-older-adults-screening--assessment-of-net-benefit.md",
+      "slug": "hearing-loss-in-older-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Hearing Loss in Older Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-older-adults-screening"
+    },
+    {
+      "file": "hearing-loss-in-older-adults-screening--importance.md",
+      "slug": "hearing-loss-in-older-adults-screening",
+      "section": "importance",
+      "title": "Hearing Loss in Older Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-older-adults-screening"
+    },
+    {
+      "file": "hearing-loss-in-older-adults-screening--practice-considerations.md",
+      "slug": "hearing-loss-in-older-adults-screening",
+      "section": "practice-considerations",
+      "title": "Hearing Loss in Older Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-older-adults-screening"
+    },
+    {
+      "file": "hearing-loss-in-older-adults-screening--recommendation-summary.md",
+      "slug": "hearing-loss-in-older-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Hearing Loss in Older Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-older-adults-screening"
+    },
+    {
+      "file": "hepatitis-b-virus-infection-in-pregnant-women-screening--clinical-considerations.md",
+      "slug": "hepatitis-b-virus-infection-in-pregnant-women-screening",
+      "section": "clinical-considerations",
+      "title": "Hepatitis B Virus Infection in Pregnant Women: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-in-pregnant-women-screening"
+    },
+    {
+      "file": "hepatitis-b-virus-infection-in-pregnant-women-screening--recommendation-summary.md",
+      "slug": "hepatitis-b-virus-infection-in-pregnant-women-screening",
+      "section": "recommendation-summary",
+      "title": "Hepatitis B Virus Infection in Pregnant Women: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-in-pregnant-women-screening"
+    },
+    {
+      "file": "hepatitis-b-virus-infection-screening--assessment-of-net-benefit.md",
+      "slug": "hepatitis-b-virus-infection-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Hepatitis B Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-screening"
+    },
+    {
+      "file": "hepatitis-b-virus-infection-screening--importance.md",
+      "slug": "hepatitis-b-virus-infection-screening",
+      "section": "importance",
+      "title": "Hepatitis B Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-screening"
+    },
+    {
+      "file": "hepatitis-b-virus-infection-screening--practice-considerations.md",
+      "slug": "hepatitis-b-virus-infection-screening",
+      "section": "practice-considerations",
+      "title": "Hepatitis B Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-screening"
+    },
+    {
+      "file": "hepatitis-b-virus-infection-screening--recommendation-summary.md",
+      "slug": "hepatitis-b-virus-infection-screening",
+      "section": "recommendation-summary",
+      "title": "Hepatitis B Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-screening"
+    },
+    {
+      "file": "hepatitis-c-screening--importance.md",
+      "slug": "hepatitis-c-screening",
+      "section": "importance",
+      "title": "Hepatitis C Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-c-screening"
+    },
+    {
+      "file": "hepatitis-c-screening--practice-considerations.md",
+      "slug": "hepatitis-c-screening",
+      "section": "practice-considerations",
+      "title": "Hepatitis C Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-c-screening"
+    },
+    {
+      "file": "hepatitis-c-screening--recommendation-summary.md",
+      "slug": "hepatitis-c-screening",
+      "section": "recommendation-summary",
+      "title": "Hepatitis C Virus Infection in Adolescents and Adults: Screening",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-c-screening"
+    },
+    {
+      "file": "human-immunodeficiency-virus-hiv-infection-screening--clinical-considerations.md",
+      "slug": "human-immunodeficiency-virus-hiv-infection-screening",
+      "section": "clinical-considerations",
+      "title": "Human Immunodeficiency Virus (HIV) Infection: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/human-immunodeficiency-virus-hiv-infection-screening"
+    },
+    {
+      "file": "human-immunodeficiency-virus-hiv-infection-screening--recommendation-summary.md",
+      "slug": "human-immunodeficiency-virus-hiv-infection-screening",
+      "section": "recommendation-summary",
+      "title": "Human Immunodeficiency Virus (HIV) Infection: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/human-immunodeficiency-virus-hiv-infection-screening"
+    },
+    {
+      "file": "hypertension-in-adults-screening--assessment-of-net-benefit.md",
+      "slug": "hypertension-in-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Hypertension in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening"
+    },
+    {
+      "file": "hypertension-in-adults-screening--importance.md",
+      "slug": "hypertension-in-adults-screening",
+      "section": "importance",
+      "title": "Hypertension in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening"
+    },
+    {
+      "file": "hypertension-in-adults-screening--practice-considerations.md",
+      "slug": "hypertension-in-adults-screening",
+      "section": "practice-considerations",
+      "title": "Hypertension in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening"
+    },
+    {
+      "file": "hypertension-in-adults-screening--recommendation-summary.md",
+      "slug": "hypertension-in-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Hypertension in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening"
+    },
+    {
+      "file": "hypertensive-disorders-pregnancy-screening--assessment-of-net-benefit.md",
+      "slug": "hypertensive-disorders-pregnancy-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Hypertensive Disorders of Pregnancy: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertensive-disorders-pregnancy-screening"
+    },
+    {
+      "file": "hypertensive-disorders-pregnancy-screening--importance.md",
+      "slug": "hypertensive-disorders-pregnancy-screening",
+      "section": "importance",
+      "title": "Hypertensive Disorders of Pregnancy: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertensive-disorders-pregnancy-screening"
+    },
+    {
+      "file": "hypertensive-disorders-pregnancy-screening--practice-considerations.md",
+      "slug": "hypertensive-disorders-pregnancy-screening",
+      "section": "practice-considerations",
+      "title": "Hypertensive Disorders of Pregnancy: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertensive-disorders-pregnancy-screening"
+    },
+    {
+      "file": "hypertensive-disorders-pregnancy-screening--recommendation-summary.md",
+      "slug": "hypertensive-disorders-pregnancy-screening",
+      "section": "recommendation-summary",
+      "title": "Hypertensive Disorders of Pregnancy: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertensive-disorders-pregnancy-screening"
+    },
+    {
+      "file": "impaired-visual-acuity-screening-older-adults--assessment-of-net-benefit.md",
+      "slug": "impaired-visual-acuity-screening-older-adults",
+      "section": "assessment-of-net-benefit",
+      "title": "Impaired Visual Acuity in Older Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/impaired-visual-acuity-screening-older-adults"
+    },
+    {
+      "file": "impaired-visual-acuity-screening-older-adults--importance.md",
+      "slug": "impaired-visual-acuity-screening-older-adults",
+      "section": "importance",
+      "title": "Impaired Visual Acuity in Older Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/impaired-visual-acuity-screening-older-adults"
+    },
+    {
+      "file": "impaired-visual-acuity-screening-older-adults--practice-considerations.md",
+      "slug": "impaired-visual-acuity-screening-older-adults",
+      "section": "practice-considerations",
+      "title": "Impaired Visual Acuity in Older Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/impaired-visual-acuity-screening-older-adults"
+    },
+    {
+      "file": "impaired-visual-acuity-screening-older-adults--recommendation-summary.md",
+      "slug": "impaired-visual-acuity-screening-older-adults",
+      "section": "recommendation-summary",
+      "title": "Impaired Visual Acuity in Older Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/impaired-visual-acuity-screening-older-adults"
+    },
+    {
+      "file": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening--assessment-of-net-benefit.md",
+      "slug": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Intimate Partner Violence and Caregiver Abuse of Older or Vulnerable Adults: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening"
+    },
+    {
+      "file": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening--importance.md",
+      "slug": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening",
+      "section": "importance",
+      "title": "Intimate Partner Violence and Caregiver Abuse of Older or Vulnerable Adults: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening"
+    },
+    {
+      "file": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening--practice-considerations.md",
+      "slug": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening",
+      "section": "practice-considerations",
+      "title": "Intimate Partner Violence and Caregiver Abuse of Older or Vulnerable Adults: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening"
+    },
+    {
+      "file": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening--recommendation-summary.md",
+      "slug": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Intimate Partner Violence and Caregiver Abuse of Older or Vulnerable Adults: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening"
+    },
+    {
+      "file": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation--assessment-of-net-benefit.md",
+      "slug": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation",
+      "section": "assessment-of-net-benefit",
+      "title": "Iron Deficiency and Iron Deficiency Anemia During Pregnancy: Screening and Supplementation",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation"
+    },
+    {
+      "file": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation--importance.md",
+      "slug": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation",
+      "section": "importance",
+      "title": "Iron Deficiency and Iron Deficiency Anemia During Pregnancy: Screening and Supplementation",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation"
+    },
+    {
+      "file": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation--practice-considerations.md",
+      "slug": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation",
+      "section": "practice-considerations",
+      "title": "Iron Deficiency and Iron Deficiency Anemia During Pregnancy: Screening and Supplementation",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation"
+    },
+    {
+      "file": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation--recommendation-summary.md",
+      "slug": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation",
+      "section": "recommendation-summary",
+      "title": "Iron Deficiency and Iron Deficiency Anemia During Pregnancy: Screening and Supplementation",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation"
+    },
+    {
+      "file": "iron-deficiency-anemia-in-young-children-screening--clinical-considerations.md",
+      "slug": "iron-deficiency-anemia-in-young-children-screening",
+      "section": "clinical-considerations",
+      "title": "Iron Deficiency Anemia in Young Children: Screening",
+      "year": 2015,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-young-children-screening"
+    },
+    {
+      "file": "iron-deficiency-anemia-in-young-children-screening--recommendation-summary.md",
+      "slug": "iron-deficiency-anemia-in-young-children-screening",
+      "section": "recommendation-summary",
+      "title": "Iron Deficiency Anemia in Young Children: Screening",
+      "year": 2015,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-young-children-screening"
+    },
+    {
+      "file": "latent-tuberculosis-infection-screening--assessment-of-net-benefit.md",
+      "slug": "latent-tuberculosis-infection-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Latent Tuberculosis Infection in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/latent-tuberculosis-infection-screening"
+    },
+    {
+      "file": "latent-tuberculosis-infection-screening--importance.md",
+      "slug": "latent-tuberculosis-infection-screening",
+      "section": "importance",
+      "title": "Latent Tuberculosis Infection in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/latent-tuberculosis-infection-screening"
+    },
+    {
+      "file": "latent-tuberculosis-infection-screening--practice-considerations.md",
+      "slug": "latent-tuberculosis-infection-screening",
+      "section": "practice-considerations",
+      "title": "Latent Tuberculosis Infection in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/latent-tuberculosis-infection-screening"
+    },
+    {
+      "file": "latent-tuberculosis-infection-screening--recommendation-summary.md",
+      "slug": "latent-tuberculosis-infection-screening",
+      "section": "recommendation-summary",
+      "title": "Latent Tuberculosis Infection in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/latent-tuberculosis-infection-screening"
+    },
+    {
+      "file": "lipid-disorders-in-children-screening--assessment-of-net-benefit.md",
+      "slug": "lipid-disorders-in-children-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Lipid Disorders in Children and Adolescents: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lipid-disorders-in-children-screening"
+    },
+    {
+      "file": "lipid-disorders-in-children-screening--importance.md",
+      "slug": "lipid-disorders-in-children-screening",
+      "section": "importance",
+      "title": "Lipid Disorders in Children and Adolescents: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lipid-disorders-in-children-screening"
+    },
+    {
+      "file": "lipid-disorders-in-children-screening--practice-considerations.md",
+      "slug": "lipid-disorders-in-children-screening",
+      "section": "practice-considerations",
+      "title": "Lipid Disorders in Children and Adolescents: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lipid-disorders-in-children-screening"
+    },
+    {
+      "file": "lipid-disorders-in-children-screening--recommendation-summary.md",
+      "slug": "lipid-disorders-in-children-screening",
+      "section": "recommendation-summary",
+      "title": "Lipid Disorders in Children and Adolescents: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lipid-disorders-in-children-screening"
+    },
+    {
+      "file": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication--assessment-of-net-benefit.md",
+      "slug": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication",
+      "section": "assessment-of-net-benefit",
+      "title": "Aspirin Use to Prevent Preeclampsia and Related Morbidity and Mortality: Preventive Medication",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication"
+    },
+    {
+      "file": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication--importance.md",
+      "slug": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication",
+      "section": "importance",
+      "title": "Aspirin Use to Prevent Preeclampsia and Related Morbidity and Mortality: Preventive Medication",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication"
+    },
+    {
+      "file": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication--practice-considerations.md",
+      "slug": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication",
+      "section": "practice-considerations",
+      "title": "Aspirin Use to Prevent Preeclampsia and Related Morbidity and Mortality: Preventive Medication",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication"
+    },
+    {
+      "file": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication--recommendation-summary.md",
+      "slug": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Aspirin Use to Prevent Preeclampsia and Related Morbidity and Mortality: Preventive Medication",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication"
+    },
+    {
+      "file": "lung-cancer-screening--assessment-of-net-benefit.md",
+      "slug": "lung-cancer-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Lung Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lung-cancer-screening"
+    },
+    {
+      "file": "lung-cancer-screening--importance.md",
+      "slug": "lung-cancer-screening",
+      "section": "importance",
+      "title": "Lung Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lung-cancer-screening"
+    },
+    {
+      "file": "lung-cancer-screening--practice-considerations.md",
+      "slug": "lung-cancer-screening",
+      "section": "practice-considerations",
+      "title": "Lung Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lung-cancer-screening"
+    },
+    {
+      "file": "lung-cancer-screening--recommendation-summary.md",
+      "slug": "lung-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Lung Cancer: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lung-cancer-screening"
+    },
+    {
+      "file": "menopausal-hormone-therapy-preventive-medication--assessment-of-net-benefit.md",
+      "slug": "menopausal-hormone-therapy-preventive-medication",
+      "section": "assessment-of-net-benefit",
+      "title": "Hormone Therapy in Postmenopausal Persons: Primary Prevention of Chronic Conditions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication"
+    },
+    {
+      "file": "menopausal-hormone-therapy-preventive-medication--importance.md",
+      "slug": "menopausal-hormone-therapy-preventive-medication",
+      "section": "importance",
+      "title": "Hormone Therapy in Postmenopausal Persons: Primary Prevention of Chronic Conditions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication"
+    },
+    {
+      "file": "menopausal-hormone-therapy-preventive-medication--practice-considerations.md",
+      "slug": "menopausal-hormone-therapy-preventive-medication",
+      "section": "practice-considerations",
+      "title": "Hormone Therapy in Postmenopausal Persons: Primary Prevention of Chronic Conditions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication"
+    },
+    {
+      "file": "menopausal-hormone-therapy-preventive-medication--recommendation-summary.md",
+      "slug": "menopausal-hormone-therapy-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Hormone Therapy in Postmenopausal Persons: Primary Prevention of Chronic Conditions",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication"
+    },
+    {
+      "file": "obesity-in-adults-interventions--clinical-considerations.md",
+      "slug": "obesity-in-adults-interventions",
+      "section": "clinical-considerations",
+      "title": "Weight Loss to Prevent Obesity-Related Morbidity and Mortality in Adults: Behavioral Interventions",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-adults-interventions"
+    },
+    {
+      "file": "obesity-in-adults-interventions--recommendation-summary.md",
+      "slug": "obesity-in-adults-interventions",
+      "section": "recommendation-summary",
+      "title": "Weight Loss to Prevent Obesity-Related Morbidity and Mortality in Adults: Behavioral Interventions",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-adults-interventions"
+    },
+    {
+      "file": "obesity-in-children-and-adolescents-screening--assessment-of-net-benefit.md",
+      "slug": "obesity-in-children-and-adolescents-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "High Body Mass Index in Children and Adolescents: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-children-and-adolescents-screening"
+    },
+    {
+      "file": "obesity-in-children-and-adolescents-screening--importance.md",
+      "slug": "obesity-in-children-and-adolescents-screening",
+      "section": "importance",
+      "title": "High Body Mass Index in Children and Adolescents: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-children-and-adolescents-screening"
+    },
+    {
+      "file": "obesity-in-children-and-adolescents-screening--practice-considerations.md",
+      "slug": "obesity-in-children-and-adolescents-screening",
+      "section": "practice-considerations",
+      "title": "High Body Mass Index in Children and Adolescents: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-children-and-adolescents-screening"
+    },
+    {
+      "file": "obesity-in-children-and-adolescents-screening--recommendation-summary.md",
+      "slug": "obesity-in-children-and-adolescents-screening",
+      "section": "recommendation-summary",
+      "title": "High Body Mass Index in Children and Adolescents: Interventions",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-children-and-adolescents-screening"
+    },
+    {
+      "file": "obstructive-sleep-apnea-in-adults-screening--assessment-of-net-benefit.md",
+      "slug": "obstructive-sleep-apnea-in-adults-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Obstructive Sleep Apnea in Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obstructive-sleep-apnea-in-adults-screening"
+    },
+    {
+      "file": "obstructive-sleep-apnea-in-adults-screening--importance.md",
+      "slug": "obstructive-sleep-apnea-in-adults-screening",
+      "section": "importance",
+      "title": "Obstructive Sleep Apnea in Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obstructive-sleep-apnea-in-adults-screening"
+    },
+    {
+      "file": "obstructive-sleep-apnea-in-adults-screening--practice-considerations.md",
+      "slug": "obstructive-sleep-apnea-in-adults-screening",
+      "section": "practice-considerations",
+      "title": "Obstructive Sleep Apnea in Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obstructive-sleep-apnea-in-adults-screening"
+    },
+    {
+      "file": "obstructive-sleep-apnea-in-adults-screening--recommendation-summary.md",
+      "slug": "obstructive-sleep-apnea-in-adults-screening",
+      "section": "recommendation-summary",
+      "title": "Obstructive Sleep Apnea in Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obstructive-sleep-apnea-in-adults-screening"
+    },
+    {
+      "file": "ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication--clinical-considerations.md",
+      "slug": "ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication",
+      "section": "clinical-considerations",
+      "title": "Ocular Prophylaxis for Gonococcal Ophthalmia Neonatorum: Preventive Medication",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication"
+    },
+    {
+      "file": "ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication--recommendation-summary.md",
+      "slug": "ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Ocular Prophylaxis for Gonococcal Ophthalmia Neonatorum: Preventive Medication",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication"
+    },
+    {
+      "file": "oral-cancer-screening--clinical-considerations.md",
+      "slug": "oral-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Oral Cancer: Screening",
+      "year": 2013,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-cancer-screening"
+    },
+    {
+      "file": "oral-cancer-screening--recommendation-summary.md",
+      "slug": "oral-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Oral Cancer: Screening",
+      "year": 2013,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-cancer-screening"
+    },
+    {
+      "file": "oral-health-adults-screening-preventive-interventions--assessment-of-net-benefit.md",
+      "slug": "oral-health-adults-screening-preventive-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Oral Health in Adults: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-adults-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-adults-screening-preventive-interventions--importance.md",
+      "slug": "oral-health-adults-screening-preventive-interventions",
+      "section": "importance",
+      "title": "Oral Health in Adults: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-adults-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-adults-screening-preventive-interventions--practice-considerations.md",
+      "slug": "oral-health-adults-screening-preventive-interventions",
+      "section": "practice-considerations",
+      "title": "Oral Health in Adults: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-adults-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-adults-screening-preventive-interventions--recommendation-summary.md",
+      "slug": "oral-health-adults-screening-preventive-interventions",
+      "section": "recommendation-summary",
+      "title": "Oral Health in Adults: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-adults-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-children-adolescents-screening-preventive-interventions--assessment-of-net-benefit.md",
+      "slug": "oral-health-children-adolescents-screening-preventive-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Oral Health in Children and Adolescents Aged 5 to 17 Years: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-children-adolescents-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-children-adolescents-screening-preventive-interventions--importance.md",
+      "slug": "oral-health-children-adolescents-screening-preventive-interventions",
+      "section": "importance",
+      "title": "Oral Health in Children and Adolescents Aged 5 to 17 Years: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-children-adolescents-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-children-adolescents-screening-preventive-interventions--practice-considerations.md",
+      "slug": "oral-health-children-adolescents-screening-preventive-interventions",
+      "section": "practice-considerations",
+      "title": "Oral Health in Children and Adolescents Aged 5 to 17 Years: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-children-adolescents-screening-preventive-interventions"
+    },
+    {
+      "file": "oral-health-children-adolescents-screening-preventive-interventions--recommendation-summary.md",
+      "slug": "oral-health-children-adolescents-screening-preventive-interventions",
+      "section": "recommendation-summary",
+      "title": "Oral Health in Children and Adolescents Aged 5 to 17 Years: Screening and Preventive Interventions",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-children-adolescents-screening-preventive-interventions"
+    },
+    {
+      "file": "osteoporosis-screening--assessment-of-net-benefit.md",
+      "slug": "osteoporosis-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Osteoporosis to Prevent Fractures: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening"
+    },
+    {
+      "file": "osteoporosis-screening--importance.md",
+      "slug": "osteoporosis-screening",
+      "section": "importance",
+      "title": "Osteoporosis to Prevent Fractures: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening"
+    },
+    {
+      "file": "osteoporosis-screening--practice-considerations.md",
+      "slug": "osteoporosis-screening",
+      "section": "practice-considerations",
+      "title": "Osteoporosis to Prevent Fractures: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening"
+    },
+    {
+      "file": "osteoporosis-screening--recommendation-summary.md",
+      "slug": "osteoporosis-screening",
+      "section": "recommendation-summary",
+      "title": "Osteoporosis to Prevent Fractures: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening"
+    },
+    {
+      "file": "ovarian-cancer-screening--clinical-considerations.md",
+      "slug": "ovarian-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Ovarian Cancer: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/ovarian-cancer-screening"
+    },
+    {
+      "file": "ovarian-cancer-screening--recommendation-summary.md",
+      "slug": "ovarian-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Ovarian Cancer: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/ovarian-cancer-screening"
+    },
+    {
+      "file": "pancreatic-cancer-screening--clinical-considerations.md",
+      "slug": "pancreatic-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Pancreatic Cancer: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/pancreatic-cancer-screening"
+    },
+    {
+      "file": "pancreatic-cancer-screening--recommendation-summary.md",
+      "slug": "pancreatic-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Pancreatic Cancer: Screening",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/pancreatic-cancer-screening"
+    },
+    {
+      "file": "perinatal-depression-preventive-interventions--clinical-considerations.md",
+      "slug": "perinatal-depression-preventive-interventions",
+      "section": "clinical-considerations",
+      "title": "Perinatal Depression: Preventive Interventions",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/perinatal-depression-preventive-interventions"
+    },
+    {
+      "file": "perinatal-depression-preventive-interventions--recommendation-summary.md",
+      "slug": "perinatal-depression-preventive-interventions",
+      "section": "recommendation-summary",
+      "title": "Perinatal Depression: Preventive Interventions",
+      "year": 2019,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/perinatal-depression-preventive-interventions"
+    },
+    {
+      "file": "peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index--clinical-considerations.md",
+      "slug": "peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index",
+      "section": "clinical-considerations",
+      "title": "Peripheral Artery Disease and Cardiovascular Disease: Screening and Risk Assessment With the Ankle-Brachial Index",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index"
+    },
+    {
+      "file": "peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index--recommendation-summary.md",
+      "slug": "peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index",
+      "section": "recommendation-summary",
+      "title": "Peripheral Artery Disease and Cardiovascular Disease: Screening and Risk Assessment With the Ankle-Brachial Index",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index"
+    },
+    {
+      "file": "prediabetes-type2-diabetes-children-adolescents-screening--assessment-of-net-benefit.md",
+      "slug": "prediabetes-type2-diabetes-children-adolescents-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Prediabetes and Type 2 Diabetes in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening"
+    },
+    {
+      "file": "prediabetes-type2-diabetes-children-adolescents-screening--importance.md",
+      "slug": "prediabetes-type2-diabetes-children-adolescents-screening",
+      "section": "importance",
+      "title": "Prediabetes and Type 2 Diabetes in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening"
+    },
+    {
+      "file": "prediabetes-type2-diabetes-children-adolescents-screening--practice-considerations.md",
+      "slug": "prediabetes-type2-diabetes-children-adolescents-screening",
+      "section": "practice-considerations",
+      "title": "Prediabetes and Type 2 Diabetes in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening"
+    },
+    {
+      "file": "prediabetes-type2-diabetes-children-adolescents-screening--recommendation-summary.md",
+      "slug": "prediabetes-type2-diabetes-children-adolescents-screening",
+      "section": "recommendation-summary",
+      "title": "Prediabetes and Type 2 Diabetes in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening"
+    },
+    {
+      "file": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1--assessment-of-net-benefit.md",
+      "slug": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1",
+      "section": "assessment-of-net-benefit",
+      "title": "Prevention of Dental Caries in Children Younger Than 5 Years: Screening and Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1"
+    },
+    {
+      "file": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1--importance.md",
+      "slug": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1",
+      "section": "importance",
+      "title": "Prevention of Dental Caries in Children Younger Than 5 Years: Screening and Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1"
+    },
+    {
+      "file": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1--practice-considerations.md",
+      "slug": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1",
+      "section": "practice-considerations",
+      "title": "Prevention of Dental Caries in Children Younger Than 5 Years: Screening and Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1"
+    },
+    {
+      "file": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1--recommendation-summary.md",
+      "slug": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1",
+      "section": "recommendation-summary",
+      "title": "Prevention of Dental Caries in Children Younger Than 5 Years: Screening and Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1"
+    },
+    {
+      "file": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis--assessment-of-net-benefit.md",
+      "slug": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis",
+      "section": "assessment-of-net-benefit",
+      "title": "Prevention of Acquisition of HIV: Preexposure Prophylaxis",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis"
+    },
+    {
+      "file": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis--importance.md",
+      "slug": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis",
+      "section": "importance",
+      "title": "Prevention of Acquisition of HIV: Preexposure Prophylaxis",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis"
+    },
+    {
+      "file": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis--practice-considerations.md",
+      "slug": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis",
+      "section": "practice-considerations",
+      "title": "Prevention of Acquisition of HIV: Preexposure Prophylaxis",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis"
+    },
+    {
+      "file": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis--recommendation-summary.md",
+      "slug": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis",
+      "section": "recommendation-summary",
+      "title": "Prevention of Acquisition of HIV: Preexposure Prophylaxis",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis"
+    },
+    {
+      "file": "primary-open-angle-glaucoma-screening--assessment-of-net-benefit.md",
+      "slug": "primary-open-angle-glaucoma-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Primary Open-Angle Glaucoma: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/primary-open-angle-glaucoma-screening"
+    },
+    {
+      "file": "primary-open-angle-glaucoma-screening--importance.md",
+      "slug": "primary-open-angle-glaucoma-screening",
+      "section": "importance",
+      "title": "Primary Open-Angle Glaucoma: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/primary-open-angle-glaucoma-screening"
+    },
+    {
+      "file": "primary-open-angle-glaucoma-screening--practice-considerations.md",
+      "slug": "primary-open-angle-glaucoma-screening",
+      "section": "practice-considerations",
+      "title": "Primary Open-Angle Glaucoma: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/primary-open-angle-glaucoma-screening"
+    },
+    {
+      "file": "primary-open-angle-glaucoma-screening--recommendation-summary.md",
+      "slug": "primary-open-angle-glaucoma-screening",
+      "section": "recommendation-summary",
+      "title": "Primary Open-Angle Glaucoma: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/primary-open-angle-glaucoma-screening"
+    },
+    {
+      "file": "prostate-cancer-screening--clinical-considerations.md",
+      "slug": "prostate-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Prostate Cancer: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prostate-cancer-screening"
+    },
+    {
+      "file": "prostate-cancer-screening--recommendation-summary.md",
+      "slug": "prostate-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Prostate Cancer: Screening",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prostate-cancer-screening"
+    },
+    {
+      "file": "rh-d-incompatibility-screening--clinical-considerations.md",
+      "slug": "rh-d-incompatibility-screening",
+      "section": "clinical-considerations",
+      "title": "Rh(D) Incompatibility: Screening",
+      "year": 2004,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/rh-d-incompatibility-screening"
+    },
+    {
+      "file": "rh-d-incompatibility-screening--recommendation-summary.md",
+      "slug": "rh-d-incompatibility-screening",
+      "section": "recommendation-summary",
+      "title": "Rh(D) Incompatibility: Screening",
+      "year": 2004,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/rh-d-incompatibility-screening"
+    },
+    {
+      "file": "screening-anxiety-children-adolescents--importance.md",
+      "slug": "screening-anxiety-children-adolescents",
+      "section": "importance",
+      "title": "Anxiety in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-anxiety-children-adolescents"
+    },
+    {
+      "file": "screening-anxiety-children-adolescents--practice-considerations.md",
+      "slug": "screening-anxiety-children-adolescents",
+      "section": "practice-considerations",
+      "title": "Anxiety in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-anxiety-children-adolescents"
+    },
+    {
+      "file": "screening-anxiety-children-adolescents--recommendation-summary.md",
+      "slug": "screening-anxiety-children-adolescents",
+      "section": "recommendation-summary",
+      "title": "Anxiety in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-anxiety-children-adolescents"
+    },
+    {
+      "file": "screening-depression-suicide-risk-adults--assessment-of-net-benefit.md",
+      "slug": "screening-depression-suicide-risk-adults",
+      "section": "assessment-of-net-benefit",
+      "title": "Depression and Suicide Risk in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults"
+    },
+    {
+      "file": "screening-depression-suicide-risk-adults--importance.md",
+      "slug": "screening-depression-suicide-risk-adults",
+      "section": "importance",
+      "title": "Depression and Suicide Risk in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults"
+    },
+    {
+      "file": "screening-depression-suicide-risk-adults--practice-considerations.md",
+      "slug": "screening-depression-suicide-risk-adults",
+      "section": "practice-considerations",
+      "title": "Depression and Suicide Risk in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults"
+    },
+    {
+      "file": "screening-depression-suicide-risk-adults--recommendation-summary.md",
+      "slug": "screening-depression-suicide-risk-adults",
+      "section": "recommendation-summary",
+      "title": "Depression and Suicide Risk in Adults: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults"
+    },
+    {
+      "file": "screening-depression-suicide-risk-children-adolescents--assessment-of-net-benefit.md",
+      "slug": "screening-depression-suicide-risk-children-adolescents",
+      "section": "assessment-of-net-benefit",
+      "title": "Depression and Suicide Risk in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-children-adolescents"
+    },
+    {
+      "file": "screening-depression-suicide-risk-children-adolescents--importance.md",
+      "slug": "screening-depression-suicide-risk-children-adolescents",
+      "section": "importance",
+      "title": "Depression and Suicide Risk in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-children-adolescents"
+    },
+    {
+      "file": "screening-depression-suicide-risk-children-adolescents--practice-considerations.md",
+      "slug": "screening-depression-suicide-risk-children-adolescents",
+      "section": "practice-considerations",
+      "title": "Depression and Suicide Risk in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-children-adolescents"
+    },
+    {
+      "file": "screening-depression-suicide-risk-children-adolescents--recommendation-summary.md",
+      "slug": "screening-depression-suicide-risk-children-adolescents",
+      "section": "recommendation-summary",
+      "title": "Depression and Suicide Risk in Children and Adolescents: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-children-adolescents"
+    },
+    {
+      "file": "screening-eating-disorders-adolescents-adults--assessment-of-net-benefit.md",
+      "slug": "screening-eating-disorders-adolescents-adults",
+      "section": "assessment-of-net-benefit",
+      "title": "Eating Disorders in Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-eating-disorders-adolescents-adults"
+    },
+    {
+      "file": "screening-eating-disorders-adolescents-adults--importance.md",
+      "slug": "screening-eating-disorders-adolescents-adults",
+      "section": "importance",
+      "title": "Eating Disorders in Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-eating-disorders-adolescents-adults"
+    },
+    {
+      "file": "screening-eating-disorders-adolescents-adults--practice-considerations.md",
+      "slug": "screening-eating-disorders-adolescents-adults",
+      "section": "practice-considerations",
+      "title": "Eating Disorders in Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-eating-disorders-adolescents-adults"
+    },
+    {
+      "file": "screening-eating-disorders-adolescents-adults--recommendation-summary.md",
+      "slug": "screening-eating-disorders-adolescents-adults",
+      "section": "recommendation-summary",
+      "title": "Eating Disorders in Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-eating-disorders-adolescents-adults"
+    },
+    {
+      "file": "screening-for-prediabetes-and-type-2-diabetes--assessment-of-net-benefit.md",
+      "slug": "screening-for-prediabetes-and-type-2-diabetes",
+      "section": "assessment-of-net-benefit",
+      "title": "Prediabetes and Type 2 Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes"
+    },
+    {
+      "file": "screening-for-prediabetes-and-type-2-diabetes--importance.md",
+      "slug": "screening-for-prediabetes-and-type-2-diabetes",
+      "section": "importance",
+      "title": "Prediabetes and Type 2 Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes"
+    },
+    {
+      "file": "screening-for-prediabetes-and-type-2-diabetes--practice-considerations.md",
+      "slug": "screening-for-prediabetes-and-type-2-diabetes",
+      "section": "practice-considerations",
+      "title": "Prediabetes and Type 2 Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes"
+    },
+    {
+      "file": "screening-for-prediabetes-and-type-2-diabetes--recommendation-summary.md",
+      "slug": "screening-for-prediabetes-and-type-2-diabetes",
+      "section": "recommendation-summary",
+      "title": "Prediabetes and Type 2 Diabetes: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes"
+    },
+    {
+      "file": "sexually-transmitted-infections-behavioral-counseling--assessment-of-net-benefit.md",
+      "slug": "sexually-transmitted-infections-behavioral-counseling",
+      "section": "assessment-of-net-benefit",
+      "title": "Sexually Transmitted Infections: Behavioral Counseling",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/sexually-transmitted-infections-behavioral-counseling"
+    },
+    {
+      "file": "sexually-transmitted-infections-behavioral-counseling--importance.md",
+      "slug": "sexually-transmitted-infections-behavioral-counseling",
+      "section": "importance",
+      "title": "Sexually Transmitted Infections: Behavioral Counseling",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/sexually-transmitted-infections-behavioral-counseling"
+    },
+    {
+      "file": "sexually-transmitted-infections-behavioral-counseling--practice-considerations.md",
+      "slug": "sexually-transmitted-infections-behavioral-counseling",
+      "section": "practice-considerations",
+      "title": "Sexually Transmitted Infections: Behavioral Counseling",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/sexually-transmitted-infections-behavioral-counseling"
+    },
+    {
+      "file": "sexually-transmitted-infections-behavioral-counseling--recommendation-summary.md",
+      "slug": "sexually-transmitted-infections-behavioral-counseling",
+      "section": "recommendation-summary",
+      "title": "Sexually Transmitted Infections: Behavioral Counseling",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/sexually-transmitted-infections-behavioral-counseling"
+    },
+    {
+      "file": "skin-cancer-counseling--clinical-considerations.md",
+      "slug": "skin-cancer-counseling",
+      "section": "clinical-considerations",
+      "title": "Skin Cancer Prevention: Behavioral Counseling",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-counseling"
+    },
+    {
+      "file": "skin-cancer-counseling--recommendation-summary.md",
+      "slug": "skin-cancer-counseling",
+      "section": "recommendation-summary",
+      "title": "Skin Cancer Prevention: Behavioral Counseling",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-counseling"
+    },
+    {
+      "file": "skin-cancer-screening--assessment-of-net-benefit.md",
+      "slug": "skin-cancer-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Skin Cancer: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-screening"
+    },
+    {
+      "file": "skin-cancer-screening--importance.md",
+      "slug": "skin-cancer-screening",
+      "section": "importance",
+      "title": "Skin Cancer: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-screening"
+    },
+    {
+      "file": "skin-cancer-screening--practice-considerations.md",
+      "slug": "skin-cancer-screening",
+      "section": "practice-considerations",
+      "title": "Skin Cancer: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-screening"
+    },
+    {
+      "file": "skin-cancer-screening--recommendation-summary.md",
+      "slug": "skin-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Skin Cancer: Screening",
+      "year": 2023,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-screening"
+    },
+    {
+      "file": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening--assessment-of-net-benefit.md",
+      "slug": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Speech and Language Delay and Disorders in Children: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening"
+    },
+    {
+      "file": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening--importance.md",
+      "slug": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening",
+      "section": "importance",
+      "title": "Speech and Language Delay and Disorders in Children: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening"
+    },
+    {
+      "file": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening--practice-considerations.md",
+      "slug": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening",
+      "section": "practice-considerations",
+      "title": "Speech and Language Delay and Disorders in Children: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening"
+    },
+    {
+      "file": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening--recommendation-summary.md",
+      "slug": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening",
+      "section": "recommendation-summary",
+      "title": "Speech and Language Delay and Disorders in Children: Screening",
+      "year": 2024,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening"
+    },
+    {
+      "file": "statin-use-in-adults-preventive-medication--assessment-of-net-benefit.md",
+      "slug": "statin-use-in-adults-preventive-medication",
+      "section": "assessment-of-net-benefit",
+      "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication"
+    },
+    {
+      "file": "statin-use-in-adults-preventive-medication--importance.md",
+      "slug": "statin-use-in-adults-preventive-medication",
+      "section": "importance",
+      "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication"
+    },
+    {
+      "file": "statin-use-in-adults-preventive-medication--practice-considerations.md",
+      "slug": "statin-use-in-adults-preventive-medication",
+      "section": "practice-considerations",
+      "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication"
+    },
+    {
+      "file": "statin-use-in-adults-preventive-medication--recommendation-summary.md",
+      "slug": "statin-use-in-adults-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication"
+    },
+    {
+      "file": "syphilis-infection-in-pregnancy-screening--assessment-of-net-benefit.md",
+      "slug": "syphilis-infection-in-pregnancy-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Syphilis Infection During Pregnancy: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-in-pregnancy-screening"
+    },
+    {
+      "file": "syphilis-infection-in-pregnancy-screening--importance.md",
+      "slug": "syphilis-infection-in-pregnancy-screening",
+      "section": "importance",
+      "title": "Syphilis Infection During Pregnancy: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-in-pregnancy-screening"
+    },
+    {
+      "file": "syphilis-infection-in-pregnancy-screening--practice-considerations.md",
+      "slug": "syphilis-infection-in-pregnancy-screening",
+      "section": "practice-considerations",
+      "title": "Syphilis Infection During Pregnancy: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-in-pregnancy-screening"
+    },
+    {
+      "file": "syphilis-infection-in-pregnancy-screening--recommendation-summary.md",
+      "slug": "syphilis-infection-in-pregnancy-screening",
+      "section": "recommendation-summary",
+      "title": "Syphilis Infection During Pregnancy: Screening",
+      "year": 2025,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-in-pregnancy-screening"
+    },
+    {
+      "file": "syphilis-infection-nonpregnant-adults-adolescents-screening--assessment-of-net-benefit.md",
+      "slug": "syphilis-infection-nonpregnant-adults-adolescents-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Syphilis Infection in Nonpregnant Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-nonpregnant-adults-adolescents-screening"
+    },
+    {
+      "file": "syphilis-infection-nonpregnant-adults-adolescents-screening--importance.md",
+      "slug": "syphilis-infection-nonpregnant-adults-adolescents-screening",
+      "section": "importance",
+      "title": "Syphilis Infection in Nonpregnant Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-nonpregnant-adults-adolescents-screening"
+    },
+    {
+      "file": "syphilis-infection-nonpregnant-adults-adolescents-screening--practice-considerations.md",
+      "slug": "syphilis-infection-nonpregnant-adults-adolescents-screening",
+      "section": "practice-considerations",
+      "title": "Syphilis Infection in Nonpregnant Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-nonpregnant-adults-adolescents-screening"
+    },
+    {
+      "file": "syphilis-infection-nonpregnant-adults-adolescents-screening--recommendation-summary.md",
+      "slug": "syphilis-infection-nonpregnant-adults-adolescents-screening",
+      "section": "recommendation-summary",
+      "title": "Syphilis Infection in Nonpregnant Adolescents and Adults: Screening",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-nonpregnant-adults-adolescents-screening"
+    },
+    {
+      "file": "testicular-cancer-screening--clinical-considerations.md",
+      "slug": "testicular-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Testicular Cancer: Screening",
+      "year": 2011,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/testicular-cancer-screening"
+    },
+    {
+      "file": "testicular-cancer-screening--recommendation-summary.md",
+      "slug": "testicular-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Testicular Cancer: Screening",
+      "year": 2011,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/testicular-cancer-screening"
+    },
+    {
+      "file": "thyroid-cancer-screening--clinical-considerations.md",
+      "slug": "thyroid-cancer-screening",
+      "section": "clinical-considerations",
+      "title": "Thyroid Cancer: Screening",
+      "year": 2017,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-cancer-screening"
+    },
+    {
+      "file": "thyroid-cancer-screening--recommendation-summary.md",
+      "slug": "thyroid-cancer-screening",
+      "section": "recommendation-summary",
+      "title": "Thyroid Cancer: Screening",
+      "year": 2017,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-cancer-screening"
+    },
+    {
+      "file": "thyroid-dysfunction-screening--clinical-considerations.md",
+      "slug": "thyroid-dysfunction-screening",
+      "section": "clinical-considerations",
+      "title": "Thyroid Dysfunction: Screening",
+      "year": 2015,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-dysfunction-screening"
+    },
+    {
+      "file": "thyroid-dysfunction-screening--recommendation-summary.md",
+      "slug": "thyroid-dysfunction-screening",
+      "section": "recommendation-summary",
+      "title": "Thyroid Dysfunction: Screening",
+      "year": 2015,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-dysfunction-screening"
+    },
+    {
+      "file": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions--assessment-of-net-benefit.md",
+      "slug": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Tobacco Use in Children and Adolescents: Primary Care Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
+    },
+    {
+      "file": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions--importance.md",
+      "slug": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions",
+      "section": "importance",
+      "title": "Tobacco Use in Children and Adolescents: Primary Care Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
+    },
+    {
+      "file": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions--practice-considerations.md",
+      "slug": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions",
+      "section": "practice-considerations",
+      "title": "Tobacco Use in Children and Adolescents: Primary Care Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
+    },
+    {
+      "file": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions--recommendation-summary.md",
+      "slug": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions",
+      "section": "recommendation-summary",
+      "title": "Tobacco Use in Children and Adolescents: Primary Care Interventions",
+      "year": 2020,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
+    },
+    {
+      "file": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions--assessment-of-net-benefit.md",
+      "slug": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions",
+      "section": "assessment-of-net-benefit",
+      "title": "Tobacco Smoking Cessation in Adults, Including Pregnant Persons: Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions"
+    },
+    {
+      "file": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions--importance.md",
+      "slug": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions",
+      "section": "importance",
+      "title": "Tobacco Smoking Cessation in Adults, Including Pregnant Persons: Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions"
+    },
+    {
+      "file": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions--practice-considerations.md",
+      "slug": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions",
+      "section": "practice-considerations",
+      "title": "Tobacco Smoking Cessation in Adults, Including Pregnant Persons: Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions"
+    },
+    {
+      "file": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions--recommendation-summary.md",
+      "slug": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions",
+      "section": "recommendation-summary",
+      "title": "Tobacco Smoking Cessation in Adults, Including Pregnant Persons: Interventions",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions"
+    },
+    {
+      "file": "unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions--clinical-considerations.md",
+      "slug": "unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions",
+      "section": "clinical-considerations",
+      "title": "Unhealthy Alcohol Use in Adolescents and Adults: Screening and Behavioral Counseling Interventions",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions"
+    },
+    {
+      "file": "unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions--recommendation-summary.md",
+      "slug": "unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions",
+      "section": "recommendation-summary",
+      "title": "Unhealthy Alcohol Use in Adolescents and Adults: Screening and Behavioral Counseling Interventions",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions"
+    },
+    {
+      "file": "vision-in-children-ages-6-months-to-5-years-screening--clinical-considerations.md",
+      "slug": "vision-in-children-ages-6-months-to-5-years-screening",
+      "section": "clinical-considerations",
+      "title": "Vision in Children Ages 6 Months to 5 Years: Screening",
+      "year": 2017,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vision-in-children-ages-6-months-to-5-years-screening"
+    },
+    {
+      "file": "vision-in-children-ages-6-months-to-5-years-screening--recommendation-summary.md",
+      "slug": "vision-in-children-ages-6-months-to-5-years-screening",
+      "section": "recommendation-summary",
+      "title": "Vision in Children Ages 6 Months to 5 Years: Screening",
+      "year": 2017,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vision-in-children-ages-6-months-to-5-years-screening"
+    },
+    {
+      "file": "vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication--clinical-considerations.md",
+      "slug": "vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication",
+      "section": "clinical-considerations",
+      "title": "Vitamin D, Calcium, or Combined Supplementation for the Primary Prevention of Fractures in Community-Dwelling Adults: Preventive Medication",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication"
+    },
+    {
+      "file": "vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication--recommendation-summary.md",
+      "slug": "vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Vitamin D, Calcium, or Combined Supplementation for the Primary Prevention of Fractures in Community-Dwelling Adults: Preventive Medication",
+      "year": 2018,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication"
+    },
+    {
+      "file": "vitamin-d-deficiency-screening--assessment-of-net-benefit.md",
+      "slug": "vitamin-d-deficiency-screening",
+      "section": "assessment-of-net-benefit",
+      "title": "Vitamin D Deficiency in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
+    },
+    {
+      "file": "vitamin-d-deficiency-screening--importance.md",
+      "slug": "vitamin-d-deficiency-screening",
+      "section": "importance",
+      "title": "Vitamin D Deficiency in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
+    },
+    {
+      "file": "vitamin-d-deficiency-screening--practice-considerations.md",
+      "slug": "vitamin-d-deficiency-screening",
+      "section": "practice-considerations",
+      "title": "Vitamin D Deficiency in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
+    },
+    {
+      "file": "vitamin-d-deficiency-screening--recommendation-summary.md",
+      "slug": "vitamin-d-deficiency-screening",
+      "section": "recommendation-summary",
+      "title": "Vitamin D Deficiency in Adults: Screening",
+      "year": 2021,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
+    },
+    {
+      "file": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication--assessment-of-net-benefit.md",
+      "slug": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication",
+      "section": "assessment-of-net-benefit",
+      "title": "Vitamin, Mineral, and Multivitamin Supplementation to Prevent Cardiovascular Disease and Cancer: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication"
+    },
+    {
+      "file": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication--importance.md",
+      "slug": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication",
+      "section": "importance",
+      "title": "Vitamin, Mineral, and Multivitamin Supplementation to Prevent Cardiovascular Disease and Cancer: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication"
+    },
+    {
+      "file": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication--practice-considerations.md",
+      "slug": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication",
+      "section": "practice-considerations",
+      "title": "Vitamin, Mineral, and Multivitamin Supplementation to Prevent Cardiovascular Disease and Cancer: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication"
+    },
+    {
+      "file": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication--recommendation-summary.md",
+      "slug": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication",
+      "section": "recommendation-summary",
+      "title": "Vitamin, Mineral, and Multivitamin Supplementation to Prevent Cardiovascular Disease and Cancer: Preventive Medication",
+      "year": 2022,
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication"
+    }
+  ]
+}

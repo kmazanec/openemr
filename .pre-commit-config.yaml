@@ -83,6 +83,11 @@ repos:
   hooks:
   - id: codespell
     # Configuration in .codespellrc
+    # Skip the curated guideline corpus — chunks are verbatim text from
+    # external publishers (USPSTF, etc.); spelling normalization there
+    # would mutate published clinical guidance (e.g. flagging
+    # "infarction" as a misspelling of "infraction").
+    exclude: ^agent/data/corpus/
 
 # actionlint for verifying correct syntax in GitHub Actions workflows.
 - repo: https://github.com/rhysd/actionlint

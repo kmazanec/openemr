@@ -1,0 +1,18 @@
+---
+publication: USPSTF
+title: "Tobacco Use in Children and Adolescents: Primary Care Interventions"
+section: assessment-of-net-benefit
+section_label: "USPSTF Assessment of Magnitude of Net Benefit"
+year: 2020
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
+license_tier: public_domain
+slug: tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions
+---
+Available evidence on interventions to prevent and help youth quit tobacco use almost exclusively focus on cigarette smoking. For this recommendation, the US Preventive Services Task Force (USPSTF) found this evidence to be most applicable to smoking combustible products (including cigarettes, cigars, cigarillos, and little cigars) and use of e-cigarettes (“vaping”).
+See Table 1 for more information on the USPSTF recommendation rationale and assessment. For more details on the methods the USPSTF uses to determine the net benefit, see the USPSTF Procedure Manual.13 For a summary of the evidence that served as the basis for the recommendations, see the review of the evidence on the benefits and harms of primary care interventions for tobacco use prevention and cessation in children and adolescents.14,15
+Prevention
+The USPSTF concludes with moderate certainty that primary care–feasible behavioral interventions, including education or brief counseling, to prevent tobacco use in school-aged children and adolescents have a moderate net benefit. The USPSTF found adequate evidence that behavioral counseling interventions, such as face-to-face or telephone interaction with a health care clinician, print materials, and computer applications, can have a moderate effect in preventing initiation of tobacco use in school-aged children and adolescents. The USPSTF sought but found no evidence on the harms of behavioral counseling interventions for the prevention or cessation of tobacco use; however, the USPSTF bounds the magnitude of potential harms of behavioral counseling interventions as no greater than small, based on the absence of reported harms in the literature and the noninvasive nature of the interventions (Table 1).
+Cessation
+The USPSTF concludes that there is insufficient evidence to determine the balance of benefits and harms of primary care interventions for tobacco cessation among school-aged children and adolescents who already smoke, because of a lack of adequately powered studies on behavioral counseling interventions and a lack of studies on medications.
+The USPSTF found inadequate evidence on the benefit of behavioral counseling interventions for tobacco cessation in school-aged children and adolescents because many studies had small sample sizes and may not have been adequately powered to detect a benefit, making it unclear whether the observed lack of effect of interventions was the result of intervention failure or lack of statistical power. Although the USPSTF found no evidence on the harms of behavioral counseling interventions, it bounds the magnitude of potential harms of behavioral counseling interventions as no greater than small, based on the absence of reported harms in the literature and the noninvasive nature of the interventions.
+The USPSTF found inadequate evidence on the benefits and harms of medications for tobacco cessation in children and adolescents, primarily because of an inadequate number of studies that have evaluated tobacco cessation medications in this population. Potential harms depend on the specific medication (Table 1).

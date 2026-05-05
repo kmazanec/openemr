@@ -1,0 +1,13 @@
+---
+publication: USPSTF
+title: "Syphilis Infection in Nonpregnant Adolescents and Adults: Screening"
+section: importance
+section_label: "Importance"
+year: 2022
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-nonpregnant-adults-adolescents-screening"
+license_tier: public_domain
+slug: syphilis-infection-nonpregnant-adults-adolescents-screening
+---
+Syphilis is a sexually transmitted infection (STI) that can progress through different stages (primary, secondary, latent, and tertiary) and cause serious health problems if left untreated.1 Tertiary syphilis, which occurs in approximately one-third of latent syphilis cases, can affect multiple organ systems.2 Syphilis can attack the nervous system (neurosyphilis) and visual system (ocular syphilis) at any stage of disease, resulting in movement disorders, sensory deficits, dementia, paralysis, visual changes, or blindness.1 Syphilis infection also increases the risk for acquiring or transmitting HIV infection.1,3
+Primary and secondary syphilis are the most infectious stages of the disease. Reported cases of primary and secondary syphilis in the US increased from a record low of 2.1 cases per 100,000 population in 2000 and 2001 to 11.9 cases per 100,000 population in 2019. Men account for the majority of cases (83% of primary and secondary syphilis cases in 2019), and rates among women nearly tripled from 2015 to 2019. Men who have sex with men are disproportionately affected, accounting for a majority (57%) of all primary and secondary syphilis cases among men in 2019.4 The overall rate of primary and secondary syphilis among men who have sex with men was 106 times the rate among men who only have sex with women and 168 times the rate among women.5 Primary and secondary syphilis rates are highest among Black adolescents and adults, nearly 5 times the rate among White adolescents and adults. Elevated rates have also been reported in Hispanic adolescents and adults, Native American/Alaska Native adolescents and adults, and Native Hawaiian/Pacific Islander adolescents and adults.4 These disparities are primarily driven by social conditions such as poverty, low education levels, and poor access to quality health care, which disproportionately affect communities of color and make it harder to maintain sexual health. Differences in sexual network characteristics also play a role in disparities. Sexually active people may be more likely to become infected in communities with higher STI rates.6-10
+Syphilis infection can be passed from a pregnant person to the fetus, causing neonatal morbidity and mortality.1 The USPSTF addresses screening for syphilis in pregnant persons in a separate recommendation statement.11

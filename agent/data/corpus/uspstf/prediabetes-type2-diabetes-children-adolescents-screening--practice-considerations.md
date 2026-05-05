@@ -1,0 +1,29 @@
+---
+publication: USPSTF
+title: "Prediabetes and Type 2 Diabetes in Children and Adolescents: Screening"
+section: practice-considerations
+section_label: "Practice Considerations"
+year: 2022
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening"
+license_tier: public_domain
+slug: prediabetes-type2-diabetes-children-adolescents-screening
+---
+Patient Population Under Consideration
+This recommendation applies to children and adolescents younger than 18 years without known diabetes or prediabetes or symptoms of diabetes or prediabetes. Screening in adolescents who are pregnant is outside the scope of this recommendation. The USPSTF has a separate recommendation on screening for gestational diabetes.
+Definitions of Prediabetes and Type 2 Diabetes
+Diabetes refers to a range of metabolic disorders characterized by hyperglycemia. Type 2 diabetes is characterized by insulin resistance and progressive loss of β-cell insulin secretion.6 In contrast, type 1 diabetes is the result of autoimmune β-cell destruction, usually leading to absolute insulin deficiency. Prediabetes is the term used for individuals whose blood glucose levels (measured by plasma glucose level or hemoglobin A1c [HbA1c] level) are considered higher than normal but do not meet criteria for diabetes.6
+The definitions of prediabetes and diabetes in children and adolescents are the same as in adults.2,7 A fasting plasma glucose level of 100 to 125 mg/dL (5.6-6.9 mmol/L), an HbA1c level of 5.7% to 6.4%, or a 2-hour postload glucose level of 140 to 199 mg/dL (7.8-11.0 mmol/L) are consistent with prediabetes.6 A fasting plasma glucose level of 126 mg/dL (7.0 mmol/L) or greater, an HbA1c level of 6.5% or greater, or a 2-hour postload glucose level of 200 mg/dL (11.1 mmol/L) or greater are consistent with the diagnosis of type 2 diabetes.6 The diagnosis of prediabetes or type 2 diabetes should be confirmed with repeat testing before starting interventions.6
+Screening Tests
+Although there is insufficient evidence to recommend for or against screening in patients without signs or symptoms, prediabetes and type 2 diabetes can be detected by measuring fasting plasma glucose or HbA1c level, or with an oral glucose tolerance test.2,7 HbA1c level is a measure of long-term blood glucose concentration and is not affected by acute changes in glucose levels. The oral glucose tolerance test is performed in the morning in a fasting state, with blood glucose concentration measured 2 hours after ingestion of a 75-g oral glucose load.
+Treatment and Preventive Interventions
+Lifestyle interventions to achieve weight loss, improve diet, and increase physical activity are often recommended for youth diagnosed with prediabetes and diabetes. The Centers for Disease Control and Prevention recommends programs that increase exercise and improve nutrition; these programs include extensive education on promoting self-management skills and establishing individualized plans for self-monitoring of glycemic targets.8 Formal programs to improve diet and increase exercise are often paired with pharmacotherapy.9,10 The US Food and Drug Administration has approved 3 drugs for treatment of type 2 diabetes in children: metformin, insulin, and liraglutide.2,7 While metformin has demonstrated improvements in body mass index (BMI), fasting glucose level, and insulin resistance, it is not approved by the US Food and Drug Administration to prevent the progression of prediabetes to diabetes.11
+Suggestions for Practice Regarding the I Statement
+Potential Preventable Burden
+Diabetes (both type 1 and type 2) is the third most common chronic disease in childhood.2,7 Many of the diabetes complications experienced by adults (such as kidney failure, non-injury–related lower-limb amputations, and blindness) can begin in childhood.
+Compared with non-Hispanic White youth, the type 2 diabetes rate in American Indian/Alaska Native, Black, and Hispanic/Latino youth has been shown to be 5, 4, and 8 times higher, respectively.12 Causes of these differences are not well understood, but structural factors that disproportionately affect non-White populations, as well as cultural and environmental influences and quality of and access to health care, may contribute significantly to differences by race and ethnicity.13
+Obesity and excess adipose tissue, especially when centrally distributed, are the most important risk factors for type 2 diabetes in younger persons.2,7,13 Family history of diabetes (including gestational diabetes) is also a strong risk factor.2,7,13 Risk assessment tools are also available to help identify children and adolescents at increased risk for prediabetes and type 2 diabetes; however, there is limited evidence on their accuracy.14,15
+Type 2 diabetes is much more common in older than in younger children, often presenting at the onset of puberty.16 This timing is likely related to physiologic, but transient, pubertal insulin resistance that can be exacerbated by metabolic challenges related to obesity.17,18 Twenty-two percent to 52% of children and adolescents with prediabetes return to normal glycemia or normal glucose tolerance without intervention over 6 months to 2 years.2,7
+Potential Harms
+Because some youth with prediabetes may revert to normal glycemia without intervention, potential harms of screening include labeling, overdiagnosis, and overtreatment. Potential harms caused by treatment of type 2 diabetes include hypoglycemia and gastrointestinal issues (eg, nausea or vomiting) related to medication use.2,7
+Other Related USPSTF Recommendations
+The USPSTF has other recommendations on screening for obesity in children and adolescents (B recommendation) and screening for prediabetes and type 2 diabetes in adults (B recommendation).19,20 The USPSTF also has a recommendation on screening for gestational diabetes in pregnant persons (B recommendation).21
