@@ -124,6 +124,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null,
             claimLedger: { claims: [goodClaim] },
             verified: null,
@@ -146,6 +147,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null,
             claimLedger: { claims: [goodClaim, orphanClaim] },
             verified: null,
@@ -173,6 +175,7 @@ describe('createVerify', () => {
             node({
                 envelope,
                 snapshot: null,
+                priorTurnContext: { turns: [] },
                 draft: null,
                 claimLedger: { claims: [goodClaim] },
                 verified: null,
@@ -191,6 +194,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null,
             claimLedger: null,
             verified: null,
@@ -216,6 +220,7 @@ describe('createVerify', () => {
         const out = await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null,
             claimLedger: { claims: [orphanClaim] },
             verified: null,
@@ -240,6 +245,7 @@ describe('createVerify', () => {
         await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null,
             claimLedger: { claims: [goodClaim] },
             verified: null,
@@ -265,6 +271,7 @@ describe('createVerify', () => {
         await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null,
             claimLedger: { claims: [goodClaim, orphanClaim] },
             verified: null,

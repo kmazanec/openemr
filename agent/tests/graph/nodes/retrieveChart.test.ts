@@ -70,6 +70,7 @@ const buildClient = (
 
 const firstCallState = (): BriefingState => ({
     envelope,
+    priorTurnContext: { turns: [] },
     snapshot: null,
     draft: null,
     claimLedger: null,
