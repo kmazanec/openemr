@@ -82,6 +82,10 @@ spacify
 
 # Software design terminology
 wither
+invokable
+
+# Medical society abbreviations
+ags
 
 # Third-party library terms
 afterall
