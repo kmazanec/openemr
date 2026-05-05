@@ -57,10 +57,16 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 
 **Files touched.**
 - `agent/src/graph/nodes/documentEvidenceRetriever.ts` — replace stub.
-- `agent/src/state/extractionArtifacts.ts` — add `searchArtifacts(connString, filters): Promise<ExtractionArtifact[]>` if not present.
+- `agent/src/state/extractionArtifacts.ts` — add `searchArtifacts(filters): Promise<readonly ExtractionArtifact[]>`.
+- `agent/src/graph/types.ts` — `DocumentEvidenceArgsSchema`, `ExtractedFactSnippet` (added during build; supervisor narrowing needs the typed shape).
+- `agent/src/graph/state.ts` — new `documentEvidenceArgs` and `documentEvidenceSnippets` slots so the supervisor can hand off args and the node can return snippets the C.5 verifier will consume.
+- `agent/src/graph/nodes/supervisor.ts` — `narrowDocumentEvidenceArgs` mirroring `narrowRetrieveChartArgs`.
+- `agent/src/graph/index.ts` — wire `createDocumentEvidenceRetriever` (deps optional; falls back to A.7 stub for tests that don't supply a store).
+- `agent/src/observability/traceMetadata.ts` — export `tagSalt` so the retriever can hash its model-picked query for PHI-safe trace metadata.
+- `agent/src/graph/followUps.ts` — export the existing `MS_PER_DAY` constant (reuse rather than redefine).
 
 **Checklist.**
-- [ ] Define args Zod schema:
+- [x] Define args Zod schema:
   ```ts
   const DocumentEvidenceArgs = z.object({
     query: z.string().min(1),
@@ -69,22 +75,17 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
     top_k: z.number().int().min(1).max(20).default(5),
   });
   ```
-- [ ] Implement the read helper `searchArtifacts(connString, {pid, status, doc_types?, since}): Promise<ExtractionArtifact[]>`:
+  (Implemented as `DocumentEvidenceArgsSchema` in `agent/src/graph/types.ts`. `doc_types` lower bound is `min(1)` so an empty array can't slip past structured-output coercion.)
+- [x] Implement the read helper `searchArtifacts({pid, since, docTypes?}): Promise<readonly ExtractionArtifact[]>`:
   - `WHERE pid = $pid` — non-negotiable; the model cannot widen scope.
-  - `AND status IN ('pending_confirmation', 'confirmed')` (rejected/superseded/failed excluded).
-  - Optional `AND doc_type = ANY($doc_types)`.
+  - `AND status = ANY($SEARCHABLE_STATUSES)` (rejected/superseded/failed excluded).
+  - Optional `AND doc_type = ANY($docTypes)`.
   - `AND created_at >= $since`.
   - Order by `created_at DESC`.
-- [ ] Implement the node `documentEvidenceRetriever(state, args, deps)`:
-  1. Validate `args` via Zod.
-  2. Compute `since = now - lookback_days`.
-  3. Call `searchArtifacts(...)` filtered by `state.envelope.pid`.
-  4. For each artifact, project the schema's facts into `ExtractedFactSnippet` candidates: `{artifact_id, field_path, value, page, bbox, quote, confidence}`.
-  5. Rank candidates by semantic relevance to `args.query`. For MVP, use a lightweight strategy: keyword match across `field_path` and `quote` plus a recency bonus. (A real semantic-rerank can land later — eval cases pin behavior, not ranking algorithm.)
-  6. Return the top-`top_k` snippets to the supervisor.
-- [ ] Each snippet's `SourceReference` projection: `source_type='extracted_document'`, `source_id=artifact_id`, `locator={page, bbox, field: field_path}`, `quote`, `confidence`, `meta={document_uuid, extractor_version}`.
-- [ ] Per-call LangSmith trace metadata: `query` (hashed for PHI safety), `doc_types`, `lookback_days`, `top_k`, count returned, latency.
-- [ ] Tests: stubbed-data unit tests covering: pid scope cannot be widened (assert filter-`pid` always present in SQL); doc_types filter narrows correctly; lookback_days excludes older artifacts; top-k respected.
+- [x] Implement the node `documentEvidenceRetriever(state)` that reads args from `state.documentEvidenceArgs`, calls `searchArtifacts`, projects facts to snippets, ranks them by `keywordScore + recencyBonus`, and writes the top-`top_k` to `state.documentEvidenceSnippets`.
+- [x] `ExtractedFactSnippet` projection covers `{artifactId, documentUuid, docType, fieldPath, value, page, bbox, quote, confidence?, extractorVersion, createdAt}` — every field C.5's verifier needs to resolve an `extracted_document` `SourceReference`. The bbox/page/quote map directly onto `SourceReference.locator`; `extractorVersion` and `documentUuid` map onto `meta`. (The full `SourceReference` projection itself lands in C.5 alongside the verifier's `extracted_document` resolution rule — synth/verify don't yet read snippets.)
+- [x] Per-call LangSmith trace metadata: `doc_query_hash` (HMAC-SHA256-12 via shared `hashIdForTrace` + `tagSalt`), `doc_types`, `doc_lookback_days`, `doc_top_k`, `doc_artifact_count`, `doc_candidate_count`, `doc_dropped_candidate_count`, `doc_returned_count`, `latency_ms`. Plus a structured pino warning when `dropped_candidate_count > 0` so schema drift surfaces in logs as well as traces.
+- [x] Tests: stubbed-data unit tests covering: searchArtifacts always passes `pid` to the SQL filter and rejects empty `docTypes`; the node throws when the supervisor routes to it without populating args; doc_types filter narrows; top-k respected; matching snippets surface above irrelevant fresher ones (keyword + recency); empty matching set returns `[]` not `null`; drift-shaped fact-leaves drop. Supervisor narrowing tests pin the structured-output → typed-slot path.
 
 **Definition of done.** A fixture patient with three persisted lab artifacts → supervisor invokes `documentEvidenceRetriever({query: 'recent A1c', doc_types: ['lab_pdf'], top_k: 3})` → three snippets returned with valid `SourceReference` projections.
 

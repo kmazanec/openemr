@@ -1,5 +1,9 @@
 import { END, START, StateGraph, type BaseCheckpointSaver } from '@langchain/langgraph';
 
+import {
+    createDocumentEvidenceRetriever,
+    type DocumentEvidenceRetrieverDeps,
+} from './nodes/documentEvidenceRetriever.js';
 import { format } from './nodes/format.js';
 import {
     createMedicationStatementBranch,
@@ -67,6 +71,13 @@ export interface BriefingGraphDeps {
      * through to the synthesizer path.
      */
     readonly medicationStatementDetail?: MedicationStatementBranchDeps;
+    /**
+     * §C.1 document-evidence retriever deps. Optional — when absent,
+     * the A.7 stub continues to no-op so existing tests that don't
+     * exercise the retriever path keep working without wiring a Tier-2
+     * store.
+     */
+    readonly documentEvidenceRetriever?: DocumentEvidenceRetrieverDeps;
     /**
      * §3.5: when set, the compiled graph persists state via this saver,
      * keyed by the `thread_id` the caller passes on `invoke`. Production
@@ -178,13 +189,19 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     const medicationStatementNode = deps.medicationStatementDetail !== undefined
         ? createMedicationStatementBranch(deps.medicationStatementDetail)
         : () => Promise.resolve({});
+    // §C.1: real `documentEvidenceRetriever` when deps are wired; the
+    // A.7 stub continues to run otherwise so existing tests that don't
+    // exercise the retriever path keep working without a Tier-2 store.
+    const documentEvidenceRetrieverNode = deps.documentEvidenceRetriever !== undefined
+        ? createDocumentEvidenceRetriever(deps.documentEvidenceRetriever)
+        : documentEvidenceRetrieverStub;
 
     const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: w1FallbackDecide };
     const builder = new StateGraph(BriefingStateAnnotation)
         .addNode('retrieveChart', createRetrieveChart(deps.retrieveChart))
         .addNode('supervisor', createSupervisor(supervisorDeps))
         .addNode('kickoffExtraction', kickoffExtractionStub)
-        .addNode('documentEvidenceRetriever', documentEvidenceRetrieverStub)
+        .addNode('documentEvidenceRetriever', documentEvidenceRetrieverNode)
         .addNode('evidenceRetriever', evidenceRetrieverStub)
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)
         .addNode('reminderBranch', reminderNode)

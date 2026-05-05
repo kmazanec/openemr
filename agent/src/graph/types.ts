@@ -225,6 +225,59 @@ export interface RetrieveChartArgs {
 }
 
 /**
+ * §C.1 supervisor handoff args for `documentEvidenceRetriever`. The
+ * model picks a query plus optional doc-type / lookback / top-k filters;
+ * the patient scope (`pid`) is non-negotiable and comes from the
+ * envelope, not the args. The Zod schema below is the authoritative
+ * shape — `DocumentEvidenceArgs` is the inferred TS type.
+ *
+ * Bounded ranges defend against degenerate queries: `lookback_days`
+ * caps at 10 years (3650) so the model can't ask for the entire chart
+ * history in one call; `top_k` caps at 20 to keep the supervisor's next
+ * iteration's prompt body bounded.
+ *
+ * Defaults match the architecture (`W2_ARCHITECTURE.md` §"documentEvidenceRetriever"):
+ * 90-day lookback, top-5 results. Either the supervisor sets explicit
+ * values (per its prompt steering) or the defaults bind.
+ */
+export const DocumentEvidenceArgsSchema = z.object({
+    query: z.string().min(1),
+    doc_types: z.array(z.enum(['lab_pdf', 'intake_form'])).min(1).optional(),
+    lookback_days: z.number().int().min(1).max(3650).default(90),
+    top_k: z.number().int().min(1).max(20).default(5),
+});
+
+export type DocumentEvidenceArgs = z.infer<typeof DocumentEvidenceArgsSchema>;
+
+/**
+ * §C.1 single retriever-output snippet: one extracted fact projected
+ * onto a citable `SourceReference` shape. Mirrors the architecture's
+ * `ExtractedFactSnippet` shape (`W2_ARCHITECTURE.md` §"documentEvidenceRetriever").
+ *
+ * `fieldPath` is the dotted path within the artifact's `schemaJson`
+ * (e.g. `results.0.value` for the first lab result's value); it doubles
+ * as `SourceReference.locator.field` when the synthesizer cites the
+ * snippet. `bbox`/`page` are the OCR coordinates of the supporting text
+ * — verifier (C.5) compares the synthesizer's bbox against the recorded
+ * one, so fabricated bboxes can't slip through. `quote` is the original
+ * OCR text under that bbox.
+ */
+export interface ExtractedFactSnippet {
+    readonly artifactId: string;
+    readonly documentUuid: string;
+    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly fieldPath: string;
+    readonly value: unknown;
+    readonly page: number;
+    readonly bbox: readonly [number, number, number, number];
+    readonly quote: string;
+    readonly confidence?: number;
+    readonly extractorVersion: string;
+    /** ISO-8601 timestamp from the artifact's `created_at`. Used for recency ranking. */
+    readonly createdAt: string;
+}
+
+/**
  * §A.7 closed enumeration of handoffs the supervisor may pick. Mirrors
  * `W2_ARCHITECTURE.md` §"Supervisor loop" verbatim. The Zod schema below
  * binds the model to this set — picking a value outside the enum fails

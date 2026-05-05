@@ -106,7 +106,37 @@ export interface ExtractionArtifactStore {
             readonly confirmedByUser?: string;
         },
     ) => Promise<ExtractionArtifact | null>;
+    /**
+     * §C.1 read helper for the conversational graph's
+     * `documentEvidenceRetriever`. Returns artifacts in `pid`'s active
+     * status set (`pending_confirmation` | `confirmed`), created on or
+     * after `since`, optionally narrowed by `docTypes`. Rows arrive
+     * `created_at DESC` so the retriever's recency-weighted ranking has
+     * the freshest artifact at index 0.
+     */
+    readonly searchArtifacts: (
+        filters: SearchArtifactsFilters,
+    ) => Promise<readonly ExtractionArtifact[]>;
 }
+
+/**
+ * §C.1 filter shape for {@link ExtractionArtifactStore.searchArtifacts}.
+ * `pid` is non-negotiable and `since` is required — the retriever is
+ * never allowed to widen patient scope or scan the whole table. The
+ * status set is fixed at the active subset (`pending_confirmation`,
+ * `confirmed`); rejected/superseded/failed artifacts are excluded so
+ * the retriever doesn't surface stale or refused facts.
+ */
+export interface SearchArtifactsFilters {
+    readonly pid: number;
+    readonly since: Date;
+    readonly docTypes?: readonly DocumentType[];
+}
+
+const SEARCHABLE_STATUSES: readonly ArtifactStatus[] = [
+    'pending_confirmation',
+    'confirmed',
+];
 
 const SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS extraction_artifacts (
@@ -195,6 +225,37 @@ const UPDATE_STATUS_SQL = `
         confirmed_at,
         confirmed_by_user
 `;
+
+/**
+ * §C.1 search query. Built without `doc_type` filtering — that fragment
+ * is appended at call time when `docTypes` is supplied, so the SQL stays
+ * sargable on the `(pid, doc_type, status)` index when the filter is
+ * present and on `(pid, created_at)` when it isn't. The status array is
+ * passed as a literal parameter so the query plan is stable across
+ * callers.
+ */
+const SEARCH_SELECT_SQL = `
+    SELECT
+        artifact_id,
+        document_uuid,
+        pid,
+        doc_type,
+        extractor_version,
+        schema_json,
+        deltas_json,
+        confidence_signal,
+        status,
+        document_hash,
+        created_at,
+        confirmed_at,
+        confirmed_by_user
+    FROM extraction_artifacts
+    WHERE pid = $1
+      AND status = ANY($2)
+      AND created_at >= $3
+`;
+const SEARCH_DOC_TYPE_PREDICATE = ' AND doc_type = ANY($4)';
+const SEARCH_ORDER_BY = ' ORDER BY created_at DESC';
 
 const TRY_ADVISORY_LOCK_SQL = 'SELECT pg_try_advisory_lock($1) AS locked';
 const ADVISORY_UNLOCK_SQL = 'SELECT pg_advisory_unlock($1) AS released';
@@ -410,6 +471,33 @@ export const createExtractionArtifactStoreFromPool = (
         return rowToArtifact(row as unknown as ArtifactRow);
     };
 
+    const searchArtifacts = async (
+        filters: SearchArtifactsFilters,
+    ): Promise<readonly ExtractionArtifact[]> => {
+        if (filters.docTypes?.length === 0) {
+            // The supervisor's narrowing rejects this upstream, but a
+            // direct caller could still hit it — defending here keeps
+            // the empty-set semantics ("matches nothing") from quietly
+            // expanding into "matches everything".
+            throw new Error(
+                'searchArtifacts: docTypes must be non-empty when supplied (omit the field for "all")',
+            );
+        }
+        const sql = filters.docTypes === undefined
+            ? SEARCH_SELECT_SQL + SEARCH_ORDER_BY
+            : SEARCH_SELECT_SQL + SEARCH_DOC_TYPE_PREDICATE + SEARCH_ORDER_BY;
+        const params: unknown[] = [
+            filters.pid,
+            SEARCHABLE_STATUSES,
+            filters.since.toISOString(),
+        ];
+        if (filters.docTypes !== undefined) {
+            params.push(filters.docTypes);
+        }
+        const result = await pool.query(sql, params);
+        return result.rows.map((r) => rowToArtifact(r as unknown as ArtifactRow));
+    };
+
     const updateArtifactStatus = async (
         artifactId: string,
         status: ArtifactStatus,
@@ -441,5 +529,6 @@ export const createExtractionArtifactStoreFromPool = (
         findArtifactByDocumentHash,
         insertArtifact,
         updateArtifactStatus,
+        searchArtifacts,
     };
 };
