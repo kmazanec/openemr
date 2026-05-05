@@ -15,12 +15,34 @@ import {
     type ReminderBranchDeps,
 } from './nodes/reminderBranch.js';
 import { createRetrieveChart, type RetrieveChartDeps } from './nodes/retrieveChart.js';
+import {
+    documentEvidenceRetrieverStub,
+    evidenceRetrieverStub,
+    kickoffExtractionStub,
+} from './nodes/stubs.js';
+import {
+    createSupervisor,
+    type SupervisorDecide,
+    type SupervisorDeps,
+} from './nodes/supervisor.js';
 import { createSynthesize, type SynthesizeDeps } from './nodes/synthesize.js';
 import { createVerify, type VerifyDeps } from './nodes/verify.js';
 import { BriefingStateAnnotation, type BriefingState } from './state.js';
+import type { SupervisorHandoff } from './types.js';
 
 export interface BriefingGraphDeps {
     readonly retrieveChart: RetrieveChartDeps;
+    /**
+     * §A.7 supervisor deps. Optional in Phase A so existing tests that
+     * don't care about supervisor routing keep working — the default
+     * supervisor mimics W1's envelope-based router (pick the
+     * deterministic branch matching `envelope.followUp.type` if any,
+     * otherwise pick `synthesize`). Production wires the real LLM-backed
+     * `decide` via `briefingRunner`. The supervisor's manifest itself
+     * (the closed enum of handoffs) is fixed regardless of which
+     * `decide` is supplied.
+     */
+    readonly supervisor?: SupervisorDeps;
     readonly synthesize: SynthesizeDeps;
     readonly verify: VerifyDeps;
     /**
@@ -55,45 +77,98 @@ export interface BriefingGraphDeps {
 }
 
 /**
- * §3.2 graph wiring. Mostly linear; §4.3 adds one conditional edge
- * after `retrieveChart` so UC3 follow-ups bypass the synthesizer for a
- * deterministic provenance lookup. The retrieveChart and synthesize
- * deps are injected per-graph so the bearer token (RetrieveChart) and
- * the LLM client (Synthesize) can be configured per request without
- * baking them into module-level globals.
+ * §A.7 graph wiring.
  *
- * The branch still goes through `retrieveChart` first because the
- * verifier needs the snapshot to resolve source references — UC3's
- * claim cites a `MedicationRequest` row that must exist in
- * `snapshot.prescriptions`.
+ * Topology (per `W2_ARCHITECTURE.md` §"Conversational graph"):
+ *
+ *   START → retrieveChart → supervisor (loop)
+ *           supervisor ─┬→ kickoffExtraction          → supervisor
+ *                       ├→ retrieveChart              → supervisor
+ *                       ├→ documentEvidenceRetriever  → supervisor
+ *                       ├→ evidenceRetriever          → supervisor
+ *                       ├→ prescriptionChangeBranch   → verify (W1 carry-forward)
+ *                       ├→ reminderBranch             → verify (W1 carry-forward)
+ *                       ├→ medicationStatementBranch  → verify (W1 carry-forward)
+ *                       └→ synthesize                 → verify
+ *           verify → format → persist → END
+ *
+ * The deterministic UC3 / 4.6.5 / 4.6.6 branches go directly to
+ * `verify`, not back to the supervisor. They produce a finalized
+ * `claimLedger` themselves; routing them through `synthesize` would
+ * overwrite that ledger with a model-authored one. The supervisor's
+ * closed-enum manifest still names them (so the model can pick them
+ * when the envelope's typed `followUp` matches), but the conditional
+ * edge graph treats them as terminals-before-verify.
+ *
+ * `kickoffExtraction`, `documentEvidenceRetriever`, and
+ * `evidenceRetriever` are no-op stubs in Phase A — their nodes emit a
+ * "stub invoked" trace event and return control to supervisor with no
+ * state changes. Phase B and Phase C swap each stub for a real
+ * implementation without touching the manifest or the wiring.
+ *
+ * `retrieveChart` is the deterministic seed of chart context (call
+ * count 0 → full fan-out per §A.4) and a supervisor-pickable handoff
+ * (call count > 0 → narrowing fetch driven by
+ * `state.retrieveChartArgs.categories`). Wiring it both as a START
+ * successor and as a supervisor handoff keeps the architecture's "the
+ * supervisor sees chart context on iteration 1" invariant without
+ * doubling the deterministic logic.
  */
-export const createBriefingGraph = (deps: BriefingGraphDeps) => {
-    const prescriptionChangeWired = deps.prescriptionChange !== undefined;
-    const reminderDetailWired = deps.reminderDetail !== undefined;
-    const medicationStatementWired = deps.medicationStatementDetail !== undefined;
+/**
+ * Default `decide` for graphs whose deps don't supply a supervisor —
+ * mimics the W1 envelope-based router so the W1 eval suite still runs
+ * end-to-end while the LLM supervisor lands. Pick the deterministic
+ * branch matching `envelope.followUp.type` if any; otherwise pick
+ * `synthesize`. No retriever loops, no chart re-fetches.
+ *
+ * Production never relies on this — `briefingRunner` always wires the
+ * real Anthropic `decide`.
+ */
+const w1FallbackDecide: SupervisorDecide = ({ state }) => {
+    const followUpType = state.envelope.followUp?.type;
+    if (followUpType === 'prescription_change') {
+        return Promise.resolve({
+            handoff: 'prescriptionChangeBranch',
+            reason: 'follow-up type prescription_change',
+        });
+    }
+    if (followUpType === 'reminder_detail') {
+        return Promise.resolve({
+            handoff: 'reminderBranch',
+            reason: 'follow-up type reminder_detail',
+        });
+    }
+    if (followUpType === 'medication_statement_detail') {
+        return Promise.resolve({
+            handoff: 'medicationStatementBranch',
+            reason: 'follow-up type medication_statement_detail',
+        });
+    }
+    return Promise.resolve({
+        handoff: 'synthesize',
+        reason: 'no W2 retriever wiring; fall through to synthesize',
+    });
+};
 
-    type DeterministicBranch =
-        | 'prescriptionChangeBranch'
-        | 'reminderBranch'
-        | 'medicationStatementBranch';
-    const routeAfterRetrieveChart = (state: BriefingState): DeterministicBranch | 'synthesize' => {
-        const followUpType = state.envelope.followUp?.type;
-        if (prescriptionChangeWired && followUpType === 'prescription_change') {
-            return 'prescriptionChangeBranch';
+export const createBriefingGraph = (deps: BriefingGraphDeps) => {
+    const routeFromSupervisor = (state: BriefingState): SupervisorHandoff => {
+        const last = state.supervisorDecisionHistory.at(-1);
+        if (last === undefined) {
+            // Defensive: the supervisor always appends a decision before
+            // returning. If this ever fires it's an internal invariant
+            // bug, not a user-input issue.
+            throw new Error('supervisor returned without appending a decision');
         }
-        if (reminderDetailWired && followUpType === 'reminder_detail') {
-            return 'reminderBranch';
-        }
-        if (medicationStatementWired && followUpType === 'medication_statement_detail') {
-            return 'medicationStatementBranch';
-        }
-        return 'synthesize';
+        return last.handoff;
     };
 
-    // When the matching deps slot is undefined the conditional edge
-    // never picks the corresponding branch name, so the no-op handler
-    // below is unreachable — present only because LangGraph requires
-    // every named node to have an implementation at compile time.
+    // When the matching deps slot is undefined the conditional edge can
+    // still pick the corresponding branch name — the supervisor's
+    // manifest is fixed by Phase A — so the no-op handler below makes
+    // sure the graph compiles even when an optional branch isn't wired.
+    // The supervisor's prompt steers it away from picking these for
+    // non-matching follow-up types, and the unwired branch acts like a
+    // stub if the supervisor still picks it.
     const prescriptionChangeNode = deps.prescriptionChange !== undefined
         ? createPrescriptionChangeBranch(deps.prescriptionChange)
         : () => Promise.resolve({});
@@ -104,8 +179,13 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         ? createMedicationStatementBranch(deps.medicationStatementDetail)
         : () => Promise.resolve({});
 
+    const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: w1FallbackDecide };
     const builder = new StateGraph(BriefingStateAnnotation)
         .addNode('retrieveChart', createRetrieveChart(deps.retrieveChart))
+        .addNode('supervisor', createSupervisor(supervisorDeps))
+        .addNode('kickoffExtraction', kickoffExtractionStub)
+        .addNode('documentEvidenceRetriever', documentEvidenceRetrieverStub)
+        .addNode('evidenceRetriever', evidenceRetrieverStub)
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)
         .addNode('reminderBranch', reminderNode)
         .addNode('medicationStatementBranch', medicationStatementNode)
@@ -114,12 +194,24 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addNode('format', format)
         .addNode('persist', persist)
         .addEdge(START, 'retrieveChart')
-        .addConditionalEdges('retrieveChart', routeAfterRetrieveChart, {
+        .addEdge('retrieveChart', 'supervisor')
+        .addConditionalEdges('supervisor', routeFromSupervisor, {
+            kickoffExtraction: 'kickoffExtraction',
+            retrieveChart: 'retrieveChart',
+            documentEvidenceRetriever: 'documentEvidenceRetriever',
+            evidenceRetriever: 'evidenceRetriever',
             prescriptionChangeBranch: 'prescriptionChangeBranch',
             reminderBranch: 'reminderBranch',
             medicationStatementBranch: 'medicationStatementBranch',
             synthesize: 'synthesize',
         })
+        // Stubs and W2 retrievers loop back to the supervisor.
+        .addEdge('kickoffExtraction', 'supervisor')
+        .addEdge('documentEvidenceRetriever', 'supervisor')
+        .addEdge('evidenceRetriever', 'supervisor')
+        // Deterministic W1 branches go directly to verify — they produce
+        // a finalized ledger; running synthesize after them would
+        // overwrite it.
         .addEdge('prescriptionChangeBranch', 'verify')
         .addEdge('reminderBranch', 'verify')
         .addEdge('medicationStatementBranch', 'verify')
