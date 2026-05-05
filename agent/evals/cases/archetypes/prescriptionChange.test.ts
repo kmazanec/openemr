@@ -66,7 +66,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         const synth = vi.fn() as unknown as Synthesizer;
         const provenance: ProvenanceJson = {
             provenance: {
-                prescriptionId: Number.parseInt(lisinopril.source.recordId, 10),
+                prescriptionId: Number.parseInt(lisinopril.source.source_id, 10),
                 drugName: 'Lisinopril',
                 prescriber: 'Dr. Patel',
                 prescribingDate: '2026-03-20',
@@ -89,7 +89,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         const envelope = followUpEnvelope(
             snapshot.patient.pid,
             snapshot.patient.uuid,
-            `${lisinopril.source.recordType}:${lisinopril.source.recordId}`,
+            `${lisinopril.source.locator.field}:${lisinopril.source.source_id}`,
         );
         const out = await graph.invoke({ envelope });
 
@@ -115,7 +115,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         const synth = vi.fn() as unknown as Synthesizer;
         const provenance: ProvenanceJson = {
             provenance: {
-                prescriptionId: Number.parseInt(lisinopril.source.recordId, 10),
+                prescriptionId: Number.parseInt(lisinopril.source.source_id, 10),
                 drugName: 'Lisinopril',
                 prescriber: 'Dr. Patel',
                 prescribingDate: '2026-03-20',
@@ -138,7 +138,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         const envelope = followUpEnvelope(
             snapshot.patient.pid,
             snapshot.patient.uuid,
-            `${lisinopril.source.recordType}:${lisinopril.source.recordId}`,
+            `${lisinopril.source.locator.field}:${lisinopril.source.source_id}`,
         );
         const out = await graph.invoke({ envelope });
 
@@ -212,12 +212,11 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
             text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel for new-onset hypertension.',
             category: 'prescription_change',
             sourceReferences: [{
-                system: 'openemr',
-                recordType: 'MedicationRequest',
+                source_type: 'chart',
                 // Plausible-shape id that does not match any rx in the fixture.
-                recordId: '999999',
-                field: null,
-                recordedAt: null,
+                source_id: '999999',
+                locator: { field: 'medication.name' },
+                quote: '999999',
             }],
             safetyCritical: true,
         };
@@ -239,7 +238,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         const synth = vi.fn() as unknown as Synthesizer;
         const provenance: ProvenanceJson = {
             provenance: {
-                prescriptionId: Number.parseInt(lisinopril.source.recordId, 10),
+                prescriptionId: Number.parseInt(lisinopril.source.source_id, 10),
                 drugName: 'Lisinopril',
                 prescriber: null,
                 prescribingDate: '2026-03-20',
@@ -262,7 +261,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         const envelope = followUpEnvelope(
             snapshot.patient.pid,
             snapshot.patient.uuid,
-            `${lisinopril.source.recordType}:${lisinopril.source.recordId}`,
+            `${lisinopril.source.locator.field}:${lisinopril.source.source_id}`,
         );
         const out = await graph.invoke({ envelope });
 

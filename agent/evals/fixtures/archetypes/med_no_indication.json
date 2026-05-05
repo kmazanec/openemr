@@ -7,11 +7,12 @@
     "dateOfBirth": "1965-07-22",
     "ageYears": 60,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "7002",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "7002",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "7002"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Follow-up",
     "reason": "Medication review",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-7002",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-7002",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-7002"
     }
   },
   "diagnoses": [],
@@ -41,11 +43,12 @@
       "indication": null,
       "prescriptionId": 77201,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "77201",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "77201",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "77201"
       }
     }
   ],
@@ -55,11 +58,12 @@
       "reaction": null,
       "severity": null,
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-7002-nkda",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-7002-nkda",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-7002-nkda"
       }
     }
   ],

@@ -82,11 +82,10 @@ describe('UC2 no-history — Healthy-Adult archetype', () => {
                         category: 'lab' as const,
                         sourceReferences: [
                             {
-                                system: 'openemr',
-                                recordType: 'Observation',
-                                recordId: 'obs-FABRICATED',
-                                field: null,
-                                recordedAt: null,
+                                source_type: 'chart',
+                                source_id: 'obs-FABRICATED',
+                                locator: { field: 'observation.value' },
+                                quote: 'obs-FABRICATED',
                             },
                         ],
                         safetyCritical: false,

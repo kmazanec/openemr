@@ -7,11 +7,12 @@
     "dateOfBirth": "1958-03-15",
     "ageYears": 68,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "7001",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "7001",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "7001"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Diabetes follow-up",
     "reason": "Quarterly diabetes review + new lisinopril check-in",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-7001",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-7001",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-7001"
     }
   },
   "diagnoses": [
@@ -35,11 +37,12 @@
       "label": "Type 2 diabetes mellitus without complications",
       "onsetDate": "2018-08-22",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-7001-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-7001-1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-7001-1"
       }
     },
     {
@@ -48,11 +51,12 @@
       "label": "Essential (primary) hypertension",
       "onsetDate": "2026-03-15",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-7001-2",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-7001-2",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-7001-2"
       }
     }
   ],
@@ -68,11 +72,12 @@
       "indication": "Type 2 diabetes mellitus",
       "prescriptionId": 77001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "77001",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "77001",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "77001"
       }
     },
     {
@@ -86,11 +91,12 @@
       "indication": "new-onset hypertension",
       "prescriptionId": 77002,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "77002",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "77002",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "77002"
       }
     }
   ],
@@ -100,11 +106,12 @@
       "reaction": null,
       "severity": null,
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-7001-nkda",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-7001-nkda",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-7001-nkda"
       }
     }
   ],
@@ -115,11 +122,12 @@
       "type": "Office Visit",
       "reason": "New-onset hypertension; lisinopril started",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-7001-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-7001-1",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-7001-1"
       }
     }
   ],

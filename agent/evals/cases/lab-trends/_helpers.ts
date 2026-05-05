@@ -117,11 +117,10 @@ export const trendClaim = (input: {
     text: input.text,
     category: 'lab',
     sourceReferences: input.recordIds.map((rid) => ({
-        system: 'openemr',
-        recordType: 'Observation',
-        recordId: rid,
-        field: null,
-        recordedAt: null,
+        source_type: 'chart' as const,
+        source_id: rid,
+        locator: { field: 'observation.value' },
+        quote: rid,
     })),
     safetyCritical: false,
 });

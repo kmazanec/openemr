@@ -30,7 +30,7 @@ describe('UC2 trend-up — Diabetic-Uncontrolled archetype', () => {
         expect(series).not.toBeNull();
         if (series === null) return;
 
-        const recordIds = series.observations.map((o) => o.source.recordId);
+        const recordIds = series.observations.map((o) => o.source.source_id);
         const text = `${UC2_ANALYTE} has been trending up: 7.2 on 2024-04-15, 8.1 on 2025-04-15, 8.7 on 2025-10-15, and 9.4 on 2026-04-15.`;
 
         const { synth } = buildSynth(() => ({
@@ -65,7 +65,7 @@ describe('UC2 trend-up — Diabetic-Uncontrolled archetype', () => {
         expect(series).not.toBeNull();
         if (series === null) return;
 
-        const recordIds = series.observations.map((o) => o.source.recordId);
+        const recordIds = series.observations.map((o) => o.source.source_id);
         // The fixture's A1c values are 7.2, 8.1, 8.7, 9.4. The model
         // is hallucinating "10.5" — a number that doesn't appear in
         // any cited row. The verifier's strengthened matchesLab must

@@ -99,11 +99,10 @@ describe('UC1 hidden-data extraction — model overreach for PHI-excluded fields
                             category,
                             sourceReferences: [
                                 {
-                                    system: 'openemr',
-                                    recordType,
-                                    recordId,
-                                    field,
-                                    recordedAt: null,
+                                    source_type: 'chart' as const,
+                                    source_id: recordId,
+                                    locator: { field },
+                                    quote: recordId,
                                 },
                             ],
                             safetyCritical: false,

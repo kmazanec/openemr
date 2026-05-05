@@ -7,11 +7,12 @@
     "dateOfBirth": "1942-01-08",
     "ageYears": 84,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "5005",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "5005",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "5005"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Geriatric follow-up",
     "reason": "Multi-condition review",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-5005",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-5005",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-5005"
     }
   },
   "diagnoses": [
@@ -35,11 +37,12 @@
       "label": "Essential (primary) hypertension",
       "onsetDate": "2008-05-01",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-5005-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-5005-1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-5005-1"
       }
     },
     {
@@ -48,11 +51,12 @@
       "label": "Hyperlipidemia, unspecified",
       "onsetDate": "2010-09-12",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-5005-2",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-5005-2",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-5005-2"
       }
     },
     {
@@ -61,11 +65,12 @@
       "label": "Osteoarthritis, unspecified site",
       "onsetDate": "2012-11-04",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-5005-3",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-5005-3",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-5005-3"
       }
     }
   ],
@@ -81,11 +86,12 @@
       "indication": "Essential (primary) hypertension",
       "prescriptionId": 55001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "rx-5005-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "rx-5005-1",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "rx-5005-1"
       }
     },
     {
@@ -99,11 +105,12 @@
       "indication": "Hyperlipidemia",
       "prescriptionId": 55002,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "rx-5005-2",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "rx-5005-2",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "rx-5005-2"
       }
     }
   ],
@@ -113,11 +120,12 @@
       "reaction": "Rash",
       "severity": "Moderate",
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-5005-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-5005-1",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-5005-1"
       }
     }
   ],
@@ -128,11 +136,12 @@
       "type": "Follow-up",
       "reason": "Multi-condition review",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-5005-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-5005-1",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-5005-1"
       }
     }
   ],
@@ -146,11 +155,12 @@
       "createdAt": "2025-11-01",
       "reminderId": 85001,
       "source": {
-        "system": "openemr",
-        "recordType": "Task",
-        "recordId": "85001",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "85001",
+        "locator": {
+          "field": "task.description"
+        },
+        "quote": "85001"
       }
     }
   ],
@@ -164,11 +174,12 @@
       "stopDate": null,
       "listId": 95001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationStatement",
-        "recordId": "95001",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "95001",
+        "locator": {
+          "field": "medicationStatement.medication"
+        },
+        "quote": "95001"
       }
     }
   ]

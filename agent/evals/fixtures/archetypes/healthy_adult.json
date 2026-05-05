@@ -7,11 +7,12 @@
     "dateOfBirth": "1988-06-12",
     "ageYears": 37,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "1001",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "1001",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "1001"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Annual physical",
     "reason": "Routine annual visit",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-1001",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-1001",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-1001"
     }
   },
   "diagnoses": [],
@@ -38,11 +40,12 @@
       "type": "Annual physical",
       "reason": "Routine annual visit",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-1001-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-1001-1",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-1001-1"
       }
     }
   ],

@@ -16,11 +16,12 @@
           "dateOfBirth": "1988-06-12",
           "ageYears": 37,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "1001",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "1001",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "1001"
           }
         },
         "appointment": {
@@ -30,11 +31,12 @@
           "type": "Annual physical",
           "reason": "Routine annual visit",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-00",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-00",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-00"
           }
         },
         "diagnoses": [],
@@ -47,11 +49,12 @@
             "type": "Annual physical",
             "reason": "Routine annual visit",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-1001-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-1001-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-1001-1"
             }
           }
         ],
@@ -75,11 +78,12 @@
           "dateOfBirth": "1988-06-12",
           "ageYears": 37,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "1001",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "1001",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "1001"
           }
         },
         "appointment": {
@@ -89,11 +93,12 @@
           "type": "Annual physical",
           "reason": "Routine annual visit",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-01",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-01",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-01"
           }
         },
         "diagnoses": [],
@@ -106,11 +111,12 @@
             "type": "Annual physical",
             "reason": "Routine annual visit",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-1001-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-1001-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-1001-1"
             }
           }
         ],
@@ -134,11 +140,12 @@
           "dateOfBirth": "1988-06-12",
           "ageYears": 37,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "1001",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "1001",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "1001"
           }
         },
         "appointment": {
@@ -148,11 +155,12 @@
           "type": "Annual physical",
           "reason": "Routine annual visit",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-02",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-02",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-02"
           }
         },
         "diagnoses": [],
@@ -165,11 +173,12 @@
             "type": "Annual physical",
             "reason": "Routine annual visit",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-1001-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-1001-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-1001-1"
             }
           }
         ],
@@ -193,11 +202,12 @@
           "dateOfBirth": "1988-06-12",
           "ageYears": 37,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "1001",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "1001",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "1001"
           }
         },
         "appointment": {
@@ -207,11 +217,12 @@
           "type": "Annual physical",
           "reason": "Routine annual visit",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-03",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-03",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-03"
           }
         },
         "diagnoses": [],
@@ -224,11 +235,12 @@
             "type": "Annual physical",
             "reason": "Routine annual visit",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-1001-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-1001-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-1001-1"
             }
           }
         ],
@@ -252,11 +264,12 @@
           "dateOfBirth": "1972-09-03",
           "ageYears": 53,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "2002",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "2002",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "2002"
           }
         },
         "appointment": {
@@ -266,11 +279,12 @@
           "type": "Follow-up",
           "reason": "Blood-pressure check",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-04",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-04",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-04"
           }
         },
         "diagnoses": [
@@ -280,11 +294,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2019-04-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-2002-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-2002-1"
             }
           }
         ],
@@ -300,11 +315,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 22001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-2002-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-2002-1"
             }
           }
         ],
@@ -314,11 +330,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-2002-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-2002-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-2002-nkda"
             }
           }
         ],
@@ -329,11 +346,12 @@
             "type": "Follow-up",
             "reason": "Hypertension management",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-2002-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-2002-1"
             }
           }
         ],
@@ -357,11 +375,12 @@
           "dateOfBirth": "1972-09-03",
           "ageYears": 53,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "2002",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "2002",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "2002"
           }
         },
         "appointment": {
@@ -371,11 +390,12 @@
           "type": "Follow-up",
           "reason": "Blood-pressure check",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-05",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-05",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-05"
           }
         },
         "diagnoses": [
@@ -385,11 +405,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2019-04-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-2002-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-2002-1"
             }
           }
         ],
@@ -405,11 +426,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 22001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-2002-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-2002-1"
             }
           }
         ],
@@ -419,11 +441,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-2002-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-2002-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-2002-nkda"
             }
           }
         ],
@@ -434,11 +457,12 @@
             "type": "Follow-up",
             "reason": "Hypertension management",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-2002-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-2002-1"
             }
           }
         ],
@@ -462,11 +486,12 @@
           "dateOfBirth": "1972-09-03",
           "ageYears": 53,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "2002",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "2002",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "2002"
           }
         },
         "appointment": {
@@ -476,11 +501,12 @@
           "type": "Follow-up",
           "reason": "Blood-pressure check",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-06",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-06",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-06"
           }
         },
         "diagnoses": [
@@ -490,11 +516,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2019-04-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-2002-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-2002-1"
             }
           }
         ],
@@ -510,11 +537,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 22001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-2002-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-2002-1"
             }
           }
         ],
@@ -524,11 +552,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-2002-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-2002-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-2002-nkda"
             }
           }
         ],
@@ -539,11 +568,12 @@
             "type": "Follow-up",
             "reason": "Hypertension management",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-2002-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-2002-1"
             }
           }
         ],
@@ -567,11 +597,12 @@
           "dateOfBirth": "1972-09-03",
           "ageYears": 53,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "2002",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "2002",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "2002"
           }
         },
         "appointment": {
@@ -581,11 +612,12 @@
           "type": "Follow-up",
           "reason": "Blood-pressure check",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-07",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-07",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-07"
           }
         },
         "diagnoses": [
@@ -595,11 +627,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2019-04-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-2002-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-2002-1"
             }
           }
         ],
@@ -615,11 +648,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 22001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-2002-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-2002-1"
             }
           }
         ],
@@ -629,11 +663,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-2002-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-2002-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-2002-nkda"
             }
           }
         ],
@@ -644,11 +679,12 @@
             "type": "Follow-up",
             "reason": "Hypertension management",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-2002-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-2002-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-2002-1"
             }
           }
         ],
@@ -672,11 +708,12 @@
           "dateOfBirth": "1958-03-15",
           "ageYears": 68,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "3003",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "3003",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "3003"
           }
         },
         "appointment": {
@@ -686,11 +723,12 @@
           "type": "Diabetes follow-up",
           "reason": "Quarterly diabetes review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-08",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-08",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-08"
           }
         },
         "diagnoses": [
@@ -700,11 +738,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2018-08-22",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-3003-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-3003-1"
             }
           }
         ],
@@ -720,11 +759,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 33001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-3003-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-3003-1"
             }
           }
         ],
@@ -734,11 +774,12 @@
             "reaction": "Hives",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-3003-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-3003-1"
             }
           }
         ],
@@ -751,11 +792,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-15",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-3003-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-3003-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-3003-a1c-2026-04"
             }
           }
         ],
@@ -765,11 +807,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-3003-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-3003-1"
             }
           }
         ],
@@ -793,11 +836,12 @@
           "dateOfBirth": "1958-03-15",
           "ageYears": 68,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "3003",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "3003",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "3003"
           }
         },
         "appointment": {
@@ -807,11 +851,12 @@
           "type": "Diabetes follow-up",
           "reason": "Quarterly diabetes review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-09",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-09",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-09"
           }
         },
         "diagnoses": [
@@ -821,11 +866,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2018-08-22",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-3003-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-3003-1"
             }
           }
         ],
@@ -841,11 +887,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 33001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-3003-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-3003-1"
             }
           }
         ],
@@ -855,11 +902,12 @@
             "reaction": "Hives",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-3003-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-3003-1"
             }
           }
         ],
@@ -872,11 +920,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-15",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-3003-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-3003-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-3003-a1c-2026-04"
             }
           }
         ],
@@ -886,11 +935,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-3003-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-3003-1"
             }
           }
         ],
@@ -914,11 +964,12 @@
           "dateOfBirth": "1958-03-15",
           "ageYears": 68,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "3003",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "3003",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "3003"
           }
         },
         "appointment": {
@@ -928,11 +979,12 @@
           "type": "Diabetes follow-up",
           "reason": "Quarterly diabetes review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-10",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-10",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-10"
           }
         },
         "diagnoses": [
@@ -942,11 +994,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2018-08-22",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-3003-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-3003-1"
             }
           }
         ],
@@ -962,11 +1015,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 33001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-3003-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-3003-1"
             }
           }
         ],
@@ -976,11 +1030,12 @@
             "reaction": "Hives",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-3003-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-3003-1"
             }
           }
         ],
@@ -993,11 +1048,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-15",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-3003-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-3003-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-3003-a1c-2026-04"
             }
           }
         ],
@@ -1007,11 +1063,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-3003-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-3003-1"
             }
           }
         ],
@@ -1035,11 +1092,12 @@
           "dateOfBirth": "1958-03-15",
           "ageYears": 68,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "3003",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "3003",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "3003"
           }
         },
         "appointment": {
@@ -1049,11 +1107,12 @@
           "type": "Diabetes follow-up",
           "reason": "Quarterly diabetes review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-11",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-11",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-11"
           }
         },
         "diagnoses": [
@@ -1063,11 +1122,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2018-08-22",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-3003-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-3003-1"
             }
           }
         ],
@@ -1083,11 +1143,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 33001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-3003-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-3003-1"
             }
           }
         ],
@@ -1097,11 +1158,12 @@
             "reaction": "Hives",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-3003-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-3003-1"
             }
           }
         ],
@@ -1114,11 +1176,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-15",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-3003-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-3003-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-3003-a1c-2026-04"
             }
           }
         ],
@@ -1128,11 +1191,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-3003-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-3003-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-3003-1"
             }
           }
         ],
@@ -1156,11 +1220,12 @@
           "dateOfBirth": "1960-11-20",
           "ageYears": 65,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "4004",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "4004",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "4004"
           }
         },
         "appointment": {
@@ -1170,11 +1235,12 @@
           "type": "Diabetes follow-up",
           "reason": "Uncontrolled A1c review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-12",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-12",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-12"
           }
         },
         "diagnoses": [
@@ -1184,11 +1250,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2014-02-10",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-4004-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-4004-1"
             }
           },
           {
@@ -1197,11 +1264,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2016-06-18",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-4004-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-4004-2",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-4004-2"
             }
           }
         ],
@@ -1217,11 +1285,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 44001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-4004-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-4004-1"
             }
           },
           {
@@ -1235,11 +1304,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 44002,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-4004-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-4004-2",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-4004-2"
             }
           }
         ],
@@ -1249,11 +1319,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-4004-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-4004-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-4004-nkda"
             }
           }
         ],
@@ -1266,11 +1337,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-10",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-4004-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-4004-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-4004-a1c-2026-04"
             }
           }
         ],
@@ -1280,11 +1352,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-4004-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-4004-1"
             }
           }
         ],
@@ -1298,11 +1371,12 @@
             "createdAt": "2026-04-01",
             "reminderId": 85002,
             "source": {
-              "system": "openemr",
-              "recordType": "Task",
-              "recordId": "85002",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "85002",
+              "locator": {
+                "field": "task.description"
+              },
+              "quote": "85002"
             }
           }
         ],
@@ -1327,11 +1401,12 @@
           "dateOfBirth": "1960-11-20",
           "ageYears": 65,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "4004",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "4004",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "4004"
           }
         },
         "appointment": {
@@ -1341,11 +1416,12 @@
           "type": "Diabetes follow-up",
           "reason": "Uncontrolled A1c review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-13",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-13",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-13"
           }
         },
         "diagnoses": [
@@ -1355,11 +1431,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2014-02-10",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-4004-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-4004-1"
             }
           },
           {
@@ -1368,11 +1445,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2016-06-18",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-4004-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-4004-2",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-4004-2"
             }
           }
         ],
@@ -1388,11 +1466,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 44001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-4004-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-4004-1"
             }
           },
           {
@@ -1406,11 +1485,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 44002,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-4004-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-4004-2",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-4004-2"
             }
           }
         ],
@@ -1420,11 +1500,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-4004-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-4004-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-4004-nkda"
             }
           }
         ],
@@ -1437,11 +1518,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-10",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-4004-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-4004-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-4004-a1c-2026-04"
             }
           }
         ],
@@ -1451,11 +1533,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-4004-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-4004-1"
             }
           }
         ],
@@ -1469,11 +1552,12 @@
             "createdAt": "2026-04-01",
             "reminderId": 85002,
             "source": {
-              "system": "openemr",
-              "recordType": "Task",
-              "recordId": "85002",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "85002",
+              "locator": {
+                "field": "task.description"
+              },
+              "quote": "85002"
             }
           }
         ],
@@ -1498,11 +1582,12 @@
           "dateOfBirth": "1960-11-20",
           "ageYears": 65,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "4004",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "4004",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "4004"
           }
         },
         "appointment": {
@@ -1512,11 +1597,12 @@
           "type": "Diabetes follow-up",
           "reason": "Uncontrolled A1c review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-14",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-14",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-14"
           }
         },
         "diagnoses": [
@@ -1526,11 +1612,12 @@
             "label": "Type 2 diabetes mellitus without complications",
             "onsetDate": "2014-02-10",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-4004-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-4004-1"
             }
           },
           {
@@ -1539,11 +1626,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2016-06-18",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-4004-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-4004-2",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-4004-2"
             }
           }
         ],
@@ -1559,11 +1647,12 @@
             "indication": "Type 2 diabetes mellitus",
             "prescriptionId": 44001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-4004-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-4004-1"
             }
           },
           {
@@ -1577,11 +1666,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 44002,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-4004-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-4004-2",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-4004-2"
             }
           }
         ],
@@ -1591,11 +1681,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-4004-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-4004-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-4004-nkda"
             }
           }
         ],
@@ -1608,11 +1699,12 @@
             "abnormalFlag": "H",
             "observedAt": "2026-04-10",
             "source": {
-              "system": "openemr",
-              "recordType": "Observation",
-              "recordId": "obs-4004-a1c-2026-04",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "obs-4004-a1c-2026-04",
+              "locator": {
+                "field": "observation.value"
+              },
+              "quote": "obs-4004-a1c-2026-04"
             }
           }
         ],
@@ -1622,11 +1714,12 @@
             "type": "Follow-up",
             "reason": "Diabetes review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-4004-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-4004-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-4004-1"
             }
           }
         ],
@@ -1640,11 +1733,12 @@
             "createdAt": "2026-04-01",
             "reminderId": 85002,
             "source": {
-              "system": "openemr",
-              "recordType": "Task",
-              "recordId": "85002",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "85002",
+              "locator": {
+                "field": "task.description"
+              },
+              "quote": "85002"
             }
           }
         ],
@@ -1669,11 +1763,12 @@
           "dateOfBirth": "1942-01-08",
           "ageYears": 84,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "5005",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "5005",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "5005"
           }
         },
         "appointment": {
@@ -1683,11 +1778,12 @@
           "type": "Geriatric follow-up",
           "reason": "Multi-condition review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-15",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-15",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-15"
           }
         },
         "diagnoses": [
@@ -1697,11 +1793,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2008-05-01",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-1"
             }
           },
           {
@@ -1710,11 +1807,12 @@
             "label": "Hyperlipidemia, unspecified",
             "onsetDate": "2010-09-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-2",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-2"
             }
           },
           {
@@ -1723,11 +1821,12 @@
             "label": "Osteoarthritis, unspecified site",
             "onsetDate": "2012-11-04",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-3",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-3",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-3"
             }
           }
         ],
@@ -1743,11 +1842,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 55001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-5005-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-5005-1"
             }
           },
           {
@@ -1761,11 +1861,12 @@
             "indication": "Hyperlipidemia",
             "prescriptionId": 55002,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-5005-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-5005-2",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-5005-2"
             }
           },
           {
@@ -1779,11 +1880,12 @@
             "indication": "New start",
             "prescriptionId": null,
             "source": {
-              "system": "openemr",
-              "recordType": "Prescription",
-              "recordId": "rx-uc5-new-15",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-uc5-new-15",
+              "locator": {
+                "field": "chart.record"
+              },
+              "quote": "rx-uc5-new-15"
             }
           }
         ],
@@ -1793,11 +1895,12 @@
             "reaction": "Rash",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-5005-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-5005-1"
             }
           }
         ],
@@ -1808,11 +1911,12 @@
             "type": "Follow-up",
             "reason": "Multi-condition review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-5005-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-5005-1"
             }
           }
         ],
@@ -1826,11 +1930,12 @@
             "createdAt": "2025-11-01",
             "reminderId": 85001,
             "source": {
-              "system": "openemr",
-              "recordType": "Task",
-              "recordId": "85001",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "85001",
+              "locator": {
+                "field": "task.description"
+              },
+              "quote": "85001"
             }
           }
         ],
@@ -1844,11 +1949,12 @@
             "stopDate": null,
             "listId": 95001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationStatement",
-              "recordId": "95001",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "95001",
+              "locator": {
+                "field": "medicationStatement.medication"
+              },
+              "quote": "95001"
             }
           }
         ],
@@ -1872,11 +1978,12 @@
           "dateOfBirth": "1942-01-08",
           "ageYears": 84,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "5005",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "5005",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "5005"
           }
         },
         "appointment": {
@@ -1886,11 +1993,12 @@
           "type": "Geriatric follow-up",
           "reason": "Multi-condition review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-16",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-16",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-16"
           }
         },
         "diagnoses": [
@@ -1900,11 +2008,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2008-05-01",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-1"
             }
           },
           {
@@ -1913,11 +2022,12 @@
             "label": "Hyperlipidemia, unspecified",
             "onsetDate": "2010-09-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-2",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-2"
             }
           },
           {
@@ -1926,11 +2036,12 @@
             "label": "Osteoarthritis, unspecified site",
             "onsetDate": "2012-11-04",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-3",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-3",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-3"
             }
           }
         ],
@@ -1946,11 +2057,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 55001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-5005-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-5005-1"
             }
           },
           {
@@ -1964,11 +2076,12 @@
             "indication": "Hyperlipidemia",
             "prescriptionId": 55002,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-5005-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-5005-2",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-5005-2"
             }
           },
           {
@@ -1982,11 +2095,12 @@
             "indication": "New start",
             "prescriptionId": null,
             "source": {
-              "system": "openemr",
-              "recordType": "Prescription",
-              "recordId": "rx-uc5-new-16",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-uc5-new-16",
+              "locator": {
+                "field": "chart.record"
+              },
+              "quote": "rx-uc5-new-16"
             }
           }
         ],
@@ -1996,11 +2110,12 @@
             "reaction": "Rash",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-5005-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-5005-1"
             }
           }
         ],
@@ -2011,11 +2126,12 @@
             "type": "Follow-up",
             "reason": "Multi-condition review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-5005-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-5005-1"
             }
           }
         ],
@@ -2029,11 +2145,12 @@
             "createdAt": "2025-11-01",
             "reminderId": 85001,
             "source": {
-              "system": "openemr",
-              "recordType": "Task",
-              "recordId": "85001",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "85001",
+              "locator": {
+                "field": "task.description"
+              },
+              "quote": "85001"
             }
           }
         ],
@@ -2047,11 +2164,12 @@
             "stopDate": null,
             "listId": 95001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationStatement",
-              "recordId": "95001",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "95001",
+              "locator": {
+                "field": "medicationStatement.medication"
+              },
+              "quote": "95001"
             }
           }
         ],
@@ -2075,11 +2193,12 @@
           "dateOfBirth": "1942-01-08",
           "ageYears": 84,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "5005",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "5005",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "5005"
           }
         },
         "appointment": {
@@ -2089,11 +2208,12 @@
           "type": "Geriatric follow-up",
           "reason": "Multi-condition review",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-17",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-17",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-17"
           }
         },
         "diagnoses": [
@@ -2103,11 +2223,12 @@
             "label": "Essential (primary) hypertension",
             "onsetDate": "2008-05-01",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-1",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-1"
             }
           },
           {
@@ -2116,11 +2237,12 @@
             "label": "Hyperlipidemia, unspecified",
             "onsetDate": "2010-09-12",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-2",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-2"
             }
           },
           {
@@ -2129,11 +2251,12 @@
             "label": "Osteoarthritis, unspecified site",
             "onsetDate": "2012-11-04",
             "source": {
-              "system": "openemr",
-              "recordType": "Condition",
-              "recordId": "cond-5005-3",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "cond-5005-3",
+              "locator": {
+                "field": "condition.code"
+              },
+              "quote": "cond-5005-3"
             }
           }
         ],
@@ -2149,11 +2272,12 @@
             "indication": "Essential (primary) hypertension",
             "prescriptionId": 55001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-5005-1",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-5005-1"
             }
           },
           {
@@ -2167,11 +2291,12 @@
             "indication": "Hyperlipidemia",
             "prescriptionId": 55002,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationRequest",
-              "recordId": "rx-5005-2",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-5005-2",
+              "locator": {
+                "field": "medication.name"
+              },
+              "quote": "rx-5005-2"
             }
           },
           {
@@ -2185,11 +2310,12 @@
             "indication": "New start",
             "prescriptionId": null,
             "source": {
-              "system": "openemr",
-              "recordType": "Prescription",
-              "recordId": "rx-uc5-new-17",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "rx-uc5-new-17",
+              "locator": {
+                "field": "chart.record"
+              },
+              "quote": "rx-uc5-new-17"
             }
           }
         ],
@@ -2199,11 +2325,12 @@
             "reaction": "Rash",
             "severity": "Moderate",
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-5005-1",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-5005-1"
             }
           }
         ],
@@ -2214,11 +2341,12 @@
             "type": "Follow-up",
             "reason": "Multi-condition review",
             "source": {
-              "system": "openemr",
-              "recordType": "Encounter",
-              "recordId": "enc-5005-1",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-5005-1",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-5005-1"
             }
           }
         ],
@@ -2232,11 +2360,12 @@
             "createdAt": "2025-11-01",
             "reminderId": 85001,
             "source": {
-              "system": "openemr",
-              "recordType": "Task",
-              "recordId": "85001",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "85001",
+              "locator": {
+                "field": "task.description"
+              },
+              "quote": "85001"
             }
           }
         ],
@@ -2250,11 +2379,12 @@
             "stopDate": null,
             "listId": 95001,
             "source": {
-              "system": "openemr",
-              "recordType": "MedicationStatement",
-              "recordId": "95001",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "95001",
+              "locator": {
+                "field": "medicationStatement.medication"
+              },
+              "quote": "95001"
             }
           }
         ],
@@ -2278,11 +2408,12 @@
           "dateOfBirth": "1979-04-30",
           "ageYears": 47,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "6006",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "6006",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "6006"
           }
         },
         "appointment": {
@@ -2292,11 +2423,12 @@
           "type": "Post-ED follow-up",
           "reason": "Post-ED chest-pain check",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-18",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-18",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-18"
           }
         },
         "diagnoses": [],
@@ -2307,11 +2439,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-6006-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-6006-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-6006-nkda"
             }
           }
         ],
@@ -2322,11 +2455,12 @@
             "type": "Emergency",
             "reason": "Chest pain - discharged after negative workup",
             "source": {
-              "system": "ccda-importer",
-              "recordType": "Encounter",
-              "recordId": "enc-6006-ed",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-6006-ed",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-6006-ed"
             }
           }
         ],
@@ -2352,11 +2486,12 @@
           "dateOfBirth": "1979-04-30",
           "ageYears": 47,
           "source": {
-            "system": "openemr",
-            "recordType": "Patient",
-            "recordId": "6006",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "6006",
+            "locator": {
+              "field": "patient.name"
+            },
+            "quote": "6006"
           }
         },
         "appointment": {
@@ -2366,11 +2501,12 @@
           "type": "Post-ED follow-up",
           "reason": "Post-ED chest-pain check",
           "source": {
-            "system": "openemr",
-            "recordType": "Appointment",
-            "recordId": "apt-uc5-19",
-            "field": null,
-            "recordedAt": null
+            "source_type": "chart",
+            "source_id": "apt-uc5-19",
+            "locator": {
+              "field": "appointment.start"
+            },
+            "quote": "apt-uc5-19"
           }
         },
         "diagnoses": [],
@@ -2381,11 +2517,12 @@
             "reaction": null,
             "severity": null,
             "source": {
-              "system": "openemr",
-              "recordType": "AllergyIntolerance",
-              "recordId": "al-6006-nkda",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "al-6006-nkda",
+              "locator": {
+                "field": "allergy.substance"
+              },
+              "quote": "al-6006-nkda"
             }
           }
         ],
@@ -2396,11 +2533,12 @@
             "type": "Emergency",
             "reason": "Chest pain - discharged after negative workup",
             "source": {
-              "system": "ccda-importer",
-              "recordType": "Encounter",
-              "recordId": "enc-6006-ed",
-              "field": null,
-              "recordedAt": null
+              "source_type": "chart",
+              "source_id": "enc-6006-ed",
+              "locator": {
+                "field": "encounter.date"
+              },
+              "quote": "enc-6006-ed"
             }
           }
         ],

@@ -29,7 +29,7 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-uc2-trend-v1';
+export const DATASET_NAME = 'clinical-copilot-uc2-trend-v2';
 
 const DATASET_DESCRIPTION =
     'UC2 (lab/vitals trend) — one fixture per trend scenario (a1c_trend_up, a1c_trend_stable, no_lab_history). Inputs are the BriefingSnapshot whose `labHistory` slot is populated; outputs encode the expected verifier verdict (passes/redacts/no-claims) for the canonical faithful-model response shape.';

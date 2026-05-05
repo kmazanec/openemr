@@ -7,11 +7,12 @@
     "dateOfBirth": "1970-12-04",
     "ageYears": 55,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "7003",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "7003",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "7003"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Follow-up",
     "reason": "Medication review",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-7003",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-7003",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-7003"
     }
   },
   "diagnoses": [
@@ -35,11 +37,12 @@
       "label": "Essential (primary) hypertension",
       "onsetDate": "2026-03-15",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-7003-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-7003-1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-7003-1"
       }
     }
   ],
@@ -55,11 +58,12 @@
       "indication": "new-onset hypertension",
       "prescriptionId": 77301,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "77301",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "77301",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "77301"
       }
     }
   ],
@@ -69,11 +73,12 @@
       "reaction": null,
       "severity": null,
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-7003-nkda",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-7003-nkda",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-7003-nkda"
       }
     }
   ],
