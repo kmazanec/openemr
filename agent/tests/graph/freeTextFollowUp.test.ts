@@ -113,7 +113,7 @@ const buildClient = (): SnapshotClient => ({
 
 const buildGraphWithSynth = (synth: Synthesizer) =>
     createBriefingGraph({
-        retrieve: { client: buildClient(), token: TOKEN, siteId: 'default' },
+        retrieveChart: { client: buildClient(), token: TOKEN, siteId: 'default' },
         synthesize: { synthesizer: synth },
         verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
     });
@@ -401,7 +401,7 @@ describe('§4.5 free-text follow-up — adversarial gate', () => {
             }),
         );
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: { fetchSnapshot: vi.fn(() => Promise.resolve(snapshotWithExternal)) },
                 token: TOKEN,
                 siteId: 'default',

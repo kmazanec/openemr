@@ -129,6 +129,8 @@ describe('createVerify', () => {
             verified: null,
             formatted: null,
             persisted: null,
+            retrieveChartCallCount: 0,
+            retrieveChartArgs: null,
         });
 
         expect(out.verified?.passed).toBe(true);
@@ -149,6 +151,8 @@ describe('createVerify', () => {
             verified: null,
             formatted: null,
             persisted: null,
+            retrieveChartCallCount: 0,
+            retrieveChartArgs: null,
         });
 
         expect(out.verified?.accepted.map((c) => c.id)).toEqual(['good']);
@@ -174,6 +178,8 @@ describe('createVerify', () => {
                 verified: null,
                 formatted: null,
                 persisted: null,
+                retrieveChartCallCount: 0,
+                retrieveChartArgs: null,
             }),
         ).rejects.toThrow(/snapshot/i);
     });
@@ -190,6 +196,8 @@ describe('createVerify', () => {
             verified: null,
             formatted: null,
             persisted: null,
+            retrieveChartCallCount: 0,
+            retrieveChartArgs: null,
         });
 
         expect(out.verified?.passed).toBe(true);
@@ -213,6 +221,8 @@ describe('createVerify', () => {
             verified: null,
             formatted: null,
             persisted: null,
+            retrieveChartCallCount: 0,
+            retrieveChartArgs: null,
         });
 
         expect(failingRecord).toHaveBeenCalledOnce();
@@ -235,6 +245,8 @@ describe('createVerify', () => {
             verified: null,
             formatted: null,
             persisted: null,
+            retrieveChartCallCount: 0,
+            retrieveChartArgs: null,
         });
 
         const snap = counters.snapshot();
@@ -258,6 +270,8 @@ describe('createVerify', () => {
             verified: null,
             formatted: null,
             persisted: null,
+            retrieveChartCallCount: 0,
+            retrieveChartArgs: null,
         });
 
         const snap = counters.snapshot();

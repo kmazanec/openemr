@@ -116,11 +116,11 @@ const buildSynth = (): Synthesizer =>
     );
 
 describe('createBriefingGraph end-to-end (UC1 path)', () => {
-    it('runs Retrieve → Synthesize → Verify → Format → Persist', async () => {
+    it('runs RetrieveChart → Synthesize → Verify → Format → Persist', async () => {
         const { client } = buildClient();
         const synth = buildSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: TOKEN, siteId: 'default' },
+            retrieveChart: { client, token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
@@ -138,11 +138,11 @@ describe('createBriefingGraph end-to-end (UC1 path)', () => {
         expect(out.persisted?.conversationId).toBe('c-1');
     });
 
-    it('drives Retrieve once per invoke', async () => {
+    it('drives RetrieveChart once per invoke', async () => {
         const { client, fetch } = buildClient();
         const synth = buildSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: TOKEN, siteId: 'default' },
+            retrieveChart: { client, token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });

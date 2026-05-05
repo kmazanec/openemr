@@ -145,7 +145,7 @@ const buildGraph = (input: BranchCaseInput) => {
     const synth = vi.fn() as unknown as Synthesizer;
 
     const graph = createBriefingGraph({
-        retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
+        retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
         synthesize: { synthesizer: synth },
         verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         prescriptionChange: {

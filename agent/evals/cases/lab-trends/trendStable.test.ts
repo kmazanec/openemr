@@ -41,7 +41,7 @@ describe('UC2 trend-stable — Diabetic archetype', () => {
         }));
 
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: buildClient(snapshot),
                 token: 'eval-token',
                 siteId: 'default',
@@ -78,7 +78,7 @@ describe('UC2 trend-stable — Diabetic archetype', () => {
         }));
 
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: buildClient(snapshot),
                 token: 'eval-token',
                 siteId: 'default',

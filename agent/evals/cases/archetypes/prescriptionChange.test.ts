@@ -75,7 +75,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
             },
         };
         const graph = createBriefingGraph({
-            retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
+            retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
             prescriptionChange: {
@@ -124,7 +124,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
             },
         };
         const graph = createBriefingGraph({
-            retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
+            retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
             prescriptionChange: {
@@ -247,7 +247,7 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
             },
         };
         const graph = createBriefingGraph({
-            retrieve: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
+            retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
             prescriptionChange: {

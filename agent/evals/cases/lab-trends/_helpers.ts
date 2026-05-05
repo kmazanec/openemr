@@ -20,7 +20,7 @@ import type {
     LabHistorySeries,
     RequestEnvelope,
 } from '../../../src/graph/types.js';
-import type { LabHistoryFetcher } from '../../../src/graph/nodes/retrieve.js';
+import type { LabHistoryFetcher } from '../../../src/graph/nodes/retrieveChart.js';
 import type { LabObservation } from '../../../src/snapshot/types.js';
 import type { ChartSnapshot } from '../../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../../src/tools/snapshotClient.js';

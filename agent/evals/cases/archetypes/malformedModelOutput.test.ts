@@ -40,7 +40,7 @@ describe('UC1 malformed model output — graph surfaces structured errors', () =
         const synth: Synthesizer = vi.fn(() => Promise.reject(malformedJsonError));
 
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default', counters },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default', counters },
             synthesize: { synthesizer: synth, counters },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog(), counters },
         });
@@ -71,7 +71,7 @@ describe('UC1 malformed model output — graph surfaces structured errors', () =
         const synth: Synthesizer = vi.fn(() => Promise.reject(zodError));
 
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default', counters },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default', counters },
             synthesize: { synthesizer: synth, counters },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog(), counters },
         });
@@ -116,7 +116,7 @@ describe('UC1 malformed model output — graph surfaces structured errors', () =
         }));
 
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: sourcelessSynth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });

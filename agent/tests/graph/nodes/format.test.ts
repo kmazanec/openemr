@@ -132,6 +132,8 @@ const baseState = (
     verified: overrides.verified ?? cleanVerified,
     formatted: null,
     persisted: null,
+    retrieveChartCallCount: 0,
+    retrieveChartArgs: null,
 });
 
 describe('format', () => {
@@ -269,6 +271,8 @@ describe('format', () => {
                 verified: null,
                 formatted: null,
                 persisted: null,
+                retrieveChartCallCount: 0,
+                retrieveChartArgs: null,
             }),
         ).rejects.toThrow(/verify/i);
     });
@@ -283,6 +287,8 @@ describe('format', () => {
                 verified: cleanVerified,
                 formatted: null,
                 persisted: null,
+                retrieveChartCallCount: 0,
+                retrieveChartArgs: null,
             }),
         ).rejects.toThrow(/draft|synthesi/i);
     });

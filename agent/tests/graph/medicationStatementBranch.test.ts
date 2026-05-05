@@ -139,7 +139,7 @@ const buildGraph = (input: BranchCaseInput) => {
     const synth = vi.fn() as unknown as Synthesizer;
 
     const graph = createBriefingGraph({
-        retrieve: {
+        retrieveChart: {
             client: buildSnapshotClient(snapshot),
             token: TOKEN,
             siteId: 'default',

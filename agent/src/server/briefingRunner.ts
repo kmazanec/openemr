@@ -1,7 +1,7 @@
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 
 import { createBriefingGraph, type BriefingGraphDeps } from '../graph/index.js';
-import { createLabHistoryFetcher, type LabHistoryFetcher } from '../graph/nodes/retrieve.js';
+import { createLabHistoryFetcher, type LabHistoryFetcher } from '../graph/nodes/retrieveChart.js';
 import { createAnthropicSynthesizer } from '../graph/nodes/synthesize.js';
 import type { Synthesizer } from '../graph/nodes/synthesize.js';
 import type { BriefingState } from '../graph/state.js';
@@ -227,7 +227,7 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         }
 
         const graphDeps: BriefingGraphDeps = {
-            retrieve: {
+            retrieveChart: {
                 client: deps.snapshotClient,
                 token,
                 siteId: envelope.siteId,

@@ -147,6 +147,38 @@ export interface RequestEnvelope {
 }
 
 /**
+ * §A.4 closed enumeration of categories the supervisor may request when
+ * picking the `retrieveChart` handoff after the first iteration. Mirrors
+ * `W2_ARCHITECTURE.md` §"retrieveChart" verbatim. The supervisor-facing
+ * vocabulary uses `'medication'` (plain English for the model); the
+ * snapshot-endpoint client speaks `'prescription'`. The retriever node
+ * is the only place that bridges the two.
+ */
+export const RETRIEVE_CHART_CATEGORIES = [
+    'diagnosis',
+    'medication',
+    'allergy',
+    'lab',
+    'encounter',
+    'reminder',
+    'medication_statement',
+    'appointment',
+] as const;
+export type RetrieveChartCategory = typeof RETRIEVE_CHART_CATEGORIES[number];
+
+/**
+ * §A.4 supervisor handoff args for `retrieveChart`. Set on
+ * `BriefingState.retrieveChartArgs` by the A.7 supervisor before each
+ * iteration after the first; `null` means "first call, run the full
+ * deterministic fan-out". Empty `categories` is invalid and rejected at
+ * the node entry — the architecture's structured-output schema will
+ * enforce the same upstream once A.7 lands.
+ */
+export interface RetrieveChartArgs {
+    readonly categories: readonly RetrieveChartCategory[];
+}
+
+/**
  * Snapshot built up by `Retrieve`. Each tool's output is filed into the
  * matching slot. Fail-open tools (`labs`, `encounters`) carry an
  * explicit gap when the data layer hiccups so `Format` can render the
