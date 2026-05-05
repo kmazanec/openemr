@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
     HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
+    NotYetImplementedError,
     verifyLedger,
 } from '../../src/verify/verifier.js';
 import type { BriefingSnapshot, Claim, ClaimLedger } from '../../src/graph/types.js';
@@ -837,6 +838,104 @@ describe('verifyLedger — §4.2 UC2 strengthened lab rule', () => {
                 }),
             ),
         );
+        expect(out.accepted).toHaveLength(1);
+    });
+});
+
+describe('verifyLedger — source_type dispatch (§A.8)', () => {
+    // Phase A only ships the `chart` source_type path. Phase C adds
+    // `extracted_document` and `guideline` resolution rules; until
+    // then, a citation with a non-chart source_type reaching the
+    // verifier means a new retriever wired in without the matching
+    // rule. We want a typed, loud failure rather than a silent
+    // false-acceptance — the verifier is the load-bearing gate.
+
+    const extractedDocumentRef = (sourceId: string) => ({
+        source_type: 'extracted_document' as const,
+        source_id: sourceId,
+        locator: { page: 1, bbox: [0, 0, 100, 100] as [number, number, number, number] },
+        quote: 'extracted',
+    });
+
+    const guidelineRef = (sourceId: string) => ({
+        source_type: 'guideline' as const,
+        source_id: sourceId,
+        locator: { section: '4.2.1' },
+        quote: 'guideline-snippet',
+    });
+
+    it('throws NotYetImplementedError on an extracted_document citation', () => {
+        // The architecture: "throw a typed not-yet-implemented error
+        // so calls from a future stub-replacement fail loudly". A
+        // silent reject would let an extracted_document retriever
+        // ship in Phase B and fail every claim without a clear
+        // signal pointing at the missing rule.
+        expect(() =>
+            verifyLedger(
+                baseSnapshot(),
+                single(
+                    claim({
+                        category: 'diagnosis',
+                        text: 'extracted diagnosis',
+                        sourceReferences: [extractedDocumentRef('art-1')],
+                    }),
+                ),
+            ),
+        ).toThrow(NotYetImplementedError);
+    });
+
+    it('throws NotYetImplementedError on a guideline citation', () => {
+        expect(() =>
+            verifyLedger(
+                baseSnapshot(),
+                single(
+                    claim({
+                        category: 'diagnosis',
+                        text: 'guideline-backed claim',
+                        sourceReferences: [guidelineRef('chunk-1')],
+                    }),
+                ),
+            ),
+        ).toThrow(NotYetImplementedError);
+    });
+
+    it('NotYetImplementedError carries the unhandled source_type so the message points at the missing rule', () => {
+        try {
+            verifyLedger(
+                baseSnapshot(),
+                single(
+                    claim({
+                        category: 'diagnosis',
+                        text: 'guideline-backed claim',
+                        sourceReferences: [guidelineRef('chunk-1')],
+                    }),
+                ),
+            );
+            throw new Error('expected verifyLedger to throw');
+        } catch (err) {
+            expect(err).toBeInstanceOf(NotYetImplementedError);
+            const message = (err as Error).message;
+            expect(message).toContain('guideline');
+        }
+    });
+
+    it('still accepts chart-type citations under the renamed dispatch (W1 carry-forward)', () => {
+        // The W1 chart path still works after the dispatch lands —
+        // every existing test in this file already exercises it,
+        // but pin one explicit assertion here so a future
+        // refactor of the dispatch can't accidentally drop the
+        // chart branch.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'diagnosis',
+                    text: 'Type 2 diabetes (E11.9)',
+                    sourceReferences: [sourceRef('Condition', 'c-1')],
+                }),
+            ),
+        );
+        expect(out.passed).toBe(true);
         expect(out.accepted).toHaveLength(1);
     });
 });

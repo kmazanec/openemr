@@ -40,6 +40,26 @@ const REJECT_UNRESOLVED = 'source-record-not-in-snapshot' as const;
 const REJECT_CONTENT = 'claim-text-does-not-match-source-fields' as const;
 const REJECT_HARD_STOP = 'safety-critical-data-unavailable' as const;
 
+/**
+ * §A.8: thrown when the verifier sees a citation whose `source_type`
+ * has no resolution rule in this phase. Phase A only ships the
+ * `chart` rule; Phase C adds `extracted_document` and `guideline`
+ * rules. A non-`chart` citation reaching the verifier before Phase C
+ * means a retriever shipped without its matching rule — failing loud
+ * here surfaces the wiring gap the moment it's introduced rather
+ * than letting the verifier silently reject every claim under the
+ * unhandled type.
+ */
+export class NotYetImplementedError extends Error {
+    public constructor(public readonly sourceType: string) {
+        super(
+            `verifier resolution rule for source_type='${sourceType}' is not yet implemented `
+            + '(Phase C adds extracted_document and guideline; only `chart` is wired in Phase A).',
+        );
+        this.name = 'NotYetImplementedError';
+    }
+}
+
 export const HARD_STOP_ALLERGIES_UNAVAILABLE = 'allergies-unavailable' as const;
 export const HARD_STOP_PRESCRIPTIONS_UNAVAILABLE = 'prescriptions-unavailable' as const;
 
@@ -486,6 +506,21 @@ export const verifyLedger = (
         if (claim.sourceReferences.length === 0) {
             rejected.push({ claim, reason: REJECT_NO_SOURCE });
             continue;
+        }
+
+        // §A.8 source_type dispatch. The chart resolution rules below
+        // are the W1 carry-forward (renamed `recordId` → `source_id`).
+        // `extracted_document` and `guideline` rules land in Phase C
+        // alongside the matching retrievers; a citation with one of
+        // those source_types reaching this gate before C means a
+        // retriever shipped without its rule. Throwing makes the
+        // wiring gap obvious — the alternative (silent reject) would
+        // let a Phase B/C MR pass CI with every claim under the new
+        // type silently dropped.
+        for (const ref of claim.sourceReferences) {
+            if (ref.source_type !== 'chart') {
+                throw new NotYetImplementedError(ref.source_type);
+            }
         }
 
         if (isStoppedCategory(claim.category, stops)) {
