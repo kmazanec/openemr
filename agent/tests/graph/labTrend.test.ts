@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createRetrieve, UC2_LAB_HISTORY_LOOKBACK_DAYS } from '../../src/graph/nodes/retrieve.js';
-import type { LabHistoryFetcher } from '../../src/graph/nodes/retrieve.js';
+import { createRetrieveChart, UC2_LAB_HISTORY_LOOKBACK_DAYS } from '../../src/graph/nodes/retrieveChart.js';
+import type { LabHistoryFetcher } from '../../src/graph/nodes/retrieveChart.js';
 import type { BriefingState } from '../../src/graph/state.js';
 import type {
     LabHistorySeries,
@@ -109,6 +109,8 @@ const stateFor = (envelope: RequestEnvelope): BriefingState => ({
     verified: null,
     formatted: null,
     persisted: null,
+    retrieveChartCallCount: 0,
+    retrieveChartArgs: null,
 });
 
 describe('Retrieve — UC2 lab_trend fan-out', () => {
@@ -121,7 +123,7 @@ describe('Retrieve — UC2 lab_trend fan-out', () => {
         const okResult: LabHistoryResult = { kind: 'ok', labs: observations };
         const fetchLabHistory = vi.fn(() => Promise.resolve(okResult)) as unknown as LabHistoryFetcher;
 
-        const node = createRetrieve({
+        const node = createRetrieveChart({
             client: buildClient(baseChart()),
             token: 'tok',
             siteId: 'default',
@@ -153,7 +155,7 @@ describe('Retrieve — UC2 lab_trend fan-out', () => {
         const fetchLabHistory = vi.fn(() => Promise.reject(new Error('should not be called'))) as
             unknown as LabHistoryFetcher;
 
-        const node = createRetrieve({
+        const node = createRetrieveChart({
             client: buildClient(baseChart()),
             token: 'tok',
             siteId: 'default',
@@ -173,7 +175,7 @@ describe('Retrieve — UC2 lab_trend fan-out', () => {
         };
         const fetchLabHistory = vi.fn(() => Promise.resolve(gap)) as unknown as LabHistoryFetcher;
 
-        const node = createRetrieve({
+        const node = createRetrieveChart({
             client: buildClient(baseChart()),
             token: 'tok',
             siteId: 'default',
@@ -194,7 +196,7 @@ describe('Retrieve — UC2 lab_trend fan-out', () => {
         // we file a typed gap rather than throwing — the synthesizer's
         // UC2 prompt then renders "history unavailable" and the
         // verifier rejects any trend assertion.
-        const node = createRetrieve({
+        const node = createRetrieveChart({
             client: buildClient(baseChart()),
             token: 'tok',
             siteId: 'default',

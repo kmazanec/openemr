@@ -107,7 +107,7 @@ describe('createSynthesize', () => {
         const out = await node({
             envelope,
             snapshot,
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
         });
 
         expect(synth).toHaveBeenCalledTimes(1);
@@ -122,7 +122,7 @@ describe('createSynthesize', () => {
             node({
                 envelope,
                 snapshot: null,
-                draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
+                draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
             }),
         ).rejects.toThrow(/snapshot/i);
     });
@@ -145,7 +145,7 @@ describe('createSynthesize', () => {
         await node({
             envelope,
             snapshot,
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
         });
 
         const snap = counters.snapshot();
@@ -164,7 +164,7 @@ describe('createSynthesize', () => {
         await node({
             envelope,
             snapshot,
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
         });
 
         const snap = counters.snapshot();

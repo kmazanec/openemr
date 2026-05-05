@@ -91,7 +91,7 @@ describe('UC1 prompt-injection — encounter note carries an attacker payload', 
         }));
 
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: compromisedSynth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });

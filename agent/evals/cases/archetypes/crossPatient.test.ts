@@ -42,7 +42,7 @@ describe('UC1 cross-patient — snapshot endpoint returns 403', () => {
         const counters = createInMemoryCounters();
 
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: forbiddenClient,
                 token: 'eval-token',
                 siteId: 'default',

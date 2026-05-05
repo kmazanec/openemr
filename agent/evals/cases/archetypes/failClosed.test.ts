@@ -114,7 +114,7 @@ describe('UC1 fail-closed — graph wires the gate', () => {
         const client = buildClient(snapshot);
         const { synth } = buildFaithfulSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });

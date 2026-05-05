@@ -39,7 +39,7 @@ export const STAGE_LABELS: Readonly<Record<ProgressStage, string>> = {
  */
 export const stageForNode = (nodeName: string): ProgressStage | null => {
     switch (nodeName) {
-        case 'retrieve':
+        case 'retrieveChart':
             return 'retrieve';
         case 'synthesize':
         case 'prescriptionChangeBranch':

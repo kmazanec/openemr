@@ -63,7 +63,7 @@ describe.each(DENIALS)('UC1 auth-tier — $reason', ({ responseBody }) => {
         const counters = createInMemoryCounters();
 
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: forbiddenClient,
                 token: 'eval-token',
                 siteId: 'default',

@@ -51,7 +51,7 @@ describe.each(ARCHETYPES)('UC1 happy path — %s', (archetype) => {
         const client = buildClient(snapshot);
         const { synth } = buildFaithfulSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });

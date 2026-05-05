@@ -8,6 +8,7 @@ import type {
     DraftBriefing,
     PersistedRecord,
     RequestEnvelope,
+    RetrieveChartArgs,
     VerifiedLedger,
 } from './types.js';
 
@@ -36,6 +37,22 @@ export const BriefingStateAnnotation = Annotation.Root({
     verified: lastValueChannel<VerifiedLedger | null>(() => null),
     formatted: lastValueChannel<AssistantMessage | null>(() => null),
     persisted: lastValueChannel<PersistedRecord | null>(() => null),
+    /**
+     * §A.4 retrieveChart call counter. The first invocation (count === 0)
+     * runs the deterministic W1 fan-out so the supervisor has chart
+     * context on iteration 1; subsequent invocations honor the
+     * supervisor's `retrieveChartArgs.categories`. Incremented by the
+     * node on entry.
+     */
+    retrieveChartCallCount: lastValueChannel<number>(() => 0),
+    /**
+     * §A.4 supervisor handoff args for `retrieveChart`. Null on the first
+     * call (deterministic fan-out); A.7 supervisor sets this before each
+     * subsequent invocation. Empty `categories` is rejected at the node
+     * entry; the supervisor's structured-output schema enforces the same
+     * upstream once A.7 lands.
+     */
+    retrieveChartArgs: lastValueChannel<RetrieveChartArgs | null>(() => null),
 });
 
 export type BriefingState = typeof BriefingStateAnnotation.State;

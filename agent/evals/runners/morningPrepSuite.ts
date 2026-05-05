@@ -88,7 +88,7 @@ const runExperiment = async (
 
     const target = async (input: MorningPrepInputs) => {
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: buildDatasetSnapshotClient(input.snapshot),
                 token: 'experiment',
                 siteId: 'default',

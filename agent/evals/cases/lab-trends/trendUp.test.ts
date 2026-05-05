@@ -41,7 +41,7 @@ describe('UC2 trend-up — Diabetic-Uncontrolled archetype', () => {
         }));
 
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: buildClient(snapshot),
                 token: 'eval-token',
                 siteId: 'default',
@@ -80,7 +80,7 @@ describe('UC2 trend-up — Diabetic-Uncontrolled archetype', () => {
         }));
 
         const graph = createBriefingGraph({
-            retrieve: {
+            retrieveChart: {
                 client: buildClient(snapshot),
                 token: 'eval-token',
                 siteId: 'default',

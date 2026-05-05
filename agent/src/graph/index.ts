@@ -14,13 +14,13 @@ import {
     createReminderBranch,
     type ReminderBranchDeps,
 } from './nodes/reminderBranch.js';
-import { createRetrieve, type RetrieveDeps } from './nodes/retrieve.js';
+import { createRetrieveChart, type RetrieveChartDeps } from './nodes/retrieveChart.js';
 import { createSynthesize, type SynthesizeDeps } from './nodes/synthesize.js';
 import { createVerify, type VerifyDeps } from './nodes/verify.js';
 import { BriefingStateAnnotation, type BriefingState } from './state.js';
 
 export interface BriefingGraphDeps {
-    readonly retrieve: RetrieveDeps;
+    readonly retrieveChart: RetrieveChartDeps;
     readonly synthesize: SynthesizeDeps;
     readonly verify: VerifyDeps;
     /**
@@ -56,15 +56,15 @@ export interface BriefingGraphDeps {
 
 /**
  * §3.2 graph wiring. Mostly linear; §4.3 adds one conditional edge
- * after `retrieve` so UC3 follow-ups bypass the synthesizer for a
- * deterministic provenance lookup. The retrieve and synthesize deps
- * are injected per-graph so the bearer token (Retrieve) and the LLM
- * client (Synthesize) can be configured per request without baking
- * them into module-level globals.
+ * after `retrieveChart` so UC3 follow-ups bypass the synthesizer for a
+ * deterministic provenance lookup. The retrieveChart and synthesize
+ * deps are injected per-graph so the bearer token (RetrieveChart) and
+ * the LLM client (Synthesize) can be configured per request without
+ * baking them into module-level globals.
  *
- * The branch still goes through `retrieve` first because the verifier
- * needs the snapshot to resolve source references — UC3's claim cites
- * a `MedicationRequest` row that must exist in
+ * The branch still goes through `retrieveChart` first because the
+ * verifier needs the snapshot to resolve source references — UC3's
+ * claim cites a `MedicationRequest` row that must exist in
  * `snapshot.prescriptions`.
  */
 export const createBriefingGraph = (deps: BriefingGraphDeps) => {
@@ -76,7 +76,7 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         | 'prescriptionChangeBranch'
         | 'reminderBranch'
         | 'medicationStatementBranch';
-    const routeAfterRetrieve = (state: BriefingState): DeterministicBranch | 'synthesize' => {
+    const routeAfterRetrieveChart = (state: BriefingState): DeterministicBranch | 'synthesize' => {
         const followUpType = state.envelope.followUp?.type;
         if (prescriptionChangeWired && followUpType === 'prescription_change') {
             return 'prescriptionChangeBranch';
@@ -105,7 +105,7 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         : () => Promise.resolve({});
 
     const builder = new StateGraph(BriefingStateAnnotation)
-        .addNode('retrieve', createRetrieve(deps.retrieve))
+        .addNode('retrieveChart', createRetrieveChart(deps.retrieveChart))
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)
         .addNode('reminderBranch', reminderNode)
         .addNode('medicationStatementBranch', medicationStatementNode)
@@ -113,8 +113,8 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addNode('verify', createVerify(deps.verify))
         .addNode('format', format)
         .addNode('persist', persist)
-        .addEdge(START, 'retrieve')
-        .addConditionalEdges('retrieve', routeAfterRetrieve, {
+        .addEdge(START, 'retrieveChart')
+        .addConditionalEdges('retrieveChart', routeAfterRetrieveChart, {
             prescriptionChangeBranch: 'prescriptionChangeBranch',
             reminderBranch: 'reminderBranch',
             medicationStatementBranch: 'medicationStatementBranch',

@@ -54,7 +54,7 @@ describe('UC4 outside care — recent ED visit imported via CCDA', () => {
         const client = buildClient(snapshot);
         const { synth } = buildFaithfulSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
@@ -77,7 +77,7 @@ describe('UC4 outside care — recent ED visit imported via CCDA', () => {
         const client = buildClient(snapshot);
         const { synth } = buildFaithfulSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
@@ -110,7 +110,7 @@ describe('UC4 outside care — patient with no external records', () => {
         const client = buildClient(snapshot);
         const { synth } = buildFaithfulSynth();
         const graph = createBriefingGraph({
-            retrieve: { client, token: 'eval-token', siteId: 'default' },
+            retrieveChart: { client, token: 'eval-token', siteId: 'default' },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         });
