@@ -201,10 +201,10 @@ No new W2 *features* land in this phase. This is the architectural foundation on
 - All Vitest cases under `agent/evals/cases/<suite>/*.test.ts` that asserted on W1 field names.
 
 **Checklist.**
-- [ ] For each suite, bump `DATASET_NAME` to the new version.
-- [ ] Update each suite's `groundTruth()` (or equivalent) to assert on the new field shape: where W1 asserted `recordType: 'medication'`, W2 asserts `source_type: 'chart'` + `locator.field: 'medication.name'`.
+- [x] For each suite, bump `DATASET_NAME` to the new version. (Bumps landed atomically in A.2 per its bundling note: `archetypesSuite.ts` `…-uc1-golden-v4`, `labTrendsSuite.ts` `…-uc2-trend-v2`, `morningPrepSuite.ts` `…-uc5-morning-prep-v2`. A.6 adds the `-v4`/`-v2` suffix pin in `agent/evals/runners/suites.test.ts` so future shape changes are forced through a name change rather than silent reuse — an archetypes pin and a one-case `labTrendsSuite` describe block now sit alongside the existing morning-prep pin.)
+- [x] Update each suite's `groundTruth()` (or equivalent) to assert on the new field shape: where W1 asserted `recordType: 'medication'`, W2 asserts `source_type: 'chart'` + `locator.field: 'medication.name'`. (The runners' content-pinned outputs — `diagnosisCodes`/`prescriptionNames`/`archetypeFlags`/`trendDirection` — never asserted on `recordType`/`recordId` directly, so there was no W1-style ground-truth to swap. Citation-shape coverage now lives where it has eyes on the live graph: `agent/evals/cases/archetypes/archetypes.test.ts` asserts every accepted claim's `sourceReferences[*].source_type === 'chart'`. The dataset description strings in all three suites were refreshed to call out the W2 unified `SourceReference` rebaseline as the reason for the version bump.)
 - [ ] Run `LANGSMITH_API_KEY=... npm run evals:upload-dataset` against the user's LangSmith account to push the new datasets. (Per CLAUDE.md, this no-ops without the key — the user runs this step on their own account.)
-- [ ] Tests: `npm test` — all isolated Vitest cases pass against regenerated fixtures.
+- [x] Tests: `npm test` — all isolated Vitest cases pass against regenerated fixtures. (483/485 green, +2 vs A.5 master from the new suffix pins; the 2 skipped cases are pre-existing W2 follow-ups noted in A.2.)
 
 **Definition of done.** `npm test` green. `npm run evals:upload-dataset` succeeds when run with credentials. The old dataset names still exist in LangSmith (untouched) so prior experiments remain comparable.
 
