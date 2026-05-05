@@ -302,7 +302,7 @@ Hybrid sparse-dense retrieval over the guideline corpus in Pinecone, with Cohere
 | Fusion | Pinecone-native sparse-dense fusion. Top-20 returned. |
 | Rerank | Cohere `rerank-3` over the top-20 → `top_k` (default 3) returned to the synthesizer. |
 
-The corpus is curated, not bulk-ingested. MVP ships with USPSTF only (public domain, ~50–80 chunks). Subsequent phases add ADA Standards of Care, ACC/AHA hypertension, AGS Beers Criteria (license-conditional), CDC vaccine schedules — one source at a time, eval-validated between each. The corpus regenerator records `(source, version, ingested_at)` per chunk so a single source can be re-ingested when it updates.
+The corpus is sourced one publisher at a time, not bulk-ingested across publishers. MVP ships with USPSTF only (public domain). Within a publisher, all published recommendations are fetched and chunked deterministically — every chunk body is verbatim text from the publisher's site, never model-authored. (C.2 implementation: chunk count for USPSTF is whatever the publisher has — typically ~100 active recommendations × 2 sections each ≈ 200 chunks, superseding the earlier "~50–80" hand-curation target.) Subsequent phases add ADA Standards of Care, ACC/AHA hypertension, AGS Beers Criteria (license-conditional), CDC vaccine schedules — one publisher at a time, eval-validated between each. The corpus regenerator records `(source, version, ingested_at)` per chunk so a single source can be re-ingested when it updates.
 
 Each chunk carries metadata: `{publication, year, section, url?, license_tier}`. `license_tier` is one of `public_domain` or `fair_use_cds` — surfaced in the renderer's section-snippet popover so the user knows the licensing posture of the cited source.
 
