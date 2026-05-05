@@ -15,6 +15,7 @@ import type { AssistantMessage, RequestEnvelope, SuggestedFollowUpParams } from 
 import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
+import { createPgExtractionArtifactStore } from '../state/extractionArtifacts.js';
 import {
     createPgConversationMessagesStore,
     type ConversationMessagesStore,
@@ -742,6 +743,17 @@ export const start = async (port: number): Promise<void> => {
     const scheduleBriefingsLog = createPgScheduleBriefingsLog({ connectionString: databaseUrl });
     await scheduleBriefingsLog.setup();
     logger.info('schedule_briefings table ready');
+
+    // §B.1 Tier-2 extraction-artifact store. The pipeline writes here
+    // after vision + schemaValidate + patientMatch succeed; the
+    // documentEvidenceRetriever (C.1) reads from it. A boot-time
+    // setup() failure is a hard boot failure — we'd rather the agent
+    // refuse to start than serve briefings against a missing table.
+    const extractionArtifactStore = createPgExtractionArtifactStore({
+        connectionString: databaseUrl,
+    });
+    await extractionArtifactStore.setup();
+    logger.info('extraction_artifacts table ready');
 
     const counters = createInMemoryCounters();
     const briefingRunner = buildProductionBriefingRunner({
