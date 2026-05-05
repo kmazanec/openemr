@@ -10,6 +10,7 @@ import type {
     PriorTurnContext,
     RequestEnvelope,
     RetrieveChartArgs,
+    SupervisorDecision,
     VerifiedLedger,
 } from './types.js';
 
@@ -59,6 +60,30 @@ export const BriefingStateAnnotation = Annotation.Root({
      * upstream once A.7 lands.
      */
     retrieveChartArgs: lastValueChannel<RetrieveChartArgs | null>(() => null),
+    /**
+     * §A.7 per-turn supervisor iteration counter. The supervisor node
+     * increments on entry; the iteration cap (10) forces synthesize when
+     * binding so the graph terminates even on degenerate sequences. Per
+     * `W2_ARCHITECTURE.md` §"Iteration cap: 10" — eval-pinned, not
+     * runtime-tunable in production.
+     */
+    supervisorIterations: lastValueChannel<number>(() => 0),
+    /**
+     * §A.7 per-turn decision history. Append-only across one turn —
+     * cycle detection compares the latest decision against the previous
+     * one to emit a `degenerate-loop` warning trace event without
+     * terminating (the iteration cap is the structural backstop). The
+     * synthesizer does not read this slot; it's a supervisor-internal
+     * cursor plus an observability surface.
+     */
+    supervisorDecisionHistory: lastValueChannel<readonly SupervisorDecision[]>(() => []),
+    /**
+     * §A.7 cap-hit flag. Set to true when iteration 10 binds and the
+     * graph forces synthesize. The synthesizer reads this for the
+     * "supervisor exhausted iterations" surface; downstream eval cases
+     * pin this in the cap-hit regression scenario.
+     */
+    capHit: lastValueChannel<boolean>(() => false),
 });
 
 export type BriefingState = typeof BriefingStateAnnotation.State;

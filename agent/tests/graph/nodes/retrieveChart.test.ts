@@ -79,6 +79,9 @@ const firstCallState = (): BriefingState => ({
     persisted: null,
     retrieveChartCallCount: 0,
     retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
 });
 
 describe('createRetrieveChart (§A.4)', () => {
@@ -170,6 +173,9 @@ describe('createRetrieveChart (§A.4)', () => {
                 persisted: null,
                 retrieveChartCallCount: 1,
                 retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
             };
         };
 

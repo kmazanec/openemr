@@ -225,6 +225,59 @@ export interface RetrieveChartArgs {
 }
 
 /**
+ * §A.7 closed enumeration of handoffs the supervisor may pick. Mirrors
+ * `W2_ARCHITECTURE.md` §"Supervisor loop" verbatim. The Zod schema below
+ * binds the model to this set — picking a value outside the enum fails
+ * structured-output coercion, not just a runtime check. Order is
+ * informational; the supervisor reads its own decision history this turn
+ * to detect cycles.
+ *
+ * The three W2 stubs (`kickoffExtraction`, `documentEvidenceRetriever`,
+ * `evidenceRetriever`) are present in the manifest from Phase A even
+ * though their nodes no-op until B/C land — so the supervisor's contract
+ * is stable across phases. Replacing a stub with a real node in B or C
+ * is a node-body change, not a manifest change.
+ */
+export const SUPERVISOR_HANDOFFS = [
+    'kickoffExtraction',
+    'retrieveChart',
+    'documentEvidenceRetriever',
+    'evidenceRetriever',
+    'prescriptionChangeBranch',
+    'reminderBranch',
+    'medicationStatementBranch',
+    'synthesize',
+] as const;
+export type SupervisorHandoff = typeof SUPERVISOR_HANDOFFS[number];
+
+/**
+ * §A.7 supervisor structured-output schema. Output is Zod-coerced to
+ * `{handoff, reason, args?}`:
+ *  - `handoff`: a value from the closed enum; the model cannot invent
+ *    one.
+ *  - `reason`: non-empty by Zod contract — required rationale per
+ *    `W2_ARCHITECTURE.md` §"Decision rationale is required".
+ *  - `args`: optional structured arguments for the chosen handoff.
+ *    Loosely typed at this layer (`Record<string, unknown>`) because
+ *    each handoff defines its own arg shape (e.g. `RetrieveChartArgs`,
+ *    `documentEvidenceRetriever`'s `query` etc.); per-handoff narrowing
+ *    happens inside the supervisor before the args reach the matching
+ *    state slot.
+ *
+ * Malformed model output (missing `handoff`, empty `reason`, value
+ * outside the enum) is rejected by `withStructuredOutput` before it
+ * reaches graph state — the runner surfaces a typed error rather than
+ * letting the graph route on garbage.
+ */
+export const SupervisorDecisionSchema = z.object({
+    handoff: z.enum(SUPERVISOR_HANDOFFS),
+    reason: z.string().min(1),
+    args: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type SupervisorDecision = z.infer<typeof SupervisorDecisionSchema>;
+
+/**
  * Snapshot built up by `Retrieve`. Each tool's output is filed into the
  * matching slot. Fail-open tools (`labs`, `encounters`) carry an
  * explicit gap when the data layer hiccups so `Format` can render the

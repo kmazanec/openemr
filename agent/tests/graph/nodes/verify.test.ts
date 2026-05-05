@@ -132,6 +132,9 @@ describe('createVerify', () => {
             persisted: null,
             retrieveChartCallCount: 0,
             retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
         });
 
         expect(out.verified?.passed).toBe(true);
@@ -155,6 +158,9 @@ describe('createVerify', () => {
             persisted: null,
             retrieveChartCallCount: 0,
             retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
         });
 
         expect(out.verified?.accepted.map((c) => c.id)).toEqual(['good']);
@@ -183,6 +189,9 @@ describe('createVerify', () => {
                 persisted: null,
                 retrieveChartCallCount: 0,
                 retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
             }),
         ).rejects.toThrow(/snapshot/i);
     });
@@ -202,6 +211,9 @@ describe('createVerify', () => {
             persisted: null,
             retrieveChartCallCount: 0,
             retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
         });
 
         expect(out.verified?.passed).toBe(true);
@@ -228,6 +240,9 @@ describe('createVerify', () => {
             persisted: null,
             retrieveChartCallCount: 0,
             retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
         });
 
         expect(failingRecord).toHaveBeenCalledOnce();
@@ -253,6 +268,9 @@ describe('createVerify', () => {
             persisted: null,
             retrieveChartCallCount: 0,
             retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
         });
 
         const snap = counters.snapshot();
@@ -279,6 +297,9 @@ describe('createVerify', () => {
             persisted: null,
             retrieveChartCallCount: 0,
             retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
         });
 
         const snap = counters.snapshot();
