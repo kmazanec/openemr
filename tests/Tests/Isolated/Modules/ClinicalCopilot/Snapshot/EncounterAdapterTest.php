@@ -56,8 +56,8 @@ final class EncounterAdapterTest extends TestCase
         $this->assertSame('2026-03-10', $first->encounterDate->format('Y-m-d'));
         $this->assertSame('office-visit', $first->type);
         $this->assertSame('follow-up: diabetes', $first->reason);
-        $this->assertSame('Encounter', $first->source->recordType);
-        $this->assertSame('44', $first->source->recordId);
+        $this->assertSame('chart', $first->source->sourceType);
+        $this->assertSame('44', $first->source->sourceId);
     }
 
     public function testPassesLookbackToDataSource(): void
@@ -100,7 +100,7 @@ final class EncounterAdapterTest extends TestCase
         ];
         $list = (new EncounterAdapter($this->source($rows)))->fetchRecent(101, 180);
         $this->assertCount(1, $list);
-        $this->assertSame('44', $list[0]->source->recordId);
+        $this->assertSame('44', $list[0]->source->sourceId);
     }
 
     public function testEmptyResultPassesThrough(): void

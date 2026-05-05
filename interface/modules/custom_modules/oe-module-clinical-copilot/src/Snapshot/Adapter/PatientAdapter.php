@@ -44,17 +44,19 @@ final readonly class PatientAdapter
         }
 
         $dob = Normalize::toDateImmutable(Normalize::stringField($row, 'DOB'));
+        $displayName = self::displayName($row);
         return new Demographics(
             pid: $pid,
             uuid: $uuid,
-            displayName: self::displayName($row),
+            displayName: $displayName,
             sex: Normalize::toOptionalString(Normalize::stringField($row, 'sex')),
             dateOfBirth: $dob,
             ageYears: Normalize::ageYears($dob),
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Patient',
-                recordId: Normalize::requireRecordId($pid),
+                sourceType: 'chart',
+                sourceId: Normalize::requireRecordId($pid),
+                locator: ['field' => 'patient.name'],
+                quote: $displayName,
             ),
         );
     }

@@ -1,7 +1,12 @@
 <?php
 
 /**
- * Isolated tests for the SourceReference value object.
+ * Isolated unit tests for the unified W2 `SourceReference` value
+ * object. The cross-language contract (one example per
+ * `source_type`, fixture round-trip) lives in
+ * `SourceReferenceContractTest.php`; this file covers the
+ * polymorphism rules and constructor edge cases on the PHP side
+ * specifically.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -14,7 +19,6 @@ declare(strict_types=1);
 
 namespace OpenEMR\Tests\Isolated\Modules\ClinicalCopilot\Snapshot;
 
-use DateTimeImmutable;
 use OpenEMR\Modules\ClinicalCopilot\Snapshot\SourceReference;
 use PHPUnit\Framework\TestCase;
 
@@ -28,79 +32,102 @@ final class SourceReferenceTest extends TestCase
         require_once self::MODULE_SNAPSHOT_DIR . '/SourceReference.php';
     }
 
-    public function testToArrayShapeMatchesArchitectureDoc(): void
+    public function testChartShapeMinimumFields(): void
     {
-        $ref = new SourceReference(
-            system: 'openemr',
-            recordType: 'MedicationRequest',
-            recordId: 'rx-123',
-            field: 'dosageInstruction',
-            recordedAt: new DateTimeImmutable('2026-04-20'),
+        $reference = new SourceReference(
+            sourceType: 'chart',
+            sourceId: 'Observation/lab-a1c-uuid',
+            locator: ['field' => 'observation.value'],
+            quote: '7.4 %',
         );
 
         $this->assertSame(
             [
-                'system' => 'openemr',
-                'recordType' => 'MedicationRequest',
-                'recordId' => 'rx-123',
-                'field' => 'dosageInstruction',
-                'recordedAt' => '2026-04-20',
+                'source_type' => 'chart',
+                'source_id' => 'Observation/lab-a1c-uuid',
+                'locator' => ['field' => 'observation.value'],
+                'quote' => '7.4 %',
             ],
-            $ref->toArray(),
+            $reference->toArray(),
         );
     }
 
-    public function testFieldAndRecordedAtAreOptional(): void
+    public function testChartShapeWithMeta(): void
     {
-        $ref = new SourceReference(
-            system: 'openemr',
-            recordType: 'AllergyIntolerance',
-            recordId: 'allergy-7',
+        $reference = new SourceReference(
+            sourceType: 'chart',
+            sourceId: 'Observation/lab-a1c-uuid',
+            locator: ['field' => 'observation.value'],
+            quote: '7.4 %',
+            meta: ['record_recorded_at' => '2026-04-12'],
         );
 
         $this->assertSame(
             [
-                'system' => 'openemr',
-                'recordType' => 'AllergyIntolerance',
-                'recordId' => 'allergy-7',
-                'field' => null,
-                'recordedAt' => null,
+                'source_type' => 'chart',
+                'source_id' => 'Observation/lab-a1c-uuid',
+                'locator' => ['field' => 'observation.value'],
+                'quote' => '7.4 %',
+                'meta' => ['record_recorded_at' => '2026-04-12'],
             ],
-            $ref->toArray(),
+            $reference->toArray(),
         );
     }
 
-    public function testEmptyRequiredFieldsAreRejected(): void
+    public function testExtractedDocumentShape(): void
     {
-        $this->expectException(\DomainException::class);
-        new SourceReference(system: '', recordType: 'MedicationRequest', recordId: 'rx-1');
+        $reference = new SourceReference(
+            sourceType: 'extracted_document',
+            sourceId: 'extraction-artifact-1',
+            locator: [
+                'page' => 2,
+                'bbox' => [120.0, 412.0, 340.0, 14.5],
+                'field' => 'results[3].value',
+            ],
+            quote: 'HbA1c 7.6 %',
+            confidence: 0.92,
+            meta: [
+                'document_uuid' => 'doc-1',
+                'extractor_version' => 'vlm-2026-04-01',
+            ],
+        );
+
+        $array = $reference->toArray();
+        $this->assertSame('extracted_document', $array['source_type']);
+        $this->assertArrayHasKey('confidence', $array);
+        $this->assertSame(0.92, $array['confidence']);
+        $this->assertArrayHasKey('bbox', $array['locator']);
+        $this->assertSame([120.0, 412.0, 340.0, 14.5], $array['locator']['bbox']);
     }
 
-    public function testEmptyRecordTypeIsRejected(): void
+    public function testGuidelineShape(): void
     {
-        $this->expectException(\DomainException::class);
-        new SourceReference(system: 'openemr', recordType: '', recordId: 'rx-1');
-    }
+        $reference = new SourceReference(
+            sourceType: 'guideline',
+            sourceId: 'uspstf-chunk-1',
+            locator: ['section' => 'Recommendation Statement'],
+            quote: 'The USPSTF recommends...',
+            meta: ['rerank_score' => 0.81],
+        );
 
-    public function testEmptyRecordIdIsRejected(): void
-    {
-        $this->expectException(\DomainException::class);
-        new SourceReference(system: 'openemr', recordType: 'MedicationRequest', recordId: '');
+        $array = $reference->toArray();
+        $this->assertSame('guideline', $array['source_type']);
+        $this->assertArrayHasKey('section', $array['locator']);
+        $this->assertSame('Recommendation Statement', $array['locator']['section']);
     }
 
     public function testJsonEncodableRoundTrip(): void
     {
-        $ref = new SourceReference(
-            system: 'openemr',
-            recordType: 'Observation',
-            recordId: 'obs-9',
-            field: 'valueQuantity',
-            recordedAt: new DateTimeImmutable('2026-01-15'),
+        $reference = new SourceReference(
+            sourceType: 'chart',
+            sourceId: 'Observation/abc',
+            locator: ['field' => 'observation.value'],
+            quote: '120/80',
+            meta: ['record_recorded_at' => '2026-01-15'],
         );
 
-        $encoded = json_encode($ref->toArray(), JSON_THROW_ON_ERROR);
+        $encoded = json_encode($reference->toArray(), JSON_THROW_ON_ERROR);
         $decoded = json_decode($encoded, true, flags: JSON_THROW_ON_ERROR);
-
-        $this->assertSame($ref->toArray(), $decoded);
+        $this->assertSame($reference->toArray(), $decoded);
     }
 }

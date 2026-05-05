@@ -60,8 +60,8 @@ final class MedicationStatementAdapterTest extends TestCase
         $this->assertSame('2024-06-01', $stmt->startDate->format('Y-m-d'));
         $this->assertNull($stmt->stopDate);
         $this->assertSame(95001, $stmt->listId);
-        $this->assertSame('MedicationStatement', $stmt->source->recordType);
-        $this->assertSame('95001', $stmt->source->recordId);
+        $this->assertSame('chart', $stmt->source->sourceType);
+        $this->assertSame('95001', $stmt->source->sourceId);
     }
 
     public function testNullDoseAndUsageCategoryStayNull(): void

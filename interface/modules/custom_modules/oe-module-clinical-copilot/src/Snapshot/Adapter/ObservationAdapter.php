@@ -99,10 +99,11 @@ final readonly class ObservationAdapter
             abnormalFlag: Normalize::toOptionalString(Normalize::stringField($row, 'abnormal')),
             observedAt: $observedAt,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Observation',
-                recordId: $recordId,
-                recordedAt: $observedAt,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'observation.value'],
+                quote: $value,
+                meta: $observedAt !== null ? ['record_recorded_at' => $observedAt->format('Y-m-d')] : null,
             ),
         );
     }

@@ -60,8 +60,8 @@ final class ReminderAdapterTest extends TestCase
         $this->assertNotNull($reminder->createdAt);
         $this->assertSame('2025-11-01', $reminder->createdAt->format('Y-m-d'));
         $this->assertSame(85001, $reminder->reminderId);
-        $this->assertSame('Task', $reminder->source->recordType);
-        $this->assertSame('85001', $reminder->source->recordId);
+        $this->assertSame('chart', $reminder->source->sourceType);
+        $this->assertSame('85001', $reminder->source->sourceId);
     }
 
     public function testFallsBackToRawCodesWhenListOptionsJoinMisses(): void

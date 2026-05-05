@@ -72,10 +72,11 @@ final readonly class ConditionAdapter
             label: $label,
             onsetDate: $onset,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Condition',
-                recordId: $recordId,
-                recordedAt: $onset,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'condition.code'],
+                quote: $coded['code'],
+                meta: $onset !== null ? ['record_recorded_at' => $onset->format('Y-m-d')] : null,
             ),
         );
     }

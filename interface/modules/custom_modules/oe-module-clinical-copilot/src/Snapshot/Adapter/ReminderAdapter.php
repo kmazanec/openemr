@@ -97,10 +97,11 @@ final readonly class ReminderAdapter
             createdAt: $createdAt,
             reminderId: (int) $recordId,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Task',
-                recordId: $recordId,
-                recordedAt: $createdAt,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'task.description'],
+                quote: $itemTitle,
+                meta: $createdAt !== null ? ['record_recorded_at' => $createdAt->format('Y-m-d')] : null,
             ),
         );
     }

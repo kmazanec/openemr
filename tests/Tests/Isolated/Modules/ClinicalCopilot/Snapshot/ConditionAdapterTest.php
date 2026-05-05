@@ -61,8 +61,8 @@ final class ConditionAdapterTest extends TestCase
         $this->assertSame('Type 2 diabetes mellitus without complications', $diabetes->label);
         $this->assertNotNull($diabetes->onsetDate);
         $this->assertSame('2024-08-01', $diabetes->onsetDate->format('Y-m-d'));
-        $this->assertSame('Condition', $diabetes->source->recordType);
-        $this->assertSame('9001', $diabetes->source->recordId);
+        $this->assertSame('chart', $diabetes->source->sourceType);
+        $this->assertSame('9001', $diabetes->source->sourceId);
     }
 
     public function testStripsEntriesMissingDiagnosisCode(): void

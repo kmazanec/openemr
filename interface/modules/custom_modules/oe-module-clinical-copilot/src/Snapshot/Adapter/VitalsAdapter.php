@@ -120,10 +120,11 @@ final readonly class VitalsAdapter
             bmi: self::numericString($row, 'BMI'),
             oxygenSaturation: self::numericString($row, 'oxygen_saturation'),
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Observation',
-                recordId: $recordId,
-                recordedAt: $observedAt,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'observation.value'],
+                quote: $observedAt?->format('Y-m-d') ?? 'vitals',
+                meta: $observedAt !== null ? ['record_recorded_at' => $observedAt->format('Y-m-d')] : null,
             ),
         );
 

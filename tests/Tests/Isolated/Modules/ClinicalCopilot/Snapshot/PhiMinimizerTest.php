@@ -109,9 +109,10 @@ final class PhiMinimizerTest extends TestCase
             dateOfBirth: new DateTimeImmutable('1968-02-14'),
             ageYears: 58,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Patient',
-                recordId: '101',
+                sourceType: 'chart',
+                sourceId: '101',
+                locator: ['field' => 'patient.name'],
+                quote: 'Patel, Maya',
             ),
         );
     }

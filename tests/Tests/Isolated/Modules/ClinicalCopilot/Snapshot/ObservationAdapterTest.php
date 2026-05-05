@@ -56,8 +56,8 @@ final class ObservationAdapterTest extends TestCase
         $this->assertSame('H', $lab->abnormalFlag);
         $this->assertNotNull($lab->observedAt);
         $this->assertSame('2026-04-15', $lab->observedAt->format('Y-m-d'));
-        $this->assertSame('Observation', $lab->source->recordType);
-        $this->assertSame('12', $lab->source->recordId);
+        $this->assertSame('chart', $lab->source->sourceType);
+        $this->assertSame('12', $lab->source->sourceId);
     }
 
     public function testPassesLookbackToDataSource(): void
@@ -117,7 +117,7 @@ final class ObservationAdapterTest extends TestCase
         ];
         $list = (new ObservationAdapter($this->source($rows)))->fetchRecent(101, 30);
         $this->assertCount(1, $list);
-        $this->assertSame('3', $list[0]->source->recordId);
+        $this->assertSame('3', $list[0]->source->sourceId);
     }
 
     public function testEmptyResultPassesThrough(): void
@@ -191,7 +191,7 @@ final class ObservationAdapterTest extends TestCase
         $list = (new ObservationAdapter($this->historySource($rows)))
             ->fetchHistoryByAnalyte(101, 'A1c', 730);
         $this->assertCount(1, $list);
-        $this->assertSame('3', $list[0]->source->recordId);
+        $this->assertSame('3', $list[0]->source->sourceId);
     }
 
     /**

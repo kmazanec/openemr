@@ -116,7 +116,7 @@ final class ChartSnapshotTest extends TestCase
             codeSystem: 'ICD-10',
             label: 'Type 2 diabetes mellitus without complications',
             onsetDate: new DateTimeImmutable('2024-08-01'),
-            source: $this->ref('Condition', 'cond-1'),
+            source: $this->ref('condition.code', 'cond-1'),
         );
 
         $this->assertSame(
@@ -126,11 +126,10 @@ final class ChartSnapshotTest extends TestCase
                 'label' => 'Type 2 diabetes mellitus without complications',
                 'onsetDate' => '2024-08-01',
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'Condition',
-                    'recordId' => 'cond-1',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'cond-1',
+                    'locator' => ['field' => 'condition.code'],
+                    'quote' => 'cond-1',
                 ],
             ],
             $diag->toArray(),
@@ -149,7 +148,7 @@ final class ChartSnapshotTest extends TestCase
             prescriber: 'Patel, Maya',
             indication: 'type 2 diabetes',
             prescriptionId: 77,
-            source: $this->ref('MedicationRequest', 'rx-77', field: 'dosageInstruction'),
+            source: $this->ref('medication.name', 'rx-77'),
         );
 
         $this->assertSame(
@@ -164,11 +163,10 @@ final class ChartSnapshotTest extends TestCase
                 'indication' => 'type 2 diabetes',
                 'prescriptionId' => 77,
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'MedicationRequest',
-                    'recordId' => 'rx-77',
-                    'field' => 'dosageInstruction',
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'rx-77',
+                    'locator' => ['field' => 'medication.name'],
+                    'quote' => 'rx-77',
                 ],
             ],
             $rx->toArray(),
@@ -181,7 +179,7 @@ final class ChartSnapshotTest extends TestCase
             substance: 'penicillin',
             reaction: 'hives',
             severity: 'moderate',
-            source: $this->ref('AllergyIntolerance', 'allergy-3'),
+            source: $this->ref('allergy.substance', 'allergy-3'),
         );
 
         $this->assertSame(
@@ -190,11 +188,10 @@ final class ChartSnapshotTest extends TestCase
                 'reaction' => 'hives',
                 'severity' => 'moderate',
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'AllergyIntolerance',
-                    'recordId' => 'allergy-3',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'allergy-3',
+                    'locator' => ['field' => 'allergy.substance'],
+                    'quote' => 'allergy-3',
                 ],
             ],
             $allergy->toArray(),
@@ -210,7 +207,7 @@ final class ChartSnapshotTest extends TestCase
             referenceRange: '4.0-5.6',
             abnormalFlag: 'H',
             observedAt: new DateTimeImmutable('2026-04-15'),
-            source: $this->ref('Observation', 'obs-12', field: 'valueQuantity', recordedAt: new DateTimeImmutable('2026-04-15')),
+            source: $this->ref('valueQuantity', 'obs-12', recordedAt: new DateTimeImmutable('2026-04-15')),
         );
 
         $this->assertSame(
@@ -222,11 +219,11 @@ final class ChartSnapshotTest extends TestCase
                 'abnormalFlag' => 'H',
                 'observedAt' => '2026-04-15',
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'Observation',
-                    'recordId' => 'obs-12',
-                    'field' => 'valueQuantity',
-                    'recordedAt' => '2026-04-15',
+                    'source_type' => 'chart',
+                    'source_id' => 'obs-12',
+                    'locator' => ['field' => 'valueQuantity'],
+                    'quote' => 'obs-12',
+                    'meta' => ['record_recorded_at' => '2026-04-15'],
                 ],
             ],
             $lab->toArray(),
@@ -239,7 +236,7 @@ final class ChartSnapshotTest extends TestCase
             encounterDate: new DateTimeImmutable('2026-03-10'),
             type: 'office-visit',
             reason: 'follow-up: diabetes',
-            source: $this->ref('Encounter', 'enc-44'),
+            source: $this->ref('encounter.date', 'enc-44'),
         );
 
         $this->assertSame(
@@ -248,11 +245,10 @@ final class ChartSnapshotTest extends TestCase
                 'type' => 'office-visit',
                 'reason' => 'follow-up: diabetes',
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'Encounter',
-                    'recordId' => 'enc-44',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'enc-44',
+                    'locator' => ['field' => 'encounter.date'],
+                    'quote' => 'enc-44',
                 ],
             ],
             $enc->toArray(),
@@ -269,7 +265,7 @@ final class ChartSnapshotTest extends TestCase
             dueStatus: 'overdue',
             createdAt: new DateTimeImmutable('2025-11-01'),
             reminderId: 85001,
-            source: $this->ref('Task', 'rem-85001'),
+            source: $this->ref('task.description', 'rem-85001'),
         );
 
         $this->assertSame(
@@ -282,11 +278,10 @@ final class ChartSnapshotTest extends TestCase
                 'createdAt' => '2025-11-01',
                 'reminderId' => 85001,
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'Task',
-                    'recordId' => 'rem-85001',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'rem-85001',
+                    'locator' => ['field' => 'task.description'],
+                    'quote' => 'rem-85001',
                 ],
             ],
             $reminder->toArray(),
@@ -303,7 +298,7 @@ final class ChartSnapshotTest extends TestCase
             startDate: new DateTimeImmutable('2024-06-01'),
             stopDate: null,
             listId: 95001,
-            source: $this->ref('MedicationStatement', 'msmt-95001'),
+            source: $this->ref('medicationStatement.medication', 'msmt-95001'),
         );
 
         $this->assertSame(
@@ -316,11 +311,10 @@ final class ChartSnapshotTest extends TestCase
                 'stopDate' => null,
                 'listId' => 95001,
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'MedicationStatement',
-                    'recordId' => 'msmt-95001',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'msmt-95001',
+                    'locator' => ['field' => 'medicationStatement.medication'],
+                    'quote' => 'msmt-95001',
                 ],
             ],
             $stmt->toArray(),
@@ -335,7 +329,7 @@ final class ChartSnapshotTest extends TestCase
             durationMinutes: 30,
             type: 'office-visit',
             reason: 'diabetes follow-up',
-            source: $this->ref('Appointment', 'apt-9'),
+            source: $this->ref('appointment.start', 'apt-9'),
         );
 
         $this->assertSame(
@@ -346,11 +340,10 @@ final class ChartSnapshotTest extends TestCase
                 'type' => 'office-visit',
                 'reason' => 'diabetes follow-up',
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'Appointment',
-                    'recordId' => 'apt-9',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => 'apt-9',
+                    'locator' => ['field' => 'appointment.start'],
+                    'quote' => 'apt-9',
                 ],
             ],
             $appt->toArray(),
@@ -366,7 +359,7 @@ final class ChartSnapshotTest extends TestCase
             sex: 'F',
             dateOfBirth: new DateTimeImmutable('1968-02-14'),
             ageYears: 58,
-            source: $this->ref('Patient', '101'),
+            source: $this->ref('patient.name', '101'),
         );
 
         $this->assertSame(
@@ -378,11 +371,10 @@ final class ChartSnapshotTest extends TestCase
                 'dateOfBirth' => '1968-02-14',
                 'ageYears' => 58,
                 'source' => [
-                    'system' => 'openemr',
-                    'recordType' => 'Patient',
-                    'recordId' => '101',
-                    'field' => null,
-                    'recordedAt' => null,
+                    'source_type' => 'chart',
+                    'source_id' => '101',
+                    'locator' => ['field' => 'patient.name'],
+                    'quote' => '101',
                 ],
             ],
             $demo->toArray(),
@@ -399,7 +391,7 @@ final class ChartSnapshotTest extends TestCase
                 sex: 'F',
                 dateOfBirth: new DateTimeImmutable('1968-02-14'),
                 ageYears: 58,
-                source: $this->ref('Patient', '101'),
+                source: $this->ref('patient.name', '101'),
             ),
             appointment: new Appointment(
                 appointmentId: 'apt-9',
@@ -407,7 +399,7 @@ final class ChartSnapshotTest extends TestCase
                 durationMinutes: 30,
                 type: 'office-visit',
                 reason: 'diabetes follow-up',
-                source: $this->ref('Appointment', 'apt-9'),
+                source: $this->ref('appointment.start', 'apt-9'),
             ),
             diagnoses: [
                 new Diagnosis(
@@ -415,7 +407,7 @@ final class ChartSnapshotTest extends TestCase
                     codeSystem: 'ICD-10',
                     label: 'Type 2 diabetes mellitus without complications',
                     onsetDate: new DateTimeImmutable('2024-08-01'),
-                    source: $this->ref('Condition', 'cond-1'),
+                    source: $this->ref('condition.code', 'cond-1'),
                 ),
             ],
             prescriptions: [
@@ -429,7 +421,7 @@ final class ChartSnapshotTest extends TestCase
                     prescriber: 'Patel, Maya',
                     indication: 'type 2 diabetes',
                     prescriptionId: 77,
-                    source: $this->ref('MedicationRequest', 'rx-77'),
+                    source: $this->ref('medication.name', 'rx-77'),
                 ),
             ],
             allergies: [],
@@ -441,7 +433,7 @@ final class ChartSnapshotTest extends TestCase
                     referenceRange: '4.0-5.6',
                     abnormalFlag: 'H',
                     observedAt: new DateTimeImmutable('2026-04-15'),
-                    source: $this->ref('Observation', 'obs-12'),
+                    source: $this->ref('observation.value', 'obs-12'),
                 ),
             ],
             encounters: [
@@ -449,7 +441,7 @@ final class ChartSnapshotTest extends TestCase
                     encounterDate: new DateTimeImmutable('2026-03-10'),
                     type: 'office-visit',
                     reason: 'follow-up: diabetes',
-                    source: $this->ref('Encounter', 'enc-44'),
+                    source: $this->ref('encounter.date', 'enc-44'),
                 ),
             ],
             reminders: [
@@ -461,7 +453,7 @@ final class ChartSnapshotTest extends TestCase
                     dueStatus: 'due',
                     createdAt: new DateTimeImmutable('2026-04-01'),
                     reminderId: 85002,
-                    source: $this->ref('Task', 'rem-85002'),
+                    source: $this->ref('task.description', 'rem-85002'),
                 ),
             ],
             medications: [
@@ -473,7 +465,7 @@ final class ChartSnapshotTest extends TestCase
                     startDate: new DateTimeImmutable('2024-06-01'),
                     stopDate: null,
                     listId: 95001,
-                    source: $this->ref('MedicationStatement', 'msmt-95001'),
+                    source: $this->ref('medicationStatement.medication', 'msmt-95001'),
                 ),
             ],
         );
@@ -505,7 +497,7 @@ final class ChartSnapshotTest extends TestCase
                 sex: 'F',
                 dateOfBirth: new DateTimeImmutable('1968-02-14'),
                 ageYears: 58,
-                source: $this->ref('Patient', '101'),
+                source: $this->ref('patient.name', '101'),
             ),
             appointment: null,
             diagnoses: [],
@@ -531,7 +523,7 @@ final class ChartSnapshotTest extends TestCase
                 sex: 'F',
                 dateOfBirth: new DateTimeImmutable('1968-02-14'),
                 ageYears: 58,
-                source: $this->ref('Patient', '101'),
+                source: $this->ref('patient.name', '101'),
             ),
             appointment: null,
             // @phpstan-ignore argument.type
@@ -544,17 +536,17 @@ final class ChartSnapshotTest extends TestCase
     }
 
     private function ref(
-        string $recordType,
-        string $recordId,
-        ?string $field = null,
+        string $field,
+        string $sourceId,
+        ?string $quote = null,
         ?DateTimeImmutable $recordedAt = null,
     ): SourceReference {
         return new SourceReference(
-            system: 'openemr',
-            recordType: $recordType,
-            recordId: $recordId,
-            field: $field,
-            recordedAt: $recordedAt,
+            sourceType: 'chart',
+            sourceId: $sourceId,
+            locator: ['field' => $field],
+            quote: $quote ?? $sourceId,
+            meta: $recordedAt !== null ? ['record_recorded_at' => $recordedAt->format('Y-m-d')] : null,
         );
     }
 }
