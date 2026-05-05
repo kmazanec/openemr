@@ -53,7 +53,16 @@ const isGap = <T>(v: readonly T[] | Gap): v is Gap =>
 const containsCI = (haystack: string, needle: string): boolean =>
     needle.length > 0 && haystack.toLowerCase().includes(needle.toLowerCase());
 
-interface SnapshotIndex {
+/**
+ * §A.5 re-export. `loadPriorContext` resolves replayed citations
+ * against the current turn's snapshot using the same indexer the
+ * verifier uses, per `W2_ARCHITECTURE.md` §"Prior-turn context"
+ * §"Persistence". Sharing the indexer keeps a single source of truth
+ * for "what is in the snapshot" — a future change (a new safety-
+ * critical category, a renamed slot) propagates to prior-turn fact
+ * resolution automatically.
+ */
+export interface SnapshotIndex {
     readonly prescriptions: ReadonlyMap<string, Prescription>;
     readonly allergies: ReadonlyMap<string, Allergy>;
     readonly diagnoses: ReadonlyMap<string, Diagnosis>;
@@ -65,7 +74,41 @@ interface SnapshotIndex {
     readonly patientRecordId: string;
 }
 
-const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
+/**
+ * Resolve a single citation against an indexed snapshot. Returns the
+ * raw row when the citation's `source_id` is present in the matching
+ * slot; returns `null` for opaque-pointer mode (the citation came
+ * from a prior turn whose snapshot was different, or the citation
+ * names an `appointment`/`identity` row that the verifier index
+ * doesn't materialize as a row — the supervisor can still route on
+ * `source_type` without a resolved value).
+ *
+ * §A.5 surface is intentionally chart-only: `extracted_document` and
+ * `guideline` resolution lands in A.8 alongside the synthesizer
+ * resolution rules. Today, replayed non-chart citations arrive as
+ * opaque pointers — still useful to the supervisor for routing
+ * ("last turn cited 1 guideline"), still safe to omit from the
+ * synthesizer's prompt body.
+ */
+export const resolveSourceReference = (
+    idx: SnapshotIndex,
+    ref: SourceReference,
+): unknown => {
+    if (ref.source_type !== 'chart') return null;
+    const id = ref.source_id;
+    return (
+        idx.prescriptions.get(id)
+        ?? idx.allergies.get(id)
+        ?? idx.diagnoses.get(id)
+        ?? idx.labs.get(id)
+        ?? idx.encounters.get(id)
+        ?? idx.reminders.get(id)
+        ?? idx.medications.get(id)
+        ?? null
+    );
+};
+
+export const buildSnapshotIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
     // The current `BriefingSnapshot` type pins `prescriptions`/
     // `allergies` as arrays only — Retrieve fails the whole graph if
     // those tools error. The verifier still tolerates a gap shape on
@@ -433,7 +476,7 @@ export const verifyLedger = (
     snapshot: BriefingSnapshot,
     ledger: ClaimLedger,
 ): VerifiedLedger => {
-    const idx = buildIndex(snapshot);
+    const idx = buildSnapshotIndex(snapshot);
     const stops = computeHardStops(snapshot);
 
     const accepted: Claim[] = [];
