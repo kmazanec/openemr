@@ -34,12 +34,12 @@ No conversational-graph extension lands here — extracting and persisting facts
 **Owner.** User (per the parallel human work track).
 
 **Checklist.**
-- [ ] DigitalOcean Spaces bucket `openemr-documents` (or chosen name) created in NYC3 (or matched to Droplet region).
-- [ ] IAM key for OpenEMR (read+write on bucket prefix); separate IAM key for the agent service (read-only on the transient prefix only).
-- [ ] Lifecycle policy on transient prefix: 24h auto-delete.
-- [ ] Spaces credentials populated in `/etc/openemr/.env` on the Droplet (per existing secrets-rotation procedure in `RUNBOOK.md`).
-- [ ] Local `.env.example` updated with the new env var names (`SPACES_BUCKET`, `SPACES_REGION`, `SPACES_OPENEMR_KEY`, `SPACES_OPENEMR_SECRET`, `SPACES_AGENT_KEY`, `SPACES_AGENT_SECRET`, `SPACES_TRANSIENT_PREFIX`). **Do not** put real values in `.env.example`.
-- [ ] Anthropic billing review: confirm spend cap accommodates ~50 cases × supervisor iterations × CI cadence; recommend $200/mo cap as comfortable ceiling for the W2 sprint.
+- [x] DigitalOcean Spaces bucket `cdn.biograph.dev` (or chosen name) created in NYC3 (or matched to Droplet region).
+- [x] IAM key for OpenEMR (read+write on bucket prefix); separate IAM key for the agent service (read-only on the transient prefix only).
+- [x] Lifecycle policy on transient prefix: 24h auto-delete.
+- [x] Spaces credentials populated in `/etc/openemr/.env` on the Droplet (per existing secrets-rotation procedure in `RUNBOOK.md`).
+- [x] Local `.env.example` updated with the new env var names (`SPACES_BUCKET`, `SPACES_REGION`, `SPACES_OPENEMR_KEY`, `SPACES_OPENEMR_SECRET`, `SPACES_AGENT_KEY`, `SPACES_AGENT_SECRET`, `SPACES_TRANSIENT_PREFIX`). **Do not** put real values in `.env.example`.
+- [x] Anthropic billing review: confirm spend cap accommodates ~50 cases × supervisor iterations × CI cadence; recommend $200/mo cap as comfortable ceiling for the W2 sprint.
 
 **Definition of done.** Engineer can run `cd agent && npm run dev` locally with all `SPACES_*` env vars resolved from `.env`, and the deployed Droplet has the same vars in `/etc/openemr/.env`. (Per `feedback_never_read_env_files`, the engineer never reads `.env` directly — confirmation comes from the user.)
 
@@ -59,13 +59,13 @@ No conversational-graph extension lands here — extracting and persisting facts
 - `agent/src/server/index.ts` — call the initializer at boot (mirroring W1's `PostgresSaver.setup()` invocation).
 
 **Checklist.**
-- [ ] Implement `createExtractionArtifactsTable(connString)` with the exact DDL from `W2_ARCHITECTURE.md` §"Tier 2" (PRIMARY KEY, FK column, indexes, UNIQUE constraint on `(document_hash, extractor_version)`). Idempotent (`CREATE TABLE IF NOT EXISTS`).
-- [ ] Add `claimDocumentLock(connString, documentUuid): Promise<{release: () => Promise<void>}>` using `pg_advisory_lock` keyed on a hash of `documentUuid`. Returns a `release()` that calls `pg_advisory_unlock`. Includes a typed timeout (default 60s) with structured error.
-- [ ] Add `findArtifactByDocumentHash(connString, documentHash, extractorVersion): Promise<ExtractionArtifact | null>` for the idempotency check at pipeline entry.
-- [ ] Add `insertArtifact(connString, artifact: NewExtractionArtifact): Promise<ExtractionArtifact>` and `updateArtifactStatus(connString, artifactId, status, metadata?)`.
-- [ ] Wire `createExtractionArtifactsTable(...)` in the `start()` boot sequence in `agent/src/server/index.ts`. Failing to create the table is a hard boot failure (mirrors `PostgresSaver.setup()`).
-- [ ] Tests: `agent/tests/state/extractionArtifacts.test.ts` covering: idempotent table creation, advisory-lock acquire/release, find-by-hash hit + miss, insert + status-update round-trip. Use a real local Postgres (the existing dev-easy stack's `agent-postgres`) for the integration test.
-- [ ] PHPStan / ESLint clean.
+- [x] Implement `createExtractionArtifactsTable(connString)` with the exact DDL from `W2_ARCHITECTURE.md` §"Tier 2" (PRIMARY KEY, FK column, indexes, UNIQUE constraint on `(document_hash, extractor_version)`). Idempotent (`CREATE TABLE IF NOT EXISTS`). (Shipped as `createPgExtractionArtifactStore({connectionString}).setup()` mirroring the `scheduleBriefings` / `conversationStore` factory pattern; pool-injectable `createExtractionArtifactStoreFromPool` for tests.)
+- [x] Add `claimDocumentLock(connString, documentUuid): Promise<{release: () => Promise<void>}>` using `pg_advisory_lock` keyed on a hash of `documentUuid`. Returns a `release()` that calls `pg_advisory_unlock`. Includes a typed timeout (default 60s) with structured error. (Implementation uses `pg_try_advisory_lock` in a 100ms poll loop — `lock_timeout` does not apply to advisory locks per Postgres docs. SHA-256(documentUuid) → first 8 bytes → signed BigInt is the lock key. Throws `DocumentLockTimeoutError` with documentUuid + timeoutMs on the deadline. `release()` is idempotent.)
+- [x] Add `findArtifactByDocumentHash(connString, documentHash, extractorVersion): Promise<ExtractionArtifact | null>` for the idempotency check at pipeline entry.
+- [x] Add `insertArtifact(connString, artifact: NewExtractionArtifact): Promise<ExtractionArtifact>` and `updateArtifactStatus(connString, artifactId, status, metadata?)`. (`updateArtifactStatus` uses `COALESCE` so partial metadata updates don't blank existing values; returns null when the artifactId doesn't exist.)
+- [x] Wire `createExtractionArtifactsTable(...)` in the `start()` boot sequence in `agent/src/server/index.ts`. Failing to create the table is a hard boot failure (mirrors `PostgresSaver.setup()`).
+- [x] Tests: `agent/tests/state/extractionArtifacts.test.ts` covering: idempotent table creation, advisory-lock acquire/release, find-by-hash hit + miss, insert + status-update round-trip. Use a real local Postgres (the existing dev-easy stack's `agent-postgres`) for the integration test. (18 fake-pool unit tests cover deterministic SQL behavior; 3 opt-in integration tests run against `AGENT_TEST_DATABASE_URL` — skipped by default to keep `npm test` host-portable, run locally against the dev-easy `agent-postgres` on port 8330. Race-safety test runs two concurrent claims from independent pools and asserts strict serialization order.)
+- [x] PHPStan / ESLint clean. (No PHP touched in B.1; `npm run lint` clean; `npm run typecheck` clean.)
 
 **Definition of done.** Boot logs include "extraction_artifacts table ready" (or equivalent). Round-trip integration test green against the dev Postgres. Concurrent acquire of the same `documentUuid` lock from two test connections proves race-safety.
 
