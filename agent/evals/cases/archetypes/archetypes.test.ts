@@ -74,6 +74,14 @@ describe.each(ARCHETYPES)('UC1 happy path — %s', (archetype) => {
         expect(acceptedDxCodes).toEqual(expect.arrayContaining([...GROUND_TRUTH[archetype].diagnosisCodes]));
         expect(acceptedMedNames).toEqual(expect.arrayContaining([...GROUND_TRUTH[archetype].medicationNames]));
 
+        // W2 SourceReference shape: every accepted claim's citations
+        // must carry source_type='chart' for archetype fixtures (no
+        // extracted_document or guideline sources land in UC1 paths).
+        const acceptedSourceTypes = accepted.flatMap((c) =>
+            c.sourceReferences.map((ref) => ref.source_type),
+        );
+        expect(acceptedSourceTypes.every((t) => t === 'chart')).toBe(true);
+
         const segments = out.formatted?.segments ?? [];
         expect(segments.length).toBeGreaterThan(0);
         expect(segments.every((s) => !s.redacted)).toBe(true);
