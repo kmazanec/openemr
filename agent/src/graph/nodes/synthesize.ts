@@ -18,6 +18,7 @@ import type {
     BriefingSnapshot,
     ClaimLedger,
     DraftBriefing,
+    PriorTurnContext,
     RequestEnvelope,
 } from '../types.js';
 import { SourceReferenceSchema } from '../types.js';
@@ -106,6 +107,15 @@ export type Synthesizer = (input: {
      * inspects both fields.
      */
     envelope: RequestEnvelope;
+    /**
+     * §A.8 multi-turn dialog memory. The runner's `loadPriorContext`
+     * (§A.5) projected `conversation_messages` into this slot before
+     * the graph ran; the synthesize node forwards it verbatim. The
+     * default-briefing path receives `{ turns: [] }`, in which case
+     * the prompt builder emits a message byte-equivalent to the
+     * pre-A.8 shape (no extra tokens on the dominant path).
+     */
+    priorTurnContext: PriorTurnContext;
 }) => Promise<SynthesizerResult>;
 
 export interface SynthesizeDeps {
@@ -129,6 +139,7 @@ export const createSynthesize = (
         const { draft, ledger, usage } = await deps.synthesizer({
             snapshot: state.snapshot,
             envelope: state.envelope,
+            priorTurnContext: state.priorTurnContext,
         });
         if (usage !== undefined) {
             const costUsd = costForUsage(usage);
@@ -217,7 +228,7 @@ export const createAnthropicSynthesizer = (options?: {
     // double-allocates two identical clients. Skip when models match.
     const followUpClient = followUpModel === briefingModel ? briefingClient : buildClient(followUpModel);
 
-    return async ({ snapshot, envelope }) => {
+    return async ({ snapshot, envelope, priorTurnContext }) => {
         // Per-task routing. Three paths:
         //
         //   - `lab_trend` typed follow-up (§4.2): UC2 prompt, follow-up
@@ -252,8 +263,8 @@ export const createAnthropicSynthesizer = (options?: {
         const userMessage = isLabTrend
             ? buildLabTrendUserMessage(snapshot, labTrendAnalyte)
             : isFollowUp
-                ? buildFollowUpUserMessage(snapshot, question)
-                : buildUserMessage(snapshot);
+                ? buildFollowUpUserMessage(snapshot, question, priorTurnContext)
+                : buildUserMessage(snapshot, priorTurnContext);
         const useFollowUpModel = isLabTrend || isFollowUp;
         const structured = useFollowUpModel ? followUpClient : briefingClient;
         const model = useFollowUpModel ? followUpModel : briefingModel;

@@ -70,7 +70,7 @@ describe('UC1 fail-closed — missing allergies', () => {
         // drop every medication claim because the safety pre-condition
         // isn't met.
         const { synth } = buildFaithfulSynth();
-        const { ledger } = await synth({ snapshot, envelope: baseEnvelope(snapshot) });
+        const { ledger } = await synth({ snapshot, envelope: baseEnvelope(snapshot), priorTurnContext: { turns: [] } });
         const verified = verifyLedger(gapped, ledger);
 
         expect(verified.passed).toBe(false);
@@ -93,7 +93,7 @@ describe('UC1 fail-closed — missing medications', () => {
         });
 
         const { synth } = buildFaithfulSynth();
-        const { ledger } = await synth({ snapshot, envelope: baseEnvelope(snapshot) });
+        const { ledger } = await synth({ snapshot, envelope: baseEnvelope(snapshot), priorTurnContext: { turns: [] } });
         const verified = verifyLedger(gapped, ledger);
 
         expect(verified.passed).toBe(false);
