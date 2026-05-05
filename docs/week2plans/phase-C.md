@@ -111,28 +111,28 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 - `.gitignore` — `agent/.corpus-cache/`.
 
 **Checklist.**
-- [ ] Add `cheerio@^1.0.0` to `agent/package.json` dependencies (HTML parsing for extract). Add `agent/.corpus-cache/` to `.gitignore`.
-- [ ] Implement `agent/scripts/fetch-uspstf-corpus.ts`:
+- [x] Add `cheerio@^1.0.0` to `agent/package.json` dependencies (HTML parsing for extract). Add `agent/.corpus-cache/` to `.gitignore`. (Pinned `cheerio@1.2.0`; same chore commit added the other corpus deps — `gray-matter@4.0.3`, `@pinecone-database/pinecone@7.2.0`, `openai@6.36.0`, `natural@8.1.1` + `@types/natural`. `agent/.corpus-cache/` gitignored at repo root.)
+- [x] Implement `agent/scripts/fetch-uspstf-corpus.ts`:
   1. Discover all published USPSTF recommendation slugs from the topic-index page(s) at `https://www.uspreventiveservicestaskforce.org/uspstf/topic_search_results?topic_status=P`.
   2. For each slug, GET the recommendation page and write the response body to `agent/.corpus-cache/uspstf/<slug>.html`.
   3. Persist `agent/.corpus-cache/uspstf/manifest.json` with `{slug, url, fetched_at, content_sha256}` per recommendation. Re-runs skip when `content_sha256` matches what's already on disk.
-  4. Polite crawl: single-threaded, ~1 req/sec rate-limit, descriptive User-Agent, respect robots.txt.
-- [ ] Implement `agent/scripts/extract-uspstf-corpus.ts`:
+  4. Polite crawl: single-threaded, ~1 req/sec rate-limit, descriptive User-Agent, respect robots.txt. (Honors the publisher's `Crawl-delay: 5`, paced at 5.5s/request. Pagination uses `?PAGE=N`. 108 active recommendations fetched in ~10 min.)
+- [x] Implement `agent/scripts/extract-uspstf-corpus.ts`:
   1. Read `agent/.corpus-cache/uspstf/manifest.json` and walk every cached HTML file.
   2. With `cheerio`, extract: title, publication date (year), grade, population, "Recommendation Summary" body, "Clinical Considerations" body. The body text is taken verbatim from the page DOM — no rewrites, no summarization.
   3. Write one chunk file per non-empty section to `agent/data/corpus/uspstf/<slug>--<section>.md` with YAML frontmatter `{publication: 'USPSTF', year, section, url, license_tier: 'public_domain', title, grade?, population?}` and the verbatim body in markdown.
   4. Regenerate `agent/data/corpus/uspstf/index.json` from the filesystem (sorted, stable).
-  5. Selectors that fail on a page: log a structured warning and skip that page; do not invent content. Exit code is 0 even with warnings (so re-running after a selector fix is the recovery path).
-- [ ] Implement `agent/scripts/reindex-corpus.ts` (source-agnostic from the start so ADA / ACC-AHA / etc. plug in by adding a corpus directory later):
+  5. Selectors that fail on a page: log a structured warning and skip that page; do not invent content. Exit code is 0 even with warnings (so re-running after a selector fix is the recovery path). (Selectors target stable USPSTF anchors: `script[type=application/ld+json]` for headline/datePublished/url/articleSection; `.field--name-field-recommendation-summary` for the population/grade table; `div[id="<section title>"]` per articleSection name. `SECTION_MAP` pins recommendation-summary, importance, assessment-of-net-benefit, practice-considerations, clinical-considerations. Output: 300 chunks across 90 active recommendations; 18 inactive/legacy pages produced no chunks because the publisher has no parseable structured guidance there.)
+- [x] Implement `agent/scripts/reindex-corpus.ts` (source-agnostic from the start so ADA / ACC-AHA / etc. plug in by adding a corpus directory later):
   1. Iterate `agent/data/corpus/*/index.json` to get the chunk list per source.
-  2. For each chunk file: parse frontmatter, embed body via OpenAI `text-embedding-3-large` (3072d), compute BM25 sparse vector via `pinecone-text` SDK fitted on the corpus body texts.
+  2. For each chunk file: parse frontmatter, embed body via OpenAI `text-embedding-3-large` (3072d), compute BM25 sparse vector via ~~`pinecone-text` SDK~~ inline BM25 (`pinecone-text` is Python-only; we ship the Robertson formula inline with `natural`'s WordTokenizer + FNV-1a token hashing — same Pinecone hybrid sparse-vector format) fitted on the corpus body texts.
   3. Upsert to Pinecone hybrid index with metadata `{publication, year, section, url, license_tier, source, title}` in namespace `guidelines-v1`.
   4. Idempotent: stable chunk IDs (`<source>::<basename>` of the chunk file); re-running upserts in place rather than appending.
-- [ ] Add scripts to `agent/package.json`: `"corpus:fetch:uspstf"`, `"corpus:extract:uspstf"`, `"evals:reindex-corpus"`.
-- [ ] No-op without credentials: `reindex-corpus.ts` exits 0 with a logged warning when `OPENAI_API_KEY` or `PINECONE_API_KEY` missing. Fetch + extract scripts only need the network (no API keys).
-- [ ] Tests: parse a saved-fixture USPSTF HTML page (extractor); assert frontmatter shape on emitted chunk files; mock OpenAI + Pinecone clients in the reindex test; assert upsert called with expected per-chunk metadata; assert reindex no-ops cleanly without credentials.
+- [x] Add scripts to `agent/package.json`: `"corpus:fetch:uspstf"`, `"corpus:extract:uspstf"`, `"evals:reindex-corpus"`.
+- [x] No-op without credentials: `reindex-corpus.ts` exits 0 with a logged warning when `OPENAI_API_KEY` or `PINECONE_API_KEY` missing. Fetch + extract scripts only need the network (no API keys). (Also requires `PINECONE_INDEX_NAME` to identify the target index; missing env vars are listed by name in the warning.)
+- [x] Tests: parse a saved-fixture USPSTF HTML page (extractor); assert frontmatter shape on emitted chunk files; mock OpenAI + Pinecone clients in the reindex test; assert upsert called with expected per-chunk metadata; assert reindex no-ops cleanly without credentials. (8 vitest cases under `agent/tests/scripts/`, including selector-failure paths and BM25 sparse-vector shape assertions.)
 
-**Definition of done.** `npm run corpus:fetch:uspstf && npm run corpus:extract:uspstf` populates `agent/data/corpus/uspstf/` with chunk files for every published USPSTF recommendation, all bodies verbatim from the publisher. `npm run evals:reindex-corpus` runs end-to-end against real Pinecone + OpenAI when credentials are present, populating namespace `guidelines-v1`. Re-running any step is idempotent.
+**Definition of done.** `npm run corpus:fetch:uspstf && npm run corpus:extract:uspstf` populates `agent/data/corpus/uspstf/` with chunk files for every published USPSTF recommendation, all bodies verbatim from the publisher. `npm run evals:reindex-corpus` runs end-to-end against real Pinecone + OpenAI when credentials are present, populating namespace `guidelines-v1`. Re-running any step is idempotent. (Met: 300 chunks committed, fetch + extract idempotent on re-run, reindex no-ops cleanly without creds. End-to-end reindex against real vendors deferred until Pinecone index is provisioned by the user; tested via mocked clients and verified script structure.)
 
 ---
 
