@@ -54,8 +54,8 @@ final class AppointmentAdapterTest extends TestCase
         $this->assertSame(30, $appt->durationMinutes);
         $this->assertSame('office-visit', $appt->type);
         $this->assertSame('diabetes follow-up', $appt->reason);
-        $this->assertSame('Appointment', $appt->source->recordType);
-        $this->assertSame('apt-9', $appt->source->recordId);
+        $this->assertSame('chart', $appt->source->sourceType);
+        $this->assertSame('apt-9', $appt->source->sourceId);
     }
 
     public function testPassesScopeArgumentsToDataSource(): void

@@ -13,12 +13,24 @@ import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaims
 
 const PID = 42;
 
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
 const sourceRef = (recordType: string, recordId: string) => ({
-    system: 'openemr',
-    recordType,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart' as const,
+    source_id: recordId,
+    locator: { field: FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record' },
+    quote: recordId,
 });
 
 const buildEnvelope = (overrides: Partial<RequestEnvelope> = {}): RequestEnvelope => ({

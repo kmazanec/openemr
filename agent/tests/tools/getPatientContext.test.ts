@@ -16,7 +16,7 @@ const narrowResponse = {
         displayName: 'Mrs. Patel',
         sex: 'F',
         dateOfBirth: '1968-03-15',
-        source: { system: 'openemr', recordType: 'Patient', recordId: '42' },
+        source: { source_type: 'chart' as const, source_id: '42', locator: { field: 'patient.name' }, quote: '42' },
     },
     diagnoses: [
         {
@@ -24,7 +24,7 @@ const narrowResponse = {
             codeSystem: 'ICD-10',
             label: 'Type 2 diabetes',
             onsetDate: '2020-01-01',
-            source: { system: 'openemr', recordType: 'Condition', recordId: 'c-1' },
+            source: { source_type: 'chart' as const, source_id: 'c-1', locator: { field: 'condition.code' }, quote: 'c-1' },
         },
     ],
     allergies: [
@@ -32,7 +32,7 @@ const narrowResponse = {
             substance: 'Penicillin',
             reaction: 'Hives',
             severity: 'Moderate',
-            source: { system: 'openemr', recordType: 'AllergyIntolerance', recordId: 'a-1' },
+            source: { source_type: 'chart' as const, source_id: 'a-1', locator: { field: 'allergy.substance' }, quote: 'a-1' },
         },
     ],
 };

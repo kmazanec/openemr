@@ -7,11 +7,12 @@
     "dateOfBirth": "1958-03-15",
     "ageYears": 68,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "3003",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "3003",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "3003"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Diabetes follow-up",
     "reason": "Quarterly diabetes review",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-3003",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-3003",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-3003"
     }
   },
   "diagnoses": [
@@ -35,11 +37,12 @@
       "label": "Type 2 diabetes mellitus without complications",
       "onsetDate": "2018-08-22",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-3003-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-3003-1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-3003-1"
       }
     }
   ],
@@ -55,11 +58,12 @@
       "indication": "Type 2 diabetes mellitus",
       "prescriptionId": 33001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "rx-3003-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "rx-3003-1",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "rx-3003-1"
       }
     }
   ],
@@ -69,11 +73,12 @@
       "reaction": "Hives",
       "severity": "Moderate",
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-3003-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-3003-1",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-3003-1"
       }
     }
   ],
@@ -86,11 +91,12 @@
       "abnormalFlag": "H",
       "observedAt": "2026-04-15",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "obs-3003-a1c-2026-04",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "obs-3003-a1c-2026-04",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "obs-3003-a1c-2026-04"
       }
     }
   ],
@@ -100,11 +106,12 @@
       "type": "Follow-up",
       "reason": "Diabetes review",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-3003-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-3003-1",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-3003-1"
       }
     }
   ],

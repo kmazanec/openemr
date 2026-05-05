@@ -1,0 +1,47 @@
+{
+  "schema_version": "w2-source-reference-v1",
+  "examples": [
+    {
+      "source_type": "chart",
+      "source_id": "Observation/lab-a1c-uuid-7c2e",
+      "locator": {
+        "field": "observation.value"
+      },
+      "quote": "7.4 %",
+      "meta": {
+        "record_recorded_at": "2026-04-12T09:30:00+00:00"
+      }
+    },
+    {
+      "source_type": "extracted_document",
+      "source_id": "extraction-artifact-9f1a-2bcc",
+      "locator": {
+        "page": 2,
+        "bbox": [
+          120.5,
+          412.0,
+          340.0,
+          14.5
+        ],
+        "field": "results[3].value"
+      },
+      "quote": "HbA1c  7.6  %",
+      "confidence": 0.92,
+      "meta": {
+        "document_uuid": "doc-uuid-44e0-9c1b",
+        "extractor_version": "vlm-2026-04-01"
+      }
+    },
+    {
+      "source_type": "guideline",
+      "source_id": "uspstf-chunk-aspirin-cvd-2022-S3",
+      "locator": {
+        "section": "Recommendation Statement"
+      },
+      "quote": "The USPSTF recommends against initiating low-dose aspirin use for the primary prevention of CVD in adults 60 years or older.",
+      "meta": {
+        "rerank_score": 0.81
+      }
+    }
+  ]
+}

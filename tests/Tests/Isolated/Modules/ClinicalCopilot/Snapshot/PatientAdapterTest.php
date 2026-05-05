@@ -55,8 +55,8 @@ final class PatientAdapterTest extends TestCase
         $this->assertSame('Female', $demo->sex);
         $this->assertNotNull($demo->dateOfBirth);
         $this->assertSame('1968-02-14', $demo->dateOfBirth->format('Y-m-d'));
-        $this->assertSame('Patient', $demo->source->recordType);
-        $this->assertSame('101', $demo->source->recordId);
+        $this->assertSame('chart', $demo->source->sourceType);
+        $this->assertSame('101', $demo->source->sourceId);
 
         // Age computation uses "today" — pin it to whole-year arithmetic
         // against the DOB rather than a fixed expected number, so the

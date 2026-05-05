@@ -86,12 +86,16 @@ describe('UC4 outside care — recent ED visit imported via CCDA', () => {
 
         expect(out.verified?.passed).toBe(true);
         const accepted = out.verified?.accepted ?? [];
+        // W1 distinguished CCDA-imported encounters via `source.system
+        // === 'ccda-importer'`. W2 dropped `system`; the encounter
+        // citation now just resolves by source_id like every other
+        // chart citation. The narrower "external" assertion can come
+        // back when C-phase reintroduces a richer encounter origin
+        // marker.
         const externalEncounterClaim = accepted.find(
             (c) =>
                 c.category === 'encounter' &&
-                c.sourceReferences.some(
-                    (r) => r.recordId === 'enc-6006-ed' && r.system === 'ccda-importer',
-                ),
+                c.sourceReferences.some((r) => r.source_id === 'enc-6006-ed'),
         );
         expect(externalEncounterClaim).toBeDefined();
     });
@@ -131,11 +135,10 @@ describe('UC4 outside care — patient with no external records', () => {
                     category: 'encounter',
                     sourceReferences: [
                         {
-                            system: 'ccda-importer',
-                            recordType: 'Encounter',
-                            recordId: 'ext-fabricated-7',
-                            field: null,
-                            recordedAt: null,
+                            source_type: 'chart' as const,
+                            source_id: 'ext-fabricated-7',
+                            locator: { field: 'encounter.date' },
+                            quote: 'ext-fabricated-7',
                         },
                     ],
                     safetyCritical: false,
@@ -179,11 +182,10 @@ describe('UC4 outside care — malformed CCDA (encounters Gap)', () => {
                     category: 'encounter',
                     sourceReferences: [
                         {
-                            system: 'ccda-importer',
-                            recordType: 'Encounter',
-                            recordId: 'enc-6006-ed',
-                            field: null,
-                            recordedAt: null,
+                            source_type: 'chart' as const,
+                            source_id: 'enc-6006-ed',
+                            locator: { field: 'encounter.date' },
+                            quote: 'enc-6006-ed',
                         },
                     ],
                     safetyCritical: false,

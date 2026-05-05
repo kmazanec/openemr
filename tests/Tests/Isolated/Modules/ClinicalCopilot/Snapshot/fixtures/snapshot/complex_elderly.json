@@ -7,11 +7,12 @@
     "dateOfBirth": "<DATE>",
     "ageYears": "<AGE>",
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "4242",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "4242",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "Barrows, Brooklyn"
     }
   },
   "appointment": {
@@ -21,11 +22,15 @@
     "type": "Established Patient",
     "reason": "Annual wellness exam",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "9001",
-      "field": null,
-      "recordedAt": "<DATE>"
+      "source_type": "chart",
+      "source_id": "9001",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "2026-04-30 09:30",
+      "meta": {
+        "record_recorded_at": "<DATE>"
+      }
     }
   },
   "diagnoses": [
@@ -35,11 +40,15 @@
       "label": "Essential (primary) hypertension",
       "onsetDate": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "1",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "I10",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -48,11 +57,15 @@
       "label": "Hyperlipidemia, unspecified",
       "onsetDate": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "2",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "2",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "E78.5",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -61,11 +74,15 @@
       "label": "Osteoarthritis, unspecified site",
       "onsetDate": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "3",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "3",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "M19.90",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -74,11 +91,15 @@
       "label": "Unspecified abdominal pain",
       "onsetDate": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "4",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "4",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "R10.9",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -94,11 +115,15 @@
       "indication": "Hypertension",
       "prescriptionId": 1,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "1",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "Lisinopril 10 MG Oral Tablet",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -112,11 +137,15 @@
       "indication": "Hyperlipidemia",
       "prescriptionId": 2,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "2",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "2",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "Atorvastatin 20 MG Oral Tablet",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -126,11 +155,15 @@
       "reaction": "Hives, swelling",
       "severity": "mild",
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "1",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "Shellfish",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -143,11 +176,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "1",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "163",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -158,11 +195,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "2",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "2",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "28",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -173,11 +214,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "3",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "3",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "43",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -188,11 +233,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "4",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "4",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "107",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -203,11 +252,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "5",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "5",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "150",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -218,11 +271,15 @@
       "abnormalFlag": "high",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "6",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "6",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "135",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -233,11 +290,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "7",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "7",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "60",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -248,11 +309,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "8",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "8",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "135",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -263,11 +328,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "9",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "9",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "87",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -278,11 +347,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "10",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "10",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "0.83",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -293,11 +366,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "11",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "11",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "17",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -308,11 +385,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "12",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "12",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "137",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -323,11 +404,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "13",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "13",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "4.0",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -338,11 +423,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "14",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "14",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "80",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -353,11 +442,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "15",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "15",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "1.02",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -368,11 +461,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "16",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "16",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "8",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -383,11 +480,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "17",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "17",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "141",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -398,11 +499,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "18",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "18",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "5.1",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -412,11 +517,15 @@
       "type": "office-visit",
       "reason": "Follow-up: hypertension",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "1000",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1000",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "<DATE>",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -424,11 +533,15 @@
       "type": "office-visit",
       "reason": "Follow-up: hypertension",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "1001",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1001",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "<DATE>",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -436,11 +549,15 @@
       "type": "office-visit",
       "reason": "Headache evaluation",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "1002",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1002",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "<DATE>",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -454,11 +571,15 @@
       "createdAt": "<DATE>",
       "reminderId": 85001,
       "source": {
-        "system": "openemr",
-        "recordType": "Task",
-        "recordId": "85001",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "85001",
+        "locator": {
+          "field": "task.description"
+        },
+        "quote": "Mammogram screening",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -472,11 +593,15 @@
       "stopDate": null,
       "listId": 95001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationStatement",
-        "recordId": "95001",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "95001",
+        "locator": {
+          "field": "medicationStatement.medication"
+        },
+        "quote": "Tylenol",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ]

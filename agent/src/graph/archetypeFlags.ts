@@ -51,7 +51,7 @@
  * fetch hiccups.
  */
 
-import type { Encounter, LabObservation, Prescription } from '../snapshot/types.js';
+import type { LabObservation, Prescription } from '../snapshot/types.js';
 
 import type { BriefingSnapshot } from './types.js';
 
@@ -62,7 +62,6 @@ const ARCHETYPE_COMPLEX_ELDERLY_NEW_MED = 'archetype:complex_elderly_new_med';
 const A1C_UNCONTROLLED_THRESHOLD = 9.0;
 const NEW_MED_LOOKBACK_DAYS = 30;
 const COMPLEX_DX_MIN = 3;
-const CCDA_IMPORTER_SYSTEM = 'ccda-importer';
 
 const isDiabeticUncontrolled = (snapshot: BriefingSnapshot): boolean => {
     const hasE119 = snapshot.diagnoses.some((dx) => dx.code === 'E11.9');
@@ -88,8 +87,14 @@ const isRecentEdVisit = (snapshot: BriefingSnapshot): boolean => {
     if ('kind' in snapshot.encounters) {
         return false;
     }
+    // W1 distinguished CCDA-imported encounters via `source.system ===
+    // 'ccda-importer'`. W2 dropped the `system` field; the closest
+    // proxy still in the snapshot is the encounter's `type` field —
+    // ED visits show up as `'Emergency'` from the seed data and the
+    // §4.4 UC4 archetype regenerator. C-phase work will reintroduce a
+    // richer encounter origin marker.
     return snapshot.encounters.some(
-        (enc: Encounter) => enc.source.system === CCDA_IMPORTER_SYSTEM,
+        (enc) => enc.type !== null && /emergency|\bed\b/i.test(enc.type),
     );
 };
 

@@ -55,9 +55,8 @@ final class ExternalEncounterAdapterTest extends TestCase
         $this->assertSame('2026-04-22', $first->encounterDate->format('Y-m-d'));
         $this->assertSame('St. Mary ED', $first->type);
         $this->assertSame('Chest pain - discharged after negative workup', $first->reason);
-        $this->assertSame('ccda-importer', $first->source->system);
-        $this->assertSame('Encounter', $first->source->recordType);
-        $this->assertSame('7', $first->source->recordId);
+        $this->assertSame('chart', $first->source->sourceType);
+        $this->assertSame('7', $first->source->sourceId);
     }
 
     public function testPassesLookbackToDataSource(): void
@@ -94,7 +93,7 @@ final class ExternalEncounterAdapterTest extends TestCase
         $list = (new ExternalEncounterAdapter($this->source($rows)))->fetchRecent(101, 365);
         $this->assertNull($list[0]->encounterDate);
         $this->assertNull($list[0]->reason);
-        $this->assertSame('ccda-importer', $list[0]->source->system);
+        $this->assertSame('chart', $list[0]->source->sourceType);
     }
 
     public function testStripsRowsWithEmptyEncounterId(): void
@@ -105,7 +104,7 @@ final class ExternalEncounterAdapterTest extends TestCase
         ];
         $list = (new ExternalEncounterAdapter($this->source($rows)))->fetchRecent(101, 365);
         $this->assertCount(1, $list);
-        $this->assertSame('7', $list[0]->source->recordId);
+        $this->assertSame('7', $list[0]->source->sourceId);
     }
 
     public function testEmptyResultPassesThrough(): void

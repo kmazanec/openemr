@@ -295,12 +295,31 @@ export const decodeMedicationStatementProvenanceResponse = (
 
 const decodeSourceReference = (path: string, raw: unknown): SourceReference => {
     const obj = expectObject(path, raw);
+    const sourceType = expectString(`${path}.source_type`, obj['source_type']);
+    if (sourceType !== 'chart' && sourceType !== 'extracted_document' && sourceType !== 'guideline') {
+        throw new ChartSnapshotDecodeError(
+            `${path}.source_type`,
+            "expected 'chart' | 'extracted_document' | 'guideline'",
+        );
+    }
+    const sourceId = expectString(`${path}.source_id`, obj['source_id']);
+    const quote = expectString(`${path}.quote`, obj['quote']);
+    const locatorObj = expectObject(`${path}.locator`, obj['locator']);
+    const locator: SourceReference['locator'] = {};
+    if (locatorObj['field'] !== undefined) {
+        (locator as { field?: string }).field = expectString(`${path}.locator.field`, locatorObj['field']);
+    }
+    if (locatorObj['section'] !== undefined) {
+        (locator as { section?: string }).section = expectString(
+            `${path}.locator.section`,
+            locatorObj['section'],
+        );
+    }
     return {
-        system: expectString(`${path}.system`, obj['system']),
-        recordType: expectString(`${path}.recordType`, obj['recordType']),
-        recordId: expectString(`${path}.recordId`, obj['recordId']),
-        field: optionalString(`${path}.field`, obj['field'] ?? null),
-        recordedAt: optionalString(`${path}.recordedAt`, obj['recordedAt'] ?? null),
+        source_type: sourceType,
+        source_id: sourceId,
+        locator,
+        quote,
     };
 };
 

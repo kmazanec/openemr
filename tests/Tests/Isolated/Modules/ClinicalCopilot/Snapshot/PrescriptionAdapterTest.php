@@ -63,8 +63,8 @@ final class PrescriptionAdapterTest extends TestCase
         $this->assertSame('Patel, Maya', $rx->prescriber);
         $this->assertSame('type 2 diabetes', $rx->indication);
         $this->assertSame(7001, $rx->prescriptionId);
-        $this->assertSame('MedicationRequest', $rx->source->recordType);
-        $this->assertSame('7001', $rx->source->recordId);
+        $this->assertSame('chart', $rx->source->sourceType);
+        $this->assertSame('7001', $rx->source->sourceId);
     }
 
     public function testIndicationNormalizesEmptyToNull(): void
@@ -109,7 +109,7 @@ final class PrescriptionAdapterTest extends TestCase
         ];
         $rx = (new PrescriptionAdapter($this->source($rows)))->fetchRecent(101)[0];
         $this->assertSame(7020, $rx->prescriptionId);
-        $this->assertSame((string) $rx->prescriptionId, $rx->source->recordId);
+        $this->assertSame((string) $rx->prescriptionId, $rx->source->sourceId);
     }
 
     public function testActiveRowStopDateIsNullEvenWhenDateModifiedSet(): void

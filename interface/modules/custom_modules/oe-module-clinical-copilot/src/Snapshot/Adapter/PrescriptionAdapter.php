@@ -97,10 +97,11 @@ final readonly class PrescriptionAdapter
             indication: Normalize::toOptionalString(Normalize::stringField($row, 'indication')),
             prescriptionId: (int) $recordId,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'MedicationRequest',
-                recordId: $recordId,
-                recordedAt: $startDate,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'medication.name'],
+                quote: $name,
+                meta: $startDate !== null ? ['record_recorded_at' => $startDate->format('Y-m-d')] : null,
             ),
         );
     }

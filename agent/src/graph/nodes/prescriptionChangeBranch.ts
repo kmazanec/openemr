@@ -76,11 +76,13 @@ const buildClaim = (prov: PrescriptionProvenance): Claim => ({
     text: renderProvenanceText(prov),
     category: 'prescription_change',
     sourceReferences: [{
-        system: 'openemr',
-        recordType: 'MedicationRequest',
-        recordId: prov.prescriptionId,
-        field: null,
-        recordedAt: prov.prescribingDate,
+        source_type: 'chart',
+        source_id: prov.prescriptionId,
+        locator: { field: 'medication.name' },
+        quote: prov.drugName,
+        ...(prov.prescribingDate !== null
+            ? { meta: { record_recorded_at: prov.prescribingDate } }
+            : {}),
     }],
     safetyCritical: true,
 });
@@ -98,7 +100,7 @@ export const createPrescriptionChangeBranch = (
         }
 
         const parsed = parsePrescriptionKey(followUp.prescriptionId);
-        if (parsed?.recordType !== 'MedicationRequest') {
+        if (parsed?.locatorField !== 'medication.name') {
             logger.warn(
                 { prescriptionId: followUp.prescriptionId, requestId: state.envelope.requestId },
                 'prescription_change follow-up has malformed prescriptionId',
@@ -107,7 +109,7 @@ export const createPrescriptionChangeBranch = (
                 'The prescription reference for this follow-up was not in a recognizable format.',
             );
         }
-        const recordIdNum = Number.parseInt(parsed.recordId, 10);
+        const recordIdNum = Number.parseInt(parsed.sourceId, 10);
         if (!Number.isInteger(recordIdNum) || recordIdNum <= 0) {
             logger.warn(
                 { prescriptionId: followUp.prescriptionId, requestId: state.envelope.requestId },

@@ -74,15 +74,27 @@ const SLOT_PLAN: readonly ArchetypeKey[] = [
 
 const FIRST_SLOT_HOUR = 8;
 
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
 const sourceRef = (
     recordType: string,
     recordId: string,
 ): SourceReference => ({
-    system: 'openemr',
-    recordType,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart',
+    source_id: recordId,
+    locator: { field: FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record' },
+    quote: recordId,
 });
 
 /**

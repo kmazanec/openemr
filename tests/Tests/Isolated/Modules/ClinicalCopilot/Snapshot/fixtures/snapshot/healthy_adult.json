@@ -7,11 +7,12 @@
     "dateOfBirth": "<DATE>",
     "ageYears": "<AGE>",
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "4242",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "4242",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "Mante, Leanne"
     }
   },
   "appointment": {
@@ -21,11 +22,15 @@
     "type": "Established Patient",
     "reason": "Annual wellness exam",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "9001",
-      "field": null,
-      "recordedAt": "<DATE>"
+      "source_type": "chart",
+      "source_id": "9001",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "2026-04-30 09:30",
+      "meta": {
+        "record_recorded_at": "<DATE>"
+      }
     }
   },
   "diagnoses": [],
@@ -40,11 +45,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "1",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "80",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -55,11 +64,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "2",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "2",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "0.68",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -70,11 +83,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "3",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "3",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "16",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -85,11 +102,15 @@
       "abnormalFlag": "no",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "4",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "4",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "140",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     },
     {
@@ -100,11 +121,15 @@
       "abnormalFlag": "high",
       "observedAt": "<DATE>",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "5",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "5",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "5.3",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],
@@ -114,11 +139,15 @@
       "type": "office-visit",
       "reason": "Annual wellness exam",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "1000",
-        "field": null,
-        "recordedAt": "<DATE>"
+        "source_type": "chart",
+        "source_id": "1000",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "<DATE>",
+        "meta": {
+          "record_recorded_at": "<DATE>"
+        }
       }
     }
   ],

@@ -81,12 +81,13 @@ final readonly class MedicationStatementAdapter
             stopDate: Normalize::toDateImmutable(Normalize::stringField($row, 'enddate')),
             listId: (int) $recordId,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'MedicationStatement',
-                recordId: $recordId,
-                recordedAt: Normalize::toDateImmutable(
-                    Normalize::stringField($row, 'date'),
-                ),
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'medicationStatement.medication'],
+                quote: $name,
+                meta: ($recordedAt = Normalize::toDateImmutable(Normalize::stringField($row, 'date'))) !== null
+                    ? ['record_recorded_at' => $recordedAt->format('Y-m-d')]
+                    : null,
             ),
         );
     }

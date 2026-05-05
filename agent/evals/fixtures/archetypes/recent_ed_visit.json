@@ -7,11 +7,12 @@
     "dateOfBirth": "1979-04-30",
     "ageYears": 47,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "6006",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "6006",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "6006"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Post-ED follow-up",
     "reason": "Post-ED chest-pain check",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-6006",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-6006",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-6006"
     }
   },
   "diagnoses": [],
@@ -36,11 +38,12 @@
       "reaction": null,
       "severity": null,
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-6006-nkda",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-6006-nkda",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-6006-nkda"
       }
     }
   ],
@@ -51,11 +54,12 @@
       "type": "Emergency",
       "reason": "Chest pain - discharged after negative workup",
       "source": {
-        "system": "ccda-importer",
-        "recordType": "Encounter",
-        "recordId": "enc-6006-ed",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-6006-ed",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-6006-ed"
       }
     }
   ],

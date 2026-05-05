@@ -56,8 +56,8 @@ final class EncounterNoteAdapterTest extends TestCase
         $this->assertSame('Continue current meds.', $note->plan);
         $this->assertNotNull($note->noteDate);
         $this->assertSame('2026-04-15', $note->noteDate->format('Y-m-d'));
-        $this->assertSame('DocumentReference', $note->source->recordType);
-        $this->assertSame('7', $note->source->recordId);
+        $this->assertSame('chart', $note->source->sourceType);
+        $this->assertSame('7', $note->source->sourceId);
     }
 
     public function testEmptySoapRowDropped(): void
@@ -73,7 +73,7 @@ final class EncounterNoteAdapterTest extends TestCase
         ];
         $list = (new EncounterNoteAdapter($this->source($rows)))->fetchForEncounter(101, 99);
         $this->assertCount(1, $list);
-        $this->assertSame('2', $list[0]->source->recordId);
+        $this->assertSame('2', $list[0]->source->sourceId);
     }
 
     public function testStripsRowWithMissingId(): void
@@ -86,7 +86,7 @@ final class EncounterNoteAdapterTest extends TestCase
         ];
         $list = (new EncounterNoteAdapter($this->source($rows)))->fetchForEncounter(101, 99);
         $this->assertCount(1, $list);
-        $this->assertSame('5', $list[0]->source->recordId);
+        $this->assertSame('5', $list[0]->source->sourceId);
     }
 
     public function testPassesArgsToDataSource(): void

@@ -167,11 +167,10 @@ describe('POST /v1/agent/briefing', () => {
                                     category: 'identity',
                                     sourceReferences: [
                                         {
-                                            system: 'openemr',
-                                            recordType: 'Patient',
-                                            recordId: '42',
-                                            field: null,
-                                            recordedAt: null,
+                                            source_type: 'chart' as const,
+                                            source_id: '42',
+                                            locator: { field: 'patient.name' },
+                                            quote: '42',
                                         },
                                     ],
                                     safetyCritical: false,

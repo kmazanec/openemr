@@ -23,7 +23,7 @@ const narrowResponse = {
             heightInches: '70.0',
             bmi: '30.5',
             oxygenSaturation: '98',
-            source: { system: 'openemr', recordType: 'Observation', recordId: 'vit-1' },
+            source: { source_type: 'chart' as const, source_id: 'vit-1', locator: { field: 'observation.value' }, quote: 'vit-1' },
         },
     ],
 };

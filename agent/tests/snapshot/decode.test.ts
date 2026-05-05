@@ -11,11 +11,11 @@ const validJson = {
         dateOfBirth: '1968-03-15',
         ageYears: 58,
         source: {
-            system: 'openemr',
-            recordType: 'Patient',
-            recordId: '42',
-            field: null,
-            recordedAt: '2026-04-30',
+            source_type: 'chart' as const,
+            source_id: '42',
+            locator: { field: 'patient.name' },
+            quote: '42',
+            meta: { record_recorded_at: '2026-04-30' },
         },
     },
     appointment: {
@@ -25,11 +25,11 @@ const validJson = {
         type: 'Office Visit',
         reason: 'Diabetes follow-up',
         source: {
-            system: 'openemr',
-            recordType: 'Appointment',
-            recordId: 'apt-1',
-            field: null,
-            recordedAt: '2026-04-30',
+            source_type: 'chart' as const,
+            source_id: 'apt-1',
+            locator: { field: 'appointment.start' },
+            quote: 'apt-1',
+            meta: { record_recorded_at: '2026-04-30' },
         },
     },
     diagnoses: [
@@ -39,11 +39,11 @@ const validJson = {
             label: 'Type 2 diabetes mellitus without complications',
             onsetDate: '2020-01-01',
             source: {
-                system: 'openemr',
-                recordType: 'Condition',
-                recordId: 'cond-1',
-                field: null,
-                recordedAt: '2020-01-01',
+                source_type: 'chart' as const,
+                source_id: 'cond-1',
+                locator: { field: 'condition.code' },
+                quote: 'cond-1',
+                meta: { record_recorded_at: '2020-01-01' },
             },
         },
     ],
@@ -59,11 +59,11 @@ const validJson = {
             indication: 'type 2 diabetes',
             prescriptionId: 7001,
             source: {
-                system: 'openemr',
-                recordType: 'MedicationRequest',
-                recordId: 'rx-1',
-                field: 'dosageInstruction',
-                recordedAt: '2020-01-01',
+                source_type: 'chart' as const,
+                source_id: 'rx-1',
+                locator: { field: 'dosageInstruction' },
+                quote: 'rx-1',
+                meta: { record_recorded_at: '2020-01-01' },
             },
         },
     ],
@@ -73,11 +73,11 @@ const validJson = {
             reaction: 'Hives',
             severity: 'Moderate',
             source: {
-                system: 'openemr',
-                recordType: 'AllergyIntolerance',
-                recordId: 'all-1',
-                field: null,
-                recordedAt: '2018-06-01',
+                source_type: 'chart' as const,
+                source_id: 'all-1',
+                locator: { field: 'allergy.substance' },
+                quote: 'all-1',
+                meta: { record_recorded_at: '2018-06-01' },
             },
         },
     ],
@@ -90,11 +90,11 @@ const validJson = {
             abnormalFlag: 'H',
             observedAt: '2026-04-15',
             source: {
-                system: 'openemr',
-                recordType: 'Observation',
-                recordId: 'lab-1',
-                field: 'value',
-                recordedAt: '2026-04-15',
+                source_type: 'chart' as const,
+                source_id: 'lab-1',
+                locator: { field: 'value' },
+                quote: 'lab-1',
+                meta: { record_recorded_at: '2026-04-15' },
             },
         },
     ],
@@ -104,11 +104,11 @@ const validJson = {
             type: 'Office Visit',
             reason: 'Diabetes follow-up',
             source: {
-                system: 'openemr',
-                recordType: 'Encounter',
-                recordId: 'enc-1',
-                field: null,
-                recordedAt: '2026-03-01',
+                source_type: 'chart' as const,
+                source_id: 'enc-1',
+                locator: { field: 'encounter.date' },
+                quote: 'enc-1',
+                meta: { record_recorded_at: '2026-03-01' },
             },
         },
     ],
@@ -157,11 +157,11 @@ describe('decodeChartSnapshot', () => {
     it('preserves source references on every list item', () => {
         const out = decodeChartSnapshot(validJson);
         expect(out.prescriptions[0]!.source).toEqual({
-            system: 'openemr',
-            recordType: 'MedicationRequest',
-            recordId: 'rx-1',
-            field: 'dosageInstruction',
-            recordedAt: '2020-01-01',
+            source_type: 'chart' as const,
+            source_id: 'rx-1',
+            locator: { field: 'dosageInstruction' },
+            quote: 'rx-1',
+            meta: { record_recorded_at: '2020-01-01' },
         });
     });
 
@@ -216,20 +216,23 @@ describe('decodeChartSnapshot', () => {
                     type: 'St. Mary ED',
                     reason: 'Chest pain - discharged after negative workup',
                     source: {
-                        system: 'ccda-importer',
-                        recordType: 'Encounter',
-                        recordId: 'ext-7',
-                        field: null,
-                        recordedAt: '2026-04-22',
+                        source_type: 'chart' as const,
+                        source_id: 'ext-7',
+                        locator: { field: 'encounter.date' },
+                        quote: 'ext-7',
+                        meta: { record_recorded_at: '2026-04-22' },
                     },
                 },
             ],
         };
         const out = decodeChartSnapshot(withExternal);
         expect(out.encounters).toHaveLength(2);
-        expect(out.encounters[0]!.source.system).toBe('openemr');
-        expect(out.encounters[1]!.source.system).toBe('ccda-importer');
-        expect(out.encounters[1]!.source.recordId).toBe('ext-7');
+        // W2 dropped the `system` field; both encounters carry
+        // `source_type: 'chart'`. Re-introducing a richer encounter
+        // origin marker is C-phase work.
+        expect(out.encounters[0]!.source.source_type).toBe('chart');
+        expect(out.encounters[1]!.source.source_type).toBe('chart');
+        expect(out.encounters[1]!.source.source_id).toBe('ext-7');
     });
 
     it('rejects a lab with a non-string value (preserves string-typed contract)', () => {

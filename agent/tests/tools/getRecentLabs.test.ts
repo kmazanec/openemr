@@ -18,7 +18,7 @@ const narrowResponse = {
             referenceRange: '<7.0',
             abnormalFlag: 'H',
             observedAt: '2026-04-15',
-            source: { system: 'openemr', recordType: 'Observation', recordId: 'lab-1' },
+            source: { source_type: 'chart' as const, source_id: 'lab-1', locator: { field: 'observation.value' }, quote: 'lab-1' },
         },
     ],
 };

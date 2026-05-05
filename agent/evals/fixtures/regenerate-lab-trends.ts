@@ -62,16 +62,28 @@ const ageYearsAt = (dateOfBirth: string, asOf = FIXTURE_AS_OF_DATE): number => {
     return age;
 };
 
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
 const sourceRef = (
     recordType: string,
     recordId: string,
     field: string | null = null,
 ): SourceReference => ({
-    system: 'openemr',
-    recordType,
-    recordId,
-    field,
-    recordedAt: null,
+    source_type: 'chart',
+    source_id: recordId,
+    locator: { field: field ?? FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record' },
+    quote: recordId,
 });
 
 const obs = (

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import type {
     Allergy,
     Appointment,
@@ -13,6 +15,101 @@ import type {
 import type { SuggestedFollowUp, SuggestedFollowUpParams } from './followUps.js';
 
 export type { SuggestedFollowUp, SuggestedFollowUpParams };
+
+/**
+ * Unified W2 `SourceReference` shape — the single citation contract
+ * shared between the agent and OpenEMR. Mirrors
+ * `W2_ARCHITECTURE.md` §"Unified `SourceReference` shape": every fact
+ * the synthesizer cites carries one of these, discriminated by
+ * `source_type`, with locator polymorphism enforced at parse time so
+ * bad combinations never reach the verifier.
+ *
+ * The locator polymorphism rule (`extracted_document` requires
+ * `page` AND `bbox`; `guideline` requires `section`; `chart`
+ * requires `field`) is the architecture's hedge against fabricated
+ * citations: a chart claim without a `field`, or a document claim
+ * without a `bbox`, would be an unresolvable citation, and the
+ * verifier would have to reject it at run time. Rejecting it at
+ * parse time fails the synthesizer earlier and louder.
+ *
+ * The PHP-side `SourceReference` value object at
+ * `interface/modules/custom_modules/oe-module-clinical-copilot/src/Snapshot/SourceReference.php`
+ * mirrors this exact shape and validates the same polymorphism. The
+ * cross-language contract is pinned by
+ * `agent/tests/graph/sourceReferenceContract.test.ts` against a
+ * fixture produced by the PHP-side
+ * `SourceReferenceContractTest`.
+ */
+export const SourceReferenceSchema = z
+    .object({
+        source_type: z.enum(['chart', 'extracted_document', 'guideline']),
+        source_id: z.string().min(1),
+        locator: z.object({
+            page: z.number().int().nonnegative().optional(),
+            bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
+            section: z.string().min(1).optional(),
+            field: z.string().min(1).optional(),
+        }),
+        quote: z.string().min(1),
+        confidence: z.number().min(0).max(1).optional(),
+        meta: z
+            .object({
+                document_uuid: z.string().min(1).optional(),
+                extractor_version: z.string().min(1).optional(),
+                rerank_score: z.number().optional(),
+                record_recorded_at: z.string().min(1).optional(),
+            })
+            .optional(),
+    })
+    .superRefine((value, ctx) => {
+        switch (value.source_type) {
+            case 'extracted_document':
+                if (value.locator.page === undefined) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: ['locator', 'page'],
+                        message: "extracted_document SourceReference requires locator.page",
+                    });
+                }
+                if (value.locator.bbox === undefined) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: ['locator', 'bbox'],
+                        message: "extracted_document SourceReference requires locator.bbox",
+                    });
+                }
+                break;
+            case 'guideline':
+                if (value.locator.section === undefined) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: ['locator', 'section'],
+                        message: "guideline SourceReference requires locator.section",
+                    });
+                }
+                break;
+            case 'chart':
+                if (value.locator.field === undefined) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: ['locator', 'field'],
+                        message: "chart SourceReference requires locator.field",
+                    });
+                }
+                break;
+        }
+    });
+
+/**
+ * Inferred TS type from the unified W2 schema. Distinct from the
+ * legacy `SourceReference` interface re-exported from
+ * `../snapshot/types.js` — that name still refers to the W1
+ * `{system, recordType, recordId, field, recordedAt}` shape until
+ * sub-phase A.2 migrates every call site. Until then the two live
+ * side by side: the W1 interface is the producer-side shape, the
+ * W2 schema is the cross-language contract.
+ */
+export type SourceReferenceUnified = z.infer<typeof SourceReferenceSchema>;
 
 /**
  * Request envelope OpenEMR sends to the agent. Mirrors ARCHITECTURE.md

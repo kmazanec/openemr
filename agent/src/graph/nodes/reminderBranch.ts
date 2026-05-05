@@ -66,11 +66,13 @@ const buildClaim = (detail: ReminderDetail): Claim => ({
     text: renderDetailText(detail),
     category: 'reminder',
     sourceReferences: [{
-        system: 'openemr',
-        recordType: 'Task',
-        recordId: detail.reminderId,
-        field: null,
-        recordedAt: detail.createdAt,
+        source_type: 'chart',
+        source_id: detail.reminderId,
+        locator: { field: 'task.description' },
+        quote: detail.itemTitle,
+        ...(detail.createdAt !== null
+            ? { meta: { record_recorded_at: detail.createdAt } }
+            : {}),
     }],
     safetyCritical: false,
 });
@@ -85,7 +87,7 @@ export const createReminderBranch = (
         }
 
         const parsed = parseReminderKey(followUp.reminderId);
-        if (parsed?.recordType !== 'Task') {
+        if (parsed?.locatorField !== 'task.description') {
             logger.warn(
                 { reminderId: followUp.reminderId, requestId: state.envelope.requestId },
                 'reminder_detail follow-up has malformed reminderId',
@@ -94,7 +96,7 @@ export const createReminderBranch = (
                 'The reminder reference for this follow-up was not in a recognizable format.',
             );
         }
-        const recordIdNum = Number.parseInt(parsed.recordId, 10);
+        const recordIdNum = Number.parseInt(parsed.sourceId, 10);
         if (!Number.isInteger(recordIdNum) || recordIdNum <= 0) {
             logger.warn(
                 { reminderId: followUp.reminderId, requestId: state.envelope.requestId },

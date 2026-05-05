@@ -53,8 +53,10 @@ final class AllergyAdapterTest extends TestCase
         $this->assertSame('penicillin', $list[0]->substance);
         $this->assertSame('hives', $list[0]->reaction);
         $this->assertSame('moderate', $list[0]->severity);
-        $this->assertSame('AllergyIntolerance', $list[0]->source->recordType);
-        $this->assertSame('4001', $list[0]->source->recordId);
+        $this->assertSame('chart', $list[0]->source->sourceType);
+        $this->assertSame('4001', $list[0]->source->sourceId);
+        $this->assertSame('penicillin', $list[0]->source->quote);
+        $this->assertSame('allergy.substance', $list[0]->source->locator['field'] ?? null);
     }
 
     public function testEmptyReactionAndSeverityNormalizeToNull(): void

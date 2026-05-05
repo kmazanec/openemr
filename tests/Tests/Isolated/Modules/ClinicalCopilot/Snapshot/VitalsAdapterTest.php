@@ -61,8 +61,8 @@ final class VitalsAdapterTest extends TestCase
         $this->assertSame('98', $vital->oxygenSaturation);
         $this->assertNotNull($vital->observedAt);
         $this->assertSame('2026-04-15', $vital->observedAt->format('Y-m-d'));
-        $this->assertSame('Observation', $vital->source->recordType);
-        $this->assertSame('12', $vital->source->recordId);
+        $this->assertSame('chart', $vital->source->sourceType);
+        $this->assertSame('12', $vital->source->sourceId);
     }
 
     public function testZeroFilledNumericsNormalizeToNull(): void
@@ -121,7 +121,7 @@ final class VitalsAdapterTest extends TestCase
         ];
         $list = (new VitalsAdapter($this->source($rows)))->fetchRecent(101, 30);
         $this->assertCount(1, $list);
-        $this->assertSame('2', $list[0]->source->recordId);
+        $this->assertSame('2', $list[0]->source->sourceId);
     }
 
     public function testStripsRowWithMissingId(): void
@@ -138,7 +138,7 @@ final class VitalsAdapterTest extends TestCase
         ];
         $list = (new VitalsAdapter($this->source($rows)))->fetchRecent(101, 30);
         $this->assertCount(1, $list);
-        $this->assertSame('7', $list[0]->source->recordId);
+        $this->assertSame('7', $list[0]->source->sourceId);
     }
 
     public function testPassesLookbackToDataSource(): void

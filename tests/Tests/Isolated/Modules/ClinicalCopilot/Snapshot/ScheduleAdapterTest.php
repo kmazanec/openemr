@@ -55,8 +55,8 @@ final class ScheduleAdapterTest extends TestCase
         $this->assertSame(15, $slots[0]->durationMinutes);
         $this->assertSame('office-visit', $slots[0]->type);
         $this->assertSame('diabetes follow-up', $slots[0]->reason);
-        $this->assertSame('Appointment', $slots[0]->source->recordType);
-        $this->assertSame('apt-1', $slots[0]->source->recordId);
+        $this->assertSame('chart', $slots[0]->source->sourceType);
+        $this->assertSame('apt-1', $slots[0]->source->sourceId);
 
         $this->assertSame('apt-3', $slots[1]->appointmentId);
         $this->assertSame('apt-2', $slots[2]->appointmentId);

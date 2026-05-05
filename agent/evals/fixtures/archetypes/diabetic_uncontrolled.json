@@ -7,11 +7,12 @@
     "dateOfBirth": "1960-11-20",
     "ageYears": 65,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "4004",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "4004",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "4004"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Diabetes follow-up",
     "reason": "Uncontrolled A1c review",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-4004",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-4004",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-4004"
     }
   },
   "diagnoses": [
@@ -35,11 +37,12 @@
       "label": "Type 2 diabetes mellitus without complications",
       "onsetDate": "2014-02-10",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-4004-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-4004-1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-4004-1"
       }
     },
     {
@@ -48,11 +51,12 @@
       "label": "Essential (primary) hypertension",
       "onsetDate": "2016-06-18",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-4004-2",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-4004-2",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-4004-2"
       }
     }
   ],
@@ -68,11 +72,12 @@
       "indication": "Type 2 diabetes mellitus",
       "prescriptionId": 44001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "rx-4004-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "rx-4004-1",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "rx-4004-1"
       }
     },
     {
@@ -86,11 +91,12 @@
       "indication": "Essential (primary) hypertension",
       "prescriptionId": 44002,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "rx-4004-2",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "rx-4004-2",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "rx-4004-2"
       }
     }
   ],
@@ -100,11 +106,12 @@
       "reaction": null,
       "severity": null,
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-4004-nkda",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-4004-nkda",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-4004-nkda"
       }
     }
   ],
@@ -117,11 +124,12 @@
       "abnormalFlag": "H",
       "observedAt": "2026-04-10",
       "source": {
-        "system": "openemr",
-        "recordType": "Observation",
-        "recordId": "obs-4004-a1c-2026-04",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "obs-4004-a1c-2026-04",
+        "locator": {
+          "field": "observation.value"
+        },
+        "quote": "obs-4004-a1c-2026-04"
       }
     }
   ],
@@ -131,11 +139,12 @@
       "type": "Follow-up",
       "reason": "Diabetes review",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-4004-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-4004-1",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-4004-1"
       }
     }
   ],
@@ -149,11 +158,12 @@
       "createdAt": "2026-04-01",
       "reminderId": 85002,
       "source": {
-        "system": "openemr",
-        "recordType": "Task",
-        "recordId": "85002",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "85002",
+        "locator": {
+          "field": "task.description"
+        },
+        "quote": "85002"
       }
     }
   ],

@@ -22,11 +22,10 @@ const ASSISTANT: AssistantMessage = {
                     category: 'diagnosis',
                     sourceReferences: [
                         {
-                            system: 'openemr',
-                            recordType: 'Condition',
-                            recordId: 'c-1',
-                            field: null,
-                            recordedAt: null,
+                            source_type: 'chart' as const,
+                            source_id: 'c-1',
+                            locator: { field: 'condition.code' },
+                            quote: 'c-1',
                         },
                     ],
                     safetyCritical: false,

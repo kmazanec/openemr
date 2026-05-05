@@ -60,10 +60,11 @@ final readonly class AppointmentAdapter
             type: Normalize::toOptionalString(Normalize::stringField($row, 'pc_catname')),
             reason: Normalize::toOptionalString(Normalize::stringField($row, 'pc_title')),
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'Appointment',
-                recordId: $recordId,
-                recordedAt: $startAt,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'appointment.start'],
+                quote: $startAt->format('Y-m-d H:i'),
+                meta: ['record_recorded_at' => $startAt->format('Y-m-d')],
             ),
         );
     }

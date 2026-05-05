@@ -96,11 +96,12 @@ describe('morningPrepSuite.uploadDataset', () => {
         expect(result.exampleCount).toBe(0);
     });
 
-    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
+    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
         // The bump-on-shape-change rule lives in the suite module's
         // docblock; pinning the suffix here means a future shape change
         // is forced through a name change rather than silent reuse.
-        expect(MORNING_PREP_DATASET_NAME.endsWith('-v1')).toBe(true);
+        // Bumped to -v2 with the W2 unified `SourceReference` shape.
+        expect(MORNING_PREP_DATASET_NAME.endsWith('-v2')).toBe(true);
     });
 
     it('creates the dataset and one example per slot when missing', async () => {

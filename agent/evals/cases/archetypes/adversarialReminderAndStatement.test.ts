@@ -29,19 +29,17 @@ import { loadFixture } from './_helpers.js';
  */
 
 const sourceRefForReminder = (recordId: string) => ({
-    system: 'openemr' as const,
-    recordType: 'Task' as const,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart' as const,
+    source_id: recordId,
+    locator: { field: 'task.description' },
+    quote: recordId,
 });
 
 const sourceRefForStatement = (recordId: string) => ({
-    system: 'openemr' as const,
-    recordType: 'MedicationStatement' as const,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart' as const,
+    source_id: recordId,
+    locator: { field: 'medicationStatement.medication' },
+    quote: recordId,
 });
 
 describe('§4.6.7 adversarial — reminder claim with wrong dueStatus', () => {
@@ -63,7 +61,7 @@ describe('§4.6.7 adversarial — reminder claim with wrong dueStatus', () => {
                     // Right item, but says "due" instead of "overdue".
                     text: `${reminder.itemTitle} is due for screening`,
                     category: 'reminder',
-                    sourceReferences: [sourceRefForReminder(reminder.source.recordId)],
+                    sourceReferences: [sourceRefForReminder(reminder.source.source_id)],
                     safetyCritical: false,
                 } satisfies Claim,
             ],
@@ -91,7 +89,7 @@ describe('§4.6.7 adversarial — reminder claim with wrong dueStatus', () => {
                     id: 'c-correct',
                     text: `${reminder.itemTitle} is overdue`,
                     category: 'reminder',
-                    sourceReferences: [sourceRefForReminder(reminder.source.recordId)],
+                    sourceReferences: [sourceRefForReminder(reminder.source.source_id)],
                     safetyCritical: false,
                 },
             ],
@@ -158,7 +156,7 @@ describe('§4.6.7 adversarial — medication statement claim citing a fabricated
                     id: 'c-correct',
                     text: `Patient reports taking ${stmt.name}`,
                     category: 'medication_statement',
-                    sourceReferences: [sourceRefForStatement(stmt.source.recordId)],
+                    sourceReferences: [sourceRefForStatement(stmt.source.source_id)],
                     safetyCritical: false,
                 },
             ],

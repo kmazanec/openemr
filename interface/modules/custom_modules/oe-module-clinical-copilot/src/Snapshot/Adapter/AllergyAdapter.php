@@ -63,15 +63,17 @@ final readonly class AllergyAdapter
             return null;
         }
 
+        $recordedAt = Normalize::toDateImmutable(Normalize::stringField($row, 'date'));
         return new Allergy(
             substance: $substance,
             reaction: Normalize::toOptionalString(Normalize::stringField($row, 'reaction_title')),
             severity: Normalize::toOptionalString(Normalize::stringField($row, 'severity_al')),
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'AllergyIntolerance',
-                recordId: $recordId,
-                recordedAt: Normalize::toDateImmutable(Normalize::stringField($row, 'date')),
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'allergy.substance'],
+                quote: $substance,
+                meta: $recordedAt !== null ? ['record_recorded_at' => $recordedAt->format('Y-m-d')] : null,
             ),
         );
     }

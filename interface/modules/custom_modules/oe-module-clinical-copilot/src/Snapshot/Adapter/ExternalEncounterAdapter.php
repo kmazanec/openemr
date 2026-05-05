@@ -64,15 +64,17 @@ final readonly class ExternalEncounterAdapter
 
         $encounterDate = Normalize::toDateImmutable(Normalize::stringField($row, 'encounter_date'));
 
+        $encounterType = Normalize::toOptionalString(Normalize::stringField($row, 'encounter_type'));
         return new Encounter(
             encounterDate: $encounterDate,
-            type: Normalize::toOptionalString(Normalize::stringField($row, 'encounter_type')),
+            type: $encounterType,
             reason: Normalize::toOptionalString(Normalize::stringField($row, 'reason')),
             source: new SourceReference(
-                system: 'ccda-importer',
-                recordType: 'Encounter',
-                recordId: $recordId,
-                recordedAt: $encounterDate,
+                sourceType: 'chart',
+                sourceId: $recordId,
+                locator: ['field' => 'encounter.date'],
+                quote: $encounterDate?->format('Y-m-d') ?? ($encounterType ?? 'encounter'),
+                meta: $encounterDate !== null ? ['record_recorded_at' => $encounterDate->format('Y-m-d')] : null,
             ),
         );
     }

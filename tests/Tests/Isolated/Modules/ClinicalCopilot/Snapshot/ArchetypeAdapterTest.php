@@ -170,7 +170,7 @@ final class ArchetypeAdapterTest extends TestCase
         // Every encounter has a citation back to the source row — Phase 3
         // verification will reject claims without one.
         foreach ($encounters as $encounter) {
-            $this->assertNotSame('', $encounter->source->recordId);
+            $this->assertNotSame('', $encounter->source->sourceId);
         }
     }
 
@@ -196,19 +196,19 @@ final class ArchetypeAdapterTest extends TestCase
         // Every list element carries a citation. This is the post-Phase-3
         // verification gate's hard requirement.
         foreach ($snapshot->diagnoses as $d) {
-            $this->assertSame('Condition', $d->source->recordType);
+            $this->assertSame('chart', $d->source->sourceType);
         }
         foreach ($snapshot->prescriptions as $p) {
-            $this->assertSame('MedicationRequest', $p->source->recordType);
+            $this->assertSame('chart', $p->source->sourceType);
         }
         foreach ($snapshot->allergies as $a) {
-            $this->assertSame('AllergyIntolerance', $a->source->recordType);
+            $this->assertSame('chart', $a->source->sourceType);
         }
         foreach ($snapshot->labs as $l) {
-            $this->assertSame('Observation', $l->source->recordType);
+            $this->assertSame('chart', $l->source->sourceType);
         }
         foreach ($snapshot->encounters as $e) {
-            $this->assertSame('Encounter', $e->source->recordType);
+            $this->assertSame('chart', $e->source->sourceType);
         }
         $this->assertSame($chart->pid, $snapshot->patient->pid);
     }

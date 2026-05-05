@@ -7,11 +7,12 @@
     "dateOfBirth": "1972-09-03",
     "ageYears": 53,
     "source": {
-      "system": "openemr",
-      "recordType": "Patient",
-      "recordId": "2002",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "2002",
+      "locator": {
+        "field": "patient.name"
+      },
+      "quote": "2002"
     }
   },
   "appointment": {
@@ -21,11 +22,12 @@
     "type": "Follow-up",
     "reason": "Blood-pressure check",
     "source": {
-      "system": "openemr",
-      "recordType": "Appointment",
-      "recordId": "apt-2002",
-      "field": null,
-      "recordedAt": null
+      "source_type": "chart",
+      "source_id": "apt-2002",
+      "locator": {
+        "field": "appointment.start"
+      },
+      "quote": "apt-2002"
     }
   },
   "diagnoses": [
@@ -35,11 +37,12 @@
       "label": "Essential (primary) hypertension",
       "onsetDate": "2019-04-12",
       "source": {
-        "system": "openemr",
-        "recordType": "Condition",
-        "recordId": "cond-2002-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "cond-2002-1",
+        "locator": {
+          "field": "condition.code"
+        },
+        "quote": "cond-2002-1"
       }
     }
   ],
@@ -55,11 +58,12 @@
       "indication": "Essential (primary) hypertension",
       "prescriptionId": 22001,
       "source": {
-        "system": "openemr",
-        "recordType": "MedicationRequest",
-        "recordId": "rx-2002-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "rx-2002-1",
+        "locator": {
+          "field": "medication.name"
+        },
+        "quote": "rx-2002-1"
       }
     }
   ],
@@ -69,11 +73,12 @@
       "reaction": null,
       "severity": null,
       "source": {
-        "system": "openemr",
-        "recordType": "AllergyIntolerance",
-        "recordId": "al-2002-nkda",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "al-2002-nkda",
+        "locator": {
+          "field": "allergy.substance"
+        },
+        "quote": "al-2002-nkda"
       }
     }
   ],
@@ -84,11 +89,12 @@
       "type": "Follow-up",
       "reason": "Hypertension management",
       "source": {
-        "system": "openemr",
-        "recordType": "Encounter",
-        "recordId": "enc-2002-1",
-        "field": null,
-        "recordedAt": null
+        "source_type": "chart",
+        "source_id": "enc-2002-1",
+        "locator": {
+          "field": "encounter.date"
+        },
+        "quote": "enc-2002-1"
       }
     }
   ],

@@ -25,7 +25,7 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-uc1-golden-v3';
+export const DATASET_NAME = 'clinical-copilot-uc1-golden-v4';
 
 const DATASET_DESCRIPTION =
     'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, prescription names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions, overdue reminder items, patient-reported medication names) the verifier must surface. v3 (Phase 4.6) renames the medications → prescriptions split (FHIR MedicationRequest), adds reminders + medicationStatements (FHIR Task / MedicationStatement) as first-class snapshot fields, and extends ground truth with `overdueReminderItems` and `medicationStatementNames`.';

@@ -20,6 +20,7 @@ import type {
     DraftBriefing,
     RequestEnvelope,
 } from '../types.js';
+import { SourceReferenceSchema } from '../types.js';
 
 /**
  * Zod schema for the structured output the model emits. Mirrors
@@ -33,13 +34,7 @@ import type {
  * missing id should produce a redacted segment, not a hard parse failure
  * that costs a retry.
  */
-const sourceReferenceSchema = z.object({
-    system: z.string().min(1),
-    recordType: z.string().min(1),
-    recordId: z.string().min(1),
-    field: z.string().nullable(),
-    recordedAt: z.string().nullable(),
-});
+const sourceReferenceSchema = SourceReferenceSchema;
 
 const claimSchema = z.object({
     id: z.string().min(1),

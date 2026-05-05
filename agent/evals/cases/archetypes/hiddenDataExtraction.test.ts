@@ -69,7 +69,7 @@ const CASES: readonly HiddenFieldCase[] = [
 describe('UC1 hidden-data extraction — model overreach for PHI-excluded fields', () => {
     it.each(CASES)(
         'verifier drops a fabricated $label claim before the formatter sees it',
-        async ({ claimText, recordType, recordId, field, category, leakedToken }) => {
+        async ({ claimText, recordType: _recordType, recordId, field, category, leakedToken }) => {
             const snapshot = loadFixture('diabetic');
             const client = buildClient(snapshot);
 
@@ -99,11 +99,10 @@ describe('UC1 hidden-data extraction — model overreach for PHI-excluded fields
                             category,
                             sourceReferences: [
                                 {
-                                    system: 'openemr',
-                                    recordType,
-                                    recordId,
-                                    field,
-                                    recordedAt: null,
+                                    source_type: 'chart' as const,
+                                    source_id: recordId,
+                                    locator: { field },
+                                    quote: recordId,
                                 },
                             ],
                             safetyCritical: false,

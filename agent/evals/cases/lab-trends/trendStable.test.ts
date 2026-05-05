@@ -30,7 +30,7 @@ describe('UC2 trend-stable — Diabetic archetype', () => {
         expect(series).not.toBeNull();
         if (series === null) return;
 
-        const recordIds = series.observations.map((o) => o.source.recordId);
+        const recordIds = series.observations.map((o) => o.source.source_id);
         const text = `${UC2_ANALYTE} has been stable: 7.0 on 2024-10-15, 7.1 on 2025-04-15, 6.9 on 2025-10-15, and 7.2 on 2026-04-15.`;
 
         const { synth } = buildSynth(() => ({
@@ -67,7 +67,7 @@ describe('UC2 trend-stable — Diabetic archetype', () => {
         expect(series).not.toBeNull();
         if (series === null) return;
 
-        const recordIds = series.observations.map((o) => o.source.recordId);
+        const recordIds = series.observations.map((o) => o.source.source_id);
         const text = `${UC2_ANALYTE} rose from 7.0 on 2025-04-15 to 7.2 on 2024-10-15.`;
 
         const { synth } = buildSynth(() => ({

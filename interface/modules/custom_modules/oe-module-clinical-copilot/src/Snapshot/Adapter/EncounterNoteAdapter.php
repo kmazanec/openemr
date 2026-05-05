@@ -84,10 +84,11 @@ final readonly class EncounterNoteAdapter
             assessment: $assessment,
             plan: $plan,
             source: new SourceReference(
-                system: 'openemr',
-                recordType: 'DocumentReference',
-                recordId: $noteId,
-                recordedAt: $noteDate,
+                sourceType: 'chart',
+                sourceId: $noteId,
+                locator: ['field' => 'documentReference.text'],
+                quote: $assessment ?? $subjective ?? 'note ' . $noteId,
+                meta: $noteDate !== null ? ['record_recorded_at' => $noteDate->format('Y-m-d')] : null,
             ),
         );
     }
