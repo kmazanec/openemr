@@ -37,10 +37,10 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 **Owner.** User.
 
 **Checklist.**
-- [ ] Pinecone account + API key. Region `us-east-1` (default) is fine. Free tier or starter tier sufficient for the MVP corpus (~50–80 USPSTF chunks).
-- [ ] OpenAI account + API key with embeddings access. Set a billing cap (belt-and-suspenders).
-- [ ] Cohere account + API key with `rerank-3` access. Free trial credits typically sufficient for the W2 sprint.
-- [ ] All three keys populated in `/etc/openemr/.env` on the Droplet. Local `.env.example` updated with the new env-var names: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE` (defaults to `guidelines-v1`), `OPENAI_API_KEY`, `COHERE_API_KEY`.
+- [x] Pinecone account + API key. Region `us-east-1` (default) is fine. Free tier or starter tier sufficient for the MVP corpus (~50–80 USPSTF chunks).
+- [x] OpenAI account + API key with embeddings access. Set a billing cap (belt-and-suspenders).
+- [x] Cohere account + API key with `rerank-3` access. Free trial credits typically sufficient for the W2 sprint.
+- [x] All three keys populated in `/etc/openemr/.env` on the Droplet. Local `.env.example` updated with the new env-var names: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE` (defaults to `guidelines-v1`), `OPENAI_API_KEY`, `COHERE_API_KEY`.
 
 **Definition of done.** Engineer has all three keys resolvable from `.env` locally and the user confirms they're on the Droplet. (Per `feedback_never_read_env_files`, engineer never reads `.env` directly — confirmation via the user.)
 
