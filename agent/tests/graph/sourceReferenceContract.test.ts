@@ -55,7 +55,7 @@ describe('SourceReference cross-language contract', () => {
         // Compare decoded structures, not formatted bytes
         // (`feedback_compare_decoded_not_formatted`). Re-encoding
         // and re-decoding should produce a structurally equal value.
-        const reEncoded = JSON.parse(JSON.stringify(parsed));
+        const reEncoded: unknown = JSON.parse(JSON.stringify(parsed));
         expect(reEncoded).toEqual(original.examples);
     });
 

@@ -6,7 +6,6 @@ import {
 } from '../../src/graph/archetypeFlags.js';
 import type { BriefingSnapshot } from '../../src/graph/types.js';
 import type {
-    Encounter,
     LabObservation,
     Prescription,
     SourceReference,
@@ -82,13 +81,6 @@ const a1cLab = (value: string): LabObservation => ({
     abnormalFlag: 'H',
     observedAt: '2026-04-15',
     source: sourceRef('openemr', 'Observation', `obs-a1c-${value}`),
-});
-
-const ccdaEncounter = (): Encounter => ({
-    encounterDate: '2026-04-22',
-    type: 'Emergency',
-    reason: 'ED visit',
-    source: sourceRef('ccda-importer', 'Encounter', 'enc-ccda-1'),
 });
 
 const newPrescription = (startDate: string): Prescription => ({

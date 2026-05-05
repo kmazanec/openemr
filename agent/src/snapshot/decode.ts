@@ -165,13 +165,14 @@ const decodeLocator = (path: string, raw: unknown): SourceReference['locator'] =
         locator.page = expectInt(`${path}.page`, obj['page']);
     }
     if (obj['bbox'] !== undefined) {
-        const bboxRaw = obj['bbox'];
+        const bboxRaw: unknown = obj['bbox'];
         if (!Array.isArray(bboxRaw) || bboxRaw.length !== 4) {
             throw new ChartSnapshotDecodeError(`${path}.bbox`, 'expected a 4-tuple of numbers');
         }
+        const bboxArr = bboxRaw as readonly unknown[];
         const bbox: number[] = [];
         for (let i = 0; i < 4; i++) {
-            const v = bboxRaw[i];
+            const v = bboxArr[i];
             if (typeof v !== 'number') {
                 throw new ChartSnapshotDecodeError(`${path}.bbox[${i}]`, 'expected a number');
             }

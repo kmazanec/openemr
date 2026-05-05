@@ -6,7 +6,6 @@ import {
     type BriefingStreamEvent,
 } from '../../src/server/briefingStream.js';
 import type { AssistantMessage, Claim, PersistedRecord, RequestEnvelope } from '../../src/graph/types.js';
-import type { SourceReference } from '../../src/snapshot/types.js';
 
 const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
     Patient: 'patient.name',

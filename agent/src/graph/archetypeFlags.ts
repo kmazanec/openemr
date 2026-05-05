@@ -51,7 +51,7 @@
  * fetch hiccups.
  */
 
-import type { Encounter, LabObservation, Prescription } from '../snapshot/types.js';
+import type { LabObservation, Prescription } from '../snapshot/types.js';
 
 import type { BriefingSnapshot } from './types.js';
 
