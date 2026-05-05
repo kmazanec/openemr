@@ -65,7 +65,7 @@ interface CorpusIndex {
     readonly chunks: readonly IndexEntryFile[];
 }
 
-interface ChunkRecord {
+export interface ChunkRecord {
     readonly id: string;
     readonly source: string;
     readonly file: string;
@@ -74,14 +74,14 @@ interface ChunkRecord {
     readonly metadata: Record<string, string | number>;
 }
 
-interface SparseVector {
+export interface SparseVector {
     readonly indices: number[];
     readonly values: number[];
 }
 
 const tokenizer = new natural.WordTokenizer();
 
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
     return tokenizer
         .tokenize(text.toLowerCase())
         .filter((t) => t.length > 1 && t.length < 30)
@@ -102,13 +102,13 @@ function hashToken(token: string): number {
     return h >>> 0;
 }
 
-interface BM25Stats {
+export interface BM25Stats {
     readonly avgDocLength: number;
     readonly docCount: number;
     readonly docFreq: ReadonlyMap<string, number>;
 }
 
-function computeBM25Stats(docs: readonly (readonly string[])[]): BM25Stats {
+export function computeBM25Stats(docs: readonly (readonly string[])[]): BM25Stats {
     const docCount = docs.length;
     let totalLen = 0;
     const docFreq = new Map<string, number>();
@@ -124,7 +124,7 @@ function computeBM25Stats(docs: readonly (readonly string[])[]): BM25Stats {
     return { avgDocLength: docCount > 0 ? totalLen / docCount : 0, docCount, docFreq };
 }
 
-function bm25Sparse(tokens: readonly string[], stats: BM25Stats): SparseVector {
+export function bm25Sparse(tokens: readonly string[], stats: BM25Stats): SparseVector {
     // Standard BM25 weights. k1=1.2, b=0.75 are the canonical defaults.
     const k1 = 1.2;
     const b = 0.75;
@@ -177,7 +177,7 @@ function readNum(fm: Record<string, unknown>, key: string, fallback: number): nu
     return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 }
 
-async function loadChunks(sourceDir: string, index: CorpusIndex): Promise<ChunkRecord[]> {
+export async function loadChunks(sourceDir: string, index: CorpusIndex): Promise<ChunkRecord[]> {
     const records: ChunkRecord[] = [];
     for (const entry of index.chunks) {
         const fullPath = join(sourceDir, entry.file);
@@ -236,7 +236,7 @@ async function embedAll(openai: OpenAI, records: readonly ChunkRecord[]): Promis
     return out;
 }
 
-async function reindexSource(
+export async function reindexSource(
     pinecone: Pinecone,
     indexName: string,
     openai: OpenAI,
@@ -319,4 +319,6 @@ async function main(): Promise<void> {
     console.log(`[reindex] done: ${totalWritten} vectors upserted to namespace ${PINECONE_NAMESPACE}`);
 }
 
-await main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+    await main();
+}

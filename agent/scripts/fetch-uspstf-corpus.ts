@@ -172,4 +172,6 @@ async function main(): Promise<void> {
     console.log(`[fetch] done: ${fetched} fetched, ${skipped} skipped, ${results.length} in manifest`);
 }
 
-await main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+    await main();
+}

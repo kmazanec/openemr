@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!--
+  Synthetic fixture mirroring the structural anchors used by the
+  USPSTF extract script:
+    - LD+JSON Article block (headline, datePublished, url, articleSection)
+    - <div class="field--name-field-recommendation-summary"> table
+    - <div id="<section title>"> per articleSection name
+  Body text is invented for the test; never used as real corpus content.
+-->
+<html lang="en">
+<head>
+<title>Recommendation: Synthetic Test Topic | United States Preventive Services Taskforce</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "Article",
+  "headline": "Synthetic Test Topic: Screening",
+  "url": "https://example.test/uspstf/recommendation/synthetic-test-topic",
+  "datePublished": "2024-07-15",
+  "articleSection": [
+    "Importance",
+    "Practice Considerations"
+  ]
+}
+</script>
+</head>
+<body>
+<article>
+  <div class="field--name-field-recommendation-summary">
+    <table>
+      <tr><th>Population</th><th>Recommendation</th><th>Grade</th></tr>
+      <tr>
+        <td>Adults aged 35 to 70 years</td>
+        <td>Sample recommendation text for adults.</td>
+        <td>B</td>
+      </tr>
+      <tr>
+        <td>Adults younger than 35 years</td>
+        <td>Sample I-statement text.</td>
+        <td>I</td>
+      </tr>
+    </table>
+  </div>
+  <div id="Importance">
+    <p>The first sentence of the importance section.</p>
+    <p>Continued importance text on a second line.</p>
+  </div>
+  <div id="Practice Considerations">
+    <p>Practice considerations heading text.</p>
+    <p>More practice considerations text in a paragraph.</p>
+  </div>
+  <div id="Authors of the Recommendation Statement">
+    <p>This section is intentionally NOT in our SECTION_MAP and should be skipped.</p>
+  </div>
+</article>
+</body>
+</html>

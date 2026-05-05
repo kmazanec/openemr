@@ -137,7 +137,7 @@ function extractRecommendationSummary($: cheerio.CheerioAPI): string | null {
     return joined.length > 0 ? joined : null;
 }
 
-function extractFromHtml(slug: string, html: string): ExtractResult {
+export function extractFromHtml(slug: string, html: string): ExtractResult {
     const warnings: string[] = [];
     const $ = cheerio.load(html);
     const ld = parseLd($);
@@ -286,4 +286,7 @@ async function main(): Promise<void> {
     );
 }
 
-await main();
+// Only run main() when invoked as a CLI, not when imported by tests.
+if (import.meta.url === `file://${process.argv[1]}`) {
+    await main();
+}
