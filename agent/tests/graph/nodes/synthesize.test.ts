@@ -107,6 +107,7 @@ describe('createSynthesize', () => {
         const out = await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
         });
 
@@ -122,6 +123,7 @@ describe('createSynthesize', () => {
             node({
                 envelope,
                 snapshot: null,
+                priorTurnContext: { turns: [] },
                 draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
             }),
         ).rejects.toThrow(/snapshot/i);
@@ -145,6 +147,7 @@ describe('createSynthesize', () => {
         await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
         });
 
@@ -164,6 +167,7 @@ describe('createSynthesize', () => {
         await node({
             envelope,
             snapshot,
+            priorTurnContext: { turns: [] },
             draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null,
         });
 

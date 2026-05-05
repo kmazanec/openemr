@@ -103,6 +103,7 @@ const labTrendEnvelope = (analyte = 'Hemoglobin A1c'): RequestEnvelope => ({
 
 const stateFor = (envelope: RequestEnvelope): BriefingState => ({
     envelope,
+    priorTurnContext: { turns: [] },
     snapshot: null,
     draft: null,
     claimLedger: null,

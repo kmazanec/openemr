@@ -7,6 +7,7 @@ import type {
     ClaimLedger,
     DraftBriefing,
     PersistedRecord,
+    PriorTurnContext,
     RequestEnvelope,
     RetrieveChartArgs,
     VerifiedLedger,
@@ -31,6 +32,11 @@ const lastValueChannel = <T>(factory: () => T): (() => LastValue<T>) =>
 
 export const BriefingStateAnnotation = Annotation.Root({
     envelope: Annotation<RequestEnvelope>,
+    // §A.5: runner-prepared prior-turn dialog memory. Default-briefing
+    // turns receive `{ turns: [] }`; follow-ups receive the projected
+    // last K=5 turn pairs from `conversation_messages`. Both the
+    // supervisor (A.7) and synthesizer (A.8) read this slot.
+    priorTurnContext: lastValueChannel<PriorTurnContext>(() => ({ turns: [] })),
     snapshot: lastValueChannel<BriefingSnapshot | null>(() => null),
     draft: lastValueChannel<DraftBriefing | null>(() => null),
     claimLedger: lastValueChannel<ClaimLedger | null>(() => null),

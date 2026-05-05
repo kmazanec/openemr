@@ -127,6 +127,7 @@ const baseState = (
 ) => ({
     envelope: overrides.envelope ?? envelope,
     snapshot: overrides.snapshot ?? snapshot,
+    priorTurnContext: { turns: [] },
     draft: overrides.draft ?? draftSegments(),
     claimLedger: { claims: [dxClaim, medClaim, allergyClaim, labClaim] },
     verified: overrides.verified ?? cleanVerified,
@@ -266,6 +267,7 @@ describe('format', () => {
             format({
                 envelope,
                 snapshot,
+                priorTurnContext: { turns: [] },
                 draft: draftSegments({ text: 'x', claimIds: [] }),
                 claimLedger: { claims: [] },
                 verified: null,
@@ -282,6 +284,7 @@ describe('format', () => {
             format({
                 envelope,
                 snapshot,
+                priorTurnContext: { turns: [] },
                 draft: null,
                 claimLedger: { claims: [] },
                 verified: cleanVerified,

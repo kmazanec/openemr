@@ -70,6 +70,7 @@ const buildClient = (
 
 const firstCallState = (): BriefingState => ({
     envelope,
+    priorTurnContext: { turns: [] },
     snapshot: null,
     draft: null,
     claimLedger: null,
@@ -160,6 +161,7 @@ describe('createRetrieveChart (§A.4)', () => {
             }
             return {
                 envelope,
+                priorTurnContext: { turns: [] },
                 snapshot,
                 draft: null,
                 claimLedger: null,

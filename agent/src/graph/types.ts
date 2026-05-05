@@ -112,6 +112,52 @@ export const SourceReferenceSchema = z
 export type SourceReferenceUnified = z.infer<typeof SourceReferenceSchema>;
 
 /**
+ * §A.5 prior-turn dialog memory. Mirrors `W2_ARCHITECTURE.md`
+ * §"Prior-turn context" — the supervisor and synthesizer read a
+ * runner-prepared `priorTurnContext: PriorTurnContext` slot whose
+ * `turns` carry the last K=5 turn pairs (user verbatim, assistant
+ * `{citations, facts}`).
+ *
+ * The asymmetric shape is intentional: user text is the only signal
+ * of dialog thread that can't be recovered from data, so it replays
+ * verbatim; assistant turns replay as resolved citations + raw values
+ * because prose is a derived rendering and threading it would pollute
+ * the structured-output channel.
+ *
+ * Plain TS interfaces (rather than Zod-inferred shapes) because this
+ * value is materialized server-side rather than parsed at a wire
+ * boundary; the citation type reused here is the same
+ * `SourceReference` from `../snapshot/types.js` that every other
+ * snapshot-touching surface speaks.
+ */
+export interface PriorTurnAssistantFact {
+    readonly sourceRef: SourceReference;
+    /**
+     * Mirrors the snapshot slot the citation came from. Typing it
+     * as a slot-by-slot discriminated union would couple the
+     * prior-turn schema to every adapter shape — the verifier
+     * already owns slot resolution. Carry the resolved slice
+     * opaquely; the supervisor reads `sourceRef.source_type` for
+     * routing without needing to look at the value, and the
+     * synthesizer treats it as already-trusted chart data. Opaque-
+     * pointer fallback is encoded as `rawValue: null`.
+     */
+    readonly rawValue: unknown;
+}
+
+export type PriorTurn =
+    | { readonly role: 'user'; readonly text: string }
+    | {
+        readonly role: 'assistant';
+        readonly citations: readonly SourceReference[];
+        readonly facts: readonly PriorTurnAssistantFact[];
+    };
+
+export interface PriorTurnContext {
+    readonly turns: readonly PriorTurn[];
+}
+
+/**
  * Request envelope OpenEMR sends to the agent. Mirrors ARCHITECTURE.md
  * §"Request Envelope" — actor identity, patient context, conversation
  * scope, and the task the agent is asked to perform. The agent uses

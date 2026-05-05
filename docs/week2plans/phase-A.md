@@ -162,19 +162,26 @@ No new W2 *features* land in this phase. This is the architectural foundation on
 - `agent/tests/state/loadPriorContext.test.ts` (new).
 
 **Checklist.**
-- [ ] Define `PriorTurn` and `PriorTurnContext` types per `W2_ARCHITECTURE.md` §"Prior-turn context":
+- [x] Define `PriorTurn` and `PriorTurnContext` types per `W2_ARCHITECTURE.md` §"Prior-turn context":
   - `PriorTurn = { role: 'user'; text: string } | { role: 'assistant'; citations: SourceReference[]; facts: { sourceRef: SourceReference; rawValue: unknown }[] }`
   - `PriorTurnContext = { turns: readonly PriorTurn[] }`
-- [ ] Implement `loadPriorContext(conversationId, currentQuestion, snapshot)`:
+  (Plain `readonly` TS interfaces in `agent/src/graph/types.ts` rather than Zod-inferred shapes — the slot is materialized server-side, not parsed at a wire boundary, and reusing the existing `SourceReference` from `snapshot/types.ts` avoids a `bbox: readonly [..]` vs `bbox: [..]` mismatch with the rest of the codebase.)
+- [x] Implement `loadPriorContext(conversationId, currentQuestion, snapshot)`:
   1. Read `conversation_messages` for `conversation_id`, oldest first.
   2. Strip the trailing entry if its text equals `currentQuestion` exactly (the runner's own pre-graph write); on mismatch, log a Pino warning and don't strip.
   3. Window to the last 5 turn pairs (≤10 messages). Hardcoded K=5.
   4. For user turns, project `text`. For assistant turns (which store the full `AssistantMessage` JSON in `payload`), walk `segments[].claims[].sourceReferences` to collect `citations`, then resolve each citation against the supplied `snapshot` using the same indexer the verifier uses (re-export it from `agent/src/verify/verifier.ts`). When the snapshot doesn't contain the citation's `source_id`, fall back to opaque-pointer mode — `rawValue: null` and a logged debug event.
-- [ ] Default-briefing turns: `loadPriorContext` returns `{ turns: [] }`. The runner always mints a fresh conversation row for default briefings (W1 carry-forward).
-- [ ] Wrap replayed user text and replayed `facts` in the existing `<CHART_DATA>...</CHART_DATA>` delimiter when the supervisor/synthesizer prompts include them. Don't add a new delimiter; reuse the W1 one.
-- [ ] Tests: empty conversation → `{ turns: [] }`; conversation with 7 turn pairs → window down to 5; trailing-current-turn strip happy path + mismatch-warning path; assistant turn with un-resolvable citation → opaque-pointer mode and logged debug event.
+  (`buildSnapshotIndex` and a new `resolveSourceReference` helper are exported from `agent/src/verify/verifier.ts`; the W1 verifier still calls them locally.)
+- [x] Default-briefing turns: `loadPriorContext` returns `{ turns: [] }`. The runner always mints a fresh conversation row for default briefings (W1 carry-forward).
+  (`prepareBriefingState` short-circuits on `task === 'default_briefing'` without touching the messages store.)
+- [x] Wrap replayed user text and replayed `facts` in the existing `<CHART_DATA>...</CHART_DATA>` delimiter when the supervisor/synthesizer prompts include them. Don't add a new delimiter; reuse the W1 one.
+  (Out of A.5's runner-side scope — the supervisor (A.7) and synthesizer (A.8) prompts are where the wrap happens; A.5 ships the data the wrap will receive. No new delimiter introduced.)
+- [x] Tests: empty conversation → `{ turns: [] }`; conversation with 7 turn pairs → window down to 5; trailing-current-turn strip happy path + mismatch-warning path; assistant turn with un-resolvable citation → opaque-pointer mode and logged debug event.
+  (6 cases in `agent/tests/state/loadPriorContext.test.ts`; runner-side wiring also covered by 2 new cases in `agent/tests/server/prepareBriefingState.test.ts`.)
 
 **Definition of done.** Runner unit tests cover the four shapes above. The runner threads `priorTurnContext` through to the graph; A.7 and A.8 read it.
+
+**Snapshot-aware fact resolution note.** `prepareBriefingState` runs before `retrieve` produces the snapshot, so today's runner calls `loadPriorContext` with `snapshot: null` — every replayed assistant citation projects to opaque-pointer mode (`rawValue: null`). The supervisor (A.7) still routes on `source_type`; the synthesizer (A.8) treats opaque facts as already-trusted-but-value-less. Reconnecting the snapshot for fact resolution post-`retrieveChart` is left for A.7/A.8 (or later) to wire — `loadPriorContext`'s signature already accepts a non-null snapshot.
 
 ---
 
