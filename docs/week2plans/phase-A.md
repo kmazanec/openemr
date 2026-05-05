@@ -108,11 +108,11 @@ No new W2 *features* land in this phase. This is the architectural foundation on
 - `agent/tests/graph/*` — adjust any tests that exercised the deleted nodes directly.
 
 **Checklist.**
-- [ ] Audit what `loadState` and `planContext` actually do today (likely thin pass-throughs per `W2_ARCHITECTURE.md`'s "they were pass-throughs in W1"). If they have real logic, port it into a runner-side `prepareBriefingState(envelope, conversationId)` helper.
-- [ ] Wire the runner so it calls `prepareBriefingState(...)` and passes the resulting `BriefingState` into `graph.invoke({...})` directly — graph entry point becomes `retrieveChart`.
-- [ ] Delete the now-unused graph nodes and their imports.
-- [ ] Update `agent/src/graph/state.ts` if any state slots existed only to support the deleted nodes.
-- [ ] Tests: every existing W1 graph test still passes (no behavior change, just topology change).
+- [x] Audit what `loadState` and `planContext` actually do today (likely thin pass-throughs per `W2_ARCHITECTURE.md`'s "they were pass-throughs in W1"). If they have real logic, port it into a runner-side `prepareBriefingState(envelope, conversationId)` helper. (`loadState` was a no-op stub; `planContext` carried a single `task` enum guard. Ported the guard into `agent/src/server/prepareBriefingState.ts`; the helper returns a `PreparedBriefingState` so A.5 can extend it with `priorTurnContext` without changing call sites.)
+- [x] Wire the runner so it calls `prepareBriefingState(...)` and passes the resulting `BriefingState` into `graph.invoke({...})` directly — graph entry point becomes `retrieveChart`. (Runner now seeds the graph stream with `prepareBriefingState({ envelope: canonicalEnvelope })`; the graph entry stays `retrieve` for A.3 and A.4 will rename it to `retrieveChart`.)
+- [x] Delete the now-unused graph nodes and their imports. (`agent/src/graph/nodes/{loadState,planContext}.ts` plus their Vitest files removed; `agent/src/graph/index.ts` no longer imports either node.)
+- [x] Update `agent/src/graph/state.ts` if any state slots existed only to support the deleted nodes. (No state slots were tied to the deleted nodes; only the tangentially-related comments in `briefingProgress.ts` and `briefingStream.ts` were updated to drop the now-stale node names.)
+- [x] Tests: every existing W1 graph test still passes (no behavior change, just topology change). (469 Vitest cases green; the topology-description test in `agent/tests/graph/graph.test.ts` updated from `LoadState → PlanContext → Retrieve → …` to `Retrieve → …`.)
 
 **Definition of done.** `agent/src/graph/index.ts` no longer references `loadState` or `planContext`. The runner-side preparation is unit-tested. W1 evals still green.
 
