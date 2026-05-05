@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication"
 license_tier: public_domain
 slug: aspirin-to-prevent-cardiovascular-disease-preventive-medication
+fetched_at: "2026-05-05T22:31:41.754Z"
+content_sha256: "0317fe6607b06600c538b0cd6079e4a0b6117d9695782342b6e9aa17cb21cb96"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults 40 years or older without signs or symptoms of CVD or known CVD (including history of myocardial infarction or stroke) who are not at increased risk for bleeding (eg, no history of gastrointestinal ulcers, recent bleeding, other medical conditions, or use of medications that increase bleeding risk). In this recommendation statement, CVD risk and the net benefits of aspirin use are discussed using the terms “men” and “women,” although it is likely that CVD risk and net benefit estimates are driven by sex (ie, male/female) rather than gender identity.

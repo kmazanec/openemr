@@ -7,6 +7,8 @@ year: 2019
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing"
 license_tier: public_domain
 slug: brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing
+fetched_at: "2026-05-05T22:32:22.672Z"
+content_sha256: "23f248a84d8e82175b00c2abd3d9e4ab6e854daea51b71cb2b81dd3abe231cfd"
 ---
 Patient Population Under Consideration
 

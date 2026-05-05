@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prostate-cancer-screening"
 license_tier: public_domain
 slug: prostate-cancer-screening
+fetched_at: "2026-05-05T22:39:13.640Z"
+content_sha256: "17db2810b59e628b0bface7fd54b98fed91fae5e62f55c01d7d9a95de7ef8326"
 ---
 Patient Population Under Consideration
 

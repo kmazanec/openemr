@@ -2,8 +2,13 @@
  * Fetches every published USPSTF recommendation page into a local cache.
  *
  * The publisher's robots.txt asks for a 5-second crawl delay; we honor that.
- * The cache lives at agent/.corpus-cache/uspstf/ (gitignored). The committed
- * corpus is what falls out of `extract-uspstf-corpus.ts`, never the raw HTML.
+ * The HTML cache lives at agent/.corpus-cache/uspstf/ (gitignored).
+ *
+ * The fetch manifest — provenance for what was fetched, when, and what
+ * its sha256 was — is committed to agent/data/corpus/uspstf/fetch-manifest.json
+ * alongside the extracted chunks. That way every committed chunk traces
+ * back to a specific URL, fetch timestamp, and source content hash without
+ * the orphan-cache problem.
  *
  * Re-runs are conditional on content_sha256 in the manifest — if a cached
  * file's sha matches what the publisher returns now, we skip the write.
@@ -19,7 +24,8 @@ import * as cheerio from 'cheerio';
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGENT_DIR = resolve(SCRIPT_DIR, '..');
 const CACHE_DIR = resolve(AGENT_DIR, '.corpus-cache/uspstf');
-const MANIFEST_PATH = join(CACHE_DIR, 'manifest.json');
+const CORPUS_DIR = resolve(AGENT_DIR, 'data/corpus/uspstf');
+const MANIFEST_PATH = join(CORPUS_DIR, 'fetch-manifest.json');
 
 const SITE_ORIGIN = 'https://www.uspreventiveservicestaskforce.org';
 const TOPIC_INDEX_PATH = '/uspstf/topic_search_results?topic_status=P';
@@ -30,16 +36,18 @@ const CRAWL_DELAY_MS = 5_500;
 const USER_AGENT =
     'openemr-clinical-copilot-corpus-fetcher/1.0 (research; contact: keith@devforward.com)';
 
-interface ManifestEntry {
+export interface ManifestEntry {
     readonly slug: string;
     readonly url: string;
     readonly fetched_at: string;
     readonly content_sha256: string;
 }
 
-interface Manifest {
+export interface Manifest {
     readonly source: 'uspstf';
     readonly fetcher_version: string;
+    readonly first_run_at: string;
+    readonly last_run_at: string;
     readonly entries: readonly ManifestEntry[];
 }
 
@@ -124,6 +132,7 @@ async function fetchOne(slug: string): Promise<ManifestEntry> {
 
 async function main(): Promise<void> {
     await mkdir(CACHE_DIR, { recursive: true });
+    await mkdir(CORPUS_DIR, { recursive: true });
 
     const existing = await loadExistingManifest();
     const existingBySlug = new Map<string, ManifestEntry>(
@@ -162,9 +171,12 @@ async function main(): Promise<void> {
         await sleep(CRAWL_DELAY_MS);
     }
 
+    const now = new Date().toISOString();
     const manifest: Manifest = {
         source: 'uspstf',
         fetcher_version: FETCHER_VERSION,
+        first_run_at: existing?.first_run_at ?? now,
+        last_run_at: now,
         entries: results.sort((a, b) => a.slug.localeCompare(b.slug)),
     };
     await writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');

@@ -7,6 +7,8 @@ year: 2024
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/child-maltreatment-primary-care-interventions"
 license_tier: public_domain
 slug: child-maltreatment-primary-care-interventions
+fetched_at: "2026-05-05T22:33:15.476Z"
+content_sha256: "539fb254a5d11fdabcccdcc041dc0ac02f4428dc39777117aab44cb18661b06b"
 ---
 Patient Population Under Consideration
 This recommendation applies to children and adolescents younger than 18 years who do not have signs or symptoms of or known exposure to maltreatment.

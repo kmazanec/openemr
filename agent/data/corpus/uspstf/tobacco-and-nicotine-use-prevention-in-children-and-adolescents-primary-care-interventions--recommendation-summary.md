@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
 license_tier: public_domain
 slug: tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions
+fetched_at: "2026-05-05T22:41:11.938Z"
+content_sha256: "81b8b9e16f23e3909a5a7ac6b23686e429c59842c4aaa04792b4efdf6485b3a4"
 ---
 Population | Recommendation | Grade
 School-aged children and adolescents who have not started to use tobacco | The USPSTF recommends that primary care clinicians provide interventions, including education or brief counseling, to prevent initiation of tobacco use among school-aged children and adolescents. | B

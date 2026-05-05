@@ -7,6 +7,8 @@ year: 2004
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/rh-d-incompatibility-screening"
 license_tier: public_domain
 slug: rh-d-incompatibility-screening
+fetched_at: "2026-05-05T22:39:19.775Z"
+content_sha256: "9a550d223d75173451ddec843a4e969205a091da270ee7f18ce397245e55a0e0"
 ---
 Administration of a full (300 µg) dose of Rh(D) immunoglobulin is recommended for all unsensitized Rh(D)-negative women after repeated antibody testing at 24 to 28 weeks' gestation.
 If an Rh(D)-positive or weakly Rh(D)-positive (e.g., Du-positive) infant is delivered, a dose of Rh(D) immunoglobulin should be repeated postpartum, preferably within 72 hours after delivery. Administering Rh(D) immunoglobulin at other intervals after delivery has not been studied.

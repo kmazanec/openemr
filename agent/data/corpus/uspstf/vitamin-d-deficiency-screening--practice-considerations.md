@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
 license_tier: public_domain
 slug: vitamin-d-deficiency-screening
+fetched_at: "2026-05-05T22:41:41.156Z"
+content_sha256: "5ad7d4e389049df99a9138881fe7be29ce22f9eb4a242d6daf50d8ab545efa6f"
 ---
 Patient Population Under Consideration
 This recommendation applies to community-dwelling, nonpregnant adults who have no signs or symptoms of vitamin D deficiency, such as bone pain or muscle weakness, or conditions for which vitamin D treatment is recommended. This recommendation focuses on screening (ie, testing for vitamin D deficiency in asymptomatic adults and treating those found to have a deficiency), which differs from USPSTF recommendation statements on supplementation.

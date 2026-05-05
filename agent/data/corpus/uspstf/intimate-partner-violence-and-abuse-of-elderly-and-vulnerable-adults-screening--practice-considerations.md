@@ -7,6 +7,8 @@ year: 2025
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening"
 license_tier: public_domain
 slug: intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening
+fetched_at: "2026-05-05T22:36:39.828Z"
+content_sha256: "953aea3e006e1b0f856c524ea203a0875ed3a0985215fcf231dfd6fdb6d851ef"
 ---
 Patient Population Under Consideration
 The recommendation on screening for IPV applies to adolescents and adults who are pregnant or postpartum, and women of reproductive age who do not have recognized signs and symptoms of IPV. The recommendation on screening in older and vulnerable adults applies to persons without recognized signs and symptoms of abuse or neglect.

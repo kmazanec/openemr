@@ -7,6 +7,8 @@ year: 2017
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vision-in-children-ages-6-months-to-5-years-screening"
 license_tier: public_domain
 slug: vision-in-children-ages-6-months-to-5-years-screening
+fetched_at: "2026-05-05T22:41:29.531Z"
+content_sha256: "17c30496f39a68f8638e5d9b187d921dd925836483af23d2125a946f5e3a22e2"
 ---
 Patient Population Under Consideration
 

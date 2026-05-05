@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults"
 license_tier: public_domain
 slug: screening-depression-suicide-risk-adults
+fetched_at: "2026-05-05T22:39:43.489Z"
+content_sha256: "c17b52b1a4999abc01230cb1bd6a54059d117580d76faa688d5278a12b2adacb"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults 19 years or older who do not have a diagnosed mental health disorder or recognizable signs or symptoms of depression or suicide risk. Older adults are defined as those 65 years or older. This recommendation focuses on screening for MDD and does not address screening for other depressive disorders, such as minor depression or dysthymia.

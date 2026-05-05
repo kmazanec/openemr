@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cognitive-impairment-in-older-adults-screening"
 license_tier: public_domain
 slug: cognitive-impairment-in-older-adults-screening
+fetched_at: "2026-05-05T22:33:38.874Z"
+content_sha256: "07b603564ef1682d8dd34daa2b316a17e2952c43787f5da4331f3989ee015c00"
 ---
 According to the American Psychiatric Association’s Diagnostic and Statistical Manual of Mental Disorders (Fifth Edition) (DSM-5), dementia (also known as major neurocognitive disorder) is defined by a significant decline in 1 or more cognitive domains that interferes with a person’s independence in daily activities. The 6 cognitive domains identified in the DSM-5 are complex attention, executive function, learning and memory, language, perceptual motor function, and social cognition.1 Dementia affects an estimated 2.4 to 5.5 million persons in the United States, and its prevalence increases with age. Dementia affects an estimated 3.2% of persons aged 65 to 74 years, 9.9% of those aged 75 to 84 years, and 29.3% of those 85 years or older.2
 

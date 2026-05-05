@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
 license_tier: public_domain
 slug: tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions
+fetched_at: "2026-05-05T22:41:11.938Z"
+content_sha256: "81b8b9e16f23e3909a5a7ac6b23686e429c59842c4aaa04792b4efdf6485b3a4"
 ---
 Patient Population Under Consideration
 This recommendation applies to school-aged children and adolescents younger than 18 years. The USPSTF has issued a separate recommendation statement on interventions for tobacco use cessation in adults 18 years and older, including pregnant persons.16

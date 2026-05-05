@@ -7,6 +7,8 @@ year: 2025
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening"
 license_tier: public_domain
 slug: osteoporosis-screening
+fetched_at: "2026-05-05T22:38:14.839Z"
+content_sha256: "5c26b002abd15c3ac1644c4360c20c991f6336885fea41d64cd8ca2577dae0fc"
 ---
 The US Preventive Services Task Force (USPSTF) concludes with moderate certainty that screening for osteoporosis to prevent osteoporotic fractures in women 65 years or older has moderate net benefit.
 The USPSTF concludes with moderate certainty that screening for osteoporosis to prevent osteoporotic fractures in postmenopausal women younger than 65 years at increased risk has moderate net benefit.

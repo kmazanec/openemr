@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions"
 license_tier: public_domain
 slug: tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions
+fetched_at: "2026-05-05T22:41:11.938Z"
+content_sha256: "81b8b9e16f23e3909a5a7ac6b23686e429c59842c4aaa04792b4efdf6485b3a4"
 ---
 Available evidence on interventions to prevent and help youth quit tobacco use almost exclusively focus on cigarette smoking. For this recommendation, the US Preventive Services Task Force (USPSTF) found this evidence to be most applicable to smoking combustible products (including cigarettes, cigars, cigarillos, and little cigars) and use of e-cigarettes (“vaping”).
 See Table 1 for more information on the USPSTF recommendation rationale and assessment. For more details on the methods the USPSTF uses to determine the net benefit, see the USPSTF Procedure Manual.13 For a summary of the evidence that served as the basis for the recommendations, see the review of the evidence on the benefits and harms of primary care interventions for tobacco use prevention and cessation in children and adolescents.14,15

@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening"
 license_tier: public_domain
 slug: hypertension-in-adults-screening
+fetched_at: "2026-05-05T22:36:10.807Z"
+content_sha256: "7d7ba4a100bdbb4d7d0bb1d680a7a6e5dc09ae0420da32d9750a1f4fa6f7ef62"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults 18 years or older without known hypertension.

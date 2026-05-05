@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening"
 license_tier: public_domain
 slug: colorectal-cancer-screening
+fetched_at: "2026-05-05T22:33:44.756Z"
+content_sha256: "d7049ddc8d54331ec7850e263e42ee7c31febcc49b06b53ae5b57129458f8973"
 ---
 The US Preventive Services Task Force (USPSTF) concludes with high certainty that screening for colorectal cancer in adults aged 50 to 75 years has substantial net benefit.
 The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 45 to 49 years has moderate net benefit.

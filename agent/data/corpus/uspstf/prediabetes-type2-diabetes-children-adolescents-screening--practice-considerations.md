@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening"
 license_tier: public_domain
 slug: prediabetes-type2-diabetes-children-adolescents-screening
+fetched_at: "2026-05-05T22:38:49.899Z"
+content_sha256: "ba11d4da1fbc3326767210f73c77eededb3dc6b6eacee003cf86464234b80dec"
 ---
 Patient Population Under Consideration
 This recommendation applies to children and adolescents younger than 18 years without known diabetes or prediabetes or symptoms of diabetes or prediabetes. Screening in adolescents who are pregnant is outside the scope of this recommendation. The USPSTF has a separate recommendation on screening for gestational diabetes.

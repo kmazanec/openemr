@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes"
 license_tier: public_domain
 slug: screening-for-prediabetes-and-type-2-diabetes
+fetched_at: "2026-05-05T22:40:01.012Z"
+content_sha256: "25a18a84606047b578523c0b8f2db66d14bec465b2d284a637c2b9a265518f92"
 ---
 Patient Population Under Consideration
 This recommendation applies to nonpregnant adults aged 35 to 70 years seen in primary care settings who have overweight or obesity (defined as a BMI ≥25 [calculated as weight in kilograms divided by height in meters squared] and ≥30, respectively) and no symptoms of diabetes.

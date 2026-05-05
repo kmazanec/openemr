@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
 license_tier: public_domain
 slug: drug-use-illicit-screening
+fetched_at: "2026-05-05T22:34:14.166Z"
+content_sha256: "10299c74b405cb4dcb7a9ab0acccb86331027f5aa60076435bacbe217e19b468"
 ---
 Population | Recommendation | Grade
 Adults age 18 years or older | The USPSTF recommends screening by asking questions about unhealthy drug use in adults age 18 years or older. Screening should be implemented when services for accurate diagnosis, effective treatment, and appropriate care can be offered or referred.

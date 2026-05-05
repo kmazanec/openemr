@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication"
 license_tier: public_domain
 slug: low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication
+fetched_at: "2026-05-05T22:37:09.405Z"
+content_sha256: "0141c82b57686f18a6662f48f6efac2fd8a49ad2904745de327c50cfe330df8c"
 ---
 Patient Population Under Consideration
 This recommendation applies to pregnant persons who are at high risk for preeclampsia and who have no prior adverse effects with or contraindications to low-dose aspirin.

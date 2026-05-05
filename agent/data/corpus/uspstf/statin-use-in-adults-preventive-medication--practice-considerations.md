@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication"
 license_tier: public_domain
 slug: statin-use-in-adults-preventive-medication
+fetched_at: "2026-05-05T22:40:37.045Z"
+content_sha256: "a110b17791e23dbd0bd5c350f8bba2a65160b0da42ca9a90121a678d355d3ef6"
 ---
 Patient Population Under Consideration
 These recommendations apply to adults 40 years or older without a history of known CVD and who do not have signs and symptoms of CVD. These recommendations do not apply to adults with a low-density lipoprotein cholesterol (LDL-C) level greater than 190 mg/dL (4.92 mmol/L) or known familial hypercholesterolemia. These populations are at very high risk for CVD, and considerations on the use of statins in these populations can be found in other organizations’ guidelines.

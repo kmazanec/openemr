@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication"
 license_tier: public_domain
 slug: folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication
+fetched_at: "2026-05-05T22:34:31.556Z"
+content_sha256: "ed5888d33df3bedcb135ae565f97b8a9d594095e10d09728de1eee32541c88c2"
 ---
 In 2017, the USPSTF reviewed the evidence for folic acid supplementation and issued an A recommendation.12 The USPSTF has decided to use a reaffirmation deliberation process to update this recommendation. The USPSTF uses the reaffirmation process for well-established, evidence-based current standards of practice in primary care for which only a very high level of evidence would justify a change in the grade of the recommendation. In its deliberation of the evidence, the USPSTF considers whether the new evidence is of sufficient strength and quality to change its previous conclusions about the evidence.
 Using a reaffirmation process, the USPSTF concludes that, for persons who are planning to or could become pregnant, there is high certainty that folic acid supplementation has a substantial net benefit.

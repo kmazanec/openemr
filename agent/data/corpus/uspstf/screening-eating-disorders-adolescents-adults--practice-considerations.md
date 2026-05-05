@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-eating-disorders-adolescents-adults"
 license_tier: public_domain
 slug: screening-eating-disorders-adolescents-adults
+fetched_at: "2026-05-05T22:39:55.144Z"
+content_sha256: "a53fed7a44b87c602d6dd6b601eaa75521e880ef5bedb03a29e08bb6dbe72664"
 ---
 Patient Population Under Consideration
 This recommendation applies to adolescents and adults (10 years or older) who have no signs or symptoms of eating disorders (eg, rapid weight loss, weight gain, or pronounced deviation from growth trajectory; pubertal delay; bradycardia; oligomenorrhea; and amenorrhea).

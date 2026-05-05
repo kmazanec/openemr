@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
 license_tier: public_domain
 slug: drug-use-illicit-screening
+fetched_at: "2026-05-05T22:34:14.166Z"
+content_sha256: "10299c74b405cb4dcb7a9ab0acccb86331027f5aa60076435bacbe217e19b468"
 ---
 Adults 18 Years or Older
 The USPSTF concludes with moderate certainty that screening by asking questions about unhealthy drug use in adults has moderate net benefit when services for accurate diagnosis of unhealthy drug use or drug use disorders, effective treatment, and appropriate care can be offered or referred.

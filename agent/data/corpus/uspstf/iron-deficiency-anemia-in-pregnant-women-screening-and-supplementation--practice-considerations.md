@@ -7,6 +7,8 @@ year: 2024
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation"
 license_tier: public_domain
 slug: iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation
+fetched_at: "2026-05-05T22:36:46.016Z"
+content_sha256: "a5558290f928a394935db5be06c882e9e97da19c0a956c0bff6cf54d85f2bd9a"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic pregnant adolescents and adults. This recommendation does not apply to pregnant persons who are severely malnourished, have symptoms of iron deficiency or iron deficiency anemia, or have specific hematologic conditions (eg, sickle cell anemia) or nutritional deficiencies that may increase their need for iron.

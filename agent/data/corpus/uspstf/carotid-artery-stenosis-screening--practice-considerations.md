@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/carotid-artery-stenosis-screening"
 license_tier: public_domain
 slug: carotid-artery-stenosis-screening
+fetched_at: "2026-05-05T22:32:57.886Z"
+content_sha256: "b60c543ab2329123e96c7853b88bab7abd93474d1a51c3a0a01008fa8c49135c"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults without a history of transient ischemic attack, stroke, or other neurologic signs or symptoms referable to the carotid arteries.

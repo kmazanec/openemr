@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions"
 license_tier: public_domain
 slug: tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions
+fetched_at: "2026-05-05T22:41:17.851Z"
+content_sha256: "301e1ae7642f5eaf235b639cf2e8a77f9f21b52a43dd06de2d4b81f5bdce48a5"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults 18 years or older, including pregnant persons. The USPSTF has issued a separate recommendation statement on primary care interventions for the prevention and cessation of tobacco use in children and adolescents.9

@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-risk-screening-with-electrocardiography"
 license_tier: public_domain
 slug: cardiovascular-disease-risk-screening-with-electrocardiography
+fetched_at: "2026-05-05T22:32:46.120Z"
+content_sha256: "d67a5aa6be59beed9c33e0403f5cdc5aa45b39b0b6b2750e67e78a8506b7766f"
 ---
 Patient Population Under Consideration
 

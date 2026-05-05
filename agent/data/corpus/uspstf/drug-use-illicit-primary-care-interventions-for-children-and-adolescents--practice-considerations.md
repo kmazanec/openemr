@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents"
 license_tier: public_domain
 slug: drug-use-illicit-primary-care-interventions-for-children-and-adolescents
+fetched_at: "2026-05-05T22:34:08.327Z"
+content_sha256: "aa7144b386b4aca6e044bea7f25124cfda0060717b96a92e632181e0864dc08a"
 ---
 Patient Population Under Consideration
 This recommendation applies to children (11 years and younger), adolescents (aged 12-17 years), and young adults (aged 18-25 years), including pregnant persons. The purpose of this recommendation is to assess the evidence on interventions to prevent the initiation of illicit drug use and thus does not apply to persons who already have a history of regular or harmful illicit drug use. Children, adolescents, and young persons who are regular users of illicit drugs (at least once per week) or have been diagnosed with a substance use disorder are outside the scope of this recommendation.

@@ -7,6 +7,8 @@ year: 2011
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bladder-cancer-in-adults-screening"
 license_tier: public_domain
 slug: bladder-cancer-in-adults-screening
+fetched_at: "2026-05-05T22:32:10.978Z"
+content_sha256: "34507176666a7f0089e41450e2f61d6963dda1536ff1ec38878aae4590867ae8"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic adults. Although adults with mild lower urinary tract symptoms (such as urinary frequency, hesitancy, urgency, dysuria, or nocturia) are not strictly asymptomatic, these symptoms are quite common and are not believed to be associated with an increased risk for bladder cancer. The USPSTF considered it reasonable to include these persons in the population under consideration for screening. Adults with gross hematuria or acute changes in lower urinary tract symptoms are not included in this population.

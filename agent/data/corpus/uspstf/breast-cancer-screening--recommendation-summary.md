@@ -7,6 +7,8 @@ year: 2024
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening"
 license_tier: public_domain
 slug: breast-cancer-screening
+fetched_at: "2026-05-05T22:32:34.454Z"
+content_sha256: "2d542814d3758bd250bcea566dd1155f09b7c527ab4646ca619f5c115ece5088"
 ---
 Population | Recommendation | Grade
 Women aged 40 to 74 years | The USPSTF recommends biennial screening mammography for women aged 40 to 74 years. | B

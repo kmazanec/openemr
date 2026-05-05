@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lipid-disorders-in-children-screening"
 license_tier: public_domain
 slug: lipid-disorders-in-children-screening
+fetched_at: "2026-05-05T22:37:03.537Z"
+content_sha256: "92a0b933ef47aa051d824c1acd625f5bda3f64259344f3d29ec4be94fc0f15ad"
 ---
 Patient Population Under Consideration
 This statement applies to asymptomatic children and adolescents 20 years or younger without a known diagnosis of a lipid disorder.

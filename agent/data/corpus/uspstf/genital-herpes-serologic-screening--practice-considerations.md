@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/genital-herpes-serologic-screening"
 license_tier: public_domain
 slug: genital-herpes-serologic-screening
+fetched_at: "2026-05-05T22:34:43.371Z"
+content_sha256: "1849b549ec984073f2233daf516aa3ba5e4b2f65dd0f8795fd1a3e0f5e6fc35b"
 ---
 Patient Population Under Consideration
 This recommendation statement applies to routine screening of adolescents and adults, including pregnant persons, without known history, signs, or symptoms of genital HSV infection. This recommendation statement does not apply to persons who present to clinicians requesting testing due to a history, signs, or symptoms suggestive of genital herpes or persons with HIV infection or other immunosuppressive disorders.

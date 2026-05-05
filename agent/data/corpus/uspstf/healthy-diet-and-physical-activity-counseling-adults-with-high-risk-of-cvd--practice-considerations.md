@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd"
 license_tier: public_domain
 slug: healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd
+fetched_at: "2026-05-05T22:35:06.780Z"
+content_sha256: "2c12f2ca6f743306635cfabf8ad1e910baf971e5c62d7dc874fc6257b5607582"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults 18 years or older with known hypertension or elevated blood pressure, those with dyslipidemia, or those who have mixed or multiple risk factors such as metabolic syndrome or an estimated 10-year CVD risk of 7.5% or greater. Adults with other known modifiable cardiovascular risk factors such as abnormal blood glucose levels, obesity, and smoking are not included in this recommendation.5-7 Interventions to reduce CVD risk in those adults are covered in other USPSTF recommendations.

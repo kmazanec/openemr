@@ -7,6 +7,8 @@ year: 2015
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-dysfunction-screening"
 license_tier: public_domain
 slug: thyroid-dysfunction-screening
+fetched_at: "2026-05-05T22:41:06.124Z"
+content_sha256: "b6191c075f9fab63e7d9b6352d52a248a8a8b037049778a7af54d1e0416a7b31"
 ---
 Population | Recommendation | Grade
 Nonpregnant, asymptomatic adults | The USPSTF concludes that the current evidence is insufficient to assess the balance of benefits and harms of screening for thyroid dysfunction in nonpregnant, asymptomatic adults.

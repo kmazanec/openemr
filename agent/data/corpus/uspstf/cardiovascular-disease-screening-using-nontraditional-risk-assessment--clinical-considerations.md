@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-screening-using-nontraditional-risk-assessment"
 license_tier: public_domain
 slug: cardiovascular-disease-screening-using-nontraditional-risk-assessment
+fetched_at: "2026-05-05T22:32:51.946Z"
+content_sha256: "c096bb60ea9fe1df8cbda44b329cf1c05af6592124461709c1fc7531df0742fe"
 ---
 Patient Population Under Consideration
 

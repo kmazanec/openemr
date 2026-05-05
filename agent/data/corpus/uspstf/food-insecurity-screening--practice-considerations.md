@@ -7,6 +7,8 @@ year: 2025
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/food-insecurity-screening"
 license_tier: public_domain
 slug: food-insecurity-screening
+fetched_at: "2026-05-05T22:34:37.389Z"
+content_sha256: "17b0957e257787dd162bfb873f3ac3af6872cbab7e593433ce89454711a32f6d"
 ---
 Patient Population Under Consideration
 This recommendation applies to all children, adolescents, and adults.

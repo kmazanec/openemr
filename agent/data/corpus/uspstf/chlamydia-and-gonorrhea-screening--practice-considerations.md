@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chlamydia-and-gonorrhea-screening"
 license_tier: public_domain
 slug: chlamydia-and-gonorrhea-screening
+fetched_at: "2026-05-05T22:33:21.329Z"
+content_sha256: "17951b1ad537c295c664f482aa2bb6d2aa1f84b20d19285779805a42911e7106"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic, sexually active adolescents and adults, including pregnant persons.

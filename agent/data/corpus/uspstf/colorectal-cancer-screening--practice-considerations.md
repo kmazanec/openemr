@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening"
 license_tier: public_domain
 slug: colorectal-cancer-screening
+fetched_at: "2026-05-05T22:33:44.756Z"
+content_sha256: "d7049ddc8d54331ec7850e263e42ee7c31febcc49b06b53ae5b57129458f8973"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic adults 45 years or older who are at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis]).

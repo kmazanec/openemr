@@ -7,6 +7,8 @@ year: 2025
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-in-pregnancy-screening"
 license_tier: public_domain
 slug: syphilis-infection-in-pregnancy-screening
+fetched_at: "2026-05-05T22:40:42.891Z"
+content_sha256: "f2dc6f250bfd9c80329c0525c99564653d049c783103d08ba59ed16c891f4897"
 ---
 Patient Population Under Consideration
 This recommendation applies to all adolescents and adults who are pregnant, whether or not risk factors for syphilis are present.

@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/atrial-fibrillation-screening"
 license_tier: public_domain
 slug: atrial-fibrillation-screening
+fetched_at: "2026-05-05T22:31:53.462Z"
+content_sha256: "fe2825bba84f3b062a33e30de1c2fb3a1f5c4dede18f663cff9a82fc8cb983d2"
 ---
 Patient Population Under Consideration
 This recommendation applies to adults 50 years or older without a diagnosis or symptoms of AF and without a history of transient ischemic attack or stroke.

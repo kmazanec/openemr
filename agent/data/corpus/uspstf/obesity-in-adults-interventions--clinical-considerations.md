@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-adults-interventions"
 license_tier: public_domain
 slug: obesity-in-adults-interventions
+fetched_at: "2026-05-05T22:37:32.763Z"
+content_sha256: "aed968e242b561fb7efe71fbb1cff9fdc7e7f47f90229b52f80b3a9f01ff21d0"
 ---
 Patient Population Under Consideration
 

@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-obstructive-pulmonary-disease-screening"
 license_tier: public_domain
 slug: chronic-obstructive-pulmonary-disease-screening
+fetched_at: "2026-05-05T22:33:33.063Z"
+content_sha256: "86fc23873977727e4e8a573a9767d55d58e59ccd74cb61d136fd90b05886ba82"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic adults who do not recognize or report respiratory symptoms. It does not apply to persons who present to clinicians with symptoms such as chronic cough, sputum production, difficulty breathing, or wheezing. The evidence review did not include populations at very high risk for COPD such as persons with α-1 antitrypsin deficiency (an inherited disorder that increases risk for COPD) or workers with known occupational exposures.

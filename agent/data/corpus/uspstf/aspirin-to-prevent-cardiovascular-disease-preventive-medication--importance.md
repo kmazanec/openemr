@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication"
 license_tier: public_domain
 slug: aspirin-to-prevent-cardiovascular-disease-preventive-medication
+fetched_at: "2026-05-05T22:31:41.754Z"
+content_sha256: "0317fe6607b06600c538b0cd6079e4a0b6117d9695782342b6e9aa17cb21cb96"
 ---
 Cardiovascular disease (CVD) is the leading cause of mortality in the US, accounting for more than 1 in 4 deaths.1 Each year, an estimated 605,000 people in the US have a first myocardial infarction and an estimated 610,000 experience a first stroke.2
 USPSTF Assessment of Magnitude of Net Benefit

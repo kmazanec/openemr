@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening"
 license_tier: public_domain
 slug: cervical-cancer-screening
+fetched_at: "2026-05-05T22:33:09.633Z"
+content_sha256: "02f5f43a5af252e3082a5011e38b647ced49d3b9a36982c457e61aa9d213e79e"
 ---
 Patient Population Under Consideration
 

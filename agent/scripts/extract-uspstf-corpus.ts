@@ -21,6 +21,7 @@ const AGENT_DIR = resolve(SCRIPT_DIR, '..');
 const CACHE_DIR = resolve(AGENT_DIR, '.corpus-cache/uspstf');
 const OUT_DIR = resolve(AGENT_DIR, 'data/corpus/uspstf');
 const INDEX_PATH = join(OUT_DIR, 'index.json');
+const FETCH_MANIFEST_PATH = join(OUT_DIR, 'fetch-manifest.json');
 
 // Sections we keep, mapped to a normalized chunk-section name. The DOM uses
 // the section title as the div id (verbatim, with spaces). We normalize to
@@ -51,6 +52,8 @@ interface ChunkFrontmatter {
     url: string;
     license_tier: 'public_domain';
     slug: string;
+    fetched_at: string;
+    content_sha256: string;
 }
 
 interface ExtractResult {
@@ -69,6 +72,23 @@ interface IndexEntryFile {
     readonly title: string;
     readonly year: number;
     readonly url: string;
+    readonly fetched_at: string;
+    readonly content_sha256: string;
+}
+
+interface FetchManifestEntry {
+    readonly slug: string;
+    readonly url: string;
+    readonly fetched_at: string;
+    readonly content_sha256: string;
+}
+
+interface FetchManifest {
+    readonly source: 'uspstf';
+    readonly fetcher_version: string;
+    readonly first_run_at: string;
+    readonly last_run_at: string;
+    readonly entries: readonly FetchManifestEntry[];
 }
 
 interface CorpusIndex {
@@ -204,13 +224,35 @@ function frontmatterToYaml(fm: ChunkFrontmatter): string {
         `url: ${escape(fm.url)}`,
         `license_tier: ${fm.license_tier}`,
         `slug: ${fm.slug}`,
+        `fetched_at: ${escape(fm.fetched_at)}`,
+        `content_sha256: ${escape(fm.content_sha256)}`,
         '---',
         '',
     ].join('\n');
 }
 
+async function loadFetchManifest(): Promise<FetchManifest | null> {
+    try {
+        const buf = await readFile(FETCH_MANIFEST_PATH, 'utf8');
+        return JSON.parse(buf) as FetchManifest;
+    } catch {
+        return null;
+    }
+}
+
 async function main(): Promise<void> {
     await mkdir(OUT_DIR, { recursive: true });
+
+    const fetchManifest = await loadFetchManifest();
+    if (!fetchManifest) {
+        console.error(
+            `[extract] fetch-manifest.json not found at ${FETCH_MANIFEST_PATH}; run 'npm run corpus:fetch:uspstf' first`,
+        );
+        process.exit(1);
+    }
+    const provenanceBySlug = new Map<string, FetchManifestEntry>(
+        fetchManifest.entries.map((e) => [e.slug, e]),
+    );
 
     let cached: string[];
     try {
@@ -235,6 +277,7 @@ async function main(): Promise<void> {
     let pages = 0;
     let written = 0;
     let pagesWithWarnings = 0;
+    const slugsMissingProvenance: string[] = [];
 
     for (const fname of cached) {
         const slug = fname.replace(/\.html$/, '');
@@ -249,6 +292,15 @@ async function main(): Promise<void> {
             }
         }
 
+        const provenance = provenanceBySlug.get(slug);
+        if (!provenance) {
+            // Cache file with no manifest entry — possible if the cache was
+            // edited by hand. Refuse rather than commit a chunk without
+            // verifiable provenance.
+            slugsMissingProvenance.push(slug);
+            continue;
+        }
+
         for (const chunk of result.chunks) {
             const fm: ChunkFrontmatter = {
                 publication: 'USPSTF',
@@ -259,6 +311,8 @@ async function main(): Promise<void> {
                 url: result.url,
                 license_tier: 'public_domain',
                 slug: result.slug,
+                fetched_at: provenance.fetched_at,
+                content_sha256: provenance.content_sha256,
             };
             const file = `${slug}--${chunk.section}.md`;
             const fullPath = join(OUT_DIR, file);
@@ -271,9 +325,17 @@ async function main(): Promise<void> {
                 title: result.title,
                 year: result.year,
                 url: result.url,
+                fetched_at: provenance.fetched_at,
+                content_sha256: provenance.content_sha256,
             });
             written += 1;
         }
+    }
+
+    if (slugsMissingProvenance.length > 0) {
+        console.warn(
+            `[extract] ${slugsMissingProvenance.length} cached slug(s) had no manifest entry and were skipped: ${slugsMissingProvenance.join(', ')}`,
+        );
     }
 
     indexEntries.sort((a, b) => a.file.localeCompare(b.file));

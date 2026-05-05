@@ -7,6 +7,8 @@ year: 2013
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-cancer-screening"
 license_tier: public_domain
 slug: oral-cancer-screening
+fetched_at: "2026-05-05T22:37:57.064Z"
+content_sha256: "9e88ded3d4979192ce739a6c11fd6fddd43097e5e350abcafba85c5646f3b770"
 ---
 Importance
 Patient Population Under Consideration

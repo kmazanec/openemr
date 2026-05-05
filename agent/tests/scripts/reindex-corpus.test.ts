@@ -49,6 +49,8 @@ year: 2023
 url: "https://example.test/a"
 license_tier: public_domain
 slug: topic-a
+fetched_at: "2026-05-05T10:00:00.000Z"
+content_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 ---
 Adults aged 50 to 75 years | The USPSTF recommends screening. | B
 `;
@@ -61,6 +63,8 @@ year: 2024
 url: "https://example.test/b"
 license_tier: public_domain
 slug: topic-b
+fetched_at: "2026-05-05T10:01:00.000Z"
+content_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 ---
 Practice considerations: clinicians should counsel patients about screening tests for adults at average risk.
 `;
@@ -80,6 +84,8 @@ Practice considerations: clinicians should counsel patients about screening test
                 title: 'Topic A: Screening',
                 year: 2023,
                 url: 'https://example.test/a',
+                fetched_at: '2026-05-05T10:00:00.000Z',
+                content_sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             },
             {
                 file: 'topic-b--practice-considerations.md',
@@ -88,6 +94,8 @@ Practice considerations: clinicians should counsel patients about screening test
                 title: 'Topic B: Screening',
                 year: 2024,
                 url: 'https://example.test/b',
+                fetched_at: '2026-05-05T10:01:00.000Z',
+                content_sha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
             },
         ],
     };
@@ -149,6 +157,12 @@ describe('loadChunks', () => {
         expect(a?.metadata['url']).toBe('https://example.test/a');
         expect(a?.metadata['section']).toBe('recommendation-summary');
         expect(a?.metadata['source']).toBe('USPSTF');
+        // Provenance: fetched_at + content_sha256 from the per-chunk
+        // frontmatter (extract script grafted them from fetch-manifest.json).
+        expect(a?.metadata['fetched_at']).toBe('2026-05-05T10:00:00.000Z');
+        expect(a?.metadata['content_sha256']).toBe(
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        );
         // chunk_text is the verbatim body, no frontmatter.
         expect(a?.metadata['chunk_text']).toContain('Adults aged 50 to 75 years');
         expect(String(a?.metadata['chunk_text'])).not.toContain('---');
@@ -217,5 +231,11 @@ describe('reindexSource', () => {
         expect(a?.metadata['license_tier']).toBe('public_domain');
         expect(a?.metadata['url']).toBe('https://example.test/a');
         expect(a?.metadata['title']).toBe('Topic A: Screening');
+        // Provenance is part of every Pinecone record — without it a stored
+        // vector can't be traced to the publisher fetch that produced it.
+        expect(a?.metadata['fetched_at']).toBe('2026-05-05T10:00:00.000Z');
+        expect(a?.metadata['content_sha256']).toBe(
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        );
     });
 });

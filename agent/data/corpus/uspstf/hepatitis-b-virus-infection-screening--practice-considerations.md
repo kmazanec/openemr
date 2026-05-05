@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-screening"
 license_tier: public_domain
 slug: hepatitis-b-virus-infection-screening
+fetched_at: "2026-05-05T22:35:47.411Z"
+content_sha256: "e737ab4ba929ac62fd70399eee449887c7fcb2a768eb897a2564e86583f7889c"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic, nonpregnant adolescents and adults at increased risk for HBV infection, including those who were vaccinated before being screened for HBV infection. The USPSTF has made a separate recommendation on screening in pregnant women.8

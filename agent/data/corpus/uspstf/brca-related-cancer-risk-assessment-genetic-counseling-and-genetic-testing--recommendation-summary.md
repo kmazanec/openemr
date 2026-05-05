@@ -7,6 +7,8 @@ year: 2019
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing"
 license_tier: public_domain
 slug: brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing
+fetched_at: "2026-05-05T22:32:22.672Z"
+content_sha256: "23f248a84d8e82175b00c2abd3d9e4ab6e854daea51b71cb2b81dd3abe231cfd"
 ---
 Population | Recommendation | Grade
 Women with a personal or family history of breast, ovarian, tubal, or peritoneal cancer or an ancestry associated with BRCA1/2 gene mutation | The USPSTF recommends that primary care clinicians assess women with a personal or family history of breast, ovarian, tubal, or peritoneal cancer or who have an ancestry associated with breast cancer susceptibility 1 and 2 (BRCA1/2) gene mutations with an appropriate brief familial risk assessment tool. Women with a positive result on the risk assessment tool should receive genetic counseling and, if indicated after counseling, genetic testing. | B

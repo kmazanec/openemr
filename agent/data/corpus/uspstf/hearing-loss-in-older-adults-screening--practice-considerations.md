@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-older-adults-screening"
 license_tier: public_domain
 slug: hearing-loss-in-older-adults-screening
+fetched_at: "2026-05-05T22:35:29.963Z"
+content_sha256: "7de6611434b8a0912971f19cb32df5a831bb97105e85e93525605135b3605098"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic adults 50 years or older with age-related hearing loss. It does not apply to adults with conductive hearing loss, congenital hearing loss, sudden hearing loss, or hearing loss caused by recent noise exposure, or to persons reporting signs and symptoms of hearing loss.

@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication"
 license_tier: public_domain
 slug: folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication
+fetched_at: "2026-05-05T22:34:31.556Z"
+content_sha256: "ed5888d33df3bedcb135ae565f97b8a9d594095e10d09728de1eee32541c88c2"
 ---
 Patient Population Under Consideration
 This recommendation applies to persons who are planning to or could become pregnant. It does not apply to persons who have had a previous pregnancy affected by neural tube defects or who are at very high risk because of other factors (eg, use of certain antiseizure medications or family history). It does not apply to persons taking certain medications known to block the function of folic acid (eg, methotrexate, carbamazepine, and valproic acid).

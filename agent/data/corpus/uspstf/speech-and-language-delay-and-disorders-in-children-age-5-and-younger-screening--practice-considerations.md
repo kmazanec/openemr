@@ -7,6 +7,8 @@ year: 2024
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening"
 license_tier: public_domain
 slug: speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening
+fetched_at: "2026-05-05T22:40:31.133Z"
+content_sha256: "6a9123fa35224eb2e28c21d8dee8f304a0fea17524a3e30ee5ea69ca6a968f5b"
 ---
 Patient Population Under Consideration
 This statement applies only to asymptomatic children 5 years or younger whose parents or clinicians do not have specific concerns about their speech, language, hearing, or development.

@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/impaired-visual-acuity-screening-older-adults"
 license_tier: public_domain
 slug: impaired-visual-acuity-screening-older-adults
+fetched_at: "2026-05-05T22:36:34.007Z"
+content_sha256: "38f5fcecf62e97010a6ac2f807b0aaae549093f83b339a65b695c109a7a908ab"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic adults 65 years or older who present in primary care settings without known impaired visual acuity and are not seeking care for vision problems.

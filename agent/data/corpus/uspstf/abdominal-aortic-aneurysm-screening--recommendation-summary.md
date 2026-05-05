@@ -7,6 +7,8 @@ year: 2019
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/abdominal-aortic-aneurysm-screening"
 license_tier: public_domain
 slug: abdominal-aortic-aneurysm-screening
+fetched_at: "2026-05-05T22:31:24.134Z"
+content_sha256: "bb16f09ecf688846b19d1a83e7e76dec4a98191ce793ee7baa9d72ef64b3706a"
 ---
 Population | Recommendation | Grade
 Men aged 65 to 75 years who have ever smoked | The USPSTF recommends 1-time screening for abdominal aortic aneurysm (AAA) with ultrasonography in men aged 65 to 75 years who have ever smoked. | B

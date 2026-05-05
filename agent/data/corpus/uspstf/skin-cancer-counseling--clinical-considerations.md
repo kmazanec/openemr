@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-counseling"
 license_tier: public_domain
 slug: skin-cancer-counseling
+fetched_at: "2026-05-05T22:40:18.678Z"
+content_sha256: "ca6a406b1a7fa87eab5fff61a525cedc4860dea2b879571dce44c9a1be73ae22"
 ---
 Patient Population Under Consideration
 

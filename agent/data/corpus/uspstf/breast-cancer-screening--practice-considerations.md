@@ -7,6 +7,8 @@ year: 2024
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening"
 license_tier: public_domain
 slug: breast-cancer-screening
+fetched_at: "2026-05-05T22:32:34.454Z"
+content_sha256: "2d542814d3758bd250bcea566dd1155f09b7c527ab4646ca619f5c115ece5088"
 ---
 Patient Population Under Consideration
 These recommendations apply to cisgender women and all other persons assigned female at birth (including transgender men and nonbinary persons) 40 years or older at average risk of breast cancer. This is because the net benefit estimates are driven by sex (ie, female) rather than gender identity, although the studies reviewed for this recommendation generally used the term “women.” These recommendations apply to persons who have factors associated with an increased risk of breast cancer, such as a family history of breast cancer (ie, a first-degree relative with breast cancer) or having dense breasts. They do not apply to persons who have a genetic marker or syndrome associated with a high risk of breast cancer (eg, BRCA1 or BRCA2 genetic variation), a history of high-dose radiation therapy to the chest at a young age, or previous breast cancer or a high-risk breast lesion on previous biopsies. Of note, the USPSTF has a separate recommendation on risk assessment, genetic counseling, and genetic testing for BRCA-related cancer,8 and family history is a common feature of risk assessment tools that help determine likelihood of BRCA1 or BRCA2 genetic variation.

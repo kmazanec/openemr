@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/latent-tuberculosis-infection-screening"
 license_tier: public_domain
 slug: latent-tuberculosis-infection-screening
+fetched_at: "2026-05-05T22:36:57.722Z"
+content_sha256: "8e7eae5ad04b02159d4223e7194528cc505ae94f15157fa29bad7b324c33e298"
 ---
 Patient Population Under Consideration
 This recommendation applies to asymptomatic adults 18 years or older at increased risk for tuberculosis (see the Assessment of Risk section for more information). It does not apply to adults with symptoms of tuberculosis or to children and adolescents.

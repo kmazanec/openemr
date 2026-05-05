@@ -7,6 +7,8 @@ year: 2020
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
 license_tier: public_domain
 slug: drug-use-illicit-screening
+fetched_at: "2026-05-05T22:34:14.166Z"
+content_sha256: "10299c74b405cb4dcb7a9ab0acccb86331027f5aa60076435bacbe217e19b468"
 ---
 Patient Population Under Consideration
 This recommendation statement applies to adults 18 years or older, including pregnant and postpartum persons, and adolescents aged 12 to 17 years in primary care settings. This statement does not apply to adolescents or adults who have a currently diagnosed drug use disorder or are currently undergoing or have been referred for drug use treatment. This statement applies to settings and populations for which services for accurate diagnosis, effective treatment, and appropriate care can be offered or referred. The net benefit assessment does not apply to settings and populations for which treatment cannot be provided or the result of screening is punitive.

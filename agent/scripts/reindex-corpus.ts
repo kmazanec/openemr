@@ -55,6 +55,8 @@ interface IndexEntryFile {
     readonly title: string;
     readonly year: number;
     readonly url: string;
+    readonly fetched_at?: string;
+    readonly content_sha256?: string;
 }
 
 interface CorpusIndex {
@@ -198,6 +200,8 @@ export async function loadChunks(sourceDir: string, index: CorpusIndex): Promise
             title: readStr(fm, 'title', entry.title),
             year: readNum(fm, 'year', entry.year),
             url: readStr(fm, 'url', entry.url),
+            fetched_at: readStr(fm, 'fetched_at', entry.fetched_at ?? ''),
+            content_sha256: readStr(fm, 'content_sha256', entry.content_sha256 ?? ''),
             chunk_text: body,
         };
         records.push({ id, source: index.source, file: entry.file, body, tokens, metadata });

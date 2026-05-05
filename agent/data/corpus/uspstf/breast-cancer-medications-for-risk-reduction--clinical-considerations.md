@@ -7,6 +7,8 @@ year: 2019
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-medications-for-risk-reduction"
 license_tier: public_domain
 slug: breast-cancer-medications-for-risk-reduction
+fetched_at: "2026-05-05T22:32:28.574Z"
+content_sha256: "781de97399e41910f4953527f17c00d13decd41039b633da6b90d33ee539c5e9"
 ---
 Patient Population Under Consideration
 

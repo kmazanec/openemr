@@ -7,6 +7,8 @@ year: 2018
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/adolescent-idiopathic-scoliosis-screening"
 license_tier: public_domain
 slug: adolescent-idiopathic-scoliosis-screening
+fetched_at: "2026-05-05T22:31:29.997Z"
+content_sha256: "2bde9a426d3c562a4bdd6638c6ee536625bb2dd4bee066a4a3231f75a27f9cc2"
 ---
 Patient Population Under Consideration
 

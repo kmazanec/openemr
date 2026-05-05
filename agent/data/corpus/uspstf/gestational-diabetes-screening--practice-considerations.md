@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gestational-diabetes-screening"
 license_tier: public_domain
 slug: gestational-diabetes-screening
+fetched_at: "2026-05-05T22:34:49.201Z"
+content_sha256: "b7bd68b1140d79d8a999850a411ff94edb9fb35267ef55aa7ecb759f5f64b08c"
 ---
 Patient Population Under Consideration
 This recommendation applies to pregnant persons who have not been previously diagnosed with type 1 or type 2 diabetes.

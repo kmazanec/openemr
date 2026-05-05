@@ -7,6 +7,8 @@ year: 2023
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis"
 license_tier: public_domain
 slug: prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis
+fetched_at: "2026-05-05T22:39:01.813Z"
+content_sha256: "8329a5bb4e98e96c7fe9768c618837c478118bec5e6d9540fd5b6801b42b0136"
 ---
 Patient Population Under Consideration
 This recommendation applies to adolescents and adults who do not have HIV and are at increased risk of HIV.

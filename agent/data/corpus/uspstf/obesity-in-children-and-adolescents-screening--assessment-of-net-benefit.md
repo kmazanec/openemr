@@ -7,6 +7,8 @@ year: 2024
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-children-and-adolescents-screening"
 license_tier: public_domain
 slug: obesity-in-children-and-adolescents-screening
+fetched_at: "2026-05-05T22:37:38.625Z"
+content_sha256: "de5311e85b16d338df684ebbd97a8dbb14b69a1b7177751e19cfab206a26c359"
 ---
 The USPSTF concludes with moderate certainty that providing or referring children and adolescents 6 years or older with a high BMI to comprehensive, intensive behavioral interventions has a moderate net benefit. The USPSTF concludes with moderate certainty that intensive behavioral interventions have a moderate net benefit for children and adolescents 6 years or older. Therefore, clinicians should provide those with high BMI with such interventions or refer them to appropriate health care professionals.
 See Table 1 for more information on the USPSTF recommendation rationale and assessment. For more details on the methods the USPSTF uses to determine the net benefit, see the USPSTF Procedure Manual.4

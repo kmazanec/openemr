@@ -7,6 +7,8 @@ year: 2016
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/autism-spectrum-disorder-in-young-children-screening"
 license_tier: public_domain
 slug: autism-spectrum-disorder-in-young-children-screening
+fetched_at: "2026-05-05T22:31:59.296Z"
+content_sha256: "7eb0eca66e2c9f60478a0c123ee91dc6b5cbc5da568057b83f08e885bd595019"
 ---
 Patient Population Under Consideration
 This recommendation applies to children who have not been diagnosed with ASD or developmental delay and for whom no concerns of ASD have been raised by parents, other caregivers, or health care professionals.

@@ -7,6 +7,8 @@ year: 2021
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
 license_tier: public_domain
 slug: vitamin-d-deficiency-screening
+fetched_at: "2026-05-05T22:41:41.156Z"
+content_sha256: "5ad7d4e389049df99a9138881fe7be29ce22f9eb4a242d6daf50d8ab545efa6f"
 ---
 The US Preventive Services Task Force (USPSTF) concludes that the overall evidence on the benefits of screening for vitamin D deficiency is lacking. Therefore, the balance of benefits and harms of screening for vitamin D deficiency in asymptomatic adults cannot be determined (Table).
 See the Table for more information on the USPSTF recommendation rationale and assessment. For more details on the methods the USPSTF uses to determine the net benefit, see the USPSTF Procedure Manual.6

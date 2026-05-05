@@ -7,6 +7,8 @@ year: 2022
 url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication"
 license_tier: public_domain
 slug: menopausal-hormone-therapy-preventive-medication
+fetched_at: "2026-05-05T22:37:21.142Z"
+content_sha256: "546e72a38f90058790be596bdf74a7cfa1927189e0dffe9e6fef2198a418a7ba"
 ---
 Patient Population Under Consideration
 This recommendation statement applies to asymptomatic postmenopausal persons who are considering hormone therapy for the primary prevention of chronic medical conditions. It does not apply to persons who are considering hormone therapy for the management of perimenopausal symptoms, such as hot flashes or vaginal dryness. It also does not apply to persons who have had premature menopause (primary ovarian insufficiency) or surgical menopause.
