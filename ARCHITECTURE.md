@@ -206,6 +206,8 @@ FHIR remains useful inside this layer because it provides a portable resource sh
 
 ## LangGraph Agent Runtime
 
+> **Note (W2 update, 2026-05-04):** This section describes the W1 graph as built — small and deterministic, with rule-based routing on the conditional edges after `Retrieve`. **W2 replaces this with an LLM-driven supervisor loop and model-driven retrievers** (see `W2_ARCHITECTURE.md` §"Conversational Graph"). Determinism in W2 is preserved only where it is load-bearing for safety: the verifier, the hard clinical stops, the ingestion pipeline, and the first chart-fetch invocation. The shift is deliberate — non-determinism is the agentic-systems lesson the W2 assignment tests, and structural constraints (closed-enum tool surface, structured-output coercion, required rationale per decision, iteration cap, full LangSmith instrumentation) are what make the LLM-driven shape defensible. The W1 deterministic shape was the right call for the W1 sprint scope; the W2 shape supersedes it.
+
 The MVP graph is intentionally small and deterministic:
 
 ```mermaid
