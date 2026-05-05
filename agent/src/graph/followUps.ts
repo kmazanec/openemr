@@ -51,7 +51,7 @@ const TOTAL_CAP = 5;
 const PRESCRIPTION_RECENT_DAYS = 90;
 const EXTERNAL_LOOKBACK_DAYS = 365;
 
-const MS_PER_DAY = 86_400_000;
+export const MS_PER_DAY = 86_400_000;
 
 /**
  * Deterministic chip ID derived from `(conversationId, params)`.

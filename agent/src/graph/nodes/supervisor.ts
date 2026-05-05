@@ -8,8 +8,10 @@ import { createLogger } from '../../observability/logger.js';
 import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
+    DocumentEvidenceArgsSchema,
     RETRIEVE_CHART_CATEGORIES,
     SupervisorDecisionSchema,
+    type DocumentEvidenceArgs,
     type RetrieveChartArgs,
     type SupervisorDecision,
     type SupervisorHandoff,
@@ -245,6 +247,28 @@ const narrowRetrieveChartArgs = (
     return { categories: categories as RetrieveChartArgs['categories'] };
 };
 
+/**
+ * §C.1 narrow `documentEvidenceRetriever`'s loose args into the typed
+ * {@link DocumentEvidenceArgs} shape via {@link DocumentEvidenceArgsSchema}.
+ * Defaults (`lookback_days: 90`, `top_k: 5`) bind here so the node sees
+ * a fully-populated value.
+ *
+ * Throws on missing args, missing `query`, or out-of-range bounds — the
+ * runner surfaces a typed error rather than letting the graph route on
+ * a malformed payload. (The Zod schema rejects `doc_types: []` as well,
+ * so an empty array can't slip past via the model's structured output.)
+ */
+const narrowDocumentEvidenceArgs = (
+    args: Record<string, unknown> | undefined,
+): DocumentEvidenceArgs => {
+    if (args === undefined) {
+        throw new Error(
+            'supervisor: documentEvidenceRetriever handoff requires args: { query, ... }',
+        );
+    }
+    return DocumentEvidenceArgsSchema.parse(args);
+};
+
 const sameDecisionAsPrevious = (
     previous: SupervisorDecision | null,
     current: SupervisorDecision,
@@ -323,12 +347,13 @@ export const createSupervisor = (
         // output before it reaches graph state)".
         SupervisorDecisionSchema.parse(decision);
 
-        // Per-handoff arg narrowing. Today only `retrieveChart` has a
-        // typed slot; the other handoffs either no-op (Phase-A stubs)
-        // or read their args from the envelope (deterministic
-        // branches). When B/C wire the document/evidence retrievers,
-        // they'll add their own narrowing here.
+        // Per-handoff arg narrowing. Each typed-slot handoff narrows
+        // the loose `Record<string, unknown>` decision args into a
+        // typed shape before they reach state. The remaining handoffs
+        // either no-op (Phase-A stubs B will replace) or read their
+        // args from the envelope (deterministic branches).
         let retrieveChartArgs: RetrieveChartArgs | undefined;
+        let documentEvidenceArgs: DocumentEvidenceArgs | undefined;
         if (decision.handoff === 'retrieveChart') {
             // First call is deterministic and ignores args; the
             // architecture allows the supervisor to hand off without
@@ -337,6 +362,8 @@ export const createSupervisor = (
             if (state.retrieveChartCallCount > 0) {
                 retrieveChartArgs = narrowRetrieveChartArgs(decision.args);
             }
+        } else if (decision.handoff === 'documentEvidenceRetriever') {
+            documentEvidenceArgs = narrowDocumentEvidenceArgs(decision.args);
         }
 
         // Cycle detection. Re-picking the same handoff with the same
@@ -401,6 +428,7 @@ export const createSupervisor = (
                 decision,
             ],
             ...(retrieveChartArgs !== undefined ? { retrieveChartArgs } : {}),
+            ...(documentEvidenceArgs !== undefined ? { documentEvidenceArgs } : {}),
         };
     };
 

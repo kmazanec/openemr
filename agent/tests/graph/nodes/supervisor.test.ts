@@ -61,7 +61,7 @@ const baseState = (overrides: Partial<BriefingState> = {}): BriefingState => ({
     formatted: null,
     persisted: null,
     retrieveChartCallCount: 1,
-    retrieveChartArgs: null,
+    retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
     capHit: false,
@@ -120,6 +120,48 @@ describe('createSupervisor (§A.7)', () => {
             handoff: 'retrieveChart',
             reason: 'narrowing fetch',
             args: { categories: ['vitals'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(supervisor(baseState())).rejects.toThrow();
+    });
+
+    it('narrows documentEvidenceRetriever args (with defaults) into the documentEvidenceArgs slot', async () => {
+        const llm = decide({
+            handoff: 'documentEvidenceRetriever',
+            reason: 'a recent lab artifact may answer this',
+            args: { query: 'recent A1c', doc_types: ['lab_pdf'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState());
+
+        expect(out.supervisorDecisionHistory?.[0]?.handoff).toBe('documentEvidenceRetriever');
+        expect(out.documentEvidenceArgs).toEqual({
+            query: 'recent A1c',
+            doc_types: ['lab_pdf'],
+            // Schema defaults bind here — the architecture's 90/5.
+            lookback_days: 90,
+            top_k: 5,
+        });
+    });
+
+    it('rejects malformed documentEvidenceRetriever args (missing query) before they reach state', async () => {
+        const llm = decide({
+            handoff: 'documentEvidenceRetriever',
+            reason: 'forgot to set a query',
+            args: { doc_types: ['lab_pdf'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(supervisor(baseState())).rejects.toThrow(/query/i);
+    });
+
+    it('rejects documentEvidenceRetriever args with empty doc_types (Zod min(1))', async () => {
+        const llm = decide({
+            handoff: 'documentEvidenceRetriever',
+            reason: 'pathological narrowing',
+            args: { query: 'whatever', doc_types: [] },
         });
         const supervisor = createSupervisor({ decide: llm });
 
