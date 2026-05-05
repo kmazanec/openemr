@@ -395,6 +395,70 @@ describe('createExtractionArtifactStoreFromPool — updateArtifactStatus', () =>
     });
 });
 
+describe('createExtractionArtifactStoreFromPool — searchArtifacts (§C.1)', () => {
+    it('always filters by pid and the active-status set; widens to all doc_types when none supplied', async () => {
+        const pool = buildFakePool([{ rowCount: 0 }]);
+        const store = createExtractionArtifactStoreFromPool(pool);
+        const since = new Date('2026-04-05T00:00:00.000Z');
+        await store.searchArtifacts({ pid: 42, since });
+        const call = pool.calls[0];
+        expect(call?.sql).toMatch(/FROM extraction_artifacts/);
+        expect(call?.sql).toMatch(/WHERE pid = \$1/);
+        expect(call?.sql).toMatch(/status = ANY\(\$2\)/);
+        expect(call?.sql).toMatch(/created_at >= \$3/);
+        // ORDER BY created_at DESC — recency wins, ties broken by id.
+        expect(call?.sql).toMatch(/ORDER BY created_at DESC/);
+        // doc_type filter is omitted when not supplied.
+        expect(call?.sql).not.toMatch(/doc_type = ANY/);
+        const params = call?.params ?? [];
+        expect(params[0]).toBe(42);
+        expect(params[1]).toEqual(['pending_confirmation', 'confirmed']);
+        expect(params[2]).toBe(since.toISOString());
+    });
+
+    it('narrows by doc_types when supplied', async () => {
+        const pool = buildFakePool([{ rowCount: 0 }]);
+        const store = createExtractionArtifactStoreFromPool(pool);
+        await store.searchArtifacts({
+            pid: 42,
+            since: new Date('2026-04-05T00:00:00.000Z'),
+            docTypes: ['lab_pdf'],
+        });
+        const call = pool.calls[0];
+        expect(call?.sql).toMatch(/doc_type = ANY\(\$4\)/);
+        const params = call?.params ?? [];
+        expect(params[3]).toEqual(['lab_pdf']);
+    });
+
+    it('parses returned rows into ExtractionArtifact objects', async () => {
+        const artifact = fixtureArtifact();
+        const pool = buildFakePool([
+            { rowCount: 1, rows: [insertedRow(artifact)] },
+        ]);
+        const store = createExtractionArtifactStoreFromPool(pool);
+        const out = await store.searchArtifacts({
+            pid: 42,
+            since: new Date('2026-04-05T00:00:00.000Z'),
+        });
+        expect(out.length).toBe(1);
+        expect(out[0]?.artifactId).toBe(artifact.artifactId);
+        expect(out[0]?.docType).toBe('lab_pdf');
+        expect(out[0]?.status).toBe('pending_confirmation');
+    });
+
+    it('rejects empty docTypes — the supervisor must omit the filter rather than pass []', async () => {
+        const pool = buildFakePool([]);
+        const store = createExtractionArtifactStoreFromPool(pool);
+        await expect(
+            store.searchArtifacts({
+                pid: 42,
+                since: new Date('2026-04-05T00:00:00.000Z'),
+                docTypes: [],
+            }),
+        ).rejects.toThrow(/docTypes/);
+    });
+});
+
 describe('createPgExtractionArtifactStore — connection-string validation', () => {
     it('throws when the connection string is empty', () => {
         expect(() => createPgExtractionArtifactStore({ connectionString: '' })).toThrow();

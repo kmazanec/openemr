@@ -5,7 +5,9 @@ import type {
     AssistantMessage,
     BriefingSnapshot,
     ClaimLedger,
+    DocumentEvidenceArgs,
     DraftBriefing,
+    ExtractedFactSnippet,
     PersistedRecord,
     PriorTurnContext,
     RequestEnvelope,
@@ -60,6 +62,25 @@ export const BriefingStateAnnotation = Annotation.Root({
      * upstream once A.7 lands.
      */
     retrieveChartArgs: lastValueChannel<RetrieveChartArgs | null>(() => null),
+    /**
+     * §C.1 supervisor handoff args for `documentEvidenceRetriever`.
+     * Null until the supervisor picks the handoff with structured args;
+     * narrowed against `DocumentEvidenceArgsSchema` before reaching this
+     * slot so the node can trust the shape. Persisted across iterations
+     * so a cycle-warning sink can compare arg payloads.
+     */
+    documentEvidenceArgs: lastValueChannel<DocumentEvidenceArgs | null>(() => null),
+    /**
+     * §C.1 retriever output: the snippets `documentEvidenceRetriever`
+     * returns for the supervisor's next iteration to reason over and
+     * (eventually) for the C.5 verifier to resolve `extracted_document`
+     * citations against. Empty array is the legitimate "no matching
+     * artifacts" signal — distinct from `null` (retriever has not run
+     * this turn).
+     */
+    documentEvidenceSnippets: lastValueChannel<readonly ExtractedFactSnippet[] | null>(
+        () => null,
+    ),
     /**
      * §A.7 per-turn supervisor iteration counter. The supervisor node
      * increments on entry; the iteration cap (10) forces synthesize when

@@ -55,7 +55,7 @@ const state: BriefingState = {
     formatted: null,
     persisted: null,
     retrieveChartCallCount: 1,
-    retrieveChartArgs: null,
+    retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null,
     supervisorIterations: 1,
     supervisorDecisionHistory: [],
     capHit: false,

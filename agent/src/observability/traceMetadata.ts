@@ -55,7 +55,13 @@ export const hashIdForTrace = (id: string, salt: string): string => {
     return createHmac('sha256', salt).update(id).digest('hex').slice(0, 12);
 };
 
-const tagSalt = (): string => process.env['LANGSMITH_TAG_SALT'] ?? 'agent-counters';
+/**
+ * Resolve the HMAC salt used by `hashIdForTrace`. Exported so other
+ * trace-emitting nodes can hash their own identifiers (e.g. the C.1
+ * `documentEvidenceRetriever` hashes the model's free-text query) with
+ * the same default-salt rotation semantics as identity tags.
+ */
+export const tagSalt = (): string => process.env['LANGSMITH_TAG_SALT'] ?? 'agent-counters';
 
 export interface IdentityTags {
     readonly clinicianHash: string;
