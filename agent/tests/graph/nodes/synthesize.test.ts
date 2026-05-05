@@ -174,4 +174,42 @@ describe('createSynthesize', () => {
         const snap = counters.snapshot();
         expect(Object.keys(snap.modelUsage)).toHaveLength(0);
     });
+
+    it('forwards state.priorTurnContext to the synthesizer (§A.8)', async () => {
+        // The runner-side loadPriorContext (§A.5) materializes
+        // priorTurnContext on BriefingState. The node's job in A.8 is
+        // to thread it into the synthesizer call so the prompt's
+        // `<CHART_DATA>` block can include the replayed turns. This
+        // test pins the contract between the node and the synthesizer
+        // function — production wiring (the Anthropic synthesizer)
+        // and tests both observe the same shape.
+        const synth: Synthesizer = vi.fn(() => Promise.resolve({ draft, ledger }));
+        const node = createSynthesize({ synthesizer: synth });
+        const priorTurnContext = {
+            turns: [
+                { role: 'user' as const, text: 'What about her allergies?' },
+                {
+                    role: 'assistant' as const,
+                    citations: [sourceRef('AllergyIntolerance', 'a-1')],
+                    facts: [
+                        {
+                            sourceRef: sourceRef('AllergyIntolerance', 'a-1'),
+                            rawValue: null,
+                        },
+                    ],
+                },
+            ],
+        };
+
+        await node({
+            envelope,
+            snapshot,
+            priorTurnContext,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
+        });
+
+        expect(synth).toHaveBeenCalledTimes(1);
+        const call = (synth as unknown as { mock: { calls: { 0: { 0: unknown } }[] } }).mock.calls[0]?.[0];
+        expect(call).toMatchObject({ priorTurnContext });
+    });
 });
