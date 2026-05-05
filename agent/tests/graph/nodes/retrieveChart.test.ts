@@ -161,6 +161,7 @@ describe('createRetrieveChart (§A.4)', () => {
             }
             return {
                 envelope,
+                priorTurnContext: { turns: [] },
                 snapshot,
                 draft: null,
                 claimLedger: null,
