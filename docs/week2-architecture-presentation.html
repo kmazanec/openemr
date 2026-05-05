@@ -1,0 +1,1265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical Co-Pilot — Week 2 Architecture</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #132033;
+      --muted: #5e6b7c;
+      --line: #d9e0ea;
+      --primary: #2154d8;
+      --primary-dark: #14398f;
+      --accent: #0d8f75;
+      --danger: #bd3b3b;
+      --warn: #b7791f;
+      --soft-blue: #eaf0ff;
+      --soft-green: #e9f8f4;
+      --soft-red: #fff0f0;
+      --soft-warn: #fff8ea;
+      --shadow: 0 18px 45px rgba(19, 32, 51, 0.11);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(33, 84, 216, 0.16), transparent 36rem),
+        radial-gradient(circle at top right, rgba(13, 143, 117, 0.13), transparent 30rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 18rem minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 2rem 1.25rem;
+      overflow-y: auto;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+    }
+
+    nav h2 {
+      margin: 0 0 0.25rem;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary-dark);
+    }
+
+    nav p {
+      margin: 0 0 1.25rem;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    nav a {
+      display: block;
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.7rem;
+      color: var(--ink);
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    nav a:hover {
+      background: var(--soft-blue);
+      text-decoration: none;
+    }
+
+    nav a.active {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+      box-shadow: inset 0.25rem 0 0 var(--primary);
+    }
+
+    main { min-width: 0; }
+
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      align-content: center;
+      padding: 5rem clamp(2rem, 6vw, 6rem);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1.2rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid rgba(33, 84, 216, 0.22);
+      border-radius: 999px;
+      color: var(--primary-dark);
+      background: rgba(255, 255, 255, 0.75);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    h1 {
+      max-width: 64rem;
+      margin: 0;
+      font-size: clamp(3rem, 7vw, 6.8rem);
+      line-height: 0.95;
+      letter-spacing: -0.07em;
+    }
+
+    .hero .subtitle {
+      max-width: 54rem;
+      margin: 1.6rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1.15rem, 2vw, 1.55rem);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 3rem;
+    }
+
+    section {
+      min-height: 100vh;
+      padding: 4.5rem clamp(2rem, 6vw, 6rem);
+      border-top: 1px solid rgba(217, 224, 234, 0.72);
+    }
+
+    section.compact { min-height: auto; }
+
+    .section-head {
+      max-width: 58rem;
+      margin-bottom: 2rem;
+    }
+
+    .kicker {
+      margin: 0 0 0.4rem;
+      color: var(--primary);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4.5vw, 4rem);
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    h3 {
+      margin: 0 0 0.7rem;
+      font-size: 1.1rem;
+    }
+
+    .lead {
+      max-width: 56rem;
+      margin: 1rem 0 0;
+      color: var(--muted);
+      font-size: 1.15rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      padding: 1.25rem;
+      border: 1px solid rgba(217, 224, 234, 0.9);
+      border-radius: 1.25rem;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.06);
+    }
+
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .stat { min-height: 9rem; }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--primary-dark);
+      font-size: 2.2rem;
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    .stat span,
+    .card p,
+    li { color: var(--muted); }
+
+    .decision {
+      border-color: rgba(13, 143, 117, 0.28);
+      background: var(--soft-green);
+    }
+
+    .decision h3::before {
+      content: "Decision";
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--accent);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .risk {
+      border-color: rgba(189, 59, 59, 0.25);
+      background: var(--soft-red);
+    }
+
+    .risk h3::before {
+      content: "Failure mode";
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--danger);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .new-card {
+      border-color: rgba(33, 84, 216, 0.32);
+      background: var(--soft-blue);
+    }
+
+    .new-card h3::before {
+      content: "Week 2";
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--primary);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 1rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.42rem 0.62rem;
+      border-radius: 999px;
+      background: var(--soft-blue);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.7rem;
+      align-items: stretch;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 1rem;
+      min-height: 8rem;
+      border-radius: 1rem;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 8px 20px rgba(19, 32, 51, 0.05);
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -0.62rem;
+      z-index: 2;
+      transform: translateY(-50%);
+      color: var(--primary);
+      font-weight: 900;
+    }
+
+    .flow-step small {
+      display: block;
+      color: var(--primary);
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin: 0.45rem 0;
+      line-height: 1.15;
+    }
+
+    .system-diagram {
+      padding: clamp(1rem, 2vw, 1.5rem);
+      border: 1px solid rgba(217, 224, 234, 0.95);
+      border-radius: 1.6rem;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(234, 240, 255, 0.78)),
+        var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .graph-canvas {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .graph-col {
+      display: grid;
+      align-content: start;
+      gap: 0.7rem;
+      padding: 1rem;
+      border: 1px solid rgba(217, 224, 234, 0.85);
+      border-radius: 1.25rem;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .col-title {
+      margin: 0 0 0.35rem;
+      color: var(--primary-dark);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .node {
+      position: relative;
+      padding: 0.85rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 0.95rem;
+      background: var(--panel);
+      box-shadow: 0 8px 18px rgba(19, 32, 51, 0.06);
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--ink);
+      line-height: 1.2;
+      font-size: 0.95rem;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .node.primary {
+      border-color: rgba(33, 84, 216, 0.3);
+      background: var(--soft-blue);
+    }
+
+    .node.safe {
+      border-color: rgba(13, 143, 117, 0.3);
+      background: var(--soft-green);
+    }
+
+    .node.warn {
+      border-color: rgba(183, 121, 31, 0.32);
+      background: var(--soft-warn);
+    }
+
+    .node.danger {
+      border-color: rgba(189, 59, 59, 0.3);
+      background: var(--soft-red);
+    }
+
+    .node.new {
+      border-color: rgba(33, 84, 216, 0.45);
+      background: var(--soft-blue);
+      box-shadow: 0 8px 18px rgba(33, 84, 216, 0.18);
+    }
+
+    .node.new::after {
+      content: "NEW";
+      position: absolute;
+      top: -0.55rem;
+      right: 0.7rem;
+      padding: 0.18rem 0.45rem;
+      border-radius: 999px;
+      background: var(--primary);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .arrow-down {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      min-height: 1.5rem;
+      color: var(--primary);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .arrow-down::before { content: "↓"; }
+
+    .loop-block {
+      position: relative;
+      padding: 0.85rem;
+      border: 2px dashed rgba(33, 84, 216, 0.4);
+      border-radius: 1rem;
+      background: rgba(33, 84, 216, 0.04);
+    }
+
+    .loop-block-title {
+      display: block;
+      margin-bottom: 0.55rem;
+      color: var(--primary-dark);
+      font-size: 0.7rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .loop-block .node {
+      margin-bottom: 0.45rem;
+    }
+
+    .loop-block .node:last-child {
+      margin-bottom: 0;
+    }
+
+    .branch-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
+    }
+
+    .branch {
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.7rem;
+      background: white;
+      border: 1px solid rgba(33, 84, 216, 0.18);
+      font-size: 0.83rem;
+      color: var(--primary-dark);
+    }
+
+    .branch strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.92rem;
+      line-height: 1.2;
+      margin-bottom: 0.15rem;
+    }
+
+    .branch span { color: var(--muted); font-size: 0.78rem; }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 1rem;
+      background: var(--panel);
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.06);
+    }
+
+    .table th, .table td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .table th {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .table tr:last-child td { border-bottom: 0; }
+
+    code {
+      padding: 0.15rem 0.35rem;
+      border-radius: 0.35rem;
+      color: #1f3765;
+      background: #edf2ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+    }
+
+    .big-number {
+      color: var(--primary);
+      font-size: 4rem;
+      font-weight: 900;
+      letter-spacing: -0.08em;
+      line-height: 1;
+    }
+
+    .pipeline-flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+
+    .pipeline-step {
+      padding: 0.85rem;
+      border-radius: 0.85rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: 0 6px 14px rgba(19, 32, 51, 0.05);
+      position: relative;
+    }
+
+    .pipeline-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -0.55rem;
+      z-index: 2;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-weight: 900;
+    }
+
+    .pipeline-step small {
+      display: block;
+      color: var(--accent);
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+    }
+
+    .pipeline-step strong {
+      display: block;
+      margin: 0.4rem 0 0;
+      font-size: 0.92rem;
+      line-height: 1.18;
+    }
+
+    .invokers {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.7rem;
+      margin-top: 1rem;
+    }
+
+    .invoker {
+      padding: 0.85rem;
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+    }
+
+    .invoker strong {
+      display: block;
+      margin-bottom: 0.3rem;
+      color: var(--primary-dark);
+    }
+
+    .invoker span {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .citation-shape {
+      padding: 1.2rem;
+      border-radius: 1rem;
+      background: #0c1530;
+      color: #e9eefc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      overflow-x: auto;
+    }
+
+    .citation-shape .key { color: #9eb6ff; }
+    .citation-shape .str { color: #94e3a8; }
+    .citation-shape .com { color: #6f7d9c; font-style: italic; }
+    .citation-shape .lit { color: #f0c87a; }
+
+    .source-types {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.7rem;
+      margin-top: 0.8rem;
+    }
+
+    .source-type {
+      padding: 0.85rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .source-type strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--primary-dark);
+      font-size: 0.95rem;
+    }
+
+    .source-type span { color: var(--muted); font-size: 0.85rem; }
+
+    .source-type.chart { border-color: rgba(13, 143, 117, 0.3); background: var(--soft-green); }
+    .source-type.doc { border-color: rgba(33, 84, 216, 0.3); background: var(--soft-blue); }
+    .source-type.guide { border-color: rgba(183, 121, 31, 0.32); background: var(--soft-warn); }
+
+    .footer {
+      padding: 3rem clamp(2rem, 6vw, 6rem);
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 1100px) {
+      .shell { display: block; }
+      nav { position: static; height: auto; }
+      .hero-grid,
+      .flow,
+      .pipeline-flow,
+      .graph-canvas,
+      .source-types,
+      .invokers {
+        grid-template-columns: 1fr 1fr;
+      }
+      .span-3, .span-4, .span-5, .span-6, .span-7, .span-8 {
+        grid-column: span 12;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .hero, section { min-height: auto; padding: 3rem 1rem; }
+      .hero-grid,
+      .flow,
+      .pipeline-flow,
+      .graph-canvas,
+      .source-types,
+      .invokers { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after,
+      .pipeline-step:not(:last-child)::after { display: none; }
+    }
+
+    @media print {
+      body { background: white; }
+      nav { display: none; }
+      .shell { display: block; }
+      section, .hero { min-height: auto; page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav aria-label="Presentation navigation">
+      <h2>Clinical Co-Pilot</h2>
+      <p>Week 2 architecture</p>
+      <a class="active" href="#overview">Overview</a>
+      <a href="#agent-graph">1. Agent graph</a>
+      <a href="#ingestion">2. Ingestion pipeline</a>
+      <a href="#rag">3. Hybrid RAG &amp; citations</a>
+      <a href="#evals">4. Eval gate</a>
+      <a href="#decisions">5. Decisions &amp; tradeoffs</a>
+    </nav>
+
+    <main>
+      <header id="overview" class="hero">
+        <div class="eyebrow">Multimodal evidence agent — Week 2</div>
+        <h1>Clinical Co-Pilot Sees, Routes, And Cites</h1>
+        <p class="subtitle">
+          Week 1 read the structured chart. Week 2 reads the messy inputs clinicians actually receive —
+          scanned lab PDFs, intake forms — and grounds answers in retrieved guideline evidence,
+          gated by a real-model CI eval.
+        </p>
+        <div class="hero-grid">
+          <div class="card stat">
+            <strong>10</strong>
+            <span>Max supervisor iterations per turn. LLM-driven routing, closed-enum handoffs, every decision logged to LangSmith.</span>
+          </div>
+          <div class="card stat">
+            <strong>50</strong>
+            <span>Eval cases on every PR. Real model end-to-end (supervisor, vision, embeddings, rerank). Boolean rubrics. PR blocks on regression.</span>
+          </div>
+          <div class="card stat">
+            <strong>3</strong>
+            <span>Source types in one citation shape — chart, extracted document, guideline. Verifier indexes all three deterministically.</span>
+          </div>
+          <div class="card stat">
+            <strong>0</strong>
+            <span>Auto-writes to the chart. Tier-3 promotion is gated on explicit clinician acceptance.</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="agent-graph">
+        <div class="section-head">
+          <p class="kicker">Slide 1 — the new agent graph</p>
+          <h2>LLM Supervisor, Model-Driven Retrievers, Deterministic Safety</h2>
+          <p class="lead">
+            The supervisor is an <strong>LLM call</strong>, not a rule set. Each iteration the model picks one handoff
+            from a closed enumeration and supplies a required rationale. Retriever calls after the first
+            chart fetch are model-driven — the agent decides which tools to call. Determinism is preserved
+            only where it's load-bearing for safety: the verifier, the hard stops, and the ingestion pipeline.
+          </p>
+        </div>
+
+        <div class="system-diagram" role="img" aria-label="Conversational graph topology">
+          <div class="graph-canvas">
+
+            <div class="graph-col">
+              <p class="col-title">Runner (hoisted out of graph)</p>
+              <div class="node primary">
+                <strong>loadState</strong>
+                <span>Conversation persistence keyed on (user, patient, appointment?). Was a graph node in W1; now runner-layer.</span>
+              </div>
+              <div class="arrow-down">runner</div>
+              <div class="node primary">
+                <strong>planContext</strong>
+                <span>Envelope validation. Reject unknown task types. Was a graph node in W1; now runner-layer.</span>
+              </div>
+              <div class="arrow-down">invoke graph</div>
+              <div class="node">
+                <strong>thread_id = conversation.id</strong>
+                <span>LangGraph Postgres checkpointer keyed on the canonical id. W1 carry-forward.</span>
+              </div>
+            </div>
+
+            <div class="graph-col">
+              <p class="col-title">Conversational graph</p>
+              <div class="node safe">
+                <strong>retrieveChart (deterministic, first call only)</strong>
+                <span>Standard W1 fan-out so the supervisor has chart context on iteration 1. Subsequent retriever calls are model-driven.</span>
+              </div>
+              <div class="arrow-down">always</div>
+
+              <div class="loop-block">
+                <span class="loop-block-title">Supervisor loop — LLM-driven, max 10 iterations, fully instrumented</span>
+                <div class="node new">
+                  <strong>supervisor (LLM)</strong>
+                  <span>Each iteration: structured-output LLM call. Closed-enum handoff + required rationale. Cap-hit at 10 → forced synthesize. Every decision logged to LangSmith.</span>
+                </div>
+                <div class="branch-list" style="margin-top: 0.55rem;">
+                  <div class="branch">
+                    <strong>kickoffExtraction <span style="color:var(--primary)">(NEW)</span></strong>
+                    <span>Envelope carries unprocessed doc → invoke ingestion pipeline synchronously; pump progress over SSE.</span>
+                  </div>
+                  <div class="branch">
+                    <strong>retrieveChart (model-driven re-fetch) <span style="color:var(--primary)">(NEW)</span></strong>
+                    <span>After the first deterministic fan-out, the model picks which categories to re-fetch.</span>
+                  </div>
+                  <div class="branch">
+                    <strong>documentEvidenceRetriever <span style="color:var(--primary)">(NEW, model-driven)</span></strong>
+                    <span>Model picks query, doc_types, lookback, top_k. Patient scope is non-negotiable (always restricted to envelope.pid).</span>
+                  </div>
+                  <div class="branch">
+                    <strong>evidenceRetriever <span style="color:var(--primary)">(NEW, model-driven)</span></strong>
+                    <span>Model picks query and source_filter. Hybrid sparse + dense + Cohere rerank over the guideline corpus.</span>
+                  </div>
+                  <div class="branch">
+                    <strong>UC3 / 4.6.5 / 4.6.6 branches</strong>
+                    <span>W1 deterministic follow-up branches. Frozen — regression-only.</span>
+                  </div>
+                  <div class="branch" style="background: var(--soft-green); border-color: rgba(13,143,117,0.3);">
+                    <strong>synthesize</strong>
+                    <span>Terminal handoff. Exits the loop directly to verify.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="arrow-down">terminal handoff</div>
+              <div class="node danger">
+                <strong>verify</strong>
+                <span>Per-<code>source_type</code> rules. Every claim resolves to a source or is dropped. Hard stops fire on missing safety data.</span>
+              </div>
+              <div class="arrow-down"></div>
+              <div class="node">
+                <strong>format → persist → END</strong>
+                <span>Claims grouped by source_type for the UI. Verified output streams to the panel.</span>
+              </div>
+            </div>
+
+            <div class="graph-col">
+              <p class="col-title">External graphs &amp; services</p>
+              <div class="node new">
+                <strong>Ingestion pipeline</strong>
+                <span>Separate compiled LangGraph app. Awaited by <code>kickoffExtraction</code>. See slide 2.</span>
+              </div>
+              <div class="arrow-down">writes</div>
+              <div class="node">
+                <strong>extraction_artifacts</strong>
+                <span>Agent Postgres. Documents-side evidence the documentEvidenceRetriever reads.</span>
+              </div>
+              <div class="arrow-down">reads</div>
+              <div class="node warn">
+                <strong>Guideline corpus</strong>
+                <span>Pinecone serverless (managed, no PHI). OpenAI <code>text-embedding-3-large</code>. Cohere rerank.</span>
+              </div>
+              <div class="arrow-down">reads</div>
+              <div class="node primary">
+                <strong>OpenEMR snapshot</strong>
+                <span>Custom-DAO endpoints over JWT. Same trust boundary as W1.</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 1.25rem;">
+          <div class="card decision span-4">
+            <h3>Why LLM-driven, not rule-based</h3>
+            <p>
+              Non-determinism is the lesson the W2 assignment is testing. Rule-based routing is
+              defensible but doesn't exercise the agentic-system skill. LLM routing constrained by
+              a closed-enum tool surface, structured-output coercion, and a required rationale per
+              decision is materially stronger inspectability — the model is explaining itself, and
+              the explanation is logged.
+            </p>
+          </div>
+          <div class="card decision span-4">
+            <h3>How the supervisor stays inspectable</h3>
+            <p>
+              Closed enumeration of handoffs (model cannot invent actions). Required rationale field
+              (Zod-enforced, non-empty). Iteration cap of 10 with cap-hit forced synthesize. Every
+              iteration logs to LangSmith with state observed, chosen handoff, rationale, args, and
+              token usage. The full decision chain per turn is reconstructable post-hoc.
+            </p>
+          </div>
+          <div class="card decision span-4">
+            <h3>Why two graphs, not one</h3>
+            <p>
+              Producer-shaped work (extraction) and consumer-shaped work (answering) have different
+              latency, failure, and cost profiles. Forcing them into one runtime collides their
+              concerns. The same pipeline runs whether triggered by a panel upload, a front-desk
+              autosweep listener, or a CLI replay.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="ingestion">
+        <div class="section-head">
+          <p class="kicker">Slide 2 — multimodal ingestion</p>
+          <h2>Pipeline Plus Tiered Persistence</h2>
+          <p class="lead">
+            One pipeline. Three invokers. Idempotent on <code>(document_hash, extractor_version)</code>.
+            Three persistence tiers separate "the source document" from "facts that are clinically promoted."
+          </p>
+        </div>
+
+        <div class="system-diagram">
+          <div class="pipeline-flow">
+            <div class="pipeline-step">
+              <small>Step 1</small>
+              <strong>rasterize</strong>
+              <p style="font-size:0.83rem;color:var(--muted);margin:0.4rem 0 0;">PDF bytes → page PNGs uploaded to DO Spaces transient prefix with a single-call signed URL.</p>
+            </div>
+            <div class="pipeline-step">
+              <small>Step 2</small>
+              <strong>vision</strong>
+              <p style="font-size:0.83rem;color:var(--muted);margin:0.4rem 0 0;">Claude Sonnet 4.x with strict schema. Per-field bbox + page + quote + self-reported confidence.</p>
+            </div>
+            <div class="pipeline-step">
+              <small>Step 3</small>
+              <strong>schemaValidate</strong>
+              <p style="font-size:0.83rem;color:var(--muted);margin:0.4rem 0 0;">Zod with <code>.passthrough()</code>. Drops unknown fields; rejects missing required.</p>
+            </div>
+            <div class="pipeline-step">
+              <small>Step 4</small>
+              <strong>patientMatch</strong>
+              <p style="font-size:0.83rem;color:var(--muted);margin:0.4rem 0 0;">Compare extracted demographics against chart. Refuse on mismatch — wrong-patient document is a hard fail.</p>
+            </div>
+            <div class="pipeline-step">
+              <small>Step 5</small>
+              <strong>persist</strong>
+              <p style="font-size:0.83rem;color:var(--muted);margin:0.4rem 0 0;">Write Tier-1 DocumentReference + Tier-2 <code>extraction_artifacts</code> row at <code>pending_confirmation</code>.</p>
+            </div>
+            <div class="pipeline-step">
+              <small>Step 6</small>
+              <strong>emitDeltas</strong>
+              <p style="font-size:0.83rem;color:var(--muted);margin:0.4rem 0 0;">Diff extracted facts against chart state. Surface deltas for the UI to flag.</p>
+            </div>
+          </div>
+
+          <p class="col-title" style="margin-top:1.5rem;">Three invokers, one pipeline</p>
+          <div class="invokers">
+            <div class="invoker">
+              <strong>Conversational supervisor</strong>
+              <span>Path A — manual upload during a conversation. Supervisor's <code>kickoffExtraction</code> handoff awaits the pipeline; progress streams over SSE.</span>
+            </div>
+            <div class="invoker">
+              <strong>OpenEMR upload event</strong>
+              <span>Path B — front-desk autosweep. <code>DocumentUploadedEvent</code> listener invokes the same pipeline with a system-actor JWT. Phase-2 delivery.</span>
+            </div>
+            <div class="invoker">
+              <strong>CLI replay</strong>
+              <span>Debug, regression reproduction, eval re-runs. Same code path. Idempotency key prevents duplicate work.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 1.25rem;">
+          <div class="card new-card span-4">
+            <h3>Tier 1 — source document</h3>
+            <p>
+              <strong>Always lands in OpenEMR</strong> (no clinical risk). DocumentReference uuid + bytes
+              in DO Spaces under a per-patient prefix. Categorized so it shows up in OpenEMR's existing
+              document UI.
+            </p>
+          </div>
+          <div class="card new-card span-4">
+            <h3>Tier 2 — extraction artifacts</h3>
+            <p>
+              <strong>Land in agent Postgres at <code>pending_confirmation</code>.</strong>
+              Strict-schema JSON with bboxes. Cited by the synthesizer with
+              <code>source_type='extracted_document'</code>. Never auto-written to the chart.
+            </p>
+          </div>
+          <div class="card new-card span-4">
+            <h3>Tier 3 — chart records</h3>
+            <p>
+              <strong>Land in OpenEMR only on explicit clinician acceptance.</strong> Inline accept/reject
+              in the briefing. On accept: FHIR resources written via the new
+              <code>ObservationLabWriteService</code> (labs) or <code>lists</code>/<code>family_history</code>
+              rows (intake), each carrying <code>source_document_uuid</code>.
+            </p>
+          </div>
+
+          <div class="card decision span-6">
+            <h3>Why Spaces signed URLs, not inline base64</h3>
+            <p>
+              Avoids ~4/3× request inflation. ≤5-min TTL, single-call signing. Transient prefix has
+              a 24h lifecycle policy. The trade — Anthropic must reach the URL for the call's duration —
+              is bounded by the short TTL and the bucket's egress posture.
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why a confirmation gate, not auto-write</h3>
+            <p>
+              Wrong-extraction-into-the-chart is a real harm scenario. The gate keeps the canonical
+              record clean by default. The MVP demo shows the gate working — clinician reviews and
+              accepts — which is a stronger story than silent automated writes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="rag">
+        <div class="section-head">
+          <p class="kicker">Slide 3 — hybrid RAG &amp; the citation contract</p>
+          <h2>One Citation Shape, Three Source Types</h2>
+          <p class="lead">
+            Every retriever produces the same <code>SourceReference</code> shape. The verifier indexes
+            all three source types uniformly. The renderer's chip-click behavior dispatches on
+            <code>source_type</code> — bbox overlay, section snippet, or chart record link.
+          </p>
+        </div>
+
+        <div class="grid">
+          <div class="card span-7">
+            <h3>Unified <code>SourceReference</code> (Q6 / Q10)</h3>
+            <pre class="citation-shape"><span class="key">source_type</span>: <span class="lit">'chart' | 'extracted_document' | 'guideline'</span>
+<span class="key">source_id</span>:   <span class="str">"obs-uuid-…"</span>     <span class="com">// FHIR uuid / artifact id / chunk id</span>
+<span class="key">locator</span>: {
+  <span class="key">page</span>?:    <span class="lit">1</span>,           <span class="com">// extracted_document only</span>
+  <span class="key">bbox</span>?:    <span class="lit">[120,340,80,24]</span>, <span class="com">// extracted_document only</span>
+  <span class="key">section</span>?: <span class="str">"ADA-2024 §6.5"</span>,  <span class="com">// guideline only</span>
+  <span class="key">field</span>?:   <span class="str">"observation.value"</span>
+},
+<span class="key">quote</span>:      <span class="str">"7.8"</span>,
+<span class="key">confidence</span>?: <span class="lit">0.97</span>,         <span class="com">// vision-extracted only</span>
+<span class="key">meta</span>?: { … }                <span class="com">// per-source debug data</span></pre>
+            <p style="margin-top: 0.85rem;">
+              W1's <code>SourceReference</code> renames into this shape in one coordinated PHP/TS
+              migration. The contract test ensures both sides drift together or fail together.
+            </p>
+          </div>
+          <div class="card span-5">
+            <h3>RAG stack</h3>
+            <table class="table">
+              <tbody>
+                <tr><td>Vector store</td><td><strong>Pinecone</strong> serverless, hybrid sparse-dense index</td></tr>
+                <tr><td>Embedding</td><td>OpenAI <code>text-embedding-3-large</code> (3072d)</td></tr>
+                <tr><td>Sparse</td><td>BM25 vectors via <code>pinecone-text</code> in the same index</td></tr>
+                <tr><td>Fusion</td><td>Pinecone-native sparse-dense fusion → top-20</td></tr>
+                <tr><td>Rerank</td><td>Cohere <code>rerank-3</code> → top-3</td></tr>
+                <tr><td>MVP corpus</td><td>USPSTF only (public domain, no PHI in Pinecone)</td></tr>
+              </tbody>
+            </table>
+            <p style="margin-top: 0.6rem; font-size: 0.88rem;">
+              Sequence after MVP: ADA → ACC/AHA HTN → AGS Beers → CDC vaccines, then stop and
+              review evals. One source at a time, eval-validated between each.
+            </p>
+          </div>
+
+          <div class="card span-12">
+            <h3>Three source types — three click-through behaviors</h3>
+            <div class="source-types">
+              <div class="source-type chart">
+                <strong>chart</strong>
+                <span>FHIR resource uuid. Click → OpenEMR record page. <em>W1 carry-forward, unchanged.</em></span>
+              </div>
+              <div class="source-type doc">
+                <strong>extracted_document</strong>
+                <span>Artifact uuid + page + bbox. Click → side-by-side PDF.js pane, multi-page pre-scrolled, bbox highlighted.</span>
+              </div>
+              <div class="source-type guide">
+                <strong>guideline</strong>
+                <span>Corpus chunk id + section. Click → popover with chunk text, publication, year, link out.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card decision span-6">
+            <h3>Why one shape over three</h3>
+            <p>
+              The verifier resolves every claim against <code>source_id</code> against an indexed
+              source set — same accept-or-reject boundary regardless of type. The renderer dispatches
+              on <code>source_type</code> for chip behavior. A discriminated union of three shapes
+              would force a switch on every verification path. One shape keeps both layers symmetric.
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Why hybrid + rerank, not dense alone</h3>
+            <p>
+              Clinical guidelines have both narrative ("aspirin therapy is recommended for…") and
+              hard tabular markers (LOINC codes, drug names, dose ranges). Dense retrieval handles the
+              first; sparse handles the second. Rerank corrects the noise from each leg before the
+              top-3 reaches the synthesizer.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="evals">
+        <div class="section-head">
+          <p class="kicker">Slide 4 — eval gate</p>
+          <h2>50 Cases, Real Model, Boolean Rubrics</h2>
+          <p class="lead">
+            The PDF's hard gate: graders will inject a regression and confirm CI fails. Our gate runs
+            every PR against the real model — vision, embeddings, rerank, synthesizer — across 50
+            cases shaped by capability under test.
+          </p>
+        </div>
+
+        <div class="grid">
+          <div class="card span-12">
+            <h3>Case distribution by capability</h3>
+            <table class="table">
+              <thead>
+                <tr><th>Capability</th><th>Cases</th><th>What it pins</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Pipeline — lab PDF extraction</td><td>8</td><td>Schema valid, every fact has page+bbox+quote, idempotency on hash+version.</td></tr>
+                <tr><td>Pipeline — intake form extraction</td><td>8</td><td>Same + demographics-delta detection. 2 patient-mismatch refusals.</td></tr>
+                <tr><td>Pipeline — degraded inputs</td><td>6</td><td>Smudged, rotated, blank, unrelated, partial. Verifier rejects low-confidence; UI shows Gap chips.</td></tr>
+                <tr><td>Pipeline — adversarial</td><td>4</td><td>Wrong-patient, prompt-injection in scanned text, oversized doc ($1 cap), corrupted PDF.</td></tr>
+                <tr><td>Document-evidence retriever</td><td>4</td><td>Per-patient retrieval, top-k matches with bboxes preserved through verifier.</td></tr>
+                <tr><td>Guidelines retriever (RAG)</td><td>4</td><td>Hybrid sparse+dense+rerank: relevant query returns expected chunks; out-of-scope returns nothing.</td></tr>
+                <tr><td>Conversational graph — supervisor routing</td><td>6</td><td>Asserts the chosen handoff is in the closed enum, the rationale is non-empty, the iteration cap is never exceeded, and the chosen handoff is in the case's allowed set (plausibility, not a single correct answer).</td></tr>
+                <tr><td>Conversational graph — verification</td><td>4</td><td>Per-source_type verifier rules: fabricated bbox rejected, hallucinated guideline chunk rejected.</td></tr>
+                <tr><td>End-to-end — Mrs. Patel scenario</td><td>3</td><td>Chart + lab PDF + intake → briefing groups facts by source_type, citations present per claim.</td></tr>
+                <tr><td>End-to-end — refusal</td><td>3</td><td>Cross-patient leakage, hidden-data extraction (SSN), out-of-scope question — safe_refusal + no_phi_in_logs.</td></tr>
+                <tr><td><strong>Total</strong></td><td><strong>50</strong></td><td>5 boolean rubrics × every case = 250 assertions. Cross-cutting <code>no_phi_in_logs</code> applies to all.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card new-card span-4">
+            <h3>Real model in CI — the whole stack</h3>
+            <p>
+              All 50 cases run against the real vision LLM, real supervisor LLM (every iteration),
+              real embeddings, real Cohere rerank. Non-determinism is the thing being tested;
+              the gate validates the whole non-deterministic chain works under variance.
+            </p>
+          </div>
+          <div class="card new-card span-4">
+            <h3>Cost per PR</h3>
+            <p>
+              ~50 cases × ~$0.05–0.08 (vision + supervisor iterations dominate) = ~$2.50–4.00/PR.
+              CI hard cap at $5 prevents runaway loops. Latency 3–5 minutes parallelized —
+              inside the merge-gate window.
+            </p>
+          </div>
+          <div class="card new-card span-4">
+            <h3>Rubrics designed for non-determinism</h3>
+            <p>
+              <code>schema_valid</code> and <code>citation_present</code> are structural — survive
+              model variance cleanly. Supervisor-routing rubrics assert plausibility (chosen handoff
+              in case's allowed set) not exact-match. Iteration cap is the deterministic backstop:
+              cap-hit forced synthesize is itself eval-pinned.
+            </p>
+          </div>
+
+          <div class="card decision span-6">
+            <h3>Boolean, not LLM-as-judge</h3>
+            <p>
+              The PDF explicitly warns against LLM-as-judge without a clear rubric. Each rubric is a
+              pure function <code>(case, agent_output) → boolean</code>. Failures are actionable; no
+              ambiguity about "the judge said it's a 7."
+            </p>
+          </div>
+          <div class="card decision span-6">
+            <h3>Fixtures bake into the seeding pipeline</h3>
+            <p>
+              Same archetype + PRNG seed produces a chart and the documents that pair with it. Real
+              public-domain templates filled with archetype-derived data. Hand-authored regression
+              fixtures land alongside per the W1 "every bug becomes a permanent eval case" rule.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="decisions">
+        <div class="section-head">
+          <p class="kicker">Slide 5 — decisions and tradeoffs</p>
+          <h2>What We Chose, What We Rejected, And Why</h2>
+          <p class="lead">
+            The Q1–Q20 resolutions from <code>WEEK2-PRESEARCH.md</code> distilled to the
+            architecturally load-bearing choices.
+          </p>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr><th>Choice</th><th>Rejected alternative</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Two LangGraph apps (pipeline + conversation)</td>
+              <td>One graph, intake-extractor as a worker node</td>
+              <td>Producer-shaped and consumer-shaped work have different latency, failure, and cost profiles. Same pipeline runs from any of three invokers; conversation observes the result.</td>
+            </tr>
+            <tr>
+              <td>LLM supervisor + model-driven retrievers</td>
+              <td>Rule-based supervisor with deterministic fan-out</td>
+              <td>Non-determinism is the lesson the assignment tests. Closed-enum handoffs + Zod-enforced rationale + iteration cap + LangSmith instrumentation give stronger inspectability than hand-written rules — the model explains itself per decision, and the explanation is logged. Determinism is preserved only for safety (verifier, hard stops, pipeline, first chart fetch, cap-hit fallback).</td>
+            </tr>
+            <tr>
+              <td>Unified <code>SourceReference</code> with <code>source_type</code> discriminator</td>
+              <td>Three sibling types per source kind</td>
+              <td>Verifier indexes all three uniformly; renderer dispatches on <code>source_type</code>. One shape keeps verification and UI symmetric. Q10 folds into Q6.</td>
+            </tr>
+            <tr>
+              <td>Tiered persistence with confirmation gate</td>
+              <td>Auto-write derived facts to the chart</td>
+              <td>Wrong-extraction-into-the-chart is a harm scenario. Tier-3 promotion requires explicit clinician acceptance; the gate is the production stance.</td>
+            </tr>
+            <tr>
+              <td>Claude Sonnet 4.x for vision</td>
+              <td>Open-source VLM, GPT-4o, Gemini Pro</td>
+              <td>Same SDK + BAA as the W1 synthesizer. No new vendor for compliance review. Cost stays under the Q3 $1/doc cap with margin.</td>
+            </tr>
+            <tr>
+              <td>OpenAI <code>text-embedding-3-large</code> + Pinecone + Cohere <code>rerank-3</code></td>
+              <td><code>pgvector</code> on agent Postgres; Cohere for everything</td>
+              <td>Pinecone holds the reference corpus only (no PHI), removes <code>pgvector</code> 3072d index-tuning, gives a managed-vector-DB learning lever. Cohere stays in its purpose-built rerank role on top of Pinecone's top-20.</td>
+            </tr>
+            <tr>
+              <td>USPSTF only at MVP, then sequenced</td>
+              <td>Bulk-ingest 5+ guideline sources</td>
+              <td>"Small corpus" is a load-bearing PDF constraint. One source at a time, eval-validated between each, prevents retrieval noise from drowning the signal.</td>
+            </tr>
+            <tr>
+              <td>Real model in CI for all 50 cases</td>
+              <td>W1's stubbed-synthesizer pattern</td>
+              <td>Gate catches model-side regressions. Cost (~$2.50/PR) and latency (3–5min) are bounded; the structural rubrics survive model variance.</td>
+            </tr>
+            <tr>
+              <td>Signed URL + DO Spaces for vision payloads</td>
+              <td>Inline base64</td>
+              <td>Avoids ~4/3× request inflation. Short TTL + single-call signing + transient prefix bound the URL-reachable window.</td>
+            </tr>
+            <tr>
+              <td>W1 surface frozen during W2 sprint</td>
+              <td>Continued W1 follow-up development</td>
+              <td>The PDF's "best submissions feel narrower" rule. UC1 is the bridge; UC2/3/4.6.5/4.6.6/5 are regression-only. Post-W2 audit decides ongoing maintenance.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="grid" style="margin-top: 1.5rem;">
+          <div class="card decision span-12">
+            <h3>Defense summary</h3>
+            <p>
+              Week 2 deliberately feels narrower than the spec. Two graphs, three retriever handoffs,
+              one citation shape, one corpus, one vision model, real-model CI gating 50 cases. Every
+              expansion vector — more doc types, more guideline sources, the critic agent, autosweep —
+              has a slot in the architecture but ships post-MVP under explicit eval-driven discipline.
+              The PDF's load-bearing requirements (multimodal ingest with provenance, evidence
+              grounding, inspectable routing, eval-driven CI) are each satisfied by exactly one
+              architectural mechanism, not three competing ones.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Source documents: <code>docs/WEEK2-PRESEARCH.md</code>, <code>docs/PRESEARCH.md</code>,
+          <code>USERS.md</code>, <code>docs/IMPLEMENTATION_PLAN.md</code>. Open this file locally
+          for the Week 2 architecture presentation.
+        </p>
+      </footer>
+    </main>
+  </div>
+  <script>
+    const navLinks = Array.from(document.querySelectorAll('nav a[href^="#"]'));
+    const sections = navLinks
+      .map((link) => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+
+    const setActiveLink = (id) => {
+      navLinks.forEach((link) => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+      });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target?.id) setActiveLink(visible.target.id);
+    }, {
+      rootMargin: '-35% 0px -45% 0px',
+      threshold: [0.1, 0.25, 0.5, 0.75]
+    });
+
+    sections.forEach((section) => observer.observe(section));
+  </script>
+</body>
+</html>
