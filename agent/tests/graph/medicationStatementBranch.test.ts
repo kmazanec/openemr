@@ -22,12 +22,24 @@ const PATIENT_PID = 42;
 const PATIENT_RECORD_ID = '42';
 const LIST_ID = '95001';
 
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
 const sourceRef = (recordType: string, recordId: string) => ({
-    system: 'openemr',
-    recordType,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart' as const,
+    source_id: recordId,
+    locator: { field: FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record' },
+    quote: recordId,
 });
 
 const buildSnapshot = (): unknown => ({
@@ -71,7 +83,7 @@ const buildSnapshotClient = (snapshot: unknown): SnapshotClient => ({
     fetchSnapshot: vi.fn(() => Promise.resolve(snapshot)),
 });
 
-const followUpEnvelope = (listKey = `MedicationStatement:${LIST_ID}`): RequestEnvelope => ({
+const followUpEnvelope = (listKey = `medicationStatement.medication:${LIST_ID}`): RequestEnvelope => ({
     conversationId: 'c-1',
     requestId: 'r-1',
     siteId: 'default',

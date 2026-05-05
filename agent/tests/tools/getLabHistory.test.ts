@@ -21,7 +21,7 @@ const narrowResponse = {
             referenceRange: '4.0-5.6',
             abnormalFlag: 'H',
             observedAt: '2024-04-15',
-            source: { system: 'openemr', recordType: 'Observation', recordId: 'lab-1' },
+            source: { source_type: 'chart' as const, source_id: 'lab-1', locator: { field: 'observation.value' }, quote: 'lab-1' },
         },
         {
             analyte: 'Hemoglobin A1c',
@@ -30,7 +30,7 @@ const narrowResponse = {
             referenceRange: '4.0-5.6',
             abnormalFlag: 'H',
             observedAt: '2025-04-15',
-            source: { system: 'openemr', recordType: 'Observation', recordId: 'lab-2' },
+            source: { source_type: 'chart' as const, source_id: 'lab-2', locator: { field: 'observation.value' }, quote: 'lab-2' },
         },
     ],
 };

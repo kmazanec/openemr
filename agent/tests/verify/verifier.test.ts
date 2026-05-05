@@ -7,13 +7,32 @@ import {
 } from '../../src/verify/verifier.js';
 import type { BriefingSnapshot, Claim, ClaimLedger } from '../../src/graph/types.js';
 
-const sourceRef = (recordType: string, recordId: string, system = 'openemr') => ({
-    system,
-    recordType,
-    recordId,
-    field: null,
-    recordedAt: null,
-});
+// Maps the W1 FHIR resource type the existing test cases pass to the
+// W2 `locator.field` value the unified shape requires for `chart`
+// citations. Keeping the test signature W1-shaped lets each test case
+// stay readable even though the constructed SourceReference is W2.
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
+const sourceRef = (recordType: string, recordId: string, _system = 'openemr') => {
+    const field = FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record';
+    return {
+        source_type: 'chart' as const,
+        source_id: recordId,
+        locator: { field },
+        quote: recordId,
+    };
+};
 
 const baseSnapshot = (overrides: Partial<BriefingSnapshot> = {}): BriefingSnapshot => ({
     patient: {

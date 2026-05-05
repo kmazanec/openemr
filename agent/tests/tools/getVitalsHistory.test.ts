@@ -25,7 +25,7 @@ const narrowResponse = {
             heightInches: null,
             bmi: null,
             oxygenSaturation: null,
-            source: { system: 'openemr', recordType: 'Observation', recordId: 'vit-1' },
+            source: { source_type: 'chart' as const, source_id: 'vit-1', locator: { field: 'observation.value' }, quote: 'vit-1' },
         },
         {
             observedAt: '2026-04-15',
@@ -38,7 +38,7 @@ const narrowResponse = {
             heightInches: null,
             bmi: null,
             oxygenSaturation: null,
-            source: { system: 'openemr', recordType: 'Observation', recordId: 'vit-2' },
+            source: { source_type: 'chart' as const, source_id: 'vit-2', locator: { field: 'observation.value' }, quote: 'vit-2' },
         },
     ],
 };

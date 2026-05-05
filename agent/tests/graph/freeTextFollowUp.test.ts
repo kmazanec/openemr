@@ -32,12 +32,24 @@ const TOKEN = 'tok';
 const PATIENT_PID = 42;
 const PATIENT_RECORD_ID = '42';
 
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
 const sourceRef = (recordType: string, recordId: string) => ({
-    system: 'openemr',
-    recordType,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart' as const,
+    source_id: recordId,
+    locator: { field: FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record' },
+    quote: recordId,
 });
 
 const followUpEnvelope = (question: string): RequestEnvelope => ({
@@ -347,11 +359,11 @@ describe('§4.5 free-text follow-up — adversarial gate', () => {
         // of system, so a faithful encounter claim citing the
         // imported visit's `ee_id` resolves at the gate.
         const ccdaSourceRef = {
-            system: 'ccda-importer',
-            recordType: 'Encounter',
-            recordId: 'ext-7',
-            field: null,
-            recordedAt: '2026-04-22',
+            source_type: 'chart' as const,
+            source_id: 'ext-7',
+            locator: { field: 'encounter.date' },
+            quote: 'ext-7',
+            meta: { record_recorded_at: '2026-04-22' },
         };
         const snapshotWithExternal = {
             ...happyPathSnapshot,

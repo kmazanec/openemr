@@ -19,7 +19,7 @@ const narrowResponse = {
             startDate: '2020-01-01',
             stopDate: null,
             prescriber: 'Dr. Patel',
-            source: { system: 'openemr', recordType: 'MedicationRequest', recordId: 'rx-1' },
+            source: { source_type: 'chart' as const, source_id: 'rx-1', locator: { field: 'medication.name' }, quote: 'rx-1' },
         },
     ],
 };

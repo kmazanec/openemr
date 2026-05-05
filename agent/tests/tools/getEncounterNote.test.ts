@@ -22,9 +22,10 @@ const narrowResponse = {
             assessment: 'Hypertension — at goal on current regimen.',
             plan: 'Continue meds. Recheck BP in 3 months.',
             source: {
-                system: 'openemr',
-                recordType: 'DocumentReference',
-                recordId: '7',
+                source_type: 'chart',
+                source_id: '7',
+                locator: { field: 'documentReference.text' },
+                quote: 'note 7',
             },
         },
     ],

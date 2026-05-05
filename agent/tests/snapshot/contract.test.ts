@@ -113,9 +113,10 @@ describe('ChartSnapshot cross-language contract', () => {
                 ...decoded.encounters,
             ];
             for (const item of items) {
-                expect(item.source.system).not.toBe('');
-                expect(item.source.recordType).not.toBe('');
-                expect(item.source.recordId).not.toBe('');
+                expect(item.source.source_type).toBe('chart');
+                expect(item.source.source_id).not.toBe('');
+                expect(item.source.quote).not.toBe('');
+                expect(item.source.locator.field).toBeDefined();
             }
         }
     });

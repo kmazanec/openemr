@@ -15,7 +15,7 @@ const narrowResponse = {
             encounterDate: '2026-03-01',
             type: 'Office Visit',
             reason: 'Diabetes follow-up',
-            source: { system: 'openemr', recordType: 'Encounter', recordId: 'enc-1' },
+            source: { source_type: 'chart' as const, source_id: 'enc-1', locator: { field: 'encounter.date' }, quote: 'enc-1' },
         },
     ],
 };

@@ -13,16 +13,28 @@ import type {
     SourceReference,
 } from '../../src/snapshot/types.js';
 
+const FIELD_FOR_RECORD_TYPE: Record<string, string> = {
+    Patient: 'patient.name',
+    Appointment: 'appointment.start',
+    Condition: 'condition.code',
+    MedicationRequest: 'medication.name',
+    AllergyIntolerance: 'allergy.substance',
+    Observation: 'observation.value',
+    Encounter: 'encounter.date',
+    Task: 'task.description',
+    MedicationStatement: 'medicationStatement.medication',
+    DocumentReference: 'documentReference.text',
+};
+
 const sourceRef = (
     recordType: string,
     recordId: string,
     overrides: Partial<SourceReference> = {},
 ): SourceReference => ({
-    system: 'openemr',
-    recordType,
-    recordId,
-    field: null,
-    recordedAt: null,
+    source_type: 'chart',
+    source_id: recordId,
+    locator: { field: FIELD_FOR_RECORD_TYPE[recordType] ?? 'chart.record' },
+    quote: recordId,
     ...overrides,
 });
 
@@ -112,7 +124,13 @@ const externalEncounter = (recordId: string): Encounter => ({
     encounterDate: '2026-01-10',
     type: 'ED',
     reason: 'Chest pain',
-    source: sourceRef('Encounter', recordId, { system: 'ccda-importer' }),
+    // W2 dropped the `system` field; the W1 distinction between
+    // native and CCDA-imported encounters is not visible in the
+    // W2 SourceReference shape. The followUps suite still calls
+    // this builder for "external" encounters; the resulting test
+    // case becomes "any encounter" until a richer encounter origin
+    // marker lands in C-phase.
+    source: sourceRef('Encounter', recordId),
 });
 
 const verifiedFrom = (claims: readonly Claim[]): VerifiedLedger => ({
@@ -353,15 +371,16 @@ describe('generateFollowUps', () => {
         }
     });
 
-    it('parsePrescriptionKey round-trips a recordId containing a colon', () => {
-        // Today every recordType is colon-free, but a future external id
-        // (URN-style, FHIR canonical, etc.) could bring colons. `lastIndexOf`
-        // splits on the rightmost separator so the recordType stays whole.
-        const key = 'MedicationRequest:urn:uuid:abc-123';
+    it('parsePrescriptionKey round-trips a sourceId containing a colon', () => {
+        // Today every locator.field value is colon-free, but a future
+        // external id (URN-style, FHIR canonical, etc.) could bring
+        // colons. `lastIndexOf` splits on the rightmost separator so
+        // the locator-field stays whole.
+        const key = 'medication.name:urn:uuid:abc-123';
         const parsed = parsePrescriptionKey(key);
         expect(parsed).not.toBeNull();
-        expect(parsed?.recordType).toBe('MedicationRequest:urn:uuid');
-        expect(parsed?.recordId).toBe('abc-123');
+        expect(parsed?.locatorField).toBe('medication.name:urn:uuid');
+        expect(parsed?.sourceId).toBe('abc-123');
     });
 
     it('uses the appointment.startAt date as the medication-recency anchor when present', () => {
