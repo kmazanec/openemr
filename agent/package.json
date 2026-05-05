@@ -20,7 +20,10 @@
     "test:watch": "vitest",
     "evals:regenerate-fixtures": "tsx evals/fixtures/regenerate.ts",
     "evals:upload-dataset": "tsx --env-file-if-exists=.env evals/runners/cli.ts upload-dataset",
-    "evals:experiment": "tsx --env-file-if-exists=.env evals/runners/cli.ts experiment"
+    "evals:experiment": "tsx --env-file-if-exists=.env evals/runners/cli.ts experiment",
+    "corpus:fetch:uspstf": "tsx scripts/fetch-uspstf-corpus.ts",
+    "corpus:extract:uspstf": "tsx scripts/extract-uspstf-corpus.ts",
+    "evals:reindex-corpus": "tsx --env-file-if-exists=.env scripts/reindex-corpus.ts"
   },
   "dependencies": {
     "@hono/node-server": "1.19.7",
@@ -28,15 +31,21 @@
     "@langchain/core": "1.1.42",
     "@langchain/langgraph": "1.2.9",
     "@langchain/langgraph-checkpoint-postgres": "1.0.1",
+    "@pinecone-database/pinecone": "7.2.0",
+    "cheerio": "1.2.0",
+    "gray-matter": "4.0.3",
     "hono": "4.12.15",
     "jose": "5.10.0",
     "langsmith": "0.5.26",
+    "natural": "8.1.1",
+    "openai": "6.36.0",
     "pg": "8.20.0",
     "pino": "10.3.1",
     "zod": "4.4.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/natural": "5.1.5",
     "@types/node": "22.18.0",
     "@types/pg": "8.20.0",
     "eslint": "10.2.1",
