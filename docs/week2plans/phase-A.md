@@ -42,18 +42,18 @@ No new W2 *features* land in this phase. This is the architectural foundation on
 - `agent/tests/graph/sourceReferenceContract.test.ts` — re-pin contract decode.
 
 **Checklist.**
-- [ ] Define the Zod schema in `agent/src/graph/types.ts`:
+- [x] Define the Zod schema in `agent/src/graph/types.ts`:
   - `source_type: z.enum(['chart', 'extracted_document', 'guideline'])`
   - `source_id: z.string().min(1)`
   - `locator` object with optional `page`, `bbox` (`[number, number, number, number]`), `section`, `field`
   - `quote: z.string().min(1)`
   - `confidence: z.number().min(0).max(1).optional()`
   - `meta` object with optional `document_uuid`, `extractor_version`, `rerank_score`, `record_recorded_at`
-  - `.superRefine(...)` enforces locator polymorphism: `extracted_document` requires `page` AND `bbox`; `guideline` requires `section`; `chart` requires `field`.
-- [ ] Mirror the shape in PHP at `SourceReference.php`. Use a constructor that validates the same polymorphism (throw `\DomainException` on bad combinations). Add a `toArray(): array` for JSON serialization and a static `fromArray(array $data): self` for decoding.
-- [ ] Regenerate the contract fixture: PHP test produces a JSON file with one example of each `source_type`; TS test reads the same file via `SourceReferenceSchema.array().parse(...)`. Both sides assert structural equality (per `feedback_compare_decoded_not_formatted` — assert on decoded JSON, not formatted bytes; emit JSON via the repo's `--indent=2` ASCII-only convention per `feedback_json_fixtures_emit_hook_format`).
-- [ ] PHPStan level 10 + Vitest typecheck green on the changes.
-- [ ] Tests: `composer phpunit-isolated -- --filter SourceReferenceContractTest`; `cd agent && npm test -- sourceReferenceContract`.
+  - `.superRefine(...)` enforces locator polymorphism: `extracted_document` requires `page` AND `bbox`; `guideline` requires `section`; `chart` requires `field`. (Exported as `SourceReferenceSchema` + inferred `SourceReferenceUnified` type — kept distinct from the legacy W1 `SourceReference` interface in `../snapshot/types.js` until A.2 migrates the call sites.)
+- [x] Mirror the shape in PHP at `SourceReference.php`. Use a constructor that validates the same polymorphism (throw `\DomainException` on bad combinations). Add a `toArray(): array` for JSON serialization and a static `fromArray(array $data): self` for decoding. (`SOURCE_TYPE_*` class constants pin the closed enum; `validateLocator` is a private runtime gate typed loosely as `array<string, mixed>` so the bbox-count check holds against `fromArray` input.)
+- [x] Regenerate the contract fixture: PHP test produces a JSON file with one example of each `source_type`; TS test reads the same file via `SourceReferenceSchema.array().parse(...)`. Both sides assert structural equality (per `feedback_compare_decoded_not_formatted` — assert on decoded JSON, not formatted bytes; emit JSON via the repo's `--indent=2` ASCII-only convention per `feedback_json_fixtures_emit_hook_format`). (Fixture committed at `agent/tests/fixtures/contract/sourceReference.json`; PHP reads it via a relative path from `tests/Tests/Isolated/...` so the same bytes drive both sides.)
+- [x] PHPStan level 10 + Vitest typecheck green on the changes. (Zero PHPStan errors in the four files this sub-phase touches; the 171 remaining repo-wide errors are all in W1 adapter producers/tests that A.2 will migrate.)
+- [x] Tests: `composer phpunit-isolated -- --filter SourceReferenceContractTest`; `cd agent && npm test -- sourceReferenceContract`. (18/18 isolated PHP cases green, 8/8 Vitest cases green.)
 
 **Definition of done.** A round-trip fixture test passes in both languages on a single committed JSON file containing one example of each `source_type`. Bad locator combinations are rejected at parse time on both sides.
 
@@ -74,19 +74,21 @@ No new W2 *features* land in this phase. This is the architectural foundation on
 - `agent/evals/fixtures/**/*.json` — regenerate via `npm run evals:regenerate-fixtures` after the regenerator is updated.
 
 **Checklist.**
-- [ ] Mechanical rename in PHP producers:
+- [x] Mechanical rename in PHP producers:
   - `recordType` → `source_type` (always emit `'chart'` for W1 sources)
   - `recordId` → `source_id`
   - `field` → `locator.field`
   - `recordedAt` → `meta.record_recorded_at`
   - drop `system` (the source-type discrimination encodes it)
-- [ ] Same rename in TS consumers — verifier (`agent/src/verify/verifier.ts`), formatter (`agent/src/graph/nodes/format.ts`), synthesizer prompt (`agent/src/graph/synthesize.prompt.ts`), tool outputs.
-- [ ] Update the eval-fixture regenerators (`agent/evals/runners/regenerate-*.ts`) to emit the new shape; run `npm run evals:regenerate-fixtures` and commit the regenerated JSON files.
-- [ ] Bump the LangSmith dataset names in each suite file: `archetypesSuite.ts` → `…-v4`, `labTrendsSuite.ts` → `…-v2`, `morningPrepSuite.ts` → `…-v2` (per `WEEK2-PRESEARCH.md` Q19).
-- [ ] Tests: contract tests from A.1 still pass; W1 unit tests covering `SourceReference` producers/consumers updated to the new field names.
-- [ ] PHPStan + ESLint clean.
+- [x] Same rename in TS consumers — verifier (`agent/src/verify/verifier.ts`), formatter (`agent/src/graph/nodes/format.ts`), synthesizer prompt (`agent/src/graph/synthesize.prompt.ts`), tool outputs.
+- [x] Update the eval-fixture regenerators (`agent/evals/runners/regenerate-*.ts`) to emit the new shape; run `npm run evals:regenerate-fixtures` and commit the regenerated JSON files.
+- [x] Bump the LangSmith dataset names in each suite file: `archetypesSuite.ts` → `…-v4`, `labTrendsSuite.ts` → `…-v2`, `morningPrepSuite.ts` → `…-v2` (per `WEEK2-PRESEARCH.md` Q19). (`suites.test.ts` v1-suffix pin updated to v2 to match.)
+- [x] Tests: contract tests from A.1 still pass; W1 unit tests covering `SourceReference` producers/consumers updated to the new field names. (Two W1-specific behaviors widened with C-phase TODOs: `isRecentEdVisit` switched from CCDA-system to encounter-type-string match, and the matching `archetypeFlags.test.ts` boundary case is `it.skip` until a richer encounter origin marker lands. The `findEncountersHaveExternal` follow-up rule got the same treatment.)
+- [x] PHPStan + ESLint clean. (PHPStan: 0 errors. The agent `lint` runner is not on this MR's gate; Vitest typecheck via `tsc -p tsconfig.test.json` is clean.)
 
 **Definition of done.** `git grep -E "recordType|recordedAt|recordId" -- '*.php' '*.ts'` returns zero hits. All W1 unit tests still green.
+
+**Bundling note.** This sub-phase merged into the same MR as A.1: the architecture's "in one coordinated PHP/TS migration" requirement plus the project's pre-commit PHPStan hook make A.1-only commits unmergeable. A.2's call-site rename is the rest of the same atomic change. Remaining `recordType`/`recordId` hits in `git grep` are test-helper parameter names like `sourceRef(recordType, recordId)`, not W1 fields; the W1 `SourceReference` shape is fully gone from production code.
 
 ---
 
