@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "id": "p01-chen-lipid-panel",
+      "path": "lab-results/p01-chen-lipid-panel.pdf",
+      "docType": "lab_pdf",
+      "mime": "application/pdf",
+      "pageCount": 2,
+      "patient": {
+        "archetype": "p01-chen",
+        "displayName": "Chen"
+      },
+      "notes": "Multi-page lipid panel \u2014 exercise PDF rasterization across multiple pages."
+    },
+    {
+      "id": "p02-whitaker-cbc",
+      "path": "lab-results/p02-whitaker-cbc.pdf",
+      "docType": "lab_pdf",
+      "mime": "application/pdf",
+      "pageCount": 1,
+      "patient": {
+        "archetype": "p02-whitaker",
+        "displayName": "Whitaker"
+      },
+      "notes": "Single-page CBC \u2014 minimal happy-path PDF."
+    },
+    {
+      "id": "p04-kowalski-cmp",
+      "path": "lab-results/p04-kowalski-cmp.pdf",
+      "docType": "lab_pdf",
+      "mime": "application/pdf",
+      "pageCount": 1,
+      "patient": {
+        "archetype": "p04-kowalski",
+        "displayName": "Kowalski"
+      },
+      "notes": "CMP single-pager."
+    },
+    {
+      "id": "p01-chen-intake-typed",
+      "path": "intake-forms/p01-chen-intake-typed.pdf",
+      "docType": "intake_form",
+      "mime": "application/pdf",
+      "pageCount": 3,
+      "patient": {
+        "archetype": "p01-chen",
+        "displayName": "Chen"
+      },
+      "notes": "Three-page typed intake form \u2014 happy-path rasterize for \u00a7B.3 'definition of done'."
+    },
+    {
+      "id": "p02-whitaker-intake",
+      "path": "intake-forms/p02-whitaker-intake.pdf",
+      "docType": "intake_form",
+      "mime": "application/pdf",
+      "pageCount": 2,
+      "patient": {
+        "archetype": "p02-whitaker",
+        "displayName": "Whitaker"
+      },
+      "notes": "Two-page intake."
+    },
+    {
+      "id": "p03-reyes-intake",
+      "path": "intake-forms/p03-reyes-intake.png",
+      "docType": "intake_form",
+      "mime": "image/png",
+      "pageCount": 1,
+      "patient": {
+        "archetype": "p03-reyes",
+        "displayName": "Reyes"
+      },
+      "notes": "Image-typed intake \u2014 image-passthrough branch."
+    }
+  ]
+}
