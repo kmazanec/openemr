@@ -43,6 +43,9 @@ curl http://localhost:8080/health
 | `npm run lint:fix`     | ESLint with `--fix`                                        |
 | `npm run format`       | Prettier `--write` over the agent dir                      |
 | `npm run format:check` | Prettier `--check`                                         |
+| `npm run corpus:fetch:uspstf`   | Download every published USPSTF recommendation to `agent/.corpus-cache/uspstf/` (gitignored). Idempotent on `content_sha256`; honors `Crawl-delay: 5`. |
+| `npm run corpus:extract:uspstf` | Parse cached HTML into committed chunk files under `agent/data/corpus/uspstf/`; refreshes `fetch-manifest.json` and `index.json`.                     |
+| `npm run evals:reindex-corpus`  | Embed every chunk under `agent/data/corpus/<source>/` and upsert to Pinecone (namespace `guidelines-v1`). No-ops with a warning when corpus env vars are missing.        |
 
 ## Environment variables
 
@@ -64,6 +67,19 @@ Required for the LLM/observability path (Phase 3+):
 - `LANGSMITH_TAG_SALT` — HMAC salt for hashing principal/patient
   identifiers into trace tags so the LangSmith UI stays PHI-free
   (§6.1).
+
+Required for the guideline-corpus path (`evals:reindex-corpus`,
+`evidenceRetriever`):
+
+- `OPENAI_API_KEY` — embeddings via `text-embedding-3-large` (3072d).
+- `PINECONE_API_KEY`, `PINECONE_INDEX_NAME` — target hybrid (sparse +
+  dense) index. Create one serverless hybrid index in your Pinecone
+  account with dimension `3072`, metric `dotproduct` (required for
+  hybrid sparse-dense). Set `PINECONE_INDEX_NAME` to its name.
+- `PINECONE_NAMESPACE` — defaults to `guidelines-v1`. Bump the
+  namespace (e.g. `guidelines-v2`) before adding a new corpus version
+  so old experiments stay comparable.
+- `COHERE_API_KEY` — `rerank-3` reranker over Pinecone's top-20.
 
 In addition, the service requires:
 
@@ -134,6 +150,49 @@ entry in `suites.ts`. The CLI picks it up automatically.
 Headline result counts and the per-suite breakdown live in
 [`docs/EVAL_RESULTS.md`](../docs/EVAL_RESULTS.md), refreshed each
 submission.
+
+## Guideline corpus
+
+Three scripts, run in order. The first two produce committed source of
+truth; the third indexes it into Pinecone for runtime retrieval by the
+`evidenceRetriever` graph node (§C.3).
+
+```sh
+# 1. Fetch every published USPSTF recommendation HTML into the local
+#    gitignored cache. Honors the publisher's robots.txt Crawl-delay: 5.
+#    Re-runs are conditional on content_sha256, so the second run is
+#    nearly free.
+npm run corpus:fetch:uspstf
+
+# 2. Parse cached HTML into one markdown chunk per (recommendation,
+#    section) under agent/data/corpus/uspstf/. Refreshes fetch-manifest.json
+#    and index.json. Body text is verbatim from the publisher's DOM —
+#    selectors that fail emit warnings, never invent content. Commit the
+#    diff.
+npm run corpus:extract:uspstf
+
+# 3. Embed every chunk and upsert to Pinecone (namespace guidelines-v1).
+#    Required env: OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME.
+#    No-ops with a warning when any are missing. Re-runnable; chunk IDs
+#    are stable so it upserts in place rather than appending.
+npm run evals:reindex-corpus
+```
+
+Step 3 is what populates Pinecone. Run it once after the index is
+provisioned, and again whenever steps 1–2 produce a chunk diff or the
+namespace is wiped. CI does **not** reindex — the assumption is that
+the namespace already holds the corpus before retrieval-eval cases run.
+
+The fetch + extract pipeline is source-agnostic by convention: future
+publishers (ADA, ACC/AHA, etc.) plug in by adding a new
+`agent/scripts/fetch-<source>-corpus.ts` + `extract-<source>-corpus.ts`
+pair plus a new `agent/data/corpus/<source>/` directory. The reindex
+script iterates `agent/data/corpus/*/index.json` automatically.
+
+Provenance per chunk: `fetched_at` + `content_sha256` are threaded
+through the YAML frontmatter, the per-source `index.json`, and the
+Pinecone vector metadata. Every retrieved citation traces back to the
+exact publisher fetch that produced it.
 
 ## Authentication
 
