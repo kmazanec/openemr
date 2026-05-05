@@ -282,9 +282,14 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         // W2 §"Conversational graph": loadState/planContext are no
         // longer graph nodes. The runner-side seed validates the task
         // (defense-in-depth against an unknown-task envelope reaching
-        // the graph) and produces the BriefingState slot map the
-        // graph invokes against.
-        const initialState = prepareBriefingState({ envelope: canonicalEnvelope });
+        // the graph), projects `conversation_messages` into the §A.5
+        // `priorTurnContext` slot, and produces the BriefingState
+        // slot map the graph invokes against.
+        const initialState = await prepareBriefingState({
+            envelope: canonicalEnvelope,
+            conversationMessages: deps.conversationMessages,
+            logger,
+        });
         // Emit `meta` first so the panel adopts the canonical
         // conversationId before any progress paints.
         await emit({
