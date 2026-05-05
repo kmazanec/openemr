@@ -8,6 +8,7 @@ import {
     DATASET_NAME as ARCHETYPES_DATASET_NAME,
     uploadDataset as uploadArchetypesDataset,
 } from './archetypesSuite.js';
+import { DATASET_NAME as LAB_TRENDS_DATASET_NAME } from './labTrendsSuite.js';
 import {
     DATASET_NAME as MORNING_PREP_DATASET_NAME,
     uploadDataset as uploadMorningPrepDataset,
@@ -38,6 +39,14 @@ const stubClient = (overrides: Partial<Client>): Client =>
     }) as unknown as Client;
 
 describe('archetypesSuite.uploadDataset', () => {
+    it('uses a v4 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // The bump-on-shape-change rule lives in the suite module's
+        // docblock; pinning the suffix here means a future shape change
+        // is forced through a name change rather than silent reuse.
+        // Bumped to -v4 with the W2 unified `SourceReference` shape.
+        expect(ARCHETYPES_DATASET_NAME.endsWith('-v4')).toBe(true);
+    });
+
     it('skips when LANGSMITH_API_KEY is unset', async () => {
         const result = await uploadArchetypesDataset({ apiKey: '' });
         expect(result.created).toBe(false);
@@ -133,5 +142,16 @@ describe('morningPrepSuite.uploadDataset', () => {
         expect(flagged).toHaveLength(8);
         expect(result.created).toBe(true);
         expect(result.exampleCount).toBe(20);
+    });
+});
+
+describe('labTrendsSuite', () => {
+    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // Lab-trends shares the uploader skeleton with archetypes (the
+        // module docblock above explains why the success-path tests
+        // aren't duplicated here). The version-suffix pin still lives
+        // here so the schema-bump contract is enforced for every suite.
+        // Bumped to -v2 with the W2 unified `SourceReference` shape.
+        expect(LAB_TRENDS_DATASET_NAME.endsWith('-v2')).toBe(true);
     });
 });
