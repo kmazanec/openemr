@@ -9,9 +9,11 @@ import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
     DocumentEvidenceArgsSchema,
+    EvidenceArgsSchema,
     RETRIEVE_CHART_CATEGORIES,
     SupervisorDecisionSchema,
     type DocumentEvidenceArgs,
+    type EvidenceArgs,
     type RetrieveChartArgs,
     type SupervisorDecision,
     type SupervisorHandoff,
@@ -269,6 +271,27 @@ const narrowDocumentEvidenceArgs = (
     return DocumentEvidenceArgsSchema.parse(args);
 };
 
+/**
+ * §C.3 narrow `evidenceRetriever`'s loose args into the typed
+ * {@link EvidenceArgs} shape via {@link EvidenceArgsSchema}. Defaults
+ * (`top_k: 3`) bind here so the node sees a fully-populated value.
+ *
+ * Throws on missing args, missing `query`, out-of-range `top_k`, or an
+ * empty `source_filter`. Same contract as `narrowDocumentEvidenceArgs`
+ * — the runner surfaces a typed error rather than letting the graph
+ * route on a malformed payload.
+ */
+const narrowEvidenceArgs = (
+    args: Record<string, unknown> | undefined,
+): EvidenceArgs => {
+    if (args === undefined) {
+        throw new Error(
+            'supervisor: evidenceRetriever handoff requires args: { query, ... }',
+        );
+    }
+    return EvidenceArgsSchema.parse(args);
+};
+
 const sameDecisionAsPrevious = (
     previous: SupervisorDecision | null,
     current: SupervisorDecision,
@@ -354,6 +377,7 @@ export const createSupervisor = (
         // args from the envelope (deterministic branches).
         let retrieveChartArgs: RetrieveChartArgs | undefined;
         let documentEvidenceArgs: DocumentEvidenceArgs | undefined;
+        let evidenceRetrieverArgs: EvidenceArgs | undefined;
         if (decision.handoff === 'retrieveChart') {
             // First call is deterministic and ignores args; the
             // architecture allows the supervisor to hand off without
@@ -364,6 +388,8 @@ export const createSupervisor = (
             }
         } else if (decision.handoff === 'documentEvidenceRetriever') {
             documentEvidenceArgs = narrowDocumentEvidenceArgs(decision.args);
+        } else if (decision.handoff === 'evidenceRetriever') {
+            evidenceRetrieverArgs = narrowEvidenceArgs(decision.args);
         }
 
         // Cycle detection. Re-picking the same handoff with the same
@@ -429,6 +455,7 @@ export const createSupervisor = (
             ],
             ...(retrieveChartArgs !== undefined ? { retrieveChartArgs } : {}),
             ...(documentEvidenceArgs !== undefined ? { documentEvidenceArgs } : {}),
+            ...(evidenceRetrieverArgs !== undefined ? { evidenceRetrieverArgs } : {}),
         };
     };
 

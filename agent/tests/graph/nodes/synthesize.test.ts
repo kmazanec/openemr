@@ -108,7 +108,7 @@ describe('createSynthesize', () => {
             envelope,
             snapshot,
             priorTurnContext: { turns: [] },
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, evidenceRetrieverArgs: null, evidenceRetrieverOutput: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
         });
 
         expect(synth).toHaveBeenCalledTimes(1);
@@ -124,7 +124,7 @@ describe('createSynthesize', () => {
                 envelope,
                 snapshot: null,
                 priorTurnContext: { turns: [] },
-                draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
+                draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, evidenceRetrieverArgs: null, evidenceRetrieverOutput: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
             }),
         ).rejects.toThrow(/snapshot/i);
     });
@@ -148,7 +148,7 @@ describe('createSynthesize', () => {
             envelope,
             snapshot,
             priorTurnContext: { turns: [] },
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, evidenceRetrieverArgs: null, evidenceRetrieverOutput: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
         });
 
         const snap = counters.snapshot();
@@ -168,7 +168,7 @@ describe('createSynthesize', () => {
             envelope,
             snapshot,
             priorTurnContext: { turns: [] },
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, evidenceRetrieverArgs: null, evidenceRetrieverOutput: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
         });
 
         const snap = counters.snapshot();
@@ -205,7 +205,7 @@ describe('createSynthesize', () => {
             envelope,
             snapshot,
             priorTurnContext,
-            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
+            draft: null, claimLedger: null, verified: null, formatted: null, persisted: null, retrieveChartCallCount: 0, retrieveChartArgs: null, documentEvidenceArgs: null, documentEvidenceSnippets: null, evidenceRetrieverArgs: null, evidenceRetrieverOutput: null, supervisorIterations: 0, supervisorDecisionHistory: [], capHit: false,
         });
 
         expect(synth).toHaveBeenCalledTimes(1);
