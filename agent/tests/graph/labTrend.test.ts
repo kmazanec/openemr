@@ -112,6 +112,9 @@ const stateFor = (envelope: RequestEnvelope): BriefingState => ({
     persisted: null,
     retrieveChartCallCount: 0,
     retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
 });
 
 describe('Retrieve — UC2 lab_trend fan-out', () => {

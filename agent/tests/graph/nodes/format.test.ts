@@ -135,6 +135,9 @@ const baseState = (
     persisted: null,
     retrieveChartCallCount: 0,
     retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
 });
 
 describe('format', () => {
@@ -275,6 +278,9 @@ describe('format', () => {
                 persisted: null,
                 retrieveChartCallCount: 0,
                 retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
             }),
         ).rejects.toThrow(/verify/i);
     });
@@ -292,6 +298,9 @@ describe('format', () => {
                 persisted: null,
                 retrieveChartCallCount: 0,
                 retrieveChartArgs: null,
+    supervisorIterations: 0,
+    supervisorDecisionHistory: [],
+    capHit: false,
             }),
         ).rejects.toThrow(/draft|synthesi/i);
     });
