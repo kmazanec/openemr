@@ -25,6 +25,7 @@ import {
     startedEvent,
 } from './briefingProgress.js';
 import { eventsForBriefing, type BriefingStreamEvent, type ProgressStage } from './briefingStream.js';
+import { prepareBriefingState } from './prepareBriefingState.js';
 
 /**
  * Per-request entry point that runs the briefing graph and produces the
@@ -278,6 +279,12 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             clinicianId: envelope.actor.userId,
             patientId: envelope.patient.uuid,
         });
+        // W2 §"Conversational graph": loadState/planContext are no
+        // longer graph nodes. The runner-side seed validates the task
+        // (defense-in-depth against an unknown-task envelope reaching
+        // the graph) and produces the BriefingState slot map the
+        // graph invokes against.
+        const initialState = prepareBriefingState({ envelope: canonicalEnvelope });
         // Emit `meta` first so the panel adopts the canonical
         // conversationId before any progress paints.
         await emit({
@@ -286,10 +293,8 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             requestId: canonicalEnvelope.requestId,
             siteId: canonicalEnvelope.siteId,
         });
-        // Open the first user-visible stage immediately. The graph's
-        // first user-visible node is `retrieve`; opening it before the
-        // stream yields its first chunk keeps the panel from flashing
-        // empty progress while loadState/planContext run.
+        // Open the first user-visible stage immediately so the panel
+        // shows progress as soon as the stream starts.
         await emit(startedEvent('retrieve'));
         let openStage: ProgressStage | null = 'retrieve';
 
@@ -299,7 +304,7 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         // the easiest way to recover the terminal state without
         // re-running the graph.
         const stream = await graph.stream(
-            { envelope: canonicalEnvelope },
+            initialState,
             {
                 configurable: { thread_id: conversationId },
                 tags: [`clinician:${tags.clinicianHash}`, `patient:${tags.patientHash}`],

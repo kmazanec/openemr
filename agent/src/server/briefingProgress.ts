@@ -3,13 +3,13 @@ import type { BriefingStreamEvent, ProgressStage } from './briefingStream.js';
 /**
  * User-visible progress stages, in the order they fire during a turn.
  *
- * The LangGraph DAG has more nodes than this list (`loadState`,
- * `planContext`, `persist`) but those run sub-millisecond and don't
- * benefit a clinician watching the panel — they'd flash and vanish.
- * Mapping the user-visible stages to one or more graph nodes lets the
- * UC2/UC3/UC4 follow-up branches (`prescriptionChangeBranch`,
- * `reminderBranch`, `medicationStatementBranch`) all surface as
- * "Composing briefing" without the renderer caring which branch ran.
+ * The LangGraph DAG has one more node than this list (`persist`) but
+ * it runs sub-millisecond and doesn't benefit a clinician watching the
+ * panel — it'd flash and vanish. Mapping the user-visible stages to
+ * one or more graph nodes lets the UC2/UC3/UC4 follow-up branches
+ * (`prescriptionChangeBranch`, `reminderBranch`,
+ * `medicationStatementBranch`) all surface as "Composing briefing"
+ * without the renderer caring which branch ran.
  *
  * Labels are owned by the server so adding a new stage is a one-file
  * change (here) instead of a paired backend+frontend update.
@@ -30,7 +30,8 @@ export const STAGE_LABELS: Readonly<Record<ProgressStage, string>> = {
 
 /**
  * Map a LangGraph node name to the user-visible stage it belongs to,
- * or `null` if the node is plumbing (loadState/planContext/persist).
+ * or `null` if the node is plumbing (only `persist` after W2's runner
+ * hoist).
  *
  * The four "Composing briefing" branches (the default `synthesize`
  * node plus the three §4.x deterministic branches) collapse to one
