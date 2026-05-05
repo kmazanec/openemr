@@ -33,7 +33,7 @@ import {
 export const DATASET_NAME = 'clinical-copilot-uc5-morning-prep-v2';
 
 const DATASET_DESCRIPTION =
-    'UC5 (schedule-aware morning prep) — one example per slot in the synthetic 20-patient day fixture. Inputs are the slot snapshot + appointment metadata; outputs encode the expected `archetypeFlags` deriveArchetypeFlags() should produce for that slot (e.g. `archetype:diabetic_uncontrolled`). The flagged subset is 8 of 20 (3 diabetic_uncontrolled, 3 complex_elderly_new_med, 2 recent_ed_visit). Bumping the example shape means renaming this constant to `…-v2`; old experiments stay comparable.';
+    'UC5 (schedule-aware morning prep) — one example per slot in the synthetic 20-patient day fixture. Inputs are the slot snapshot + appointment metadata; outputs encode the expected `archetypeFlags` deriveArchetypeFlags() should produce for that slot (e.g. `archetype:diabetic_uncontrolled`). The flagged subset is 8 of 20 (3 diabetic_uncontrolled, 3 complex_elderly_new_med, 2 recent_ed_visit). Bumped to -v2 with the W2 unified `SourceReference` shape (`source_type`/`source_id`/`locator` discriminated union); old experiments stay comparable.';
 
 interface MorningPrepInputs {
     readonly snapshot: BriefingSnapshot;

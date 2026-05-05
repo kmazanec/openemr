@@ -32,7 +32,7 @@ import {
 export const DATASET_NAME = 'clinical-copilot-uc2-trend-v2';
 
 const DATASET_DESCRIPTION =
-    'UC2 (lab/vitals trend) — one fixture per trend scenario (a1c_trend_up, a1c_trend_stable, no_lab_history). Inputs are the BriefingSnapshot whose `labHistory` slot is populated; outputs encode the expected verifier verdict (passes/redacts/no-claims) for the canonical faithful-model response shape.';
+    'UC2 (lab/vitals trend) — one fixture per trend scenario (a1c_trend_up, a1c_trend_stable, no_lab_history). Inputs are the BriefingSnapshot whose `labHistory` slot is populated; outputs encode the expected verifier verdict (passes/redacts/no-claims) for the canonical faithful-model response shape. Bumped to -v2 with the W2 unified `SourceReference` shape (`source_type`/`source_id`/`locator` discriminated union); the lab observations still cite `source_type: "chart"`.';
 
 interface LabTrendOutputs {
     readonly trendDirection: 'up' | 'stable' | 'none';

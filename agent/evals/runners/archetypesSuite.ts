@@ -28,7 +28,7 @@ import {
 export const DATASET_NAME = 'clinical-copilot-uc1-golden-v4';
 
 const DATASET_DESCRIPTION =
-    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, prescription names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions, overdue reminder items, patient-reported medication names) the verifier must surface. v3 (Phase 4.6) renames the medications → prescriptions split (FHIR MedicationRequest), adds reminders + medicationStatements (FHIR Task / MedicationStatement) as first-class snapshot fields, and extends ground truth with `overdueReminderItems` and `medicationStatementNames`.';
+    'UC1 default pre-visit briefing — one canonical ChartSnapshot per archetype declared in PatientArchetype.php. Inputs are the snapshot; outputs encode archetype-pinned ground truth (diagnosis codes, prescription names, ccda-importer encounter ids the §4.1 follow-up generator should surface as external_care suggestions, overdue reminder items, patient-reported medication names) the verifier must surface. v4 (W2 phase A) re-baselines under the unified `SourceReference` shape (`source_type`/`source_id`/`locator` discriminated union) so dataset rows pin the W2 citation contract; archetype fixtures still emit `source_type: "chart"` exclusively, but the upload + experiment shape is now stable for B/C to extend with `extracted_document` and `guideline` sources.';
 
 interface ArchetypeOutputs {
     readonly diagnosisCodes: readonly string[];
