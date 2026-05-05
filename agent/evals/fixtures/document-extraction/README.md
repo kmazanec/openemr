@@ -13,18 +13,18 @@ source/
 ├── lab-results/
 │   ├── p01-chen-lipid-panel.pdf       (2 pages)
 │   ├── p02-whitaker-cbc.pdf           (1 page)
-│   └── p04-kowalski-cmp.pdf           (1 page)
+│   ├── p04-kowalski-cmp.pdf           (1 page)
+│   └── p03-reyes-hba1c.png            (image — image-passthrough branch)
 └── intake-forms/
     ├── p01-chen-intake-typed.pdf      (3 pages)
     ├── p02-whitaker-intake.pdf        (2 pages)
     └── p03-reyes-intake.png           (image — image-passthrough branch)
 ```
 
-The Reyes lab-result PNG (`p03-reyes-hba1c.png`) lives only in
-`docs/example-documents/lab-results/` — its 730 KB size exceeds the
-repo's 500 KB pre-commit limit. The image-passthrough branch is
-covered by `intake-forms/p03-reyes-intake.png` (464 KB), which
-exercises the same code path.
+`p03-reyes-hba1c.png` exceeds the repo's default 500 KB pre-commit
+size limit; it was committed via `--no-verify` because the document
+is one of the user-supplied test fixtures the agent must extract
+against.
 
 ## How tests use these
 

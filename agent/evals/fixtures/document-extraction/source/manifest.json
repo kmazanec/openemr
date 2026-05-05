@@ -38,6 +38,18 @@
       "notes": "CMP single-pager."
     },
     {
+      "id": "p03-reyes-hba1c",
+      "path": "lab-results/p03-reyes-hba1c.png",
+      "docType": "lab_pdf",
+      "mime": "image/png",
+      "pageCount": 1,
+      "patient": {
+        "archetype": "p03-reyes",
+        "displayName": "Reyes"
+      },
+      "notes": "Image-typed lab result — exercises the rasterize image-passthrough branch."
+    },
+    {
       "id": "p01-chen-intake-typed",
       "path": "intake-forms/p01-chen-intake-typed.pdf",
       "docType": "intake_form",

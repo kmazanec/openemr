@@ -185,10 +185,10 @@ describe('rasterize node — happy paths', () => {
     it('passes a single-page PNG through without re-uploading; signed URL targets the canonical key', async () => {
         const documentUuid = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
         const pid = 7;
-        const pngBytes = readFixture('intake-forms/p03-reyes-intake.png');
+        const pngBytes = readFixture('lab-results/p03-reyes-hba1c.png');
         const { openemr, agent, key } = seedCanonical(pid, documentUuid, 'png', pngBytes);
         const rasterizer = stubRasterizer(0);
-        const state = baseState({ documentUuid, pid, docType: 'intake_form' });
+        const state = baseState({ documentUuid, pid, docType: 'lab_pdf' });
 
         const out = await rasterize(state, buildDeps(openemr, agent, rasterizer, 'png'));
 
