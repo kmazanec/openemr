@@ -102,7 +102,12 @@ function parseLd($: cheerio.CheerioAPI): ArticleLd | null {
 }
 
 function normalizeWhitespace(text: string): string {
-    return text.replace(/\u00A0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    return text
+        .replace(/\u00A0/g, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }
 
 function extractSection($: cheerio.CheerioAPI, domId: string): string | null {
