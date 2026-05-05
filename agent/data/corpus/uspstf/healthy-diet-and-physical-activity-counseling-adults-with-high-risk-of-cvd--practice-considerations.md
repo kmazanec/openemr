@@ -1,0 +1,31 @@
+---
+publication: USPSTF
+title: "Healthy Diet and Physical Activity for Cardiovascular Disease Prevention in Adults With Cardiovascular Risk Factors: Behavioral Counseling Interventions"
+section: practice-considerations
+section_label: "Practice Considerations"
+year: 2020
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd"
+license_tier: public_domain
+slug: healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd
+fetched_at: "2026-05-05T22:35:06.780Z"
+content_sha256: "2c12f2ca6f743306635cfabf8ad1e910baf971e5c62d7dc874fc6257b5607582"
+---
+Patient Population Under Consideration
+This recommendation applies to adults 18 years or older with known hypertension or elevated blood pressure, those with dyslipidemia, or those who have mixed or multiple risk factors such as metabolic syndrome or an estimated 10-year CVD risk of 7.5% or greater. Adults with other known modifiable cardiovascular risk factors such as abnormal blood glucose levels, obesity, and smoking are not included in this recommendation.5-7 Interventions to reduce CVD risk in those adults are covered in other USPSTF recommendations.
+Definitions of Healthy Diet and Physical Activity
+The term “healthy diet” is defined as a balance and variety of foods and beverages that assist an individual in achieving and maintaining a healthy weight, support health, and prevent disease. Dietary counseling to promote a healthy diet focuses on increasing consumption of fruits, vegetables, whole grains, fat-free or low-fat dairy, lean proteins, and oils and decreasing consumption of foods with high sodium levels, saturated or trans fats, and added sugars, as recommended by the US Department of Agriculture and the US Food and Drug Administration.1
+Physical activity is broadly defined as any bodily activity that enhances or maintains overall health and physical fitness. The US Department of Health and Human Services recommends that adults 18 years or older engage in at least 150 minutes of moderate-intensity or 75 minutes of vigorous-intensity aerobic physical activity per week in addition to engaging in strengthening activities at least twice per week.1,8
+Assessment of Risk
+Cardiovascular risk can be characterized as the elevation of a single risk factor or multiple risk factors (eg, metabolic syndrome). Cardiovascular risk can be estimated through the use of CVD risk tools such as the Pooled Cohort Equations and Framingham Risk Score.9,10 Cardiovascular disease risk factors covered in this recommendation include dyslipidemia, elevated blood pressure or hypertension, and multiple or mixed risk factors.
+Behavioral Counseling Interventions
+Behavioral counseling interventions usually combine counseling on a healthy diet and physical activity and are usually intensive, with multiple contacts that include either individual or group counseling sessions over extended periods. Interventions usually involve a median of 12 contacts, with an estimated 6 hours of contact time over 6 to 18 months. Interventions typically involve some 1-on-1 time with an interventionist and include motivational interviewing and behavioral change techniques such as goal setting, problem solving, and self-monitoring. Primary care clinicians as well as a wide range of specially trained professionals, including nurses, registered dietitians, nutritionists, exercise specialists, physical therapists, masters- and doctoral-level counselors trained in behavioral methods, and lifestyle coaches, can deliver these interventions.
+Common dietary counseling advice includes reductions in saturated fats, sodium, and sweets/sugars and increased consumption of fruits, vegetables, and whole grains. The Dietary Approaches to Stop Hypertension (DASH) diet, low-sodium diet, and the Mediterranean diet are commonly recommended diets. Physical activity counseling focuses on patients achieving 90 to 180 minutes per week of moderate to vigorous activity.11
+Implementation
+Primary care clinicians can deliver in-person behavioral counseling interventions, refer patients to behavioral counseling interventions in other settings, or inform patients about media-based interventions. For more information about risk assessment methods and behavioral counseling interventions, see the Additional Tools and Resources section and Table 2.
+Additional Tools and Resources
+
+The Community Preventive Services Task Force recommends several community-based interventions to promote a healthy diet (https://www.thecommunityguide.org/topic/nutrition) and physical activity (https://www.thecommunityguide.org/topic/physical-activity), including community-wide campaigns, social support interventions, school-based interventions, and environmental and policy approaches.
+The US Department of Health and Human Services and the US Department of Agriculture have developed dietary (https://health.gov/our-work/food-nutrition/2015-2020-dietary-guidelines) and physical activity (https://health.gov/our-work/physical-activity/current-guidelines) guidelines. Resources for clinicians can be found at https://health.gov//dietaryguidelines/2015/resources and https://health.gov/our-work/physical-activity/move-your-way-campaign.
+
+Other Related USPSTF Recommendations
+The USPSTF has several recommendations related to behavioral counseling interventions and the prevention of CVD. These include recommendations on behavioral counseling to promote a healthy diet and physical activity for CVD prevention in adults without cardiovascular risk factors (C recommendation);14 behavioral weight loss interventions to prevent obesity-related morbidity and mortality in adults (B recommendation);6 behavioral and pharmacotherapy interventions for tobacco smoking cessation in adults, including pregnant women (B recommendation);7 and screening for abnormal blood glucose levels and type 2 diabetes mellitus (B recommendation).5

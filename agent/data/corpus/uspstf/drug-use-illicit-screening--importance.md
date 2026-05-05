@@ -1,0 +1,14 @@
+---
+publication: USPSTF
+title: "Unhealthy Drug Use: Screening"
+section: importance
+section_label: "Importance"
+year: 2020
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening"
+license_tier: public_domain
+slug: drug-use-illicit-screening
+fetched_at: "2026-05-05T22:34:14.166Z"
+content_sha256: "10299c74b405cb4dcb7a9ab0acccb86331027f5aa60076435bacbe217e19b468"
+---
+Many people in the US experience problems related to unhealthy drug use, defined in this recommendation statement as the use of illegal drugs and the nonmedical use of prescription psychoactive medications (ie, use of medications for reasons, for duration, in amounts, or with frequency other than prescribed or use by persons other than the prescribed individual). In 2018, an estimated 12% of US residents 18 years or older reported current unhealthy drug use in a national survey.1 Unhealthy drug use is more commonly reported by young adults aged 18 to 25 years (24%) than by older adults (10%) or adolescents aged 12 to 17 years (8%). In 2018, an estimated 5.4% of pregnant persons aged 15 to 44 years reported unhealthy drug use in the last month. Adults 18 years or older (10.5%) and adolescents aged 12 to 17 years (8.0%) more commonly reported cannabis use in the last month than nonmedical use of psychotherapeutic medications, including pain relievers (2.1% and 1.3%, respectively) and opioids (1.2% and 0.7%, respectively).1 In both age groups, less than 1% reported use of heroin, cocaine, hallucinogens, inhalants, or methamphetamines in the last month.
+An estimated 8 million persons 12 years or older met diagnostic criteria for drug dependence or abuse of drugs in the past year.1 Drug use is one of the most common causes of preventable death, injuries, and disability.2,3 In 2017, unhealthy drug use caused more than 70,000 fatal overdoses.4 Drug use can cause many serious health effects that vary by drug type, administration mode, amount, and frequency of use, as well as pregnancy status.5 Opioid use can cause drowsiness, slowed breathing, constipation, coma, and fatal overdose. Stimulants such as cocaine can cause arrhythmias, myocardial infarction, seizures, and other complications. Marijuana use is associated with slowed reaction time; problems with balance, coordination, learning, and memory; and chronic cough and frequent respiratory infections.5 Injection drug use may result in blood-borne viral and bacterial infections.2,5 Drug use during pregnancy can increase risk of obstetric complications such as placental abruption, preeclampsia, and third trimester bleeding, as well as adverse fetal and infant outcomes such as spontaneous abortion, abnormal brain growth, preterm delivery, low birth weight, and neonatal abstinence syndrome.6 Drug use is also associated with violence, criminal activity, incarceration, impaired school and work performance, interpersonal dysfunction, and other social and legal problems.7

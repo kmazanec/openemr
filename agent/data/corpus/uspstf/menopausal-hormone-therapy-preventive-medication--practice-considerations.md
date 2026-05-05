@@ -1,0 +1,20 @@
+---
+publication: USPSTF
+title: "Hormone Therapy in Postmenopausal Persons: Primary Prevention of Chronic Conditions"
+section: practice-considerations
+section_label: "Practice Considerations"
+year: 2022
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication"
+license_tier: public_domain
+slug: menopausal-hormone-therapy-preventive-medication
+fetched_at: "2026-05-05T22:37:21.142Z"
+content_sha256: "546e72a38f90058790be596bdf74a7cfa1927189e0dffe9e6fef2198a418a7ba"
+---
+Patient Population Under Consideration
+This recommendation statement applies to asymptomatic postmenopausal persons who are considering hormone therapy for the primary prevention of chronic medical conditions. It does not apply to persons who are considering hormone therapy for the management of perimenopausal symptoms, such as hot flashes or vaginal dryness. It also does not apply to persons who have had premature menopause (primary ovarian insufficiency) or surgical menopause.
+The trials that provided evidence on the benefits and harms of menopausal hormone therapy for this recommendation generally used the term “women” to describe participants, although it is likely that these trials enrolled participants on the basis of sex, not gender identity.
+Intervention
+Menopausal hormone therapy refers to the use of combined estrogen and progestin in persons with an intact uterus, or estrogen alone in persons who have had a hysterectomy, taken at or after the time of menopause. For this recommendation, the USPSTF considered evidence on the benefits and harms of systemic (ie, oral or transdermal) menopausal hormone therapy but not local formulations of hormone therapy, because these are not generally used for the primary prevention of chronic conditions. Although some of the specific benefits and harms of estrogen plus progestin and estrogen alone differ, the USPSTF concludes that overall, both estrogen plus progestin and estrogen alone have no net benefit for the primary prevention of chronic conditions. It has also been hypothesized that the benefits and harms of menopausal hormone therapy might differ based on participants’ age or timing of initiation of therapy with respect to menopause; however, evidence supporting this is limited. See “Effects on Outcomes by Age or Timing of Intervention” in the Supporting Evidence section for more detail.
+Indications for hormone therapy approved by the US Food and Drug Administration in menopausal persons are limited to the treatment of menopausal symptoms and the prevention of postmenopausal osteoporosis.6 Several different formulations of menopausal hormone therapy are approved by the US Food and Drug Administration for use in the US; the specific formulation used in the Women’s Health Initiative (WHI), the largest trial reviewed by the USPSTF, was 0.625 mg/d of oral conjugated equine estrogen, with or without 2.5 mg/d of medroxyprogesterone acetate.7 Currently, evidence to determine whether different types, doses, or modes of delivery of hormone therapy affect its benefit-to-harm profile for the prevention of chronic conditions is limited.8,9
+Other Related USPSTF Recommendations
+The USPSTF has made several recommendations related to the prevention of cardiovascular disease and other chronic conditions in adults, including aspirin use for the prevention of cardiovascular disease,10 screening for high blood pressure,11 screening for prediabetes and type 2 diabetes,12 behavioral counseling to promote a healthful diet and physical activity for cardiovascular disease prevention in adults (with and without cardiovascular risk factors),13,14 and screening for osteoporosis.15 The USPSTF has also made recommendations on screening for breast cancer16 and screening for colorectal cancer.17

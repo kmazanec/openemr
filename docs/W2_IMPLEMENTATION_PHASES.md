@@ -232,7 +232,7 @@ While I'm coding any phase, here's the sequenced list of human-only tasks. Each 
 - Anthropic billing review: confirm your account spend cap is high enough for ~50 cases × supervisor iterations × CI cadence. Recommend $200/mo cap as a comfortable ceiling for the W2 sprint window; review post-W2.
 
 **Required by Phase C:**
-- Pinecone account setup. Free tier or starter is fine for MVP corpus size (USPSTF only ~50–80 chunks). Get an API key. Confirm region selection; default `us-east-1` is fine.
+- Pinecone account setup. Free tier or starter is fine for MVP corpus size (USPSTF only — all published recommendations, ~200 chunks; supersedes the earlier "~50–80" hand-curation target — see C.2). Get an API key. Confirm region selection; default `us-east-1` is fine.
 - OpenAI account setup with embeddings access. Get an API key. No billing-cap action needed at our usage volume but worth setting one as belt-and-suspenders.
 - Cohere account setup with `rerank-3` access. Get an API key. Their free trial credits are typically sufficient for the W2 sprint.
 - All four keys (Pinecone, OpenAI, Cohere, plus Spaces from earlier) populated in `/etc/openemr/.env` on the Droplet.

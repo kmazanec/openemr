@@ -1,0 +1,656 @@
+{
+  "source": "uspstf",
+  "fetcher_version": "1",
+  "first_run_at": "2026-05-05T22:31:24.134Z",
+  "last_run_at": "2026-05-05T22:41:52.718Z",
+  "entries": [
+    {
+      "slug": "abdominal-aortic-aneurysm-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/abdominal-aortic-aneurysm-screening",
+      "fetched_at": "2026-05-05T22:31:24.134Z",
+      "content_sha256": "bb16f09ecf688846b19d1a83e7e76dec4a98191ce793ee7baa9d72ef64b3706a"
+    },
+    {
+      "slug": "adolescent-idiopathic-scoliosis-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/adolescent-idiopathic-scoliosis-screening",
+      "fetched_at": "2026-05-05T22:31:29.997Z",
+      "content_sha256": "2bde9a426d3c562a4bdd6638c6ee536625bb2dd4bee066a4a3231f75a27f9cc2"
+    },
+    {
+      "slug": "anxiety-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/anxiety-adults-screening",
+      "fetched_at": "2026-05-05T22:31:35.809Z",
+      "content_sha256": "b8247c5325fde77d9856ef7236e937b1e0b0c578340bd89e5c83257f3282fadb"
+    },
+    {
+      "slug": "aspirin-to-prevent-cardiovascular-disease-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication",
+      "fetched_at": "2026-05-05T22:31:41.754Z",
+      "content_sha256": "0317fe6607b06600c538b0cd6079e4a0b6117d9695782342b6e9aa17cb21cb96"
+    },
+    {
+      "slug": "asymptomatic-bacteriuria-in-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/asymptomatic-bacteriuria-in-adults-screening",
+      "fetched_at": "2026-05-05T22:31:47.563Z",
+      "content_sha256": "c5ec90f0269bd72ab8b25b4b92658ca7ce8f1a2dbe86a5b7c38ffbb425897c2f"
+    },
+    {
+      "slug": "atrial-fibrillation-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/atrial-fibrillation-screening",
+      "fetched_at": "2026-05-05T22:31:53.462Z",
+      "content_sha256": "fe2825bba84f3b062a33e30de1c2fb3a1f5c4dede18f663cff9a82fc8cb983d2"
+    },
+    {
+      "slug": "autism-spectrum-disorder-in-young-children-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/autism-spectrum-disorder-in-young-children-screening",
+      "fetched_at": "2026-05-05T22:31:59.296Z",
+      "content_sha256": "7eb0eca66e2c9f60478a0c123ee91dc6b5cbc5da568057b83f08e885bd595019"
+    },
+    {
+      "slug": "bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bacterial-vaginosis-in-pregnancy-to-prevent-preterm-delivery-screening",
+      "fetched_at": "2026-05-05T22:32:05.112Z",
+      "content_sha256": "5f0c820e3e2e62eeacfddf2595c846c36b86cb2dfe4aa5023ca1673e8418bc1c"
+    },
+    {
+      "slug": "bladder-cancer-in-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/bladder-cancer-in-adults-screening",
+      "fetched_at": "2026-05-05T22:32:10.978Z",
+      "content_sha256": "34507176666a7f0089e41450e2f61d6963dda1536ff1ec38878aae4590867ae8"
+    },
+    {
+      "slug": "blood-pressure-in-children-and-adolescents-hypertension-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/blood-pressure-in-children-and-adolescents-hypertension-screening",
+      "fetched_at": "2026-05-05T22:32:16.846Z",
+      "content_sha256": "2526ee5c2059fff65e740582d33b0d9ff4c9dd87593c64e23627d0d92398c92c"
+    },
+    {
+      "slug": "brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/brca-related-cancer-risk-assessment-genetic-counseling-and-genetic-testing",
+      "fetched_at": "2026-05-05T22:32:22.672Z",
+      "content_sha256": "23f248a84d8e82175b00c2abd3d9e4ab6e854daea51b71cb2b81dd3abe231cfd"
+    },
+    {
+      "slug": "breast-cancer-medications-for-risk-reduction",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-medications-for-risk-reduction",
+      "fetched_at": "2026-05-05T22:32:28.574Z",
+      "content_sha256": "781de97399e41910f4953527f17c00d13decd41039b633da6b90d33ee539c5e9"
+    },
+    {
+      "slug": "breast-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breast-cancer-screening",
+      "fetched_at": "2026-05-05T22:32:34.454Z",
+      "content_sha256": "2d542814d3758bd250bcea566dd1155f09b7c527ab4646ca619f5c115ece5088"
+    },
+    {
+      "slug": "breastfeeding-primary-care-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/breastfeeding-primary-care-interventions",
+      "fetched_at": "2026-05-05T22:32:40.312Z",
+      "content_sha256": "140fb1a01b480029f79f1518938629642605d2c797fcdc3d000068b7bb613633"
+    },
+    {
+      "slug": "cardiovascular-disease-risk-screening-with-electrocardiography",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-risk-screening-with-electrocardiography",
+      "fetched_at": "2026-05-05T22:32:46.120Z",
+      "content_sha256": "d67a5aa6be59beed9c33e0403f5cdc5aa45b39b0b6b2750e67e78a8506b7766f"
+    },
+    {
+      "slug": "cardiovascular-disease-screening-using-nontraditional-risk-assessment",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cardiovascular-disease-screening-using-nontraditional-risk-assessment",
+      "fetched_at": "2026-05-05T22:32:51.946Z",
+      "content_sha256": "c096bb60ea9fe1df8cbda44b329cf1c05af6592124461709c1fc7531df0742fe"
+    },
+    {
+      "slug": "carotid-artery-stenosis-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/carotid-artery-stenosis-screening",
+      "fetched_at": "2026-05-05T22:32:57.886Z",
+      "content_sha256": "b60c543ab2329123e96c7853b88bab7abd93474d1a51c3a0a01008fa8c49135c"
+    },
+    {
+      "slug": "celiac-disease-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/celiac-disease-screening",
+      "fetched_at": "2026-05-05T22:33:03.815Z",
+      "content_sha256": "1503017dc4aab045dc577fc7e623efb40cf482533d037ea84f793aa5fd6d7ae4"
+    },
+    {
+      "slug": "cervical-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cervical-cancer-screening",
+      "fetched_at": "2026-05-05T22:33:09.633Z",
+      "content_sha256": "02f5f43a5af252e3082a5011e38b647ced49d3b9a36982c457e61aa9d213e79e"
+    },
+    {
+      "slug": "child-maltreatment-primary-care-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/child-maltreatment-primary-care-interventions",
+      "fetched_at": "2026-05-05T22:33:15.476Z",
+      "content_sha256": "539fb254a5d11fdabcccdcc041dc0ac02f4428dc39777117aab44cb18661b06b"
+    },
+    {
+      "slug": "chlamydia-and-gonorrhea-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chlamydia-and-gonorrhea-screening",
+      "fetched_at": "2026-05-05T22:33:21.329Z",
+      "content_sha256": "17951b1ad537c295c664f482aa2bb6d2aa1f84b20d19285779805a42911e7106"
+    },
+    {
+      "slug": "chronic-kidney-disease-ckd-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-kidney-disease-ckd-screening",
+      "fetched_at": "2026-05-05T22:33:27.122Z",
+      "content_sha256": "8c32998f6fa08dec733828d97ebd4185ee0a985950c5251f51cac23961239d2f"
+    },
+    {
+      "slug": "chronic-obstructive-pulmonary-disease-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/chronic-obstructive-pulmonary-disease-screening",
+      "fetched_at": "2026-05-05T22:33:33.063Z",
+      "content_sha256": "86fc23873977727e4e8a573a9767d55d58e59ccd74cb61d136fd90b05886ba82"
+    },
+    {
+      "slug": "cognitive-impairment-in-older-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/cognitive-impairment-in-older-adults-screening",
+      "fetched_at": "2026-05-05T22:33:38.874Z",
+      "content_sha256": "07b603564ef1682d8dd34daa2b316a17e2952c43787f5da4331f3989ee015c00"
+    },
+    {
+      "slug": "colorectal-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening",
+      "fetched_at": "2026-05-05T22:33:44.756Z",
+      "content_sha256": "d7049ddc8d54331ec7850e263e42ee7c31febcc49b06b53ae5b57129458f8973"
+    },
+    {
+      "slug": "congenital-hypothyroidism-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/congenital-hypothyroidism-screening",
+      "fetched_at": "2026-05-05T22:33:50.678Z",
+      "content_sha256": "4c16a6a49273f93e74b56d26136a8cafc6d673e5666294dacd9c0fec97b8d933"
+    },
+    {
+      "slug": "dental-and-periodontal-disease-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/dental-and-periodontal-disease-counseling",
+      "fetched_at": "2026-05-05T22:33:56.439Z",
+      "content_sha256": "1ebe0a7ed9ae8b298de6cd1360c8f1ed686eae59e1b611aff5b52e7178e8190b"
+    },
+    {
+      "slug": "developmental-hip-dysplasia-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/developmental-hip-dysplasia-screening",
+      "fetched_at": "2026-05-05T22:34:02.486Z",
+      "content_sha256": "98c0dd10c683688885af31487660b4dfe4376a80198a4aff1722ec4a95cca388"
+    },
+    {
+      "slug": "drug-use-illicit-primary-care-interventions-for-children-and-adolescents",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-primary-care-interventions-for-children-and-adolescents",
+      "fetched_at": "2026-05-05T22:34:08.327Z",
+      "content_sha256": "aa7144b386b4aca6e044bea7f25124cfda0060717b96a92e632181e0864dc08a"
+    },
+    {
+      "slug": "drug-use-illicit-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/drug-use-illicit-screening",
+      "fetched_at": "2026-05-05T22:34:14.166Z",
+      "content_sha256": "10299c74b405cb4dcb7a9ab0acccb86331027f5aa60076435bacbe217e19b468"
+    },
+    {
+      "slug": "elevated-blood-lead-levels-in-childhood-and-pregnancy-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/elevated-blood-lead-levels-in-childhood-and-pregnancy-screening",
+      "fetched_at": "2026-05-05T22:34:19.927Z",
+      "content_sha256": "1b131d42ece64e6413695fa2adebb796a133f79cb8fa5890b4ba080ae6e96c64"
+    },
+    {
+      "slug": "falls-prevention-community-dwelling-older-adults-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/falls-prevention-community-dwelling-older-adults-interventions",
+      "fetched_at": "2026-05-05T22:34:25.736Z",
+      "content_sha256": "184ce64ffdf9655e35f0dfd5287ffeb43da21f6736ba373c04f0039478e90886"
+    },
+    {
+      "slug": "folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/folic-acid-for-the-prevention-of-neural-tube-defects-preventive-medication",
+      "fetched_at": "2026-05-05T22:34:31.556Z",
+      "content_sha256": "ed5888d33df3bedcb135ae565f97b8a9d594095e10d09728de1eee32541c88c2"
+    },
+    {
+      "slug": "food-insecurity-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/food-insecurity-screening",
+      "fetched_at": "2026-05-05T22:34:37.389Z",
+      "content_sha256": "17b0957e257787dd162bfb873f3ac3af6872cbab7e593433ce89454711a32f6d"
+    },
+    {
+      "slug": "genital-herpes-serologic-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/genital-herpes-serologic-screening",
+      "fetched_at": "2026-05-05T22:34:43.371Z",
+      "content_sha256": "1849b549ec984073f2233daf516aa3ba5e4b2f65dd0f8795fd1a3e0f5e6fc35b"
+    },
+    {
+      "slug": "gestational-diabetes-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gestational-diabetes-screening",
+      "fetched_at": "2026-05-05T22:34:49.201Z",
+      "content_sha256": "b7bd68b1140d79d8a999850a411ff94edb9fb35267ef55aa7ecb759f5f64b08c"
+    },
+    {
+      "slug": "gynecological-cancers-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gynecological-cancers-counseling",
+      "fetched_at": "2026-05-05T22:34:55.198Z",
+      "content_sha256": "88ef1b692467dafba6e454eb36949b53c4003878c379c962f549f86c2e93f86a"
+    },
+    {
+      "slug": "gynecological-conditions-screening-with-the-pelvic-examination",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/gynecological-conditions-screening-with-the-pelvic-examination",
+      "fetched_at": "2026-05-05T22:35:00.964Z",
+      "content_sha256": "f83e22e7f402cf441ae22bd7549d2353b959553386bc5495c52629c9d0128c30"
+    },
+    {
+      "slug": "healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-diet-and-physical-activity-counseling-adults-with-high-risk-of-cvd",
+      "fetched_at": "2026-05-05T22:35:06.780Z",
+      "content_sha256": "2c12f2ca6f743306635cfabf8ad1e910baf971e5c62d7dc874fc6257b5607582"
+    },
+    {
+      "slug": "healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-lifestyle-and-physical-activity-for-cvd-prevention-adults-without-known-risk-factors-behavioral-counseling",
+      "fetched_at": "2026-05-05T22:35:12.586Z",
+      "content_sha256": "5b16a09f5d9dc4f1f775e57180aad0f3491aacdea1db392bede36e0c1bba5bb5"
+    },
+    {
+      "slug": "healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/healthy-weight-and-weight-gain-during-pregnancy-behavioral-counseling-interventions",
+      "fetched_at": "2026-05-05T22:35:18.389Z",
+      "content_sha256": "4b6f33145a4e5a8bb6a0441af2b2db5bf94d031f56f5c10747c38ea9694a2449"
+    },
+    {
+      "slug": "hearing-loss-in-newborns-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-newborns-screening",
+      "fetched_at": "2026-05-05T22:35:24.174Z",
+      "content_sha256": "82dbd6167d7be281a89eb621f24a25d9994e88bcfbdb93aa7abf7da26533b2b4"
+    },
+    {
+      "slug": "hearing-loss-in-older-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hearing-loss-in-older-adults-screening",
+      "fetched_at": "2026-05-05T22:35:29.963Z",
+      "content_sha256": "7de6611434b8a0912971f19cb32df5a831bb97105e85e93525605135b3605098"
+    },
+    {
+      "slug": "hemochromatosis-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hemochromatosis-screening",
+      "fetched_at": "2026-05-05T22:35:35.728Z",
+      "content_sha256": "665a7a67f3a053d3d8dc6749af618931e6a252a7ea60bbde80e4565900cd6ef5"
+    },
+    {
+      "slug": "hepatitis-b-virus-infection-in-pregnant-women-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-in-pregnant-women-screening",
+      "fetched_at": "2026-05-05T22:35:41.553Z",
+      "content_sha256": "b787beb173f7004394daee352e940c89ccc4d9c991106cce61d112b0b21f15df"
+    },
+    {
+      "slug": "hepatitis-b-virus-infection-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-b-virus-infection-screening",
+      "fetched_at": "2026-05-05T22:35:47.411Z",
+      "content_sha256": "e737ab4ba929ac62fd70399eee449887c7fcb2a768eb897a2564e86583f7889c"
+    },
+    {
+      "slug": "hepatitis-c-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hepatitis-c-screening",
+      "fetched_at": "2026-05-05T22:35:53.398Z",
+      "content_sha256": "b262c8e12dd9d2adb7b765a8819205f723592934ddce9678be04469d24fca29a"
+    },
+    {
+      "slug": "human-immunodeficiency-virus-hiv-infection-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/human-immunodeficiency-virus-hiv-infection-screening",
+      "fetched_at": "2026-05-05T22:35:59.229Z",
+      "content_sha256": "47b31e9dcdbe2a8faf456e3e633fb9e5c5d213aaa7ade2228deae0c3fa9a4f2c"
+    },
+    {
+      "slug": "hyperbilirubinemia-screening-infants",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hyperbilirubinemia-screening-infants",
+      "fetched_at": "2026-05-05T22:36:05.004Z",
+      "content_sha256": "258333c4623d6e01bfd523bdba78ea793f4c3a6bd8c57ee33d2dc38f2a493c08"
+    },
+    {
+      "slug": "hypertension-in-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening",
+      "fetched_at": "2026-05-05T22:36:10.807Z",
+      "content_sha256": "7d7ba4a100bdbb4d7d0bb1d680a7a6e5dc09ae0420da32d9750a1f4fa6f7ef62"
+    },
+    {
+      "slug": "hypertensive-disorders-pregnancy-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertensive-disorders-pregnancy-screening",
+      "fetched_at": "2026-05-05T22:36:16.652Z",
+      "content_sha256": "78e08d2605417162e4f7e05ea49b993030daf8f2f8561c4f988f1380e56ccd6c"
+    },
+    {
+      "slug": "immunizations-for-adults",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/immunizations-for-adults",
+      "fetched_at": "2026-05-05T22:36:22.361Z",
+      "content_sha256": "ccdd6b0614a00cf8d5c6263d7de289766c549c5eec89d137a6ef40390b9a6435"
+    },
+    {
+      "slug": "immunizations-for-children",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/immunizations-for-children",
+      "fetched_at": "2026-05-05T22:36:28.113Z",
+      "content_sha256": "4757b82cdf94d999d89dc99783b5d958202a174fd6e425d5b2936183ecc3ffc3"
+    },
+    {
+      "slug": "impaired-visual-acuity-screening-older-adults",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/impaired-visual-acuity-screening-older-adults",
+      "fetched_at": "2026-05-05T22:36:34.007Z",
+      "content_sha256": "38f5fcecf62e97010a6ac2f807b0aaae549093f83b339a65b695c109a7a908ab"
+    },
+    {
+      "slug": "intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/intimate-partner-violence-and-abuse-of-elderly-and-vulnerable-adults-screening",
+      "fetched_at": "2026-05-05T22:36:39.828Z",
+      "content_sha256": "953aea3e006e1b0f856c524ea203a0875ed3a0985215fcf231dfd6fdb6d851ef"
+    },
+    {
+      "slug": "iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-pregnant-women-screening-and-supplementation",
+      "fetched_at": "2026-05-05T22:36:46.016Z",
+      "content_sha256": "a5558290f928a394935db5be06c882e9e97da19c0a956c0bff6cf54d85f2bd9a"
+    },
+    {
+      "slug": "iron-deficiency-anemia-in-young-children-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/iron-deficiency-anemia-in-young-children-screening",
+      "fetched_at": "2026-05-05T22:36:51.902Z",
+      "content_sha256": "b779d40d20ee8c22e89845f12a3d3acd6e795ea7cd44b349ac22977f94f3888e"
+    },
+    {
+      "slug": "latent-tuberculosis-infection-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/latent-tuberculosis-infection-screening",
+      "fetched_at": "2026-05-05T22:36:57.722Z",
+      "content_sha256": "8e7eae5ad04b02159d4223e7194528cc505ae94f15157fa29bad7b324c33e298"
+    },
+    {
+      "slug": "lipid-disorders-in-children-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lipid-disorders-in-children-screening",
+      "fetched_at": "2026-05-05T22:37:03.537Z",
+      "content_sha256": "92a0b933ef47aa051d824c1acd625f5bda3f64259344f3d29ec4be94fc0f15ad"
+    },
+    {
+      "slug": "low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/low-dose-aspirin-use-for-the-prevention-of-morbidity-and-mortality-from-preeclampsia-preventive-medication",
+      "fetched_at": "2026-05-05T22:37:09.405Z",
+      "content_sha256": "0141c82b57686f18a6662f48f6efac2fd8a49ad2904745de327c50cfe330df8c"
+    },
+    {
+      "slug": "lung-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/lung-cancer-screening",
+      "fetched_at": "2026-05-05T22:37:15.278Z",
+      "content_sha256": "fd61ff0cf658e24880e1bcb9c6e1953464d0006a367bf2d1bc010f821d86a06f"
+    },
+    {
+      "slug": "menopausal-hormone-therapy-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/menopausal-hormone-therapy-preventive-medication",
+      "fetched_at": "2026-05-05T22:37:21.142Z",
+      "content_sha256": "546e72a38f90058790be596bdf74a7cfa1927189e0dffe9e6fef2198a418a7ba"
+    },
+    {
+      "slug": "motor-vehicle-occupant-restraints-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/motor-vehicle-occupant-restraints-counseling",
+      "fetched_at": "2026-05-05T22:37:26.950Z",
+      "content_sha256": "600b5c7c2dcc9b0e3eaa5cf665c99352b5666104017be4eedc649a9f72f570d6"
+    },
+    {
+      "slug": "obesity-in-adults-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-adults-interventions",
+      "fetched_at": "2026-05-05T22:37:32.763Z",
+      "content_sha256": "aed968e242b561fb7efe71fbb1cff9fdc7e7f47f90229b52f80b3a9f01ff21d0"
+    },
+    {
+      "slug": "obesity-in-children-and-adolescents-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-children-and-adolescents-screening",
+      "fetched_at": "2026-05-05T22:37:38.625Z",
+      "content_sha256": "de5311e85b16d338df684ebbd97a8dbb14b69a1b7177751e19cfab206a26c359"
+    },
+    {
+      "slug": "obstructive-sleep-apnea-in-adults-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obstructive-sleep-apnea-in-adults-screening",
+      "fetched_at": "2026-05-05T22:37:44.708Z",
+      "content_sha256": "ab6dacd7fed7714b5c9054e2868a5d42de2c4b65351f97cabd96907eae2276f1"
+    },
+    {
+      "slug": "ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/ocular-prophylaxis-for-gonococcal-ophthalmia-neonatorum-preventive-medication",
+      "fetched_at": "2026-05-05T22:37:50.628Z",
+      "content_sha256": "b2cbc201cd8510c8e6524ed4728ac1f1e31c38752096e59e00d5f5a22f90fdaf"
+    },
+    {
+      "slug": "oral-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-cancer-screening",
+      "fetched_at": "2026-05-05T22:37:57.064Z",
+      "content_sha256": "9e88ded3d4979192ce739a6c11fd6fddd43097e5e350abcafba85c5646f3b770"
+    },
+    {
+      "slug": "oral-health-adults-screening-preventive-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-adults-screening-preventive-interventions",
+      "fetched_at": "2026-05-05T22:38:02.906Z",
+      "content_sha256": "c675e23b12e8fd59a8594a5a1ad52fee7a4fb07146bb737d7a90fdb8dc78e225"
+    },
+    {
+      "slug": "oral-health-children-adolescents-screening-preventive-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/oral-health-children-adolescents-screening-preventive-interventions",
+      "fetched_at": "2026-05-05T22:38:08.725Z",
+      "content_sha256": "ff168e60949bc1cc2bddd14f762a6ef4e2cfb4fb14c90122f8c66d50ee8c9f71"
+    },
+    {
+      "slug": "osteoporosis-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/osteoporosis-screening",
+      "fetched_at": "2026-05-05T22:38:14.839Z",
+      "content_sha256": "5c26b002abd15c3ac1644c4360c20c991f6336885fea41d64cd8ca2577dae0fc"
+    },
+    {
+      "slug": "ovarian-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/ovarian-cancer-screening",
+      "fetched_at": "2026-05-05T22:38:20.668Z",
+      "content_sha256": "65e40690fe39ad9959c6ccd22eb9e9f1bbf287ec0cfc799847138da463f54a5a"
+    },
+    {
+      "slug": "pancreatic-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/pancreatic-cancer-screening",
+      "fetched_at": "2026-05-05T22:38:26.546Z",
+      "content_sha256": "89c69b93c624064b6ddfa23ddb807b44f14f25074874e22d6d2fca41f2f51507"
+    },
+    {
+      "slug": "perinatal-depression-preventive-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/perinatal-depression-preventive-interventions",
+      "fetched_at": "2026-05-05T22:38:32.421Z",
+      "content_sha256": "88679d168844b51b0cbbb104c546681552a69de8145e29d1b014921d1998053e"
+    },
+    {
+      "slug": "peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/peripheral-artery-disease-in-adults-screening-with-the-ankle-brachial-index",
+      "fetched_at": "2026-05-05T22:38:38.247Z",
+      "content_sha256": "95434b4ee4f83cce6a86c0597083862ccd92ce75c25884310c3b4e8c7625ca63"
+    },
+    {
+      "slug": "phenylketonuria-in-newborns-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/phenylketonuria-in-newborns-screening",
+      "fetched_at": "2026-05-05T22:38:44.023Z",
+      "content_sha256": "c784519b410969d72ec2617b54c075235a40b4de91a4dbdeb14bd1bf449d2022"
+    },
+    {
+      "slug": "prediabetes-type2-diabetes-children-adolescents-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prediabetes-type2-diabetes-children-adolescents-screening",
+      "fetched_at": "2026-05-05T22:38:49.899Z",
+      "content_sha256": "ba11d4da1fbc3326767210f73c77eededb3dc6b6eacee003cf86464234b80dec"
+    },
+    {
+      "slug": "prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-dental-caries-in-children-younger-than-age-5-years-screening-and-interventions1",
+      "fetched_at": "2026-05-05T22:38:55.778Z",
+      "content_sha256": "afad949f459a3fafbe1f62071c9e5c010dab4c738e1137fc4dea80c4f9396cf7"
+    },
+    {
+      "slug": "prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prevention-of-human-immunodeficiency-virus-hiv-infection-pre-exposure-prophylaxis",
+      "fetched_at": "2026-05-05T22:39:01.813Z",
+      "content_sha256": "8329a5bb4e98e96c7fe9768c618837c478118bec5e6d9540fd5b6801b42b0136"
+    },
+    {
+      "slug": "primary-open-angle-glaucoma-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/primary-open-angle-glaucoma-screening",
+      "fetched_at": "2026-05-05T22:39:07.681Z",
+      "content_sha256": "9aaa56f43b61181435c0f5dbef2da1220ed43e605c6e28369668ff3a34b48e55"
+    },
+    {
+      "slug": "prostate-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/prostate-cancer-screening",
+      "fetched_at": "2026-05-05T22:39:13.640Z",
+      "content_sha256": "17db2810b59e628b0bface7fd54b98fed91fae5e62f55c01d7d9a95de7ef8326"
+    },
+    {
+      "slug": "rh-d-incompatibility-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/rh-d-incompatibility-screening",
+      "fetched_at": "2026-05-05T22:39:19.775Z",
+      "content_sha256": "9a550d223d75173451ddec843a4e969205a091da270ee7f18ce397245e55a0e0"
+    },
+    {
+      "slug": "rubella-immunizations",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/rubella-immunizations",
+      "fetched_at": "2026-05-05T22:39:25.565Z",
+      "content_sha256": "801e6d0c9890de14938aeec428201b3361d690b5e00f464c1e0f17fc44e30967"
+    },
+    {
+      "slug": "rubella-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/rubella-screening",
+      "fetched_at": "2026-05-05T22:39:31.368Z",
+      "content_sha256": "ef2714307faf1ea00a7b10bc15dc8a447fe300d33d675e533d603290cccc99a3"
+    },
+    {
+      "slug": "screening-anxiety-children-adolescents",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-anxiety-children-adolescents",
+      "fetched_at": "2026-05-05T22:39:37.422Z",
+      "content_sha256": "1024918c317f07309b47793cf8c7e1b6f23a0f1ae6b10cca63dbf9540c370651"
+    },
+    {
+      "slug": "screening-depression-suicide-risk-adults",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-adults",
+      "fetched_at": "2026-05-05T22:39:43.489Z",
+      "content_sha256": "c17b52b1a4999abc01230cb1bd6a54059d117580d76faa688d5278a12b2adacb"
+    },
+    {
+      "slug": "screening-depression-suicide-risk-children-adolescents",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-depression-suicide-risk-children-adolescents",
+      "fetched_at": "2026-05-05T22:39:49.325Z",
+      "content_sha256": "706cd83414bd5469c95e12c8b4f5f09a21b67143c5b49fecdd08d29087a5e781"
+    },
+    {
+      "slug": "screening-eating-disorders-adolescents-adults",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-eating-disorders-adolescents-adults",
+      "fetched_at": "2026-05-05T22:39:55.144Z",
+      "content_sha256": "a53fed7a44b87c602d6dd6b601eaa75521e880ef5bedb03a29e08bb6dbe72664"
+    },
+    {
+      "slug": "screening-for-prediabetes-and-type-2-diabetes",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes",
+      "fetched_at": "2026-05-05T22:40:01.012Z",
+      "content_sha256": "25a18a84606047b578523c0b8f2db66d14bec465b2d284a637c2b9a265518f92"
+    },
+    {
+      "slug": "sexually-transmitted-infections-behavioral-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/sexually-transmitted-infections-behavioral-counseling",
+      "fetched_at": "2026-05-05T22:40:06.844Z",
+      "content_sha256": "d5e552b1d80d2a278380304aa2e419fe865c9f888186d96b9fba9cb35276f0e8"
+    },
+    {
+      "slug": "sickle-cell-disease-hemoglobinopathies-in-newborns-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/sickle-cell-disease-hemoglobinopathies-in-newborns-screening",
+      "fetched_at": "2026-05-05T22:40:12.738Z",
+      "content_sha256": "c693378ade1d63d0b9f4e8bade66d3c67bf22b2bbe200284ec3a9171df3f7f9c"
+    },
+    {
+      "slug": "skin-cancer-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-counseling",
+      "fetched_at": "2026-05-05T22:40:18.678Z",
+      "content_sha256": "ca6a406b1a7fa87eab5fff61a525cedc4860dea2b879571dce44c9a1be73ae22"
+    },
+    {
+      "slug": "skin-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/skin-cancer-screening",
+      "fetched_at": "2026-05-05T22:40:25.246Z",
+      "content_sha256": "e8af0478f165d6bad3e95581ba8c1dc9b3d2f91a01e612eb373e2b5f23ada792"
+    },
+    {
+      "slug": "speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/speech-and-language-delay-and-disorders-in-children-age-5-and-younger-screening",
+      "fetched_at": "2026-05-05T22:40:31.133Z",
+      "content_sha256": "6a9123fa35224eb2e28c21d8dee8f304a0fea17524a3e30ee5ea69ca6a968f5b"
+    },
+    {
+      "slug": "statin-use-in-adults-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication",
+      "fetched_at": "2026-05-05T22:40:37.045Z",
+      "content_sha256": "a110b17791e23dbd0bd5c350f8bba2a65160b0da42ca9a90121a678d355d3ef6"
+    },
+    {
+      "slug": "syphilis-infection-in-pregnancy-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-in-pregnancy-screening",
+      "fetched_at": "2026-05-05T22:40:42.891Z",
+      "content_sha256": "f2dc6f250bfd9c80329c0525c99564653d049c783103d08ba59ed16c891f4897"
+    },
+    {
+      "slug": "syphilis-infection-nonpregnant-adults-adolescents-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/syphilis-infection-nonpregnant-adults-adolescents-screening",
+      "fetched_at": "2026-05-05T22:40:48.698Z",
+      "content_sha256": "c47806d63c6f10b6b92b920499e1f6db466a991dafcd4ee77a38c3902111c004"
+    },
+    {
+      "slug": "testicular-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/testicular-cancer-screening",
+      "fetched_at": "2026-05-05T22:40:54.492Z",
+      "content_sha256": "2f057735b99c323acf638c86d5cf07faaaee90fbb12efff077b0d5b51dac0757"
+    },
+    {
+      "slug": "thyroid-cancer-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-cancer-screening",
+      "fetched_at": "2026-05-05T22:41:00.312Z",
+      "content_sha256": "5cd0ada741b9f308eb06d33c60d07675a5c38f5e03c12f509895c086dc363965"
+    },
+    {
+      "slug": "thyroid-dysfunction-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/thyroid-dysfunction-screening",
+      "fetched_at": "2026-05-05T22:41:06.124Z",
+      "content_sha256": "b6191c075f9fab63e7d9b6352d52a248a8a8b037049778a7af54d1e0416a7b31"
+    },
+    {
+      "slug": "tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-and-nicotine-use-prevention-in-children-and-adolescents-primary-care-interventions",
+      "fetched_at": "2026-05-05T22:41:11.938Z",
+      "content_sha256": "81b8b9e16f23e3909a5a7ac6b23686e429c59842c4aaa04792b4efdf6485b3a4"
+    },
+    {
+      "slug": "tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/tobacco-use-in-adults-and-pregnant-women-counseling-and-interventions",
+      "fetched_at": "2026-05-05T22:41:17.851Z",
+      "content_sha256": "301e1ae7642f5eaf235b639cf2e8a77f9f21b52a43dd06de2d4b81f5bdce48a5"
+    },
+    {
+      "slug": "unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/unhealthy-alcohol-use-in-adolescents-and-adults-screening-and-behavioral-counseling-interventions",
+      "fetched_at": "2026-05-05T22:41:23.720Z",
+      "content_sha256": "2334c0428b2fce8c54306e7a94240742c5fca0e6ed6a8a41e596f0e6c387af99"
+    },
+    {
+      "slug": "vision-in-children-ages-6-months-to-5-years-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vision-in-children-ages-6-months-to-5-years-screening",
+      "fetched_at": "2026-05-05T22:41:29.531Z",
+      "content_sha256": "17c30496f39a68f8638e5d9b187d921dd925836483af23d2125a946f5e3a22e2"
+    },
+    {
+      "slug": "vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-calcium-or-combined-supplementation-for-the-primary-prevention-of-fractures-in-adults-preventive-medication",
+      "fetched_at": "2026-05-05T22:41:35.356Z",
+      "content_sha256": "8672aa06152b10804b3fbf3b47b114e770dd15471da8cc6952342abbcd71a8f7"
+    },
+    {
+      "slug": "vitamin-d-deficiency-screening",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening",
+      "fetched_at": "2026-05-05T22:41:41.156Z",
+      "content_sha256": "5ad7d4e389049df99a9138881fe7be29ce22f9eb4a242d6daf50d8ab545efa6f"
+    },
+    {
+      "slug": "vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-supplementation-to-prevent-cvd-and-cancer-preventive-medication",
+      "fetched_at": "2026-05-05T22:41:46.969Z",
+      "content_sha256": "359e54fec0fa40087e6f077ac4126321399a375e4aebe65b672a4424cea79c7c"
+    },
+    {
+      "slug": "youth-violence-counseling",
+      "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/youth-violence-counseling",
+      "fetched_at": "2026-05-05T22:41:52.718Z",
+      "content_sha256": "d348b92cf556ad9ac92f2a50c60cb9c3e656850ad3ac179375fa0262aeadd917"
+    }
+  ]
+}

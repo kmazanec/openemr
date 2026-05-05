@@ -1,0 +1,32 @@
+---
+publication: USPSTF
+title: "Vitamin D Deficiency in Adults: Screening"
+section: practice-considerations
+section_label: "Practice Considerations"
+year: 2021
+url: "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/vitamin-d-deficiency-screening"
+license_tier: public_domain
+slug: vitamin-d-deficiency-screening
+fetched_at: "2026-05-05T22:41:41.156Z"
+content_sha256: "5ad7d4e389049df99a9138881fe7be29ce22f9eb4a242d6daf50d8ab545efa6f"
+---
+Patient Population Under Consideration
+This recommendation applies to community-dwelling, nonpregnant adults who have no signs or symptoms of vitamin D deficiency, such as bone pain or muscle weakness, or conditions for which vitamin D treatment is recommended. This recommendation focuses on screening (ie, testing for vitamin D deficiency in asymptomatic adults and treating those found to have a deficiency), which differs from USPSTF recommendation statements on supplementation.
+Assessment of Risk
+Although there is insufficient evidence to recommend for or against screening for vitamin D deficiency, several factors are associated with lower vitamin D levels. Low dietary vitamin D intake may be associated with lower 25(OH)D levels.7 Little or no UV B exposure (eg, because of winter season, high latitude, or sun avoidance) and older age are also associated with an increased risk for low vitamin D levels.8-12 Obesity is associated with lower 25(OH)D levels,13 and people who are obese have a 1.3- to 2-fold increased risk of being vitamin D–deficient, depending on the threshold used to define deficiency.8,9,13,14 The exact mechanism for this finding is not completely understood.
+Depending on the serum threshold used to define deficiency, the prevalence of vitamin D deficiency is 2 to 10 times higher in non-Hispanic Black persons than in non-Hispanic White persons, likely related to differences in skin pigmentation.7-9,14 However, these prevalence estimates are based on total 25(OH)D levels, and controversy remains about whether this is the best measure of vitamin D status among different racial and ethnic groups.
+A significant proportion of the variability in 25(OH)D levels among individuals is not explained by the risk factors noted above, which seem to account for only 20% to 30% of the variation in 25(OH)D levels.11,15
+Treatment and Interventions
+Vitamin D deficiency is usually treated with oral vitamin D. There are 2 commonly available forms of vitamin D—vitamin D3 (cholecalciferol) and vitamin D2 (ergocalciferol). Both are available as either a prescription medication or an over-the-counter dietary supplement.
+Suggestions for Practice Regarding the I Statement
+Potential Preventable Burden
+The prevalence of vitamin D deficiency varies based on how deficiency is defined. According to data from the 2011 to 2014 National Health and Nutrition Examination Survey, which used the liquid chromatography–tandem mass spectrometry (LC-MS/MS) assay to measure 25(OH)D levels, 5% of the population 1 year or older had very low 25(OH)D levels (<12 ng/mL) and 18% had levels between 12 and 19 ng/mL.5 (To convert 25[OH]D values to nmol/L, multiply by 2.496.)
+In some observational studies, lower vitamin D levels have been associated with risk for fractures, falls, functional limitations, some types of cancer, diabetes, cardiovascular disease, depression, and death.16,17 However, observations of these associations are inconsistent. This inconsistency may be because of different studies using different cutoffs to define a low vitamin D level or because vitamin D requirements and the optimal cutoff that defines a low vitamin D level or vitamin D deficiency may vary by individual or by subpopulation. For example, non-Hispanic Black persons have lower reported rates of fractures18 despite having increased prevalence of lower vitamin D levels than White persons.7-9,14 Further, it is unknown whether these associations are linked to causality.
+The goal of screening for vitamin D deficiency would be to identify and treat it before associated adverse clinical outcomes occur. Total 25(OH)D level is currently considered the best marker of vitamin D status.4,19 A variety of assays can be used to measure 25(OH)D levels; however, levels can be difficult to measure accurately, and assays may underestimate or overestimate 25(OH)D levels. Additionally, the current evidence is inadequate to determine whether screening for and treatment of asymptomatic low 25(OH)D levels improve clinical outcomes in community-dwelling adults.
+Potential Harms
+Screening may misclassify persons with a vitamin D deficiency because of the uncertainty about the cutoff for defining deficiency and the variability of available testing assays. Misclassification may result in overdiagnosis (leading to nondeficient persons receiving unnecessary treatment) or underdiagnosis (leading to deficient persons not receiving treatment).
+A rare but potential harm of treatment with vitamin D is toxicity, which is characterized by marked hypercalcemia as well as hyperphosphatemia and hypercalciuria. However, the 25(OH)D level associated with toxicity (typically >150 ng/mL)20 is well above the level considered to be sufficient. In general, treatment with oral vitamin D does not seem to be associated with serious harms.
+Current Practice
+The prevalence of screening for vitamin D deficiency by primary care clinicians in the US has not been well studied. Data suggest that laboratory testing for vitamin D levels has increased greatly over the last several years or longer. One study reported a more than 80-fold increase in Medicare reimbursement volumes for vitamin D testing from 2000 to 2010.21
+Other Related USPSTF Recommendations
+The USPSTF has published recommendations on the use of vitamin D supplementation for the prevention of falls22 and fractures23 and vitamin supplementation for the prevention of cardiovascular disease or cancer.24 These recommendations differ from the current recommendation statement in that they address vitamin D supplementation without first determining a patient's vitamin D status (ie, regardless of whether they have a deficiency).
