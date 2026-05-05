@@ -7,12 +7,35 @@
  * fixture test (plan §A.5) catches it. Always update both sides together.
  */
 
+/**
+ * Unified W2 `SourceReference` shape — every clinical fact carries
+ * one of these. Mirrors `W2_ARCHITECTURE.md` §"Unified `SourceReference`
+ * shape" exactly; the runtime parser + polymorphism check live in
+ * `agent/src/graph/types.ts` (`SourceReferenceSchema`). Both sides
+ * are pinned together by the cross-language contract test at
+ * `agent/tests/graph/sourceReferenceContract.test.ts`.
+ *
+ * Optional fields use the explicit `| undefined` form so the type
+ * round-trips through the Zod schema's `z.infer` under
+ * `exactOptionalPropertyTypes: true`.
+ */
 export interface SourceReference {
-    readonly system: string;
-    readonly recordType: string;
-    readonly recordId: string;
-    readonly field: string | null;
-    readonly recordedAt: string | null;
+    readonly source_type: 'chart' | 'extracted_document' | 'guideline';
+    readonly source_id: string;
+    readonly locator: {
+        readonly page?: number | undefined;
+        readonly bbox?: readonly [number, number, number, number] | undefined;
+        readonly section?: string | undefined;
+        readonly field?: string | undefined;
+    };
+    readonly quote: string;
+    readonly confidence?: number | undefined;
+    readonly meta?: {
+        readonly document_uuid?: string | undefined;
+        readonly extractor_version?: string | undefined;
+        readonly rerank_score?: number | undefined;
+        readonly record_recorded_at?: string | undefined;
+    } | undefined;
 }
 
 export interface Demographics {

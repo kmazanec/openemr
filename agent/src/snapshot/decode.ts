@@ -98,13 +98,119 @@ const optionalIntAsString = (path: string, v: unknown): string | null => {
 
 const decodeSource = (path: string, raw: unknown): SourceReference => {
     const obj = expectObject(path, raw);
+    const sourceType = expectString(`${path}.source_type`, obj['source_type']);
+    if (sourceType !== 'chart' && sourceType !== 'extracted_document' && sourceType !== 'guideline') {
+        throw new ChartSnapshotDecodeError(
+            `${path}.source_type`,
+            "expected 'chart' | 'extracted_document' | 'guideline'",
+        );
+    }
+    const sourceId = expectString(`${path}.source_id`, obj['source_id']);
+    const quote = expectString(`${path}.quote`, obj['quote']);
+    const locator = decodeLocator(`${path}.locator`, obj['locator']);
+    const meta = obj['meta'] === undefined ? undefined : decodeMeta(`${path}.meta`, obj['meta']);
+    const confidenceRaw = obj['confidence'];
+    const confidence =
+        confidenceRaw === undefined
+            ? undefined
+            : (() => {
+                  if (typeof confidenceRaw !== 'number' || confidenceRaw < 0 || confidenceRaw > 1) {
+                      throw new ChartSnapshotDecodeError(
+                          `${path}.confidence`,
+                          'expected a number in [0, 1]',
+                      );
+                  }
+                  return confidenceRaw;
+              })();
+    // Polymorphism check mirrors the PHP-side validateLocator and
+    // the Zod schema's superRefine; rejecting at decode time keeps
+    // unresolvable citations out of the verifier.
+    if (sourceType === 'chart' && locator.field === undefined) {
+        throw new ChartSnapshotDecodeError(`${path}.locator.field`, 'chart source requires locator.field');
+    }
+    if (sourceType === 'extracted_document') {
+        if (locator.page === undefined) {
+            throw new ChartSnapshotDecodeError(
+                `${path}.locator.page`,
+                'extracted_document source requires locator.page',
+            );
+        }
+        if (locator.bbox === undefined) {
+            throw new ChartSnapshotDecodeError(
+                `${path}.locator.bbox`,
+                'extracted_document source requires locator.bbox',
+            );
+        }
+    }
+    if (sourceType === 'guideline' && locator.section === undefined) {
+        throw new ChartSnapshotDecodeError(
+            `${path}.locator.section`,
+            'guideline source requires locator.section',
+        );
+    }
     return {
-        system: expectString(`${path}.system`, obj['system']),
-        recordType: expectString(`${path}.recordType`, obj['recordType']),
-        recordId: expectString(`${path}.recordId`, obj['recordId']),
-        field: optionalString(`${path}.field`, obj['field'] ?? null),
-        recordedAt: optionalString(`${path}.recordedAt`, obj['recordedAt'] ?? null),
+        source_type: sourceType,
+        source_id: sourceId,
+        locator,
+        quote,
+        ...(confidence !== undefined ? { confidence } : {}),
+        ...(meta !== undefined ? { meta } : {}),
     };
+};
+
+const decodeLocator = (path: string, raw: unknown): SourceReference['locator'] => {
+    const obj = expectObject(path, raw);
+    const locator: { -readonly [K in keyof SourceReference['locator']]: SourceReference['locator'][K] } = {};
+    if (obj['page'] !== undefined) {
+        locator.page = expectInt(`${path}.page`, obj['page']);
+    }
+    if (obj['bbox'] !== undefined) {
+        const bboxRaw = obj['bbox'];
+        if (!Array.isArray(bboxRaw) || bboxRaw.length !== 4) {
+            throw new ChartSnapshotDecodeError(`${path}.bbox`, 'expected a 4-tuple of numbers');
+        }
+        const bbox: number[] = [];
+        for (let i = 0; i < 4; i++) {
+            const v = bboxRaw[i];
+            if (typeof v !== 'number') {
+                throw new ChartSnapshotDecodeError(`${path}.bbox[${i}]`, 'expected a number');
+            }
+            bbox.push(v);
+        }
+        locator.bbox = bbox as unknown as readonly [number, number, number, number];
+    }
+    if (obj['section'] !== undefined) {
+        locator.section = expectString(`${path}.section`, obj['section']);
+    }
+    if (obj['field'] !== undefined) {
+        locator.field = expectString(`${path}.field`, obj['field']);
+    }
+    return locator;
+};
+
+const decodeMeta = (path: string, raw: unknown): NonNullable<SourceReference['meta']> => {
+    const obj = expectObject(path, raw);
+    const meta: { -readonly [K in keyof NonNullable<SourceReference['meta']>]: NonNullable<SourceReference['meta']>[K] } = {};
+    if (obj['document_uuid'] !== undefined) {
+        meta.document_uuid = expectString(`${path}.document_uuid`, obj['document_uuid']);
+    }
+    if (obj['extractor_version'] !== undefined) {
+        meta.extractor_version = expectString(`${path}.extractor_version`, obj['extractor_version']);
+    }
+    if (obj['rerank_score'] !== undefined) {
+        const v = obj['rerank_score'];
+        if (typeof v !== 'number') {
+            throw new ChartSnapshotDecodeError(`${path}.rerank_score`, 'expected a number');
+        }
+        meta.rerank_score = v;
+    }
+    if (obj['record_recorded_at'] !== undefined) {
+        meta.record_recorded_at = expectString(
+            `${path}.record_recorded_at`,
+            obj['record_recorded_at'],
+        );
+    }
+    return meta;
 };
 
 const decodeDemographics = (path: string, raw: unknown): Demographics => {

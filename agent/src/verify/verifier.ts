@@ -76,20 +76,20 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
     // `for…of`.
     const prescriptions = new Map<string, Prescription>();
     if (!isGap(snapshot.prescriptions as readonly Prescription[] | Gap)) {
-        for (const p of snapshot.prescriptions) prescriptions.set(p.source.recordId, p);
+        for (const p of snapshot.prescriptions) prescriptions.set(p.source.source_id, p);
     }
 
     const allergies = new Map<string, Allergy>();
     if (!isGap(snapshot.allergies as readonly Allergy[] | Gap)) {
-        for (const a of snapshot.allergies) allergies.set(a.source.recordId, a);
+        for (const a of snapshot.allergies) allergies.set(a.source.source_id, a);
     }
 
     const diagnoses = new Map<string, Diagnosis>();
-    for (const d of snapshot.diagnoses) diagnoses.set(d.source.recordId, d);
+    for (const d of snapshot.diagnoses) diagnoses.set(d.source.source_id, d);
 
     const labs = new Map<string, LabObservation>();
     if (!isGap(snapshot.labs)) {
-        for (const l of snapshot.labs) labs.set(l.source.recordId, l);
+        for (const l of snapshot.labs) labs.set(l.source.source_id, l);
     }
     // §4.2: UC2 lab-trend claims cite rows from `snapshot.labHistory`
     // (a separate slot from `snapshot.labs` because the standard
@@ -100,23 +100,23 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
     const history = snapshot.labHistory;
     if (history !== null && !('kind' in history)) {
         for (const l of history.observations) {
-            labs.set(l.source.recordId, l);
+            labs.set(l.source.source_id, l);
         }
     }
 
     const encounters = new Map<string, Encounter>();
     if (!isGap(snapshot.encounters)) {
-        for (const e of snapshot.encounters) encounters.set(e.source.recordId, e);
+        for (const e of snapshot.encounters) encounters.set(e.source.source_id, e);
     }
 
     const reminders = new Map<string, Reminder>();
     if (!isGap(snapshot.reminders)) {
-        for (const r of snapshot.reminders) reminders.set(r.source.recordId, r);
+        for (const r of snapshot.reminders) reminders.set(r.source.source_id, r);
     }
 
     const medications = new Map<string, MedicationStatement>();
     if (!isGap(snapshot.medications)) {
-        for (const m of snapshot.medications) medications.set(m.source.recordId, m);
+        for (const m of snapshot.medications) medications.set(m.source.source_id, m);
     }
 
     return {
@@ -127,13 +127,13 @@ const buildIndex = (snapshot: BriefingSnapshot): SnapshotIndex => {
         encounters,
         reminders,
         medications,
-        appointmentId: snapshot.appointment?.source.recordId ?? null,
-        patientRecordId: snapshot.patient.source.recordId,
+        appointmentId: snapshot.appointment?.source.source_id ?? null,
+        patientRecordId: snapshot.patient.source.source_id,
     };
 };
 
 const matchesPrescription = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const rx = idx.prescriptions.get(ref.recordId);
+    const rx = idx.prescriptions.get(ref.source_id);
     if (rx === undefined) return false;
     return containsCI(claim.text, rx.name);
 };
@@ -166,7 +166,7 @@ const matchesPrescriptionChange = (
     ref: SourceReference,
     idx: SnapshotIndex,
 ): boolean => {
-    const rx = idx.prescriptions.get(ref.recordId);
+    const rx = idx.prescriptions.get(ref.source_id);
     if (rx === undefined) return false;
     if (!containsCI(claim.text, rx.name)) return false;
     if (
@@ -188,7 +188,7 @@ const matchesPrescriptionChange = (
 
 
 const matchesLab = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const lab = idx.labs.get(ref.recordId);
+    const lab = idx.labs.get(ref.source_id);
     if (lab === undefined) return false;
     // Layer 1 (§3.3): the analyte AND value of the cited row both
     // appear in the claim text. Refuses "A1c trending up" with no
@@ -269,7 +269,7 @@ const NKDA_PATTERNS: readonly RegExp[] = [
 ];
 
 const matchesAllergy = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const allergy = idx.allergies.get(ref.recordId);
+    const allergy = idx.allergies.get(ref.source_id);
     if (allergy === undefined) return false;
     if (allergy.substance.toUpperCase() === 'NKDA') {
         return NKDA_PATTERNS.some((p) => p.test(claim.text));
@@ -278,13 +278,13 @@ const matchesAllergy = (claim: Claim, ref: SourceReference, idx: SnapshotIndex):
 };
 
 const matchesDiagnosis = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const dx = idx.diagnoses.get(ref.recordId);
+    const dx = idx.diagnoses.get(ref.source_id);
     if (dx === undefined) return false;
     return containsCI(claim.text, dx.code) || containsCI(claim.text, dx.label);
 };
 
 const matchesEncounter = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const enc = idx.encounters.get(ref.recordId);
+    const enc = idx.encounters.get(ref.source_id);
     if (enc === undefined) return false;
     if (enc.encounterDate !== null && containsCI(claim.text, enc.encounterDate)) return true;
     if (enc.type !== null && containsCI(claim.text, enc.type)) return true;
@@ -301,7 +301,7 @@ const matchesEncounter = (claim: Claim, ref: SourceReference, idx: SnapshotIndex
  * actually carry meaning.
  */
 const matchesReminder = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
-    const reminder = idx.reminders.get(ref.recordId);
+    const reminder = idx.reminders.get(ref.source_id);
     if (reminder === undefined) return false;
     if (!containsCI(claim.text, reminder.itemTitle)) return false;
     if (!containsCI(claim.text, reminder.dueStatus)) return false;
@@ -323,7 +323,7 @@ const matchesMedicationStatement = (
     ref: SourceReference,
     idx: SnapshotIndex,
 ): boolean => {
-    const stmt = idx.medications.get(ref.recordId);
+    const stmt = idx.medications.get(ref.source_id);
     if (stmt === undefined) return false;
     return containsCI(claim.text, stmt.name);
 };
@@ -342,42 +342,49 @@ interface CategoryCheck {
 
 const CHECKS: Record<Claim['category'], CategoryCheck> = {
     prescription: {
-        resolves: (ref, idx) => idx.prescriptions.has(ref.recordId),
+        resolves: (ref, idx) => idx.prescriptions.has(ref.source_id),
         contentMatches: matchesPrescription,
     },
     prescription_change: {
-        resolves: (ref, idx) => idx.prescriptions.has(ref.recordId),
+        resolves: (ref, idx) => idx.prescriptions.has(ref.source_id),
         contentMatches: matchesPrescriptionChange,
     },
     lab: {
-        resolves: (ref, idx) => idx.labs.has(ref.recordId),
+        resolves: (ref, idx) => idx.labs.has(ref.source_id),
         contentMatches: matchesLab,
     },
     allergy: {
-        resolves: (ref, idx) => idx.allergies.has(ref.recordId),
+        resolves: (ref, idx) => idx.allergies.has(ref.source_id),
         contentMatches: matchesAllergy,
     },
     diagnosis: {
-        resolves: (ref, idx) => idx.diagnoses.has(ref.recordId),
+        resolves: (ref, idx) => idx.diagnoses.has(ref.source_id),
         contentMatches: matchesDiagnosis,
     },
     encounter: {
-        resolves: (ref, idx) => idx.encounters.has(ref.recordId),
+        resolves: (ref, idx) => idx.encounters.has(ref.source_id),
         contentMatches: matchesEncounter,
     },
     appointment: {
-        resolves: (ref, idx) => idx.appointmentId !== null && idx.appointmentId === ref.recordId,
+        resolves: (ref, idx) => idx.appointmentId !== null && idx.appointmentId === ref.source_id,
     },
     identity: {
+        // W1 identity rule was "recordType === 'Patient' AND recordId
+        // matches"; in W2 the source_type is always 'chart' for
+        // chart-derived citations, so the patient-vs-other-record
+        // distinction lives in the locator. PatientAdapter emits
+        // `locator.field = 'patient.*'`.
         resolves: (ref, idx) =>
-            ref.recordType.toLowerCase() === 'patient' && ref.recordId === idx.patientRecordId,
+            ref.source_type === 'chart' &&
+            (ref.locator.field?.startsWith('patient.') ?? false) &&
+            ref.source_id === idx.patientRecordId,
     },
     reminder: {
-        resolves: (ref, idx) => idx.reminders.has(ref.recordId),
+        resolves: (ref, idx) => idx.reminders.has(ref.source_id),
         contentMatches: matchesReminder,
     },
     medication_statement: {
-        resolves: (ref, idx) => idx.medications.has(ref.recordId),
+        resolves: (ref, idx) => idx.medications.has(ref.source_id),
         contentMatches: matchesMedicationStatement,
     },
 };

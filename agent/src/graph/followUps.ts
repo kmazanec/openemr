@@ -80,7 +80,12 @@ const findLabsArray = (snapshot: BriefingSnapshot): readonly LabObservation[] =>
 const findEncountersHaveExternal = (snapshot: BriefingSnapshot): boolean => {
     const encs = snapshot.encounters;
     if (isGap(encs)) return false;
-    return encs.some((e) => e.source.system !== 'openemr');
+    // W1 distinguished CCDA-imported encounters via `source.system ===
+    // 'ccda-importer'`. W2 dropped the `system` field; the closest
+    // proxy still in the snapshot is the encounter `type` ("Emergency"
+    // for the §4.4 UC4 ED-visit archetype). C-phase work will
+    // reintroduce a richer encounter origin marker.
+    return encs.some((e) => e.type !== null && /emergency|\bed\b/i.test(e.type));
 };
 
 const matchAnalyteForClaim = (
@@ -89,11 +94,7 @@ const matchAnalyteForClaim = (
 ): string | null => {
     if (claim.category !== 'lab') return null;
     for (const ref of claim.sourceReferences) {
-        const lab = labs.find(
-            (l) =>
-                l.source.recordType === ref.recordType &&
-                l.source.recordId === ref.recordId,
-        );
+        const lab = labs.find((l) => l.source.source_id === ref.source_id);
         if (lab === undefined) continue;
         const recognized = RECOGNIZED_ANALYTES.find(
             (a) => a.toLowerCase() === lab.analyte.toLowerCase(),
@@ -118,11 +119,7 @@ const findPrescriptionForClaim = (
     // so) would never see the chip.
     if (claim.category !== 'prescription' && claim.category !== 'prescription_change') return null;
     for (const ref of claim.sourceReferences) {
-        const rx = prescriptions.find(
-            (p) =>
-                p.source.recordType === ref.recordType &&
-                p.source.recordId === ref.recordId,
-        );
+        const rx = prescriptions.find((p) => p.source.source_id === ref.source_id);
         if (rx !== undefined) return rx;
     }
     return null;
@@ -159,7 +156,7 @@ const isRecentMedicationStatement = (
     isWithinRecentDays(stmt.startDate, anchor, PRESCRIPTION_RECENT_DAYS);
 
 const prescriptionKey = (rx: Prescription): string =>
-    `${rx.source.recordType}:${rx.source.recordId}`;
+    `${rx.source.locator.field ?? 'medication.name'}:${rx.source.source_id}`;
 
 /**
  * Inverse of {@link prescriptionKey}. Used by §4.3's
@@ -168,19 +165,19 @@ const prescriptionKey = (rx: Prescription): string =>
  * re-implementing the split inline in the branch.
  */
 export const parsePrescriptionKey = (key: string): {
-    readonly recordType: string;
-    readonly recordId: string;
+    readonly locatorField: string;
+    readonly sourceId: string;
 } | null => {
-    // Split on the LAST `:` rather than the first so a recordId
+    // Split on the LAST `:` rather than the first so a sourceId
     // containing `:` (e.g. URN-style external ids) round-trips cleanly
-    // through the `${recordType}:${recordId}` shape that medicationKey
-    // emits. Today's record types are all colon-free, so this is
-    // pin-the-invariant rather than fix-a-live-bug.
+    // through the `${locator.field}:${source_id}` shape that
+    // prescriptionKey emits. Today's locator fields are all colon-free,
+    // so this is pin-the-invariant rather than fix-a-live-bug.
     const idx = key.lastIndexOf(':');
     if (idx <= 0 || idx === key.length - 1) return null;
     return {
-        recordType: key.slice(0, idx),
-        recordId: key.slice(idx + 1),
+        locatorField: key.slice(0, idx),
+        sourceId: key.slice(idx + 1),
     };
 };
 
@@ -190,15 +187,15 @@ export const parsePrescriptionKey = (key: string): {
  * suggestion-generator boundary.
  */
 const reminderKey = (reminder: Reminder): string =>
-    `${reminder.source.recordType}:${reminder.source.recordId}`;
+    `${reminder.source.locator.field ?? 'task.description'}:${reminder.source.source_id}`;
 
 /**
  * Inverse of {@link reminderKey}. Used by §4.6.5's `reminderBranch`
  * to recover the reminder record id from the typed follow-up params.
  */
 export const parseReminderKey = (key: string): {
-    readonly recordType: string;
-    readonly recordId: string;
+    readonly locatorField: string;
+    readonly sourceId: string;
 } | null => parsePrescriptionKey(key);
 
 const findReminderForClaim = (
@@ -207,18 +204,14 @@ const findReminderForClaim = (
 ): Reminder | null => {
     if (claim.category !== 'reminder') return null;
     for (const ref of claim.sourceReferences) {
-        const r = reminders.find(
-            (rem) =>
-                rem.source.recordType === ref.recordType &&
-                rem.source.recordId === ref.recordId,
-        );
+        const r = reminders.find((rem) => rem.source.source_id === ref.source_id);
         if (r !== undefined) return r;
     }
     return null;
 };
 
 const medicationStatementKey = (stmt: MedicationStatement): string =>
-    `${stmt.source.recordType}:${stmt.source.recordId}`;
+    `${stmt.source.locator.field ?? 'medicationStatement.medication'}:${stmt.source.source_id}`;
 
 /**
  * Inverse of {@link medicationStatementKey}. Used by §4.6.6's
@@ -226,8 +219,8 @@ const medicationStatementKey = (stmt: MedicationStatement): string =>
  * the typed follow-up params.
  */
 export const parseMedicationStatementKey = (key: string): {
-    readonly recordType: string;
-    readonly recordId: string;
+    readonly locatorField: string;
+    readonly sourceId: string;
 } | null => parsePrescriptionKey(key);
 
 const findMedicationStatementForClaim = (
@@ -236,11 +229,7 @@ const findMedicationStatementForClaim = (
 ): MedicationStatement | null => {
     if (claim.category !== 'medication_statement') return null;
     for (const ref of claim.sourceReferences) {
-        const s = statements.find(
-            (stmt) =>
-                stmt.source.recordType === ref.recordType &&
-                stmt.source.recordId === ref.recordId,
-        );
+        const s = statements.find((stmt) => stmt.source.source_id === ref.source_id);
         if (s !== undefined) return s;
     }
     return null;
