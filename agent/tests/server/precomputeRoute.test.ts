@@ -27,6 +27,7 @@ const finishedAssistantEvent: BriefingStreamEvent = {
     type: 'assistantMessage',
     message: {
         segments: [],
+        claimGroups: {},
         gaps: [
             {
                 kind: 'gap',
@@ -43,6 +44,7 @@ const flaggedAssistantEvent: BriefingStreamEvent = {
     type: 'assistantMessage',
     message: {
         segments: [],
+        claimGroups: {},
         gaps: [
             {
                 kind: 'gap',

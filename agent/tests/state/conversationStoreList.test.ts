@@ -11,6 +11,7 @@ import type { AssistantMessage } from '../../src/graph/types.js';
 
 const ASSISTANT: AssistantMessage = {
     segments: [{ text: 'briefing.', claims: [], redacted: false }],
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],

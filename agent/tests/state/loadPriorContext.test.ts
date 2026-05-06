@@ -71,6 +71,7 @@ const assistantMessage = (citationIds: readonly string[]): AssistantMessage => (
         ],
         redacted: false,
     })),
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],

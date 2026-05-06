@@ -9,7 +9,11 @@ import { generateFollowUps } from '../followUps.js';
 import type {
     AssistantMessage,
     AssistantMessageSegment,
+    ChartGroupSubsection,
     Claim,
+    ClaimCategory,
+    ClaimGroups,
+    DocumentClaimCard,
     DraftSegment,
     Gap,
     VerifiedLedger,
@@ -101,6 +105,122 @@ const collectGaps = (verified: VerifiedLedger): readonly Gap[] => {
     return gaps;
 };
 
+/**
+ * Canonical W1 sub-section order inside the panel UI's "What's in the
+ * chart" section. Mirrors the W1 `FormattedBriefing` ordering so the
+ * panel renders diagnoses → meds → labs → … the way the W1 bubble used
+ * to. Typed as `Record<ClaimCategory, number>` so the TypeScript exhaustiveness
+ * check catches a future `ClaimCategory` addition that forgets to slot
+ * itself into the order — without this, a new category would silently
+ * disappear from the panel.
+ */
+const CHART_CATEGORY_RANK: Record<ClaimCategory, number> = {
+    identity: 0,
+    appointment: 1,
+    encounter: 2,
+    diagnosis: 3,
+    prescription: 4,
+    prescription_change: 5,
+    medication_statement: 6,
+    allergy: 7,
+    lab: 8,
+    reminder: 9,
+};
+
+/**
+ * §C.6 panel-UI grouping. Buckets accepted claims by primary
+ * `sourceReferences[0].source_type`:
+ *   - `chart` → "What's in the chart" (sub-grouped by `Claim.category`).
+ *   - `extracted_document` → "From documents" (sub-grouped by
+ *     `meta.document_uuid`; one card per document).
+ *   - `guideline` → "Evidence" (flat list).
+ *
+ * **Mixed-source claim placement.** When a claim carries multiple
+ * `sourceReferences` with mixed `source_type`, the **primary** (first)
+ * reference wins; the claim lands in exactly one section, never
+ * duplicated across two. The synthesizer is steered to lead with the
+ * most-load-bearing source for the assertion, so primary-wins is the
+ * intent-preserving rule.
+ *
+ * **Hard-stop suppression.** A claim whose category is fully suppressed
+ * by an active safety hard stop is filtered out before grouping so the
+ * panel stays in sync with the redacted bubble.
+ *
+ * **Empty-section omission.** A bucket with zero claims is *absent* from
+ * the returned object. The renderer treats `claimGroups.guideline ===
+ * undefined` as "no Evidence section this turn" without an empty-list
+ * branch.
+ */
+const groupClaims = (
+    accepted: readonly Claim[],
+    stops: readonly string[],
+): ClaimGroups => {
+    const chartByCategory = new Map<ClaimCategory, Claim[]>();
+    const docByUuid = new Map<string | null, Claim[]>();
+    const docOrder: (string | null)[] = [];
+    const guideline: Claim[] = [];
+
+    for (const claim of accepted) {
+        if (isStoppedCategory(claim.category, stops)) continue;
+
+        const primary = claim.sourceReferences[0];
+        // Defensive — synthesizer schema requires ≥1 sourceReference per
+        // claim. If somehow zero, drop the claim from the panel rather
+        // than guess a bucket.
+        if (primary === undefined) continue;
+
+        switch (primary.source_type) {
+            case 'chart': {
+                const existing = chartByCategory.get(claim.category);
+                if (existing === undefined) {
+                    chartByCategory.set(claim.category, [claim]);
+                } else {
+                    existing.push(claim);
+                }
+                break;
+            }
+            case 'extracted_document': {
+                const uuid = primary.meta?.document_uuid ?? null;
+                const existing = docByUuid.get(uuid);
+                if (existing === undefined) {
+                    docByUuid.set(uuid, [claim]);
+                    docOrder.push(uuid);
+                } else {
+                    existing.push(claim);
+                }
+                break;
+            }
+            case 'guideline': {
+                guideline.push(claim);
+                break;
+            }
+        }
+    }
+
+    const groups: { -readonly [K in keyof ClaimGroups]: ClaimGroups[K] } = {};
+
+    if (chartByCategory.size > 0) {
+        const subsections: ChartGroupSubsection[] = Array.from(chartByCategory.entries())
+            .map(([category, claims]) => ({ category, claims }))
+            .sort((a, b) => CHART_CATEGORY_RANK[a.category] - CHART_CATEGORY_RANK[b.category]);
+        groups.chart = { subsections };
+    }
+
+    if (docByUuid.size > 0) {
+        const cards: DocumentClaimCard[] = docOrder.map((uuid) => ({
+            documentUuid: uuid,
+            claims: docByUuid.get(uuid) ?? [],
+        }));
+        groups.extractedDocument = { cards };
+    }
+
+    if (guideline.length > 0) {
+        groups.guideline = { claims: guideline };
+    }
+
+    return groups;
+};
+
 // eslint-disable-next-line @typescript-eslint/require-await -- async signature is the LangGraph node contract; node body has no awaits.
 export const format = async (state: BriefingState): Promise<BriefingStateUpdate> => {
     if (state.verified === null) {
@@ -142,6 +262,7 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
 
     const formatted: AssistantMessage = {
         segments,
+        claimGroups: groupClaims(verified.accepted, verified.safetyHardStops),
         gaps: collectGaps(verified),
         suggestedFollowUps,
         archetypeFlags: deriveArchetypeFlags(state.snapshot),

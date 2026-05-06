@@ -113,6 +113,7 @@ describe('prepareBriefingState', () => {
                         redacted: false,
                     },
                 ],
+                claimGroups: {},
                 gaps: [],
                 suggestedFollowUps: [],
                 archetypeFlags: [],

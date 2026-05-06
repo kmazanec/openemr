@@ -364,3 +364,192 @@ describe('format', () => {
         expect(f.suggestedFollowUps).toEqual([]);
     });
 });
+
+// §C.6 — Format groups verified claims by `source_type` for the panel UI.
+//
+// The chat-bubble surface (`segments[]`) is unchanged; the new
+// `claimGroups` field projects the same accepted claims into three
+// optional sections so the panel renderer can chunk them without
+// re-walking the snapshot. Empty sections are *absent* (not present-but-
+// empty) so the renderer can naturally omit headers.
+describe('format — claim groups by source_type (§C.6)', () => {
+    const docSourceRef = (artifactId: string, page = 1, bbox: readonly [number, number, number, number] = [0.1, 0.1, 0.2, 0.05], documentUuid = 'doc-uuid-1') => ({
+        source_type: 'extracted_document' as const,
+        source_id: artifactId,
+        locator: { page, bbox, field: 'results.0.value' },
+        quote: '8.4 %',
+        meta: { document_uuid: documentUuid, extractor_version: 'lab-pdf-v1' },
+    });
+
+    const guidelineSourceRef = (chunkId: string, section = 'recommendation-summary') => ({
+        source_type: 'guideline' as const,
+        source_id: chunkId,
+        locator: { section },
+        quote: 'Screen adults 45–75 for colorectal cancer.',
+        meta: { rerank_score: 0.91 },
+    });
+
+    const docLabClaim: Claim = {
+        id: 'doc-lab-1',
+        text: 'Intake form lists A1c as 8.4%.',
+        category: 'lab',
+        sourceReferences: [docSourceRef('artifact-1')],
+        safetyCritical: false,
+    };
+
+    const docAllergyClaim: Claim = {
+        id: 'doc-alg-1',
+        text: 'Intake form notes a penicillin allergy.',
+        category: 'allergy',
+        sourceReferences: [docSourceRef('artifact-2', 2, [0.2, 0.3, 0.3, 0.06], 'doc-uuid-2')],
+        safetyCritical: true,
+    };
+
+    const guidelineClaim: Claim = {
+        id: 'gl-1',
+        text: 'USPSTF (2021) recommends colorectal cancer screening for adults 45–75 (Grade B).',
+        category: 'reminder',
+        sourceReferences: [guidelineSourceRef('uspstf::colorectal-cancer-screening--recommendation-summary')],
+        safetyCritical: false,
+    };
+
+    it('groups accepted claims into chart / extractedDocument / guideline buckets', async () => {
+        const verified: VerifiedLedger = {
+            passed: true,
+            accepted: [dxClaim, medClaim, allergyClaim, labClaim, docLabClaim, guidelineClaim],
+            rejected: [],
+            safetyHardStops: [],
+        };
+        const draft = draftSegments(
+            { text: 'Type 2 diabetes (E11.9).', claimIds: ['dx-1'] },
+            { text: 'Metformin 500 mg BID.', claimIds: ['med-1'] },
+            { text: 'Penicillin allergy.', claimIds: ['alg-1'] },
+            { text: 'A1c 8.4%.', claimIds: ['lab-1'] },
+            { text: 'Intake form lists A1c as 8.4%.', claimIds: ['doc-lab-1'] },
+            { text: 'USPSTF colorectal screening recommendation.', claimIds: ['gl-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.claimGroups).toBeDefined();
+
+        // Chart bucket: W1-style claims, grouped by category in canonical order.
+        const chart = f.claimGroups.chart;
+        if (chart === undefined) throw new Error('chart group missing');
+        const categoriesInOrder = chart.subsections.map((s) => s.category);
+        // Canonical W1 order: diagnosis → prescription → allergy → lab.
+        expect(categoriesInOrder).toEqual(['diagnosis', 'prescription', 'allergy', 'lab']);
+        expect(chart.subsections.find((s) => s.category === 'diagnosis')?.claims.map((c) => c.id))
+            .toEqual(['dx-1']);
+        expect(chart.subsections.find((s) => s.category === 'lab')?.claims.map((c) => c.id))
+            .toEqual(['lab-1']);
+
+        // Extracted-document bucket: cards keyed by document_uuid.
+        const docs = f.claimGroups.extractedDocument;
+        if (docs === undefined) throw new Error('extractedDocument group missing');
+        expect(docs.cards).toHaveLength(1);
+        expect(docs.cards[0]?.documentUuid).toBe('doc-uuid-1');
+        expect(docs.cards[0]?.claims.map((c) => c.id)).toEqual(['doc-lab-1']);
+
+        // Guideline bucket: flat claim list.
+        const guidelines = f.claimGroups.guideline;
+        if (guidelines === undefined) throw new Error('guideline group missing');
+        expect(guidelines.claims.map((c) => c.id)).toEqual(['gl-1']);
+    });
+
+    it('groups multiple extracted-document claims under one card per document_uuid', async () => {
+        const verified: VerifiedLedger = {
+            passed: true,
+            accepted: [docLabClaim, docAllergyClaim],
+            rejected: [],
+            safetyHardStops: [],
+        };
+        const draft = draftSegments(
+            { text: 'A1c 8.4%.', claimIds: ['doc-lab-1'] },
+            { text: 'Penicillin allergy on intake.', claimIds: ['doc-alg-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        const docs = f.claimGroups.extractedDocument;
+        if (docs === undefined) throw new Error('extractedDocument group missing');
+        // Two distinct document_uuids → two cards, in first-seen order.
+        expect(docs.cards.map((c) => c.documentUuid)).toEqual(['doc-uuid-1', 'doc-uuid-2']);
+        expect(docs.cards[0]?.claims.map((c) => c.id)).toEqual(['doc-lab-1']);
+        expect(docs.cards[1]?.claims.map((c) => c.id)).toEqual(['doc-alg-1']);
+    });
+
+    it('omits sections with no claims (no empty headers in the panel)', async () => {
+        // No extracted-document or guideline claims this turn.
+        const verified: VerifiedLedger = {
+            passed: true,
+            accepted: [dxClaim],
+            rejected: [],
+            safetyHardStops: [],
+        };
+        const draft = draftSegments({ text: 'Type 2 diabetes.', claimIds: ['dx-1'] });
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.claimGroups.chart).toBeDefined();
+        expect(f.claimGroups.extractedDocument).toBeUndefined();
+        expect(f.claimGroups.guideline).toBeUndefined();
+    });
+
+    it('places a mixed-source claim by its primary (first) sourceReference', async () => {
+        // Mixed-source claim: primary ref is extracted_document, secondary
+        // is guideline. Per C.6, the first ref wins — the claim lands in
+        // the documents bucket, never duplicated.
+        const mixedClaim: Claim = {
+            id: 'mixed-1',
+            text: 'Intake A1c is 8.4%; USPSTF recommends control under 7%.',
+            category: 'lab',
+            sourceReferences: [
+                docSourceRef('artifact-1'),
+                guidelineSourceRef('uspstf::diabetes-screening--recommendation-summary'),
+            ],
+            safetyCritical: false,
+        };
+        const verified: VerifiedLedger = {
+            passed: true,
+            accepted: [mixedClaim],
+            rejected: [],
+            safetyHardStops: [],
+        };
+        const draft = draftSegments(
+            { text: 'Intake A1c 8.4%; USPSTF target <7%.', claimIds: ['mixed-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.claimGroups.extractedDocument?.cards[0]?.claims.map((c) => c.id))
+            .toEqual(['mixed-1']);
+        expect(f.claimGroups.guideline).toBeUndefined();
+        expect(f.claimGroups.chart).toBeUndefined();
+    });
+
+    it('excludes hard-stop-suppressed claims from claimGroups even though they ride in `accepted`', async () => {
+        // Allergies-unavailable suppresses prescription content in the
+        // bubble; mirroring that in the panel keeps the two surfaces in
+        // sync. The medClaim is in `accepted` but the panel must not
+        // surface it because the hard stop fires.
+        const verified: VerifiedLedger = {
+            passed: false,
+            accepted: [dxClaim, medClaim],
+            rejected: [],
+            safetyHardStops: ['allergies-unavailable'],
+        };
+        const draft = draftSegments(
+            { text: 'Type 2 diabetes.', claimIds: ['dx-1'] },
+            { text: 'Metformin 500 mg BID.', claimIds: ['med-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        const chart = f.claimGroups.chart;
+        if (chart === undefined) throw new Error('chart group missing');
+        const categories = chart.subsections.map((s) => s.category);
+        // diagnosis present, prescription suppressed.
+        expect(categories).toEqual(['diagnosis']);
+    });
+});

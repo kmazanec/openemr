@@ -254,15 +254,18 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 - `agent/src/graph/nodes/format.ts`.
 
 **Checklist.**
-- [ ] Update format to group by `source_type`:
+- [x] Update format to group by `source_type`:
   - Walk verified ledger → bucket each claim by `claim.sourceReferences[0].source_type`.
   - "What's in the chart" — W1 sub-sections preserved (appointment context, demographics, deltas, diagnoses, meds, labs, allergies, encounters).
   - "From documents" — flat list of facts grouped by document (one document = one sub-card with facts under it).
   - "Evidence" — flat list of guideline citations with publication + year + section.
-- [ ] If a claim has multiple source references with mixed `source_type`, place it in the section of its **primary** source reference (first in the array). Document this in a comment.
-- [ ] Tests: assert grouping; assert empty section is omitted from output; assert mixed-source claim placement.
+  (Implemented as additive `AssistantMessage.claimGroups: ClaimGroups` projection; the chronological `segments[]` chat-bubble flow is unchanged. Chart sub-grouping uses `Claim.category` ordered by an exhaustive `Record<ClaimCategory, number>` rank table so a future category addition is a compile-time error rather than a silent drop. Document cards key off `meta.document_uuid` with first-seen ordering; a primary `extracted_document` ref carrying no `document_uuid` collapses under a `documentUuid: null` card. Hard-stop-suppressed claims are filtered before grouping so the panel stays in sync with the redacted bubble — verified by `excludes hard-stop-suppressed claims` test.)
+- [x] If a claim has multiple source references with mixed `source_type`, place it in the section of its **primary** source reference (first in the array). Document this in a comment.
+  (Documented in the `groupClaims` JSDoc block in `agent/src/graph/nodes/format.ts` and pinned by the `places a mixed-source claim by its primary (first) sourceReference` test.)
+- [x] Tests: assert grouping; assert empty section is omitted from output; assert mixed-source claim placement.
+  (5 new vitest cases under `format — claim groups by source_type (§C.6)`: full three-section grouping + ordering, multi-document card collapsing, empty-section omission, mixed-source primary placement, hard-stop suppression mirrored to the panel.)
 
-**Definition of done.** A test fixture with all three source types verified produces an output with three sections in the expected order. An empty "Evidence" section is omitted (not rendered as empty header).
+**Definition of done.** A test fixture with all three source types verified produces an output with three sections in the expected order. An empty "Evidence" section is omitted (not rendered as empty header). (Met: new vitest case `groups accepted claims into chart / extractedDocument / guideline buckets` asserts the three-section shape; `omits sections with no claims` asserts absence-not-empty for unused buckets.)
 
 ---
 

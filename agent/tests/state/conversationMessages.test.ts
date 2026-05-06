@@ -28,6 +28,7 @@ const ASSISTANT_MESSAGE: AssistantMessage = {
             redacted: false,
         },
     ],
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],
