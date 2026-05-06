@@ -110,12 +110,27 @@ test:agent:
     # adjacent `test:agent-evals-nightly` job runs the LangSmith
     # experiment that exercises the real synthesizer; that one is
     # gated to schedules to keep per-MR cost predictable.
+    # System deps for `canvas` (transitive of `pdf-img-convert`, the §B.3
+    # rasterizer): no prebuilt linux-musl-x64 binary is published for
+    # node-v127 (Node 22 on Alpine), so npm falls back to a source build
+    # and needs Cairo/Pango/JPEG/GIF/Pixman dev headers plus python3,
+    # make, g++ at install time. The PDF → image rendering path runs in
+    # production and (gated on RUN_RASTERIZER_RENDER_TESTS=1) in CI, so
+    # the deps are mandatory rather than optional.
     docker run --rm \
       -v "$CI_PROJECT_DIR:/work-root" \
       -v openemr-ci-node-modules:/work-root/agent/node_modules \
       -w /work-root/agent \
       node:22-alpine \
-      sh -c 'npm ci --no-audit --no-fund && npm run lint && npm run typecheck && npm test'
+      sh -c '
+        apk add --no-cache \
+          build-base g++ make python3 pkgconf \
+          cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev && \
+        npm ci --no-audit --no-fund && \
+        npm run lint && \
+        npm run typecheck && \
+        npm test
+      '
 
 # §3.6 nightly LangSmith experiment. Bootstraps the
 # `clinical-copilot-uc1-golden-v1` dataset (idempotent) and runs the
@@ -149,6 +164,9 @@ test:agent-evals-nightly:
       -e CI_COMMIT_SHA \
       node:22-alpine \
       sh -c '
+        apk add --no-cache \
+          build-base g++ make python3 pkgconf \
+          cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev && \
         npm ci --no-audit --no-fund && \
         npm run evals:upload-dataset && \
         npm run evals:experiment
