@@ -817,6 +817,14 @@ export const start = async (port: number): Promise<void> => {
         // endpoint with the same category set; the demographics fetcher
         // just projects `.patient` off the result. Sharing the fetch
         // keeps a single source of truth for the category list.
+        //
+        // The category set is the union of what `patientMatch`
+        // (demographics only — `.patient` is always returned regardless
+        // of categories) and `emitDeltas` (allergies, medications,
+        // prescriptions, diagnoses) actually read. Asking for more (e.g.
+        // labs, encounters, reminders) would 403 against the `extract`
+        // action's JWT, whose scope set is intentionally narrower than
+        // the briefing path's — see PolicyGate's `extract` entry.
         const fetchSnapshotForCtx = (ctx: { openemrToken: string; openemrSiteId: string }) =>
             async (pid: number) =>
                 decodeChartSnapshot(
@@ -825,9 +833,6 @@ export const start = async (port: number): Promise<void> => {
                         categories: [
                             'diagnosis',
                             'allergy',
-                            'lab',
-                            'encounter',
-                            'reminder',
                             'medication_statement',
                             'prescription',
                         ],
