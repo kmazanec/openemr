@@ -62,6 +62,18 @@ final readonly class PolicyGate
             // §4.6.4 patient-reported medications snapshot field —
             // guarded by MedicationStatement.rs.
             'user/MedicationStatement.rs',
+            // Supervisor-driven panel uploads: when the envelope carries
+            // pendingUploads the supervisor picks `kickoffExtraction`,
+            // which runs the full ingestion pipeline inside the
+            // briefing turn and ends with a Tier-1 DocumentReference
+            // write back to OpenEMR. Without this scope the Tier-1
+            // callback sees `scope_not_permitted` and the persist node
+            // emits pipeline.error{code: persist_failed}. Mirrors the
+            // `extract` action's scope set; safe to include unconditionally
+            // because the Tier-1 endpoint only writes when the supervisor
+            // chose to extract — a no-doc briefing never reaches the
+            // callback.
+            'user/DocumentReference.cs',
         ],
         // §4.6 resume lookup: read-only JSON, no chart access. The
         // agent reads its own conversation tables; no SMART scopes

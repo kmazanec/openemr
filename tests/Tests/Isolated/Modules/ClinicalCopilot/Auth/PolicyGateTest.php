@@ -275,6 +275,27 @@ final class PolicyGateTest extends TestCase
         $this->assertSame(PolicyDenyReason::MissingSession, $decision->reason);
     }
 
+    public function testBriefingMintsDocumentReferenceWriteScopeForSupervisorDrivenUploads(): void
+    {
+        // Regression: the supervisor-driven panel-upload path (envelope
+        // carries pendingUploads) runs `kickoffExtraction` inside a
+        // briefing turn. The pipeline ends with a Tier-1
+        // DocumentReference write back to OpenEMR — the briefing
+        // token must therefore carry `user/DocumentReference.cs` or
+        // AgentEndpointAuth refuses the callback with
+        // `scope_not_permitted` and the persist node emits
+        // pipeline.error{code: persist_failed, HTTP 403}.
+        $briefingScopes = (new PolicyGate())->defaultScopesFor('briefing');
+        self::assertContains(
+            'user/DocumentReference.cs',
+            $briefingScopes,
+            "Briefing's allowlist is missing user/DocumentReference.cs. "
+            . "Without it, the supervisor's `kickoffExtraction` handoff "
+            . "cannot write the Tier-1 DocumentReference back to OpenEMR "
+            . "and every panel upload fails with HTTP 403 at persist.",
+        );
+    }
+
     public function testBriefingMintsScopesForEveryDataCategory(): void
     {
         // Regression: when a new DataCategory case is added (the §4.6.3
