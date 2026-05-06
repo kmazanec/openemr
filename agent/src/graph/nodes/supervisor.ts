@@ -7,6 +7,7 @@ import { createNoopCounters } from '../../observability/counters.js';
 import { createLogger } from '../../observability/logger.js';
 import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
+import { structuredOutputParseError } from './structuredOutputError.js';
 import {
     DocumentEvidenceArgsSchema,
     EvidenceArgsSchema,
@@ -94,7 +95,10 @@ export interface SupervisorStateObservation {
      * has been processed in the current iteration and must not be
      * re-extracted.
      */
-    readonly pendingUploads: readonly { readonly documentUuid: string; readonly docType: 'lab_pdf' | 'intake_form' }[];
+    readonly pendingUploads: readonly {
+        readonly documentUuid: string;
+        readonly docType: 'lab_pdf' | 'intake_form';
+    }[];
     /**
      * `kickoffExtraction` results appended on this turn, projected
      * minimally (uuid + status) so the supervisor can detect "already
@@ -194,9 +198,9 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'retrieveChart',
         description:
-            "Re-fetch chart categories. First call (deterministic) seeds the snapshot; subsequent calls accept structured args { categories: [...] } picking from " +
+            'Re-fetch chart categories. First call (deterministic) seeds the snapshot; subsequent calls accept structured args { categories: [...] } picking from ' +
             RETRIEVE_CHART_CATEGORIES.join(', ') +
-            ". Pick only when the chart slot is missing a category the question requires.",
+            '. Pick only when the chart slot is missing a category the question requires.',
     },
     {
         handoff: 'prescriptionChangeBranch',
@@ -221,7 +225,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'synthesize',
         description:
-            "Terminal handoff that produces the final assistant message. Pick when chart context plus retrieved evidence is sufficient to answer the question, AND when the question does not match a guideline-shaped pattern that evidenceRetriever should have handled first.",
+            'Terminal handoff that produces the final assistant message. Pick when chart context plus retrieved evidence is sufficient to answer the question, AND when the question does not match a guideline-shaped pattern that evidenceRetriever should have handled first.',
     },
 ];
 
@@ -327,14 +331,10 @@ const isDecisionWithUsage = (
  * does not get to route on garbage even if `withStructuredOutput`
  * accepted it (the args field is `unknown` per the architecture).
  */
-const narrowRetrieveChartArgs = (
-    args: Record<string, unknown> | undefined,
-): RetrieveChartArgs => {
+const narrowRetrieveChartArgs = (args: Record<string, unknown> | undefined): RetrieveChartArgs => {
     const categories = args?.['categories'];
     if (!Array.isArray(categories)) {
-        throw new Error(
-            'supervisor: retrieveChart handoff requires args.categories: string[]',
-        );
+        throw new Error('supervisor: retrieveChart handoff requires args.categories: string[]');
     }
     if (categories.length === 0) {
         throw new Error('supervisor: retrieveChart args.categories must be non-empty');
@@ -382,13 +382,9 @@ const narrowDocumentEvidenceArgs = (
  * — the runner surfaces a typed error rather than letting the graph
  * route on a malformed payload.
  */
-const narrowEvidenceArgs = (
-    args: Record<string, unknown> | undefined,
-): EvidenceArgs => {
+const narrowEvidenceArgs = (args: Record<string, unknown> | undefined): EvidenceArgs => {
     if (args === undefined) {
-        throw new Error(
-            'supervisor: evidenceRetriever handoff requires args: { query, ... }',
-        );
+        throw new Error('supervisor: evidenceRetriever handoff requires args: { query, ... }');
     }
     return EvidenceArgsSchema.parse(args);
 };
@@ -444,10 +440,7 @@ export const createSupervisor = (
             );
             return {
                 supervisorIterations: state.supervisorIterations + 1,
-                supervisorDecisionHistory: [
-                    ...state.supervisorDecisionHistory,
-                    forced,
-                ],
+                supervisorDecisionHistory: [...state.supervisorDecisionHistory, forced],
                 capHit: true,
             };
         }
@@ -459,9 +452,7 @@ export const createSupervisor = (
             handoffManifest: HANDOFF_MANIFEST,
         });
 
-        const decision: SupervisorDecision = isDecisionWithUsage(result)
-            ? result.decision
-            : result;
+        const decision: SupervisorDecision = isDecisionWithUsage(result) ? result.decision : result;
         const usage = isDecisionWithUsage(result) ? result.usage : undefined;
 
         // Validate the structured shape one more time. `withStructuredOutput`
@@ -551,10 +542,7 @@ export const createSupervisor = (
 
         return {
             supervisorIterations: state.supervisorIterations + 1,
-            supervisorDecisionHistory: [
-                ...state.supervisorDecisionHistory,
-                decision,
-            ],
+            supervisorDecisionHistory: [...state.supervisorDecisionHistory, decision],
             ...(retrieveChartArgs !== undefined ? { retrieveChartArgs } : {}),
             ...(documentEvidenceArgs !== undefined ? { documentEvidenceArgs } : {}),
             ...(evidenceRetrieverArgs !== undefined ? { evidenceRetrieverArgs } : {}),
@@ -607,9 +595,7 @@ const buildUserPrompt = (input: SupervisorDecideInput): string => {
                   .map(
                       (d, i) =>
                           `${i + 1}. ${d.handoff} — ${d.reason}` +
-                          (d.args !== undefined
-                              ? ` (args: ${JSON.stringify(d.args)})`
-                              : ''),
+                          (d.args !== undefined ? ` (args: ${JSON.stringify(d.args)})` : ''),
                   )
                   .join('\n');
     return [
@@ -634,18 +620,18 @@ export const createAnthropicSupervisorDecide = (options?: {
     readonly apiKey?: string;
 }): SupervisorDecide => {
     const model =
-        options?.model
-        ?? process.env['ANTHROPIC_MODEL_SUPERVISOR']
-        ?? DEFAULT_SUPERVISOR_MODEL;
+        options?.model ?? process.env['ANTHROPIC_MODEL_SUPERVISOR'] ?? DEFAULT_SUPERVISOR_MODEL;
     const apiKey = options?.apiKey ?? process.env['ANTHROPIC_API_KEY'];
     if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('ANTHROPIC_API_KEY is required to build the default supervisor');
     }
-    const structured = new ChatAnthropic({ model, apiKey, temperature: 0 })
-        .withStructuredOutput(SupervisorDecisionSchema, {
+    const structured = new ChatAnthropic({ model, apiKey, temperature: 0 }).withStructuredOutput(
+        SupervisorDecisionSchema,
+        {
             name: 'supervisor_decision',
             includeRaw: true,
-        });
+        },
+    );
     return async (input) => {
         const result = await structured.invoke([
             new SystemMessage(SUPERVISOR_SYSTEM_PROMPT),
@@ -657,12 +643,17 @@ export const createAnthropicSupervisorDecide = (options?: {
             // `withStructuredOutput({ includeRaw: true })` sets `parsed`
             // to null when JSON-coercion fails. The supervisor's caller
             // runs `SupervisorDecisionSchema.parse(decision)` next,
-            // which would NPE on null without an explicit message.
-            throw new Error('supervisor: structured output failed to parse');
+            // which would NPE on null without an explicit message. The
+            // thrown error carries a bounded excerpt of the raw model
+            // output so the LangSmith trace (and eval failure card)
+            // has enough signal to diagnose without re-running.
+            throw structuredOutputParseError('supervisor', raw);
         }
-        const usageMeta = (raw as {
-            usage_metadata?: { input_tokens?: number; output_tokens?: number };
-        }).usage_metadata;
+        const usageMeta = (
+            raw as {
+                usage_metadata?: { input_tokens?: number; output_tokens?: number };
+            }
+        ).usage_metadata;
         const usage =
             usageMeta !== undefined
                 ? {
