@@ -470,7 +470,7 @@
     padding: 0.6em 0.6em 0.6em;
     background: linear-gradient(to top, #ffffff 70%, rgba(255, 255, 255, 0));
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     gap: 0.5em;
     align-items: end;
 }
@@ -522,6 +522,62 @@
     border-color: #b6bec8;
     color: #fff;
     cursor: not-allowed;
+}
+
+/* ───────── §D.1 file picker + upload toast ───────── */
+
+.copilot-composer__attach {
+    padding: 0.55em 0.75em;
+    border-radius: 6px;
+    border: 1px solid #c7d0d9;
+    background: #f6f7f9;
+    color: #2058a8;
+    font: inherit;
+    font-size: 1.1em;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.copilot-composer__attach:hover:not(:disabled) {
+    background: #e8edf3;
+    border-color: #a8b3c2;
+}
+
+.copilot-composer__attach:disabled {
+    background: #e8edf3;
+    border-color: #c7d0d9;
+    color: #8a8f97;
+    cursor: not-allowed;
+}
+
+.copilot-composer__file {
+    /* Visually hidden but kept in the layout flow + accessibility tree
+       so keyboard users can still tab onto the native control if they
+       prefer. The visible affordance is the paperclip button. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.copilot-toast {
+    margin: 0.4em 0.2em 0;
+    padding: 0.6em 0.75em;
+    border-radius: 6px;
+    border: 1px solid #f5c2c7;
+    background: #f8d7da;
+    color: #58151c;
+    font-size: 0.9em;
+    line-height: 1.35;
+}
+
+.copilot-toast[hidden] {
+    display: none;
 }
 
 /* ───────── §4.7 history sidebar ───────── */
