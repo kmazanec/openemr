@@ -46,15 +46,10 @@ interface ArchetypeRoutingCase {
 
 /**
  * For a default-briefing turn, the legitimate first-iteration handoffs
- * are `synthesize` (chart context already seeded by `retrieveChart`) or
- * the W2 retriever stubs `documentEvidenceRetriever` / `evidenceRetriever`
- * (Phase B/C will turn these from no-ops into real fetchers — picking
- * one today is plausible because the supervisor doesn't know they're
- * stubbed). `retrieveChart` is allowed too: a model might decide one
- * narrowing fetch is cheap and helpful before synthesizing. The
- * deterministic UC3/4.6.5/4.6.6 branches are explicitly NOT in the set
- * — the supervisor's prompt steers it away from those when the
- * envelope's `followUp.type` doesn't match.
+ * are `synthesize` (chart context already seeded by `retrieveChart`)
+ * and the retrievers `documentEvidenceRetriever` / `evidenceRetriever`.
+ * `retrieveChart` is allowed too: a model might decide one narrowing
+ * fetch is cheap and helpful before synthesizing.
  */
 const DEFAULT_BRIEFING_ALLOWED: readonly SupervisorHandoff[] = [
     'synthesize',

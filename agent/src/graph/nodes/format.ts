@@ -257,7 +257,7 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
     // suppress at source so the UI never sees a chip whose origin chip
     // it can't trace back to a default_briefing turn.
     const suggestedFollowUps = state.envelope.task === 'default_briefing'
-        ? generateFollowUps(state.envelope.conversationId, verified, state.snapshot)
+        ? generateFollowUps(verified, state.snapshot)
         : [];
 
     const formatted: AssistantMessage = {

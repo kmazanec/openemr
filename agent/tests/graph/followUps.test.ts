@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { generateFollowUps, parsePrescriptionKey } from '../../src/graph/followUps.js';
+import { generateFollowUps } from '../../src/graph/followUps.js';
 import type {
     BriefingSnapshot,
     Claim,
@@ -124,12 +124,6 @@ const externalEncounter = (recordId: string): Encounter => ({
     encounterDate: '2026-01-10',
     type: 'ED',
     reason: 'Chest pain',
-    // W2 dropped the `system` field; the W1 distinction between
-    // native and CCDA-imported encounters is not visible in the
-    // W2 SourceReference shape. The followUps suite still calls
-    // this builder for "external" encounters; the resulting test
-    // case becomes "any encounter" until a richer encounter origin
-    // marker lands in C-phase.
     source: sourceRef('Encounter', recordId),
 });
 
@@ -142,17 +136,17 @@ const verifiedFrom = (claims: readonly Claim[]): VerifiedLedger => ({
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 
+const isLabTrend = (text: string): boolean => /trending/i.test(text);
+const isPrescriptionAsk = (text: string): boolean => /^Why was .* prescribed\?$/i.test(text);
+const isExternalEncounter = (text: string): boolean => /outside encounter/i.test(text);
+
 describe('generateFollowUps', () => {
     it('returns an empty array when verified.accepted is empty', () => {
-        const result = generateFollowUps(
-            'conv-1',
-            verifiedFrom([]),
-            baseSnapshot(),
-        );
+        const result = generateFollowUps(verifiedFrom([]), baseSnapshot());
         expect(result).toEqual([]);
     });
 
-    it('emits a lab_trend suggestion with the analyte copied verbatim from the snapshot', () => {
+    it('emits a lab-trend chip whose text names the analyte verbatim', () => {
         const snapshot = baseSnapshot({
             labs: [lab('obs-1', 'A1c'), lab('obs-2', 'sodium')],
         });
@@ -160,16 +154,16 @@ describe('generateFollowUps', () => {
             labClaim('claim-a1c', 'obs-1', 'A1c 8.4%'),
             labClaim('claim-na', 'obs-2', 'Sodium 140 mEq/L'),
         ];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const labTrend = result.filter((r) => r.params.type === 'lab_trend');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const labTrend = result.filter((r) => isLabTrend(r.displayText));
         expect(labTrend).toHaveLength(1);
         const sole = labTrend[0]!;
-        expect(sole.params).toEqual({ type: 'lab_trend', analyte: 'A1c' });
+        expect(sole.displayText).toContain('A1c');
         expect(sole.groundedInClaimIds).toContain('claim-a1c');
         expect(sole.groundedInClaimIds).not.toContain('claim-na');
     });
 
-    it('caps lab_trend suggestions at 3 even when more recognized analytes match', () => {
+    it('caps lab-trend chips at 3 even when more recognized analytes match', () => {
         const snapshot = baseSnapshot({
             labs: [
                 lab('o-1', 'A1c'),
@@ -184,13 +178,12 @@ describe('generateFollowUps', () => {
             labClaim('c-3', 'o-3'),
             labClaim('c-4', 'o-4'),
         ];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const labTrend = result.filter((r) => r.params.type === 'lab_trend');
-        expect(labTrend.length).toBeLessThanOrEqual(3);
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const labTrend = result.filter((r) => isLabTrend(r.displayText));
         expect(labTrend).toHaveLength(3);
     });
 
-    it('emits a prescription_change suggestion when a med claim links to a startDate within 90 days of today', () => {
+    it('emits a prescription chip when a med claim links to a startDate within 90 days of today', () => {
         const recent = new Date();
         recent.setDate(recent.getDate() - 30);
         const recentIso = recent.toISOString().slice(0, 10);
@@ -198,13 +191,14 @@ describe('generateFollowUps', () => {
             prescriptions: [prescription('rx-1', 'lisinopril', recentIso)],
         });
         const claims: readonly Claim[] = [medicationClaim('claim-rx', 'rx-1')];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const medSuggestions = result.filter((r) => r.params.type === 'prescription_change');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const medSuggestions = result.filter((r) => isPrescriptionAsk(r.displayText));
         expect(medSuggestions).toHaveLength(1);
+        expect(medSuggestions[0]!.displayText).toContain('lisinopril');
         expect(medSuggestions[0]!.groundedInClaimIds).toContain('claim-rx');
     });
 
-    it('does not emit a prescription_change suggestion when the startDate is older than 90 days', () => {
+    it('does not emit a prescription chip when the startDate is older than 90 days', () => {
         const ancient = new Date();
         ancient.setDate(ancient.getDate() - 200);
         const ancientIso = ancient.toISOString().slice(0, 10);
@@ -212,12 +206,12 @@ describe('generateFollowUps', () => {
             prescriptions: [prescription('rx-1', 'lisinopril', ancientIso)],
         });
         const claims: readonly Claim[] = [medicationClaim('claim-rx', 'rx-1')];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const medSuggestions = result.filter((r) => r.params.type === 'prescription_change');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const medSuggestions = result.filter((r) => isPrescriptionAsk(r.displayText));
         expect(medSuggestions).toHaveLength(0);
     });
 
-    it('caps prescription_change suggestions at 2 even when more recent meds match', () => {
+    it('caps prescription chips at 2 even when more recent meds match', () => {
         const recent = new Date();
         recent.setDate(recent.getDate() - 10);
         const recentIso = recent.toISOString().slice(0, 10);
@@ -233,12 +227,12 @@ describe('generateFollowUps', () => {
             medicationClaim('c-2', 'rx-2'),
             medicationClaim('c-3', 'rx-3'),
         ];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const medSuggestions = result.filter((r) => r.params.type === 'prescription_change');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const medSuggestions = result.filter((r) => isPrescriptionAsk(r.displayText));
         expect(medSuggestions).toHaveLength(2);
     });
 
-    it('emits at most one external_care suggestion, only when an encounter has a non-openemr source', () => {
+    it('emits at most one outside-encounter chip when external encounters exist', () => {
         const snapshot = baseSnapshot({
             encounters: [externalEncounter('enc-1'), externalEncounter('enc-2')],
         });
@@ -246,20 +240,13 @@ describe('generateFollowUps', () => {
             encounterClaim('claim-enc-1', 'enc-1'),
             encounterClaim('claim-enc-2', 'enc-2'),
         ];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const external = result.filter((r) => r.params.type === 'external_care');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const external = result.filter((r) => isExternalEncounter(r.displayText));
         expect(external).toHaveLength(1);
         expect(external[0]!.groundedInClaimIds.length).toBeGreaterThan(0);
     });
 
-    it('emits the external_care suggestion when native and ccda-importer encounters coexist', () => {
-        // §4.4 UC4. ExternalEncounterAdapter merges into the same
-        // `encounters[]` as the native EncounterAdapter; the §4.1
-        // generator must trigger on the presence of any non-openemr
-        // source, not on every encounter being external. Pinning this
-        // protects against a future regression where the filter
-        // accidentally requires the external one to be the most
-        // recent (or the only) encounter.
+    it('emits the outside-encounter chip when native and external encounters coexist', () => {
         const snapshot = baseSnapshot({
             encounters: [
                 {
@@ -275,8 +262,8 @@ describe('generateFollowUps', () => {
             encounterClaim('c-native', 'enc-native'),
             encounterClaim('c-external', 'enc-external'),
         ];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const external = result.filter((r) => r.params.type === 'external_care');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const external = result.filter((r) => isExternalEncounter(r.displayText));
         expect(external).toHaveLength(1);
         // Both encounter claims contribute to the grounding ids — the
         // generator is conservative and links the suggestion to every
@@ -286,7 +273,7 @@ describe('generateFollowUps', () => {
         );
     });
 
-    it('does not emit an external_care suggestion when every encounter is from openemr', () => {
+    it('does not emit an outside-encounter chip when every encounter is an office visit', () => {
         const snapshot = baseSnapshot({
             encounters: [
                 {
@@ -298,8 +285,8 @@ describe('generateFollowUps', () => {
             ],
         });
         const claims: readonly Claim[] = [encounterClaim('c-1', 'enc-1')];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const external = result.filter((r) => r.params.type === 'external_care');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const external = result.filter((r) => isExternalEncounter(r.displayText));
         expect(external).toHaveLength(0);
     });
 
@@ -324,26 +311,8 @@ describe('generateFollowUps', () => {
             medicationClaim('c-6', 'rx-2'),
             encounterClaim('c-7', 'enc-1'),
         ];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
         expect(result.length).toBeLessThanOrEqual(5);
-    });
-
-    it('produces stable ids: same conversationId + params yield the same id across calls', () => {
-        const snapshot = baseSnapshot({ labs: [lab('o-1', 'A1c')] });
-        const claims: readonly Claim[] = [labClaim('c-1', 'o-1')];
-        const a = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const b = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        expect(a).toHaveLength(1);
-        expect(b).toHaveLength(1);
-        expect(a[0]!.id).toBe(b[0]!.id);
-    });
-
-    it('produces different ids for the same params across different conversations', () => {
-        const snapshot = baseSnapshot({ labs: [lab('o-1', 'A1c')] });
-        const claims: readonly Claim[] = [labClaim('c-1', 'o-1')];
-        const a = generateFollowUps('conv-A', verifiedFrom(claims), snapshot);
-        const b = generateFollowUps('conv-B', verifiedFrom(claims), snapshot);
-        expect(a[0]!.id).not.toBe(b[0]!.id);
     });
 
     it('every emitted suggestion lists at least one accepted claim id in groundedInClaimIds', () => {
@@ -361,7 +330,7 @@ describe('generateFollowUps', () => {
             encounterClaim('c-enc', 'enc-1'),
         ];
         const acceptedIds = new Set(claims.map((c) => c.id));
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
         expect(result.length).toBeGreaterThan(0);
         for (const suggestion of result) {
             expect(suggestion.groundedInClaimIds.length).toBeGreaterThan(0);
@@ -371,23 +340,7 @@ describe('generateFollowUps', () => {
         }
     });
 
-    it('parsePrescriptionKey round-trips a sourceId containing a colon', () => {
-        // Today every locator.field value is colon-free, but a future
-        // external id (URN-style, FHIR canonical, etc.) could bring
-        // colons. `lastIndexOf` splits on the rightmost separator so
-        // the locator-field stays whole.
-        const key = 'medication.name:urn:uuid:abc-123';
-        const parsed = parsePrescriptionKey(key);
-        expect(parsed).not.toBeNull();
-        expect(parsed?.locatorField).toBe('medication.name:urn:uuid');
-        expect(parsed?.sourceId).toBe('abc-123');
-    });
-
     it('uses the appointment.startAt date as the medication-recency anchor when present', () => {
-        // Anchor is the appointment, not "today" — a med started ~80 days
-        // before a future appointment qualifies even though it's >90 days
-        // before today (here we keep both within 90d to keep the test
-        // robust to the runner's clock and only assert the present-case).
         const apptStart = today() + 'T09:00:00.000Z';
         const recent = new Date();
         recent.setDate(recent.getDate() - 30);
@@ -404,8 +357,8 @@ describe('generateFollowUps', () => {
             prescriptions: [prescription('rx-1', 'lisinopril', recentIso)],
         });
         const claims: readonly Claim[] = [medicationClaim('c-1', 'rx-1')];
-        const result = generateFollowUps('conv-1', verifiedFrom(claims), snapshot);
-        const med = result.filter((r) => r.params.type === 'prescription_change');
+        const result = generateFollowUps(verifiedFrom(claims), snapshot);
+        const med = result.filter((r) => isPrescriptionAsk(r.displayText));
         expect(med).toHaveLength(1);
     });
 });

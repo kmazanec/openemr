@@ -1,6 +1,4 @@
 import type { Counters } from '../../observability/counters.js';
-import type { AgentHttpClient } from '../../tools/agentHttp.js';
-import { getLabHistory, type GetLabHistoryInput } from '../../tools/getLabHistory.js';
 import { loadChartSnapshot } from '../../tools/loadChartSnapshot.js';
 import type { SnapshotClient, SnapshotCategory } from '../../tools/snapshotClient.js';
 import { decodeChartSnapshot } from '../../snapshot/decode.js';
@@ -14,36 +12,26 @@ import type {
 } from '../types.js';
 
 /**
- * Default lookback for the UC2 lab-history fan-out. Two years matches
- * how clinicians read A1c/lipid/eGFR trends — long enough to span
- * pre/post a prescription change, short enough to not drown the model
- * in irrelevant rows.
- */
-export const UC2_LAB_HISTORY_LOOKBACK_DAYS = 730;
-
-/**
- * §A.4 `retrieveChart` node (renamed from W1's `retrieve`).
+ * `retrieveChart` node.
  *
- * **First call** (`state.retrieveChartCallCount === 0`) runs the W1
- * full fan-out — `loadChartSnapshot` over every category — so the A.7
- * supervisor has chart context to reason over on iteration 1. The W1
- * fail-closed-on-safety-critical / fail-open-on-informational tiered
- * behavior is unchanged: the snapshot endpoint already fans out
- * server-side and either returns the full payload or 5xx's, so a single
- * decode populates every category slot atomically.
+ * **First call** (`state.retrieveChartCallCount === 0`) runs the full
+ * fan-out — `loadChartSnapshot` over every category — so the supervisor
+ * has chart context to reason over on iteration 1. The fail-closed-on-
+ * safety-critical / fail-open-on-informational tiered behavior is owned
+ * by the snapshot endpoint server-side: a single decode populates every
+ * category slot atomically.
  *
  * **Subsequent calls** (`callCount > 0`) honor the supervisor's
  * `retrieveChartArgs.categories` — the model picks which categories are
  * still missing for the current question and the node fetches only
  * those, narrowing the original fan-out. An empty `categories` list is
- * rejected at the node entry; A.7's structured-output schema enforces
- * the same upstream.
+ * rejected at the node entry; the supervisor's structured-output schema
+ * enforces the same upstream.
  *
- * The supervisor-facing vocabulary uses `'medication'` (per
- * `W2_ARCHITECTURE.md` §"retrieveChart"); the snapshot HTTP client
- * speaks `'prescription'`. The bridge lives in this file only — the
- * supervisor never sees `'prescription'`, the HTTP layer never sees
- * `'medication'`.
+ * The supervisor-facing vocabulary uses `'medication'`; the snapshot
+ * HTTP client speaks `'prescription'`. The bridge lives in this file
+ * only — the supervisor never sees `'prescription'`, the HTTP layer
+ * never sees `'medication'`.
  *
  * Deps come in via the factory rather than `LangGraphRunnableConfig`
  * so the graph builder can wire the per-request bearer token before
@@ -51,19 +39,6 @@ export const UC2_LAB_HISTORY_LOOKBACK_DAYS = 730;
  * raw token (it doesn't belong in trace tags or other broad-context
  * value objects).
  */
-
-/**
- * UC2 lab-history fetcher. Tests inject a stub; production wires the
- * real `getLabHistory` tool via `briefingRunner`. Default factory
- * captures the production seam: an `AgentHttpClient` + base URL pair
- * passed to the tool function. Keeping this as a typed seam avoids
- * test code reaching into the LangSmith-traced `getLabHistory` symbol
- * (which is hard to stub without breaking the trace wrapper).
- */
-export type LabHistoryFetcher = (
-    input: Omit<GetLabHistoryInput, 'client' | 'openEmrBaseUrl' | 'counters'>
-        & { readonly counters?: GetLabHistoryInput['counters'] },
-) => ReturnType<typeof getLabHistory>;
 
 export interface RetrieveChartDeps {
     readonly client: SnapshotClient;
@@ -76,26 +51,12 @@ export interface RetrieveChartDeps {
      */
     readonly siteId: string;
     /**
-     * §6.1 cost-projection counters. Optional so existing tests that
-     * build a graph without observability wiring still work; production
-     * threads this from `briefingRunner`.
+     * Cost-projection counters. Optional so existing tests that build a
+     * graph without observability wiring still work; production threads
+     * this from `briefingRunner`.
      */
     readonly counters?: Counters;
-    /**
-     * §4.2 UC2 fan-out. Only invoked when the envelope carries
-     * `followUp.type === 'lab_trend'`. Optional so non-UC2 tests can
-     * keep their existing wiring; if a `lab_trend` turn arrives without
-     * the fetcher, retrieve files a gap so downstream nodes still see
-     * a consistent shape.
-     */
-    readonly fetchLabHistory?: LabHistoryFetcher;
 }
-
-const labHistoryUnavailable = (reason: string, message: string): Gap => ({
-    kind: 'gap',
-    reason,
-    message,
-});
 
 /**
  * Bridge the supervisor-facing category enum to the snapshot client's
@@ -125,33 +86,6 @@ const assembleFullSnapshot = (
     medications: chart.medications,
 });
 
-const fetchLabHistoryIfRequested = async (
-    deps: RetrieveChartDeps,
-    state: BriefingState,
-): Promise<LabHistorySeries | Gap | null> => {
-    const followUp = state.envelope.followUp;
-    if (followUp?.type !== 'lab_trend') {
-        return null;
-    }
-    if (deps.fetchLabHistory === undefined) {
-        return labHistoryUnavailable(
-            'fetcher-unwired',
-            'Lab history is not available right now.',
-        );
-    }
-    const result = await deps.fetchLabHistory({
-        token: deps.token,
-        siteId: deps.siteId,
-        pid: state.envelope.patient.pid,
-        analyte: followUp.analyte,
-        lookbackDays: UC2_LAB_HISTORY_LOOKBACK_DAYS,
-        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
-    });
-    return result.kind === 'ok'
-        ? { analyte: followUp.analyte, observations: result.labs }
-        : { kind: 'gap', reason: result.reason, message: result.message };
-};
-
 const runFirstCall = async (
     deps: RetrieveChartDeps,
     state: BriefingState,
@@ -163,8 +97,7 @@ const runFirstCall = async (
         pid: state.envelope.patient.pid,
         ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
     });
-    const labHistory = await fetchLabHistoryIfRequested(deps, state);
-    const snapshot = assembleFullSnapshot(chart, labHistory);
+    const snapshot = assembleFullSnapshot(chart, null);
     return { snapshot, retrieveChartCallCount: 1 };
 };
 
@@ -235,23 +168,4 @@ export const createRetrieveChart = (
         }
         return runSubsequentCall(deps, state, args);
     };
-};
-
-/**
- * Default `LabHistoryFetcher` for production. Captures the
- * `AgentHttpClient` + base URL once and returns a fetcher that
- * forwards to the real `getLabHistory` tool — keeps the per-request
- * hot path free of HTTP-client construction.
- */
-export const createLabHistoryFetcher = (input: {
-    readonly client: AgentHttpClient;
-    readonly openEmrBaseUrl: string;
-}): LabHistoryFetcher => {
-    return ({ counters, ...rest }) =>
-        getLabHistory({
-            client: input.client,
-            openEmrBaseUrl: input.openEmrBaseUrl,
-            ...rest,
-            ...(counters !== undefined ? { counters } : {}),
-        });
 };

@@ -325,7 +325,7 @@ describe('format', () => {
         expect(f.suggestedFollowUps).toEqual([]);
     });
 
-    it('§4.1 populates suggestedFollowUps when an accepted lab claim links to a recognized analyte', async () => {
+    it('populates suggestedFollowUps when an accepted lab claim links to a recognized analyte', async () => {
         const draft = draftSegments(
             { text: 'A1c is 8.4%.', claimIds: ['lab-1'] },
         );
@@ -333,11 +333,9 @@ describe('format', () => {
         const f = out.formatted;
         if (f === null || f === undefined) throw new Error('formatted missing');
         expect(f.suggestedFollowUps.length).toBeGreaterThan(0);
-        const labTrend = f.suggestedFollowUps.find((s) => s.params.type === 'lab_trend');
+        const labTrend = f.suggestedFollowUps.find((s) => /A1c/i.test(s.displayText));
         expect(labTrend).toBeDefined();
-        if (labTrend?.params.type === 'lab_trend') {
-            expect(labTrend.params.analyte).toBe('A1c');
-        }
+        expect(labTrend?.displayText).toContain('A1c');
         expect(labTrend?.groundedInClaimIds).toContain('lab-1');
     });
 

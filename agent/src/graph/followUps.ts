@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type { BriefingSnapshot, Claim, Gap, VerifiedLedger } from './types.js';
 import type {
     Encounter,
@@ -10,34 +8,24 @@ import type {
 } from '../snapshot/types.js';
 
 /**
- * §4.1 suggested-follow-up generator.
+ * Suggested-follow-up generator.
  *
- * Produces a small, grounded set of typed follow-up suggestions that the
- * panel renders as tap-to-run chips below an assistant briefing. Every
- * suggestion carries a *typed parameter set* (`SuggestedFollowUpParams`)
- * so the follow-up turn — which §4.2/§4.3/§4.4 add — does not have to
- * re-parse natural language. Until those phases land, the server bridges
- * a typed follow-up into a deterministic question string and routes it
- * through the existing free-text follow-up path.
+ * Produces a small, grounded set of follow-up suggestions the panel
+ * renders as tap-to-run chips below an assistant briefing. Each chip
+ * carries a free-text `displayText` and the claim ids that grounded
+ * its emission. Tapping a chip posts that `displayText` as a normal
+ * `task: 'follow_up'` envelope `question` — the supervisor reads it
+ * exactly as if the clinician had typed it.
  *
- * Grounding rule: a suggestion is only emitted when the claim it would
- * drill into actually appeared in the verified ledger. Zero qualifying
- * claims → empty array. The plan's "3-5" is a ceiling, not a floor —
- * generic filler would defeat the source-citation guarantee that is the
- * whole point of the verification gate.
+ * Grounding rule: a suggestion is only emitted when the claim it
+ * drills into actually appeared in the verified ledger. Zero
+ * qualifying claims → empty array. The "3-5" target is a ceiling, not
+ * a floor — generic filler would defeat the source-citation guarantee
+ * that is the whole point of the verification gate.
  */
 
-export type SuggestedFollowUpParams =
-    | { readonly type: 'lab_trend'; readonly analyte: string }
-    | { readonly type: 'prescription_change'; readonly prescriptionId: string }
-    | { readonly type: 'external_care'; readonly lookbackDays: number }
-    | { readonly type: 'reminder_detail'; readonly reminderId: string }
-    | { readonly type: 'medication_statement_detail'; readonly listId: string };
-
 export interface SuggestedFollowUp {
-    readonly id: string;
     readonly displayText: string;
-    readonly params: SuggestedFollowUpParams;
     readonly groundedInClaimIds: readonly string[];
 }
 
@@ -53,21 +41,6 @@ const EXTERNAL_LOOKBACK_DAYS = 365;
 
 export const MS_PER_DAY = 86_400_000;
 
-/**
- * Deterministic chip ID derived from `(conversationId, params)`.
- * Exported so the server's chip-ID validation can recompute the same
- * value from the incoming follow-up params and look it up against the
- * persisted suggestion set without a round-trip ID column.
- */
-export const stableId = (
-    conversationId: string,
-    params: SuggestedFollowUpParams,
-): string => {
-    const hash = createHash('sha1');
-    hash.update(JSON.stringify({ conversationId, params }));
-    return hash.digest('hex').slice(0, 12);
-};
-
 const isGap = (value: readonly LabObservation[] | readonly Encounter[] | Gap): value is Gap =>
     !Array.isArray(value);
 
@@ -80,11 +53,6 @@ const findLabsArray = (snapshot: BriefingSnapshot): readonly LabObservation[] =>
 const findEncountersHaveExternal = (snapshot: BriefingSnapshot): boolean => {
     const encs = snapshot.encounters;
     if (isGap(encs)) return false;
-    // W1 distinguished CCDA-imported encounters via `source.system ===
-    // 'ccda-importer'`. W2 dropped the `system` field; the closest
-    // proxy still in the snapshot is the encounter `type` ("Emergency"
-    // for the §4.4 UC4 ED-visit archetype). C-phase work will
-    // reintroduce a richer encounter origin marker.
     return encs.some((e) => e.type !== null && /emergency|\bed\b/i.test(e.type));
 };
 
@@ -110,14 +78,7 @@ const findPrescriptionForClaim = (
     claim: Claim,
     prescriptions: readonly Prescription[],
 ): Prescription | null => {
-    // `prescription_change` is the §4.3 UC3 category (deterministic
-    // branch emits these); `prescription` is the §3 default-briefing
-    // category. Both should generate the same "Why was X prescribed?"
-    // chip when the backing record is recent — without this, a default
-    // briefing whose synthesizer happens to emit a
-    // `prescription_change`-flavored claim (or a future UC that does
-    // so) would never see the chip.
-    if (claim.category !== 'prescription' && claim.category !== 'prescription_change') return null;
+    if (claim.category !== 'prescription') return null;
     for (const ref of claim.sourceReferences) {
         const rx = prescriptions.find((p) => p.source.source_id === ref.source_id);
         if (rx !== undefined) return rx;
@@ -155,49 +116,6 @@ const isRecentMedicationStatement = (
 ): boolean =>
     isWithinRecentDays(stmt.startDate, anchor, PRESCRIPTION_RECENT_DAYS);
 
-const prescriptionKey = (rx: Prescription): string =>
-    `${rx.source.locator.field ?? 'medication.name'}:${rx.source.source_id}`;
-
-/**
- * Inverse of {@link prescriptionKey}. Used by §4.3's
- * `prescriptionChangeBranch` to recover the prescription record id from
- * the typed follow-up params the §4.1 generator emitted, without
- * re-implementing the split inline in the branch.
- */
-export const parsePrescriptionKey = (key: string): {
-    readonly locatorField: string;
-    readonly sourceId: string;
-} | null => {
-    // Split on the LAST `:` rather than the first so a sourceId
-    // containing `:` (e.g. URN-style external ids) round-trips cleanly
-    // through the `${locator.field}:${source_id}` shape that
-    // prescriptionKey emits. Today's locator fields are all colon-free,
-    // so this is pin-the-invariant rather than fix-a-live-bug.
-    const idx = key.lastIndexOf(':');
-    if (idx <= 0 || idx === key.length - 1) return null;
-    return {
-        locatorField: key.slice(0, idx),
-        sourceId: key.slice(idx + 1),
-    };
-};
-
-/**
- * Same `recordType:recordId` shape as the prescription key — kept
- * separate to make the call sites self-documenting at the
- * suggestion-generator boundary.
- */
-const reminderKey = (reminder: Reminder): string =>
-    `${reminder.source.locator.field ?? 'task.description'}:${reminder.source.source_id}`;
-
-/**
- * Inverse of {@link reminderKey}. Used by §4.6.5's `reminderBranch`
- * to recover the reminder record id from the typed follow-up params.
- */
-export const parseReminderKey = (key: string): {
-    readonly locatorField: string;
-    readonly sourceId: string;
-} | null => parsePrescriptionKey(key);
-
 const findReminderForClaim = (
     claim: Claim,
     reminders: readonly Reminder[],
@@ -209,19 +127,6 @@ const findReminderForClaim = (
     }
     return null;
 };
-
-const medicationStatementKey = (stmt: MedicationStatement): string =>
-    `${stmt.source.locator.field ?? 'medicationStatement.medication'}:${stmt.source.source_id}`;
-
-/**
- * Inverse of {@link medicationStatementKey}. Used by §4.6.6's
- * `medicationStatementBranch` to recover the list record id from
- * the typed follow-up params.
- */
-export const parseMedicationStatementKey = (key: string): {
-    readonly locatorField: string;
-    readonly sourceId: string;
-} | null => parsePrescriptionKey(key);
 
 const findMedicationStatementForClaim = (
     claim: Claim,
@@ -236,7 +141,6 @@ const findMedicationStatementForClaim = (
 };
 
 export const generateFollowUps = (
-    conversationId: string,
     verified: VerifiedLedger,
     snapshot: BriefingSnapshot,
 ): readonly SuggestedFollowUp[] => {
@@ -260,34 +164,24 @@ export const generateFollowUps = (
         if (seenAnalytes.size >= LAB_TREND_CAP) continue;
         seenAnalytes.add(key);
         labsBySuggestion.set(key, [claim.id]);
-        const params: SuggestedFollowUpParams = { type: 'lab_trend', analyte };
         out.push({
-            id: stableId(conversationId, params),
-            displayText: `Trend ${analyte}`,
-            params,
+            displayText: `How is ${analyte} trending?`,
             groundedInClaimIds: labsBySuggestion.get(key) ?? [claim.id],
         });
     }
 
     const anchor = referenceDate(snapshot);
-    const seenRxKeys = new Set<string>();
+    const seenRxNames = new Set<string>();
     let rxCount = 0;
     for (const claim of accepted) {
         if (rxCount >= PRESCRIPTION_CHANGE_CAP) break;
         const rx = findPrescriptionForClaim(claim, snapshot.prescriptions);
         if (rx === null) continue;
         if (!isRecentPrescription(rx, anchor)) continue;
-        const key = prescriptionKey(rx);
-        if (seenRxKeys.has(key)) continue;
-        seenRxKeys.add(key);
-        const params: SuggestedFollowUpParams = {
-            type: 'prescription_change',
-            prescriptionId: key,
-        };
+        if (seenRxNames.has(rx.name.toLowerCase())) continue;
+        seenRxNames.add(rx.name.toLowerCase());
         out.push({
-            id: stableId(conversationId, params),
             displayText: `Why was ${rx.name} prescribed?`,
-            params,
             groundedInClaimIds: [claim.id],
         });
         rxCount++;
@@ -295,7 +189,7 @@ export const generateFollowUps = (
 
     const remindersIn = snapshot.reminders;
     const reminders: readonly Reminder[] = 'kind' in remindersIn ? [] : remindersIn;
-    const seenReminderKeys = new Set<string>();
+    const seenReminderTitles = new Set<string>();
     let reminderCount = 0;
     for (const claim of accepted) {
         if (reminderCount >= REMINDER_DETAIL_CAP) break;
@@ -305,17 +199,10 @@ export const generateFollowUps = (
         // are informational; "overdue" is what a clinician should
         // address this visit.
         if (reminder.dueStatus.toLowerCase() !== 'overdue') continue;
-        const key = reminderKey(reminder);
-        if (seenReminderKeys.has(key)) continue;
-        seenReminderKeys.add(key);
-        const params: SuggestedFollowUpParams = {
-            type: 'reminder_detail',
-            reminderId: key,
-        };
+        if (seenReminderTitles.has(reminder.itemTitle.toLowerCase())) continue;
+        seenReminderTitles.add(reminder.itemTitle.toLowerCase());
         out.push({
-            id: stableId(conversationId, params),
             displayText: `When is ${reminder.itemTitle} due?`,
-            params,
             groundedInClaimIds: [claim.id],
         });
         reminderCount++;
@@ -324,32 +211,19 @@ export const generateFollowUps = (
     const statementsIn = snapshot.medications;
     const statements: readonly MedicationStatement[] =
         'kind' in statementsIn ? [] : statementsIn;
-    const seenStatementKeys = new Set<string>();
+    const seenStatementNames = new Set<string>();
     let stmtCount = 0;
     for (const claim of accepted) {
         if (stmtCount >= MEDICATION_STATEMENT_DETAIL_CAP) break;
         const stmt = findMedicationStatementForClaim(claim, statements);
         if (stmt === null) continue;
-        // Surface a chip when there's something a clinician would
-        // want to drill into: a recently-started entry OR one that
-        // names its information source ("family reports..."). Pure
-        // "patient said" entries with old start dates and no extra
-        // context don't usually need a chip — the briefing line is
-        // enough.
         const isRecent = isRecentMedicationStatement(stmt, anchor);
         const hasInformationSource = stmt.informationSource !== null;
         if (!isRecent && !hasInformationSource) continue;
-        const key = medicationStatementKey(stmt);
-        if (seenStatementKeys.has(key)) continue;
-        seenStatementKeys.add(key);
-        const params: SuggestedFollowUpParams = {
-            type: 'medication_statement_detail',
-            listId: key,
-        };
+        if (seenStatementNames.has(stmt.name.toLowerCase())) continue;
+        seenStatementNames.add(stmt.name.toLowerCase());
         out.push({
-            id: stableId(conversationId, params),
             displayText: `What did the patient say about ${stmt.name}?`,
-            params,
             groundedInClaimIds: [claim.id],
         });
         stmtCount++;
@@ -360,14 +234,8 @@ export const generateFollowUps = (
             .filter((c) => c.category === 'encounter')
             .map((c) => c.id);
         if (encounterClaims.length > 0) {
-            const params: SuggestedFollowUpParams = {
-                type: 'external_care',
-                lookbackDays: EXTERNAL_LOOKBACK_DAYS,
-            };
             out.push({
-                id: stableId(conversationId, params),
-                displayText: 'What did the outside encounter say?',
-                params,
+                displayText: `What did the outside encounter say in the last ${EXTERNAL_LOOKBACK_DAYS} days?`,
                 groundedInClaimIds: encounterClaims,
             });
         }
