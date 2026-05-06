@@ -2,15 +2,15 @@
 
 **Status.** Begin once Phase D is merged. **Thursday 11:59 PM Central deadline gate.**
 
-**Phase summary.** Eval cases have been landing continuously across A → D with their respective surface (per the "Eval continuity rule" in `W2_IMPLEMENTATION_PHASES.md`). E adds the final ~5–8 integration-only cases that genuinely need the full system, wires the PR-blocking CI gate against real models, and runs the regression-injection drill that the PDF requires.
+**Phase summary.** Eval cases have been landing continuously across A → D with their respective surface (per the "Eval continuity rule" in `W2_IMPLEMENTATION_PHASES.md`). E adds the final integration-only cases that genuinely need the full system, wires the PR-blocking CI gate against real models, and runs the regression-injection drill that the PDF requires.
 
-By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is PR-blocking; the regression-injection drill has been executed once with a deliberate weakening + revert and verified to make CI fail; vendor-outage detection skips gracefully so a vendor blip doesn't block PRs; the deployed app on `emr.biograph.dev` is up to date; a rough demo video is recorded for the Thursday gate.
+By the end of E: every suite's nightly experiment runs against real models; the unified per-rubric baseline is committed; CI is PR-blocking and fails when more than 5% of scored rubric × case cells flip across the whole eval suite; the regression-injection drill has been executed once with a deliberate weakening + revert and verified to make CI fail; vendor-outage detection skips gracefully so a vendor blip doesn't block PRs; the deployed app on `emr.biograph.dev` is up to date; a rough demo video is recorded for the Thursday gate.
 
 **Phase definition of done.**
-- 50-case suite is at 50 cases, all green, all running real-model in CI.
-- PR-blocking CI gate wired in GitLab; fails the pipeline if any rubric category drops >5% from baseline or below pass threshold.
+- Every suite (`briefingGraph`, `conversationalGraph`, `endToEnd`, `documentExtraction`) runs its nightly experiment against real models with the boolean rubrics scored uniformly via `evaluators: [...RUBRICS]`.
+- PR-blocking CI gate wired in GitLab. Compares the latest experiment's per-rubric scores against the unified baseline and fails when more than 5% of scored cells (rubric × case) flip across the whole suite.
 - CI hard cap at $5/PR enforced via a pre-flight cost-check job.
-- Per-rubric baseline file `agent/evals/baselines/document_extraction_v1.json` committed; rebaseline procedure documented.
+- Unified eval baseline `agent/evals/baselines/eval-suite.json` committed (covers all four datasets); rebaseline procedure documented.
 - Vendor-outage detection: graceful "skip with warning" on Anthropic / OpenAI / Cohere / Pinecone outages.
 - Regression-injection drill documented in `docs/RUNBOOK.md`; executed once, verified to make CI fail, then reverted.
 - Deployed app on `emr.biograph.dev` runs all of A + B + C + D + E.
@@ -50,7 +50,7 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 **Goal.** The cases that genuinely need the full integrated system land. These are: cases that exercise the full supervisor → retriever → synthesizer → verifier loop with multiple retrievers per turn; cap-hit cases that need a fully-stocked handoff manifest; cross-cutting `no_phi_in_logs` extension cases that scan vision-call traces specifically.
 
 **Blocked by:** Phase D merged (the full system runs end-to-end).
-**Unblocks:** E.2 (CI gate needs the full 50-case suite).
+**Unblocks:** E.2 (the unified baseline can only be captured once every suite's case set is final).
 
 **Refs.** `W2_IMPLEMENTATION_PHASES.md` Phase E "Eval cases that land in E"; `W2_ARCHITECTURE.md` §"Eval Architecture".
 
@@ -72,47 +72,63 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 
 ---
 
-## E.2 Per-rubric baseline file + rebaseline procedure
+## E.2 Unified eval baseline + rebaseline procedure
 
-**Goal.** A committed baseline file pins the expected rubric pass rate per category. The CI gate compares against it. Rebaselining is a deliberate, documented step — never a side effect.
+**Goal.** A single baseline file pins per-case, per-rubric booleans across every eval dataset. The CI gate (E.4) treats all four suites as one rubric universe: it sums every scored cell across `briefingGraph`, `conversationalGraph`, `endToEnd`, and `documentExtraction`, compares against the baseline, and fails the build when more than 5% of cells flip from `true` to `false`. Rebaselining is a deliberate, documented step — never a side effect.
 
 **Blocked by:** E.1.
 **Unblocks:** E.4.
 
-**Refs.** `W2_ARCHITECTURE.md` §"Eval Architecture" ("Per-category baselines committed to `agent/evals/baselines/document_extraction_v1.json`. Re-baseline only via deliberate `evals:rebaseline` runs.").
+**Refs.** `W2_ARCHITECTURE.md` §"Eval Architecture" — boolean rubrics, real-model nightly experiment, regression detection across the whole suite.
+
+**Why one baseline, one tolerance.** The four suites are architecturally distinct (conversational graph vs document-extraction pipeline; default-briefing vs follow-up vs MVP scenario), but a regression that drops one rubric's pass rate across many cases — say `citation_present` flipping on 5 of 8 lab-PDF rows after a verifier change — is the same kind of failure regardless of which suite it lands in. A single tolerance budget sums every binary score across all four and catches the failure pattern uniformly. Per-suite tolerances would mask cross-cutting regressions.
+
+**Tolerance shape.** Sum across every applicable (non-N/A) rubric × case cell in all four nightly experiments. With ~50 cases × 5 rubrics × N/A-aware skips, the scored-cell count is in the 150–200 range; a 5% tolerance fires when ~8–10 cells flip from baseline-pass to live-fail. Single-case flakes don't fail CI; uniform regressions on a single rubric across many cases do.
 
 **Files touched.**
-- `agent/evals/baselines/document_extraction_v1.json` (new).
-- `agent/scripts/rebaseline.ts` (new).
+- `agent/evals/baselines/eval-suite.json` (new) — replaces the per-suite `document_extraction_v1.json`.
+- `agent/evals/baselines/eval-suite.test.ts` (new) — replaces `document_extraction_v1.test.ts`. Walks all four datasets and pins manifest ↔ baseline correspondence.
+- `agent/evals/baselines/document_extraction_v1.json` — delete (folded into the unified baseline).
+- `agent/evals/baselines/document_extraction_v1.test.ts` — delete (replaced by the unified structural test).
+- `agent/scripts/rebaseline.ts` (new) — pulls per-rubric scores from the latest LangSmith experiment for each suite, writes `eval-suite.json`. Aborts unless invoked with `--confirm` and a `--commit-message` argument.
 - `agent/package.json` — `evals:rebaseline` script alias.
 - `docs/RUNBOOK.md` — rebaseline procedure section.
 
 **Checklist.**
-- [ ] Run the full 50-case suite end-to-end at HEAD with all rubrics. Capture per-category pass rate.
-- [ ] Commit `agent/evals/baselines/document_extraction_v1.json` with the shape:
+- [ ] Run every suite's nightly experiment at HEAD via `npm run evals:experiment` (or wait for one nightly run after E.1 is merged). Capture per-case-per-rubric scores from LangSmith run-feedbacks.
+- [ ] Commit `agent/evals/baselines/eval-suite.json` with the shape:
   ```json
   {
-    "version": "v1",
-    "committed_at": "2026-...",
-    "commit_sha": "...",
-    "categories": {
-      "pipeline_lab_pdf": { "pass_rate": 1.0, "case_count": 8 },
-      "pipeline_intake_form": { "pass_rate": 1.0, "case_count": 8 },
-      "...": "..."
-    },
-    "rubrics": {
-      "schema_valid": { "pass_rate": 1.0 },
-      "citation_present": { "pass_rate": 1.0 },
-      "factually_consistent": { "pass_rate": 1.0 },
-      "safe_refusal": { "pass_rate": 1.0 },
-      "no_phi_in_logs": { "pass_rate": 1.0 }
+    "version": 1,
+    "committedAt": "2026-...",
+    "commitSha": "...",
+    "datasets": {
+      "clinical-copilot-briefing-graph-v1": {
+        "cases": {
+          "diabetic": {
+            "citation_present": true,
+            "factually_consistent": true,
+            "no_phi_in_logs": true
+          },
+          "hypertensive": { "...": "..." }
+        }
+      },
+      "clinical-copilot-conversational-graph-v2": { "cases": { "...": "..." } },
+      "clinical-copilot-end-to-end-v1": { "cases": { "...": "..." } },
+      "clinical-copilot-document-extraction-v1": { "cases": { "...": "..." } }
     }
   }
   ```
-- [ ] `agent/scripts/rebaseline.ts` runs the full suite and overwrites the baseline. Aborts unless invoked with `--confirm` and a `--commit-message` argument.
-- [ ] Rebaseline procedure documented in `RUNBOOK.md`: when to rebaseline (model upgrade, intentional rubric tightening), how to commit (separate PR labeled `eval-rebaseline`), how to record context (commit message describes what changed and why).
+  Each case row's keys are the rubric names that scored on that case (N/A rubrics omitted, mirroring the evaluator's skip semantics). The values pin the expected boolean — typically `true` at baseline, but a row can baseline a deliberate `false` (e.g. a refusal case where `safe_refusal` is `true` but a non-applicable structural rubric isn't even present).
+- [ ] `agent/scripts/rebaseline.ts` reads the latest LangSmith experiment's run-feedbacks for each dataset and writes the baseline file. Implementation note: use `langsmith.Client.listRuns({experimentName})` and follow each run's feedback edges; do not re-run the experiment locally. Aborts unless invoked with `--confirm` and a `--commit-message` argument that gets recorded in the commit body.
+- [ ] `eval-suite.test.ts` pins three structural properties across all four datasets:
+  1. Every dataset's case set on disk (manifest entries / suite EXAMPLES) is fully covered in the baseline (no untracked cases).
+  2. Every baseline case row maps to a real case in its dataset (no orphans).
+  3. The four `datasets.*` keys exactly match the four suite `DATASET_NAME` exports — so a future schema-bump rename forces both the suite file and the baseline in lockstep.
+- [ ] Rebaseline procedure documented in `RUNBOOK.md`: when to rebaseline (model upgrade, intentional rubric tightening, deliberate suite expansion), how to invoke the script with `--confirm` + `--commit-message`, how to commit (separate PR labeled `eval-rebaseline`), how to record context (commit message describes what changed and why).
+- [ ] Delete the legacy per-suite baseline (`document_extraction_v1.{json,test.ts}`). The unified file is the single source of truth.
 
-**Definition of done.** Baseline file committed at HEAD reflects 100% pass for the full 50-case suite. Rebaseline script works against a feature branch.
+**Definition of done.** `agent/evals/baselines/eval-suite.json` committed at HEAD covers every case across all four datasets with per-rubric booleans; the structural test enforces manifest ↔ baseline correspondence across all four; rebaseline script works against a feature branch; runbook section is concrete enough for a second engineer to re-run without questions; legacy per-suite baseline is gone.
 
 ---
 
@@ -131,15 +147,16 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 
 **Checklist.**
 - [ ] Document the drill procedure in `RUNBOOK.md`:
-  - The specific weakening: relax the bbox-match requirement in `agent/src/verify/verifier.ts` (the `extracted_document` resolution rule no longer checks bbox equality, only `source_id` presence).
-  - The expected case to flip red: the drill regression case from E.1 (the case that asserts a fabricated-bbox extracted-document claim is rejected).
+  - The specific weakening: remove the bbox-equality check from `agent/src/verify/verifier.ts`'s `extracted_document` resolution rule — the line `if (!arraysEqual(ref.locator.bbox, snippet.bbox)) { return { ok: false, reason: REJECT_CONTENT }; }`. With this gone, a fabricated bbox no longer rejects.
+  - The Vitest signal: `agent/evals/cases/conversational-graph/verification/verification.test.ts` "extracted-document claim with a fabricated bbox is rejected even when the artifact id resolves" flips red immediately (this is the deterministic gate that proves the weakening landed).
+  - The CI eval-gate signal: across the live experiment runs, every `extracted_document` claim that previously rejected on a bbox mismatch now resolves, which flips multiple `factually_consistent` and `citation_present` cells across the conversational-graph and end-to-end datasets. Enough cells flip to push the regression rate over 5%, so `evals:gate` exits non-zero.
   - How to revert: `git revert` the weakening commit, push, confirm CI green.
 - [ ] Execute the drill once before submission:
   1. Create branch `drill/regression-injection-N` (where N is the drill iteration).
   2. Apply the weakening from the runbook procedure.
   3. Push and open a PR.
-  4. Verify the CI eval gate runs and fails on the drill regression case.
-  5. Capture the failing pipeline URL and the specific failed-case output for the runbook.
+  4. Verify both signals: Vitest gate red (`verification.test.ts` flips), CI eval-gate red (regression rate > 5%).
+  5. Capture the failing pipeline URL, the Vitest failure, and the eval-gate cell-flip list for the runbook.
   6. Close the PR without merging (drill complete; no production code change).
 - [ ] Record the drill execution in `RUNBOOK.md` with date, commit hash of the weakening, and CI pipeline URL.
 
@@ -149,7 +166,7 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 
 ## E.4 PR-blocking CI gate + cost cap + vendor-outage detection
 
-**Goal.** GitLab CI runs the full 50-case suite on every PR push, enforces the rubric thresholds, fails the pipeline on regression, and bails out gracefully on vendor outage so a temporary blip doesn't block merges.
+**Goal.** GitLab CI runs every suite's experiment on every PR push, compares the per-rubric scores against the unified baseline, fails the pipeline when more than 5% of scored cells flip across the whole suite, and bails out gracefully on vendor outage so a temporary blip doesn't block merges.
 
 **Blocked by:** E.0, E.2.
 **Unblocks:** Phase E "Phase definition of done".
@@ -166,15 +183,16 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 - [ ] **Cost precheck (`check-cost-cap.ts`):** estimate the run cost (case count × model + embedding + rerank cost) before launching. Fail the job with a typed error if estimate > $5 (the architecture's per-PR hard cap).
 - [ ] **Vendor health check (`vendor-health-check.ts`):** GET each vendor's status endpoint (Anthropic status, OpenAI status, Cohere status, Pinecone status). If any vendor is down: emit a structured `vendor-outage` warning artifact, mark relevant cases as "skip with warning" in the run, continue with the rest. The skipped cases are flagged on the PR but don't fail the gate. Document in `RUNBOOK.md` what counts as "down".
 - [ ] **Eval gate (`eval-gate.ts`):**
-  1. Run the full 50-case suite against real models.
-  2. Compute per-category pass rate.
-  3. Compare against `agent/evals/baselines/document_extraction_v1.json`.
-  4. Fail if **any** category's pass rate drops more than 5% from baseline OR drops below the pass threshold (defined per-rubric in the baseline file — typically 0.95).
-  5. Emit a structured summary on PR (markdown comment via `gh pr comment` or GitLab equivalent) with per-category breakdown.
+  1. Run every suite's experiment target against real models (one experiment per suite, posted to LangSmith with the PR's commit SHA).
+  2. Pull per-rubric scores back from each experiment via `langsmith.Client.listRuns({experimentName})` + run-feedback edges.
+  3. Compare against `agent/evals/baselines/eval-suite.json` (the unified per-case-per-rubric baseline from E.2).
+  4. Compute the regression rate as `flippedCells / totalScoredCells`, where the sum spans every applicable rubric × case across all four datasets. Fail the gate when `flippedCells / totalScoredCells > 0.05`.
+  5. Vendor-outage skips don't count toward `flippedCells` or `totalScoredCells` — they're surfaced separately on the PR comment.
+  6. Emit a structured summary on PR (markdown comment via the GitLab API) with the regression rate, the list of flipped cells (`<dataset>::<caseId>::<rubric>`), and the vendor-outage skip list.
 - [ ] **`.gitlab-ci.yml` job:** new `evals:gate` job (depends on `test:agent`), runs after build + lint pass. PR-blocking. Uses GitLab's `rules: changes` so it doesn't run on docs-only PRs (per W1 pattern).
-- [ ] Tests: stubbed-model unit tests for the gate script's pass/fail logic; assert exit code 1 on simulated 6%-category regression; assert exit code 0 on 4%-regression (within tolerance).
+- [ ] Tests: stubbed-model unit tests for the gate script's pass/fail logic. Inputs are synthetic baseline + live-experiment shapes (no real LangSmith call). Assert exit code 0 on a 4%-flip rate (within tolerance), exit code 1 on a 6%-flip rate (over tolerance), exit code 1 on any unrecognized live case ID (the live run drifted off the baseline's tracked-case set), exit code 1 on a baseline `true` cell that's missing from the live run (silent disappearance is a regression too).
 
-**Definition of done.** A throwaway PR with no real changes: gate runs against real models, passes. The drill PR from E.3: gate fails on the drill regression case. Cost reported per run, < $5 hard cap.
+**Definition of done.** A throwaway PR with no real changes: gate runs against real models, passes. The drill PR from E.3: gate fails because the drill flips enough verifier-resolution cells that `flippedCells / totalScoredCells > 0.05`. Cost reported per run, < $5 hard cap.
 
 ---
 
@@ -192,7 +210,7 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 **Checklist.**
 - [ ] Deploy current `master` to `emr.biograph.dev` (per existing procedure in `RUNBOOK.md`).
 - [ ] Smoke test: open a fixture patient, attach a fixture lab PDF, observe end-to-end with all source types in output.
-- [ ] **Rough demo video (user records):** open Mrs. Patel's chart → upload her recent lab PDF → watch extraction stream → see briefing with three source-type sections → click eval results in CI to show 50/50 green. 3–5 minutes; not polished. Loom or QuickTime is fine.
+- [ ] **Rough demo video (user records):** open Mrs. Patel's chart → upload her recent lab PDF → watch extraction stream → see briefing with three source-type sections → click eval results in CI to show every suite's experiment green. 3–5 minutes; not polished. Loom or QuickTime is fine.
 - [ ] Place the video URL in `docs/EVAL_RESULTS.md` (for traceability) and confirm with user it's accessible to graders.
 
-**Definition of done.** Thursday Early Submission gate satisfied: supervisor + 2 workers visible in LangSmith with logged handoffs; 50-case eval suite running green in CI; gate verified by the E.3 deliberate-weakening drill; deployed app reachable; rough demo video uploaded.
+**Definition of done.** Thursday Early Submission gate satisfied: supervisor + 2 workers visible in LangSmith with logged handoffs; every suite's experiment running green in CI under the unified baseline; gate verified by the E.3 deliberate-weakening drill; deployed app reachable; rough demo video uploaded.
