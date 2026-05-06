@@ -10,7 +10,10 @@ import {
 } from './archetypesSuite.js';
 import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './conversationalGraphSuite.js';
 import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from './documentExtractionSuite.js';
-import { DATASET_NAME as END_TO_END_DATASET_NAME, buildExamples as buildEndToEndExamples } from './endToEndSuite.js';
+import {
+    DATASET_NAME as END_TO_END_DATASET_NAME,
+    buildExamples as buildEndToEndExamples,
+} from './endToEndSuite.js';
 import { DATASET_NAME as LAB_TRENDS_DATASET_NAME } from './labTrendsSuite.js';
 import {
     DATASET_NAME as MORNING_PREP_DATASET_NAME,
@@ -201,5 +204,61 @@ describe('endToEndSuite', () => {
             'refusal',
             'refusal',
         ]);
+    });
+});
+
+/**
+ * Standing policy: every eval suite runs against the real model
+ * unless explicitly flagged. The only acceptable
+ * `runExperiment`-time skip is a missing-env-var skip that the
+ * `experiment.ts` runner-level gate would have caught anyway. Any
+ * suite that introduces a new skip pattern (gating, "deferred
+ * follow-up," etc.) must add it to this allowlist with a paired
+ * tracking ticket — silent skips drift the cohort apart.
+ *
+ * The test reads each `*Suite.ts` source file and asserts every
+ * `skippedReason` literal in the file matches one of the allowed
+ * patterns. Source-level rather than runtime because the only way to
+ * test the runtime behavior would be to actually run `evaluate`
+ * against LangSmith — that's the experiment itself, not a unit
+ * test.
+ */
+describe('eval-suite skip policy', () => {
+    const ALLOWED_SKIP_PATTERNS: readonly RegExp[] = [/^missing vendor env: /];
+
+    const isAllowed = (literal: string): boolean =>
+        ALLOWED_SKIP_PATTERNS.some((re) => re.test(literal));
+
+    it('every *Suite.ts file uses only allowlisted skippedReason literals', async () => {
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const dir = path.dirname(new URL(import.meta.url).pathname);
+        const files = (await fs.readdir(dir)).filter((f) => f.endsWith('Suite.ts'));
+        expect(files.length).toBeGreaterThan(0);
+
+        const offenders: { readonly file: string; readonly literal: string }[] = [];
+        for (const file of files) {
+            const src = await fs.readFile(path.join(dir, file), 'utf8');
+            // Match any skippedReason: 'literal' or "literal" at any
+            // indent. The non-greedy body lets us catch multi-line
+            // template-literal-style skip reasons too.
+            const matches = src.matchAll(/skippedReason:\s*(?:`([^`]*)`|'([^']*)'|"([^"]*)")/g);
+            for (const m of matches) {
+                const literal = m[1] ?? m[2] ?? m[3] ?? '';
+                if (literal.length === 0) continue;
+                if (!isAllowed(literal)) {
+                    offenders.push({ file, literal });
+                }
+            }
+        }
+
+        if (offenders.length > 0) {
+            const detail = offenders
+                .map((o) => `  - ${o.file}: ${JSON.stringify(o.literal)}`)
+                .join('\n');
+            throw new Error(
+                `unflagged runExperiment skips found — every suite must run against the real model unless flagged otherwise.\n${detail}\n\nAdd the new skip pattern to ALLOWED_SKIP_PATTERNS in suites.test.ts (and document the tracking ticket) if the skip is intentional.`,
+            );
+        }
     });
 });

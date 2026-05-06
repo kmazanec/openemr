@@ -196,12 +196,19 @@ Three layers, documented in [`/CLAUDE.md` § "Agent evals"](../CLAUDE.md):
   `npm run evals:regenerate-fixtures` (which calls every per-suite
   regenerator under `evals/fixtures/regenerate-*.ts`). Never hand-edit
   the JSON.
-- **Nightly LangSmith experiment** — `evals/runners/cli.ts`. Upload
-  every suite's dataset with `npm run evals:upload-dataset`; run the
-  experiment against the real Anthropic synthesizer with
-  `npm run evals:experiment`. Both iterate the suite registry in
-  `evals/runners/suites.ts` and no-op per-suite without
+- **LangSmith experiment** — `evals/runners/cli.ts`. Upload every
+  suite's dataset with `npm run evals:upload-dataset`; run the
+  experiment against the real Anthropic synthesizer (and supervisor)
+  with `npm run evals:experiment`. Both iterate the suite registry
+  in `evals/runners/suites.ts`; both no-op per-suite without
   `LANGSMITH_API_KEY` (experiment also requires `ANTHROPIC_API_KEY`).
+  Every suite runs against the real model unless explicitly flagged
+  — the `eval-suite skip policy` test in `suites.test.ts` enforces
+  this. Suites that need Pinecone+Cohere (`conversational-graph`,
+  `end-to-end`) run all rows live; rows whose verdict requires
+  guideline retrieval will mismatch their dataset expectation when
+  the corpus env vars aren't wired (the right signal — silently
+  skipping the row would let drift in).
 
 Adding a new suite is one new `evals/runners/<name>Suite.ts` plus an
 entry in `suites.ts`. The CLI picks it up automatically.
