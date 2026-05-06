@@ -74,7 +74,7 @@ const decide = (decision: SupervisorDecision): SupervisorDecide => {
 
 describe('createSupervisor (§A.7)', () => {
     it('happy path: routes to synthesize, increments iterations, records decision', async () => {
-        const llm = decide({ handoff: 'synthesize', reason: 'chart context is sufficient' });
+        const llm = decide({ handoff: 'synthesize', reason: 'chart context is sufficient', narration: 'test narration' });
         const supervisor = createSupervisor({ decide: llm });
 
         const out = await supervisor(baseState());
@@ -93,7 +93,7 @@ describe('createSupervisor (§A.7)', () => {
     it('routes retrieveChart with structured args into the retrieveChartArgs slot', async () => {
         const llm = decide({
             handoff: 'retrieveChart',
-            reason: 'need a wider lookback on labs',
+            reason: 'need a wider lookback on labs', narration: 'test narration',
             args: { categories: ['lab'] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -107,7 +107,7 @@ describe('createSupervisor (§A.7)', () => {
     it('rejects malformed retrieveChart args (empty categories) before they reach state', async () => {
         const llm = decide({
             handoff: 'retrieveChart',
-            reason: 'narrowing fetch',
+            reason: 'narrowing fetch', narration: 'test narration',
             args: { categories: [] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -118,7 +118,7 @@ describe('createSupervisor (§A.7)', () => {
     it('rejects retrieveChart args naming an unknown category', async () => {
         const llm = decide({
             handoff: 'retrieveChart',
-            reason: 'narrowing fetch',
+            reason: 'narrowing fetch', narration: 'test narration',
             args: { categories: ['vitals'] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -129,7 +129,7 @@ describe('createSupervisor (§A.7)', () => {
     it('narrows documentEvidenceRetriever args (with defaults) into the documentEvidenceArgs slot', async () => {
         const llm = decide({
             handoff: 'documentEvidenceRetriever',
-            reason: 'a recent lab artifact may answer this',
+            reason: 'a recent lab artifact may answer this', narration: 'test narration',
             args: { query: 'recent A1c', doc_types: ['lab_pdf'] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -149,7 +149,7 @@ describe('createSupervisor (§A.7)', () => {
     it('rejects malformed documentEvidenceRetriever args (missing query) before they reach state', async () => {
         const llm = decide({
             handoff: 'documentEvidenceRetriever',
-            reason: 'forgot to set a query',
+            reason: 'forgot to set a query', narration: 'test narration',
             args: { doc_types: ['lab_pdf'] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -160,7 +160,7 @@ describe('createSupervisor (§A.7)', () => {
     it('rejects documentEvidenceRetriever args with empty doc_types (Zod min(1))', async () => {
         const llm = decide({
             handoff: 'documentEvidenceRetriever',
-            reason: 'pathological narrowing',
+            reason: 'pathological narrowing', narration: 'test narration',
             args: { query: 'whatever', doc_types: [] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -171,7 +171,7 @@ describe('createSupervisor (§A.7)', () => {
     it('§C.3: narrows evidenceRetriever args (with defaults) into the evidenceRetrieverArgs slot', async () => {
         const llm = decide({
             handoff: 'evidenceRetriever',
-            reason: 'screening guideline likely relevant',
+            reason: 'screening guideline likely relevant', narration: 'test narration',
             args: { query: 'USPSTF colorectal cancer screening' },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -189,7 +189,7 @@ describe('createSupervisor (§A.7)', () => {
     it('§C.3: passes evidenceRetriever source_filter through to the slot', async () => {
         const llm = decide({
             handoff: 'evidenceRetriever',
-            reason: 'restrict to USPSTF',
+            reason: 'restrict to USPSTF', narration: 'test narration',
             args: {
                 query: 'colorectal screening',
                 top_k: 5,
@@ -210,7 +210,7 @@ describe('createSupervisor (§A.7)', () => {
     it('§C.3: rejects malformed evidenceRetriever args (missing query) before they reach state', async () => {
         const llm = decide({
             handoff: 'evidenceRetriever',
-            reason: 'forgot to set a query',
+            reason: 'forgot to set a query', narration: 'test narration',
             args: { top_k: 3 },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -221,7 +221,7 @@ describe('createSupervisor (§A.7)', () => {
     it('§C.3: rejects evidenceRetriever args with empty source_filter (Zod min(1))', async () => {
         const llm = decide({
             handoff: 'evidenceRetriever',
-            reason: 'pathological narrowing',
+            reason: 'pathological narrowing', narration: 'test narration',
             args: { query: 'A1c targets', source_filter: [] },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -232,7 +232,7 @@ describe('createSupervisor (§A.7)', () => {
     it('§C.3: rejects evidenceRetriever args with top_k beyond bounds', async () => {
         const llm = decide({
             handoff: 'evidenceRetriever',
-            reason: 'over-fetching',
+            reason: 'over-fetching', narration: 'test narration',
             args: { query: 'A1c', top_k: 999 },
         });
         const supervisor = createSupervisor({ decide: llm });
@@ -246,7 +246,7 @@ describe('createSupervisor (§A.7)', () => {
         // terminal synthesize handoff.
         const llm = decide({
             handoff: 'retrieveChart',
-            reason: 'should not be called once cap is reached',
+            reason: 'should not be called once cap is reached', narration: 'test narration',
         });
         const supervisor = createSupervisor({ decide: llm });
 
@@ -265,12 +265,12 @@ describe('createSupervisor (§A.7)', () => {
         const warn = vi.fn();
         const previous: SupervisorDecision = {
             handoff: 'evidenceRetriever',
-            reason: 'needs guideline context',
+            reason: 'needs guideline context', narration: 'test narration',
             args: { query: 'A1c targets' },
         };
         const llm = decide({
             handoff: 'evidenceRetriever',
-            reason: 'still need guideline context',
+            reason: 'still need guideline context', narration: 'test narration',
             args: { query: 'A1c targets' },
         });
         const supervisor = createSupervisor({
@@ -306,5 +306,93 @@ describe('createSupervisor (§A.7)', () => {
         await expect(supervisor(baseState())).rejects.toThrow(
             /structured output parse failed/,
         );
+    });
+
+    it('observation surfaces pendingUploads and kickoffExtractionResults so the LLM can route correctly', async () => {
+        const observed: unknown[] = [];
+        const llm: SupervisorDecide = vi.fn<SupervisorDecide>((input) => {
+            observed.push(input.observation);
+            return Promise.resolve({
+                handoff: 'kickoffExtraction',
+                reason: 'document attached and not yet extracted',
+                narration: 'Analyzing the lipid panel you just attached.',
+                args: { document_uuid: 'doc-1', doc_type: 'lab_pdf' },
+            } as SupervisorDecision);
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await supervisor(baseState({
+            envelope: {
+                ...envelope,
+                task: 'follow_up',
+                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf' }],
+            },
+        }));
+
+        const obs = observed[0] as {
+            pendingUploads: readonly { documentUuid: string; docType: string }[];
+            kickoffExtractionResultsThisTurn: readonly unknown[];
+        };
+        expect(obs.pendingUploads).toEqual([
+            { documentUuid: 'doc-1', docType: 'lab_pdf' },
+        ]);
+        expect(obs.kickoffExtractionResultsThisTurn).toEqual([]);
+    });
+
+    it('observation reflects kickoffExtractionResults appended this turn so the LLM does not re-extract', async () => {
+        const observed: unknown[] = [];
+        const llm: SupervisorDecide = vi.fn<SupervisorDecide>((input) => {
+            observed.push(input.observation);
+            return Promise.resolve({
+                handoff: 'synthesize',
+                reason: 'extraction complete; ready to summarize',
+                narration: 'Drafting your briefing.',
+            } as SupervisorDecision);
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await supervisor(baseState({
+            envelope: {
+                ...envelope,
+                task: 'follow_up',
+                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf' }],
+            },
+            kickoffExtractionResults: [
+                {
+                    documentUuid: 'doc-1',
+                    docType: 'lab_pdf',
+                    status: 'persisted',
+                    artifactId: 'a-1',
+                    errorCode: null,
+                },
+            ],
+        }));
+
+        const obs = observed[0] as {
+            pendingUploads: readonly { documentUuid: string }[];
+            kickoffExtractionResultsThisTurn: readonly { documentUuid: string; status: string }[];
+        };
+        expect(obs.pendingUploads).toEqual([
+            { documentUuid: 'doc-1', docType: 'lab_pdf' },
+        ]);
+        expect(obs.kickoffExtractionResultsThisTurn).toEqual([
+            { documentUuid: 'doc-1', status: 'persisted' },
+        ]);
+    });
+
+    it('records narration on each appended decision so the runner can forward it as an SSE event', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'guideline-shaped question',
+            narration: 'Checking the USPSTF on statin primary prevention.',
+            args: { query: 'statin primary prevention' },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState());
+
+        expect(out.supervisorDecisionHistory).toHaveLength(1);
+        const latest = out.supervisorDecisionHistory?.at(-1);
+        expect(latest?.narration).toBe('Checking the USPSTF on statin primary prevention.');
     });
 });

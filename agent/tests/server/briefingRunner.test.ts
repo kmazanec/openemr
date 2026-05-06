@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { BriefingContractError, createBriefingRunner } from '../../src/server/briefingRunner.js';
 import { stableId } from '../../src/graph/followUps.js';
 import type { Synthesizer } from '../../src/graph/nodes/synthesize.js';
-import type { ClaimLedger, RequestEnvelope } from '../../src/graph/types.js';
+import type { SupervisorDecide, SupervisorDeps } from '../../src/graph/nodes/supervisor.js';
+import type { ClaimLedger, RequestEnvelope, SupervisorDecision } from '../../src/graph/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 import { createInMemoryConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import { createInMemoryConversationStore } from '../../src/state/conversationStore.js';
@@ -608,5 +609,66 @@ describe('createBriefingRunner — progress event emission', () => {
         expect(types).toContain('progress');
         expect(types[types.length - 2]).toBe('assistantMessage');
         expect(types[types.length - 1]).toBe('done');
+    });
+});
+
+describe('createBriefingRunner — supervisor narration emission', () => {
+    const buildSupervisorDeps = (decisions: SupervisorDecision[]): SupervisorDeps => {
+        let i = 0;
+        const decide: SupervisorDecide = vi.fn(() => {
+            const next = decisions[Math.min(i, decisions.length - 1)];
+            i += 1;
+            if (next === undefined) {
+                throw new Error('supervisor stub: no decision available');
+            }
+            return Promise.resolve(next);
+        });
+        return { decide };
+    };
+
+    it('forwards each supervisor decision\'s narration as a supervisorNarration SSE event', async () => {
+        const { conversationStore, conversationMessages } = buildDeps();
+        const runner = createBriefingRunner({
+            snapshotClient: buildClient(),
+            synthesizer: buildSynth(),
+            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
+            conversationStore,
+            conversationMessages,
+            supervisor: buildSupervisorDeps([
+                {
+                    handoff: 'evidenceRetriever',
+                    reason: 'guideline-shaped question',
+                    narration: 'Checking the USPSTF on statin primary prevention.',
+                    args: { query: 'statin primary prevention' },
+                },
+                {
+                    handoff: 'synthesize',
+                    reason: 'evidence in hand; ready to draft',
+                    narration: 'Drafting your briefing.',
+                },
+            ]),
+        });
+
+        const sink: { type: string; handoff?: string; text?: string }[] = [];
+        await runner({
+            envelope: buildEnvelope(),
+            token: 'tok',
+            onEvent: (event) => {
+                if (event.type === 'supervisorNarration') {
+                    sink.push({ type: event.type, handoff: event.handoff, text: event.text });
+                }
+            },
+        });
+
+        // The synthesize narration is intentionally suppressed — its
+        // assistantMessage frame already signals end-of-turn — so we
+        // only see the non-terminal handoff narration.
+        expect(sink).toEqual([
+            {
+                type: 'supervisorNarration',
+                handoff: 'evidenceRetriever',
+                text: 'Checking the USPSTF on statin primary prevention.',
+            },
+        ]);
     });
 });

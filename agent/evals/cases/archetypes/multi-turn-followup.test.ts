@@ -135,6 +135,7 @@ const buildCapturingSupervisor = (): {
             const decision: SupervisorDecision = {
                 handoff: 'synthesize',
                 reason,
+                narration: 'test narration',
             };
             return Promise.resolve(decision);
         },

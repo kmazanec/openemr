@@ -2,14 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import {
     CHART_DELIMITER,
+    EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT,
     FOLLOW_UP_SYSTEM_PROMPT,
     LAB_TREND_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
+    buildExtractionFollowUpUserMessage,
     buildFollowUpUserMessage,
     buildLabTrendUserMessage,
     buildUserMessage,
 } from '../../src/graph/synthesize.prompt.js';
-import type { BriefingSnapshot, PriorTurnContext } from '../../src/graph/types.js';
+import type {
+    BriefingSnapshot,
+    KickoffExtractionResult,
+    PriorTurnContext,
+} from '../../src/graph/types.js';
 
 const snapshot: BriefingSnapshot = {
     patient: {
@@ -321,5 +327,58 @@ describe('synthesize prompt — prior-turn context wrapping (§A.8)', () => {
         expect(closeIdx).toBeGreaterThan(openIdx);
         expect(injectionIdx).toBeGreaterThan(openIdx);
         expect(injectionIdx).toBeLessThan(closeIdx);
+    });
+});
+
+describe('synthesize prompt — extraction follow-up (post-kickoffExtraction)', () => {
+    const persistedResult: KickoffExtractionResult = {
+        documentUuid: 'doc-1',
+        docType: 'lab_pdf',
+        status: 'persisted',
+        artifactId: 'a-1',
+        errorCode: null,
+    };
+
+    it('user message includes attachedDocuments summary inside the chart delimiter', () => {
+        const message = buildExtractionFollowUpUserMessage(snapshot, [persistedResult]);
+        const openIdx = message.indexOf(`<${CHART_DELIMITER}>`);
+        const closeIdx = message.lastIndexOf(`</${CHART_DELIMITER}>`);
+        const summaryIdx = message.indexOf('attachedDocuments');
+        expect(openIdx).toBeGreaterThanOrEqual(0);
+        expect(closeIdx).toBeGreaterThan(openIdx);
+        expect(summaryIdx).toBeGreaterThan(openIdx);
+        expect(summaryIdx).toBeLessThan(closeIdx);
+    });
+
+    it('attachedDocuments serialization omits artifactId so the model cannot cite outside the snippet contract', () => {
+        const message = buildExtractionFollowUpUserMessage(snapshot, [persistedResult]);
+        expect(message).toContain('"docType": "lab_pdf"');
+        expect(message).toContain('"status": "persisted"');
+        expect(message).not.toContain('"artifactId"');
+        expect(message).not.toContain('a-1');
+    });
+
+    it('failed extractions surface the error code so the model can frame the failure honestly', () => {
+        const failed: KickoffExtractionResult = {
+            documentUuid: 'doc-2',
+            docType: 'lab_pdf',
+            status: 'failed',
+            artifactId: null,
+            errorCode: 'patient_mismatch',
+        };
+        const message = buildExtractionFollowUpUserMessage(snapshot, [failed]);
+        expect(message).toContain('"status": "failed"');
+        expect(message).toContain('patient_mismatch');
+    });
+
+    it('system prompt instructs the synthesizer to open with what was analyzed and lists the source-type contract', () => {
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain('attached');
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain('extracted_document');
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain('chart');
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain('guideline');
+        // Same prompt-injection defense as the other paths.
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain(`<${CHART_DELIMITER}>`);
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain(`</${CHART_DELIMITER}>`);
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT.toLowerCase()).toMatch(/ignore previous instructions/);
     });
 });

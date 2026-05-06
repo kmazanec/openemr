@@ -71,10 +71,30 @@ export interface SupervisorStateObservation {
     readonly priorCitationsCount: number;
     readonly previousDecision: SupervisorDecision | null;
     /**
-     * §B.9 count of `kickoffExtraction` results already appended this
-     * turn (any status — `persisted` or `failed`). The supervisor uses
-     * this to avoid re-extracting a document the same turn already
-     * processed; the manifest entry steers it explicitly.
+     * Documents the user attached this turn, projected from
+     * `state.envelope.pendingUploads`. The supervisor decides — per
+     * entry — whether to fire `kickoffExtraction`. An entry whose
+     * `documentUuid` is already in `kickoffExtractionResultsThisTurn`
+     * has been processed in the current iteration and must not be
+     * re-extracted.
+     */
+    readonly pendingUploads: readonly { readonly documentUuid: string; readonly docType: 'lab_pdf' | 'intake_form' }[];
+    /**
+     * `kickoffExtraction` results appended on this turn, projected
+     * minimally (uuid + status) so the supervisor can detect "already
+     * extracted this uuid this turn" without seeing internal artifact
+     * ids. `null` artifactId on the failed path is preserved so the
+     * supervisor can route around a `failed` extraction (per
+     * `W2_ARCHITECTURE.md` §"Failure isolation").
+     */
+    readonly kickoffExtractionResultsThisTurn: readonly {
+        readonly documentUuid: string;
+        readonly status: 'persisted' | 'failed';
+    }[];
+    /**
+     * Total count for the cycle / cap heuristics. Equal to
+     * `kickoffExtractionResultsThisTurn.length` today; kept distinct so
+     * future fan-out across multiple uploads stays observable.
      */
     readonly kickoffExtractionResultsCount: number;
 }
@@ -180,7 +200,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'kickoffExtraction',
         description:
-            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on an unprocessed document already uploaded for this patient. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' }. Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick ONLY when prior-turn context or chart state surfaces a pending document_uuid that this turn has not yet processed (state.kickoffExtractionResults does not already contain it). Forbidden when no such document_uuid is in scope — picking it otherwise wastes an iteration. The patient pid is taken from the envelope, not the args.",
+            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on a document the clinician just attached. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' } — both fields MUST be copied verbatim from one of the entries in observation.pendingUploads. Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick FIRST whenever observation.pendingUploads contains an entry whose documentUuid does not yet appear in observation.kickoffExtractionResultsThisTurn — the clinician is waiting to find out what's in the document. Forbidden when no such pending entry exists, or when every pending entry has already been processed this turn. The patient pid is taken from the envelope, not the args.",
     },
     {
         handoff: 'synthesize',
@@ -212,6 +232,14 @@ const presentCategoryFlags = (state: BriefingState): readonly string[] => {
 
 const observeState = (state: BriefingState): SupervisorStateObservation => {
     const history = state.supervisorDecisionHistory;
+    const pendingUploads = (state.envelope.pendingUploads ?? []).map((p) => ({
+        documentUuid: p.documentUuid,
+        docType: p.docType,
+    }));
+    const kickoffExtractionResultsThisTurn = state.kickoffExtractionResults.map((r) => ({
+        documentUuid: r.documentUuid,
+        status: r.status,
+    }));
     return {
         iteration: state.supervisorIterations + 1,
         task: state.envelope.task,
@@ -227,6 +255,8 @@ const observeState = (state: BriefingState): SupervisorStateObservation => {
             0,
         ),
         previousDecision: history.at(-1) ?? null,
+        pendingUploads,
+        kickoffExtractionResultsThisTurn,
         kickoffExtractionResultsCount: state.kickoffExtractionResults.length,
     };
 };
@@ -333,6 +363,7 @@ const sameDecisionAsPrevious = (
 const buildCapHitDecision = (): SupervisorDecision => ({
     handoff: 'synthesize',
     reason: 'iteration cap reached — forcing synthesize',
+    narration: 'Drafting your briefing.',
 });
 
 export const createSupervisor = (
@@ -505,6 +536,8 @@ const SUPERVISOR_SYSTEM_PROMPT = `You are the supervisor of a clinical-copilot a
 Rules:
 - Pick exactly one handoff from the manifest.
 - Provide a non-empty reason — you are accountable for every routing decision.
+- Provide a one-sentence narration (≤120 chars), written for the clinician watching the panel: a clear, concrete description of what you're about to do, in present continuous tense. Examples: "Pulling prior lipid panels to compare." / "Checking the USPSTF on statin primary prevention." / "Analyzing the lipid panel you just attached." / "Drafting your briefing." It will be shown verbatim as the panel's progress line for this step. Avoid jargon, internal handoff names, and technical detail.
+- When the envelope carries pendingUploads (documents the clinician just attached) and any entry has not yet been processed this turn (its documentUuid is absent from observation.kickoffExtractionResultsThisTurn), your FIRST action MUST be kickoffExtraction for one of those entries. Copy { document_uuid, doc_type } from the pending entry verbatim into args. Until every pending entry has been processed (or has produced a 'failed' result you can route around), do not pick synthesize. After kickoffExtraction completes, decide on the next iteration what additional context the extracted document warrants — for a lab, prior trending via retrieveChart('lab') is often valuable; for a question the document raises, evidenceRetriever may add guideline backing; for grounding a citation in the extracted facts, documentEvidenceRetriever surfaces the structured snippets.
 - When you pick retrieveChart on a turn that has already retrieved chart data once, you must include args.categories naming which categories to re-fetch.
 - Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question. The synthesizer is forbidden from citing clinical knowledge from its own training data — its only valid sources are this turn's chart records and any retriever output already in state.
 - Decide before each handoff: would the answer benefit from authoritative guideline backing? If yes, pick evidenceRetriever first. The synthesizer is forbidden from naming named guidelines (USPSTF, ADA, AHA, JNC, etc.) unless they appear as snippets in state — so routing directly to synthesize for a guideline-shaped question yields a chart-only answer the clinician will read as "you didn't actually look it up." Triggers include but are not limited to: prevention guidance ("should X be on aspirin"), screening intervals ("when is the next mammogram due"), treatment thresholds ("at what BP do we start medication"), dosing rules, risk-stratification, and any question that would normally be answered by reaching for a clinical guideline rather than the chart alone. ONLY skip evidenceRetriever when the question is purely a chart-data lookup ("when was her last visit", "what's her current Rx list").

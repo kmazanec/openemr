@@ -80,6 +80,7 @@ const buildStubSupervisor = (archetype: ArchetypeKey): SupervisorDecide => {
         const decision: SupervisorDecision = {
             handoff: 'synthesize',
             reason: `archetype=${archetype}; chart context observed (categories=${input.observation.chartCategoriesPresent.join(',')}); synthesizing default briefing`,
+            narration: 'test narration',
         };
         return Promise.resolve(decision);
     });

@@ -167,23 +167,27 @@ const w1FallbackDecide: SupervisorDecide = ({ state }) => {
         return Promise.resolve({
             handoff: 'prescriptionChangeBranch',
             reason: 'follow-up type prescription_change',
+            narration: 'test narration',
         });
     }
     if (followUpType === 'reminder_detail') {
         return Promise.resolve({
             handoff: 'reminderBranch',
             reason: 'follow-up type reminder_detail',
+            narration: 'test narration',
         });
     }
     if (followUpType === 'medication_statement_detail') {
         return Promise.resolve({
             handoff: 'medicationStatementBranch',
             reason: 'follow-up type medication_statement_detail',
+            narration: 'test narration',
         });
     }
     return Promise.resolve({
         handoff: 'synthesize',
         reason: 'no W2 retriever wiring; fall through to synthesize',
+        narration: 'test narration',
     });
 };
 

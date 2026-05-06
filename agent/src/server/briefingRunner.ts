@@ -408,6 +408,41 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             if (!Array.isArray(chunk) || chunk.length !== 2) continue;
             const [mode, payload] = chunk as [string, unknown];
             if (mode === 'updates' && payload !== null && typeof payload === 'object') {
+                // Supervisor narration: each supervisor decision appends
+                // one entry to `supervisorDecisionHistory`. Project the
+                // newest entry's `narration` + `handoff` into a
+                // `supervisorNarration` SSE event so the panel can show
+                // the model-decided next-step text instead of (or
+                // alongside) a fixed stage label. Skip when the
+                // decision is `synthesize` — the assistant message
+                // landing right after is its own end-of-turn signal,
+                // and a duplicate "Drafting your briefing." line right
+                // before it just adds noise.
+                const supervisorPayload = (payload as Record<string, unknown>)['supervisor'];
+                if (
+                    supervisorPayload !== undefined
+                    && supervisorPayload !== null
+                    && typeof supervisorPayload === 'object'
+                ) {
+                    const history = (supervisorPayload as Record<string, unknown>)[
+                        'supervisorDecisionHistory'
+                    ];
+                    if (Array.isArray(history) && history.length > 0) {
+                        const latest: unknown = history[history.length - 1];
+                        if (
+                            latest !== null
+                            && typeof latest === 'object'
+                            && typeof (latest as Record<string, unknown>)['handoff'] === 'string'
+                            && typeof (latest as Record<string, unknown>)['narration'] === 'string'
+                        ) {
+                            const handoff = (latest as Record<string, unknown>)['handoff'] as string;
+                            const text = (latest as Record<string, unknown>)['narration'] as string;
+                            if (handoff !== 'synthesize') {
+                                await emit({ type: 'supervisorNarration', handoff, text });
+                            }
+                        }
+                    }
+                }
                 for (const nodeName of Object.keys(payload)) {
                     const completedStage = stageForNode(nodeName);
                     if (completedStage === null) continue;

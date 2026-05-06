@@ -158,6 +158,23 @@ export interface PriorTurnContext {
 }
 
 /**
+ * Reference to a document the panel just attached and is waiting on the
+ * supervisor to do something with. The agent boundary parses one of
+ * these per upload; the supervisor decides on its first iteration
+ * whether to fire `kickoffExtraction` for each pending entry, retrieve
+ * complementary chart context, query the guideline knowledge base, etc.
+ *
+ * Carrying the list as data on the envelope (rather than firing the
+ * pipeline before the conversational graph runs) keeps the supervisor
+ * in charge: it can decide _whether_ to extract, _what_ to do with the
+ * extracted facts, and _how_ to frame the result back to the clinician.
+ */
+export interface PendingUpload {
+    readonly documentUuid: string;
+    readonly docType: 'lab_pdf' | 'intake_form';
+}
+
+/**
  * Request envelope OpenEMR sends to the agent. Mirrors ARCHITECTURE.md
  * §"Request Envelope" — actor identity, patient context, conversation
  * scope, and the task the agent is asked to perform. The agent uses
@@ -190,6 +207,16 @@ export interface RequestEnvelope {
      * bridge with UC-specific graph branches.
      */
     readonly followUp?: SuggestedFollowUpParams;
+    /**
+     * Documents the user just attached this turn that the supervisor
+     * has not yet processed. The agent's first supervisor iteration
+     * sees this list and chooses whether to kick off extraction for
+     * each entry. Allowed on either task — a clinician might attach a
+     * doc to the very first turn of a fresh conversation
+     * (`default_briefing`) or in the middle of an ongoing conversation
+     * (`follow_up`).
+     */
+    readonly pendingUploads?: readonly PendingUpload[];
 }
 
 /**
@@ -406,6 +433,17 @@ export type SupervisorHandoff = typeof SUPERVISOR_HANDOFFS[number];
 export const SupervisorDecisionSchema = z.object({
     handoff: z.enum(SUPERVISOR_HANDOFFS),
     reason: z.string().min(1),
+    /**
+     * One short clinician-facing sentence (≤120 chars) describing what
+     * the supervisor is about to do, written for the doctor watching
+     * the panel — e.g. "Pulling prior lipid panels to compare." or
+     * "Checking the USPSTF on statin primary prevention." The runner
+     * forwards this verbatim as a `supervisorNarration` SSE event so
+     * the panel's progress line reflects the agent's current intent
+     * rather than a fixed stage label. Required: every routing
+     * decision deserves a sentence the clinician would understand.
+     */
+    narration: z.string().min(1).max(200),
     args: z.record(z.string(), z.unknown()).optional(),
 });
 

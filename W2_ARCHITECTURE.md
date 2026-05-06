@@ -79,9 +79,10 @@ START
   ↓
 retrieveChart                          (universal context — runs first)
   ↓
-supervisor (loop) ──┬→ kickoffExtraction         (envelope carries unprocessed doc)
+supervisor (loop) ──┬→ kickoffExtraction         (envelope.pendingUploads carries unprocessed doc)
                     │   ↓ awaits ingestion pipeline
-                    │   ↓ back to supervisor
+                    │   ↓ appends to state.kickoffExtractionResults
+                    │   ↓ back to supervisor (which can then pull priors, query guidelines, etc.)
                     │
                     ├→ documentEvidenceRetriever (per-patient artifact retrieval)
                     │   ↓ back to supervisor
@@ -102,6 +103,8 @@ supervisor (loop) ──┬→ kickoffExtraction         (envelope carries unpro
                         ↓
                       END
 ```
+
+Each non-terminal supervisor decision carries a `narration` field — a one-sentence clinician-facing description of the step it's about to take ("Pulling prior lipid panels to compare.", "Checking the USPSTF on statin primary prevention."). The runner forwards each narration as a `supervisorNarration` SSE event so the panel's progress line tracks the agent's actual intent rather than fixed retrieve→synthesize→verify→format stage labels. The `synthesize` handoff suppresses its narration: the assistant message frame that follows is its own end-of-turn signal.
 
 `loadState` and `planContext` are runner-side, not graph nodes. The runner threads `thread_id = conversation.id` into the graph invocation; LangGraph's Postgres checkpointer continues to handle conversational state. The runner's `loadPriorContext` reads `conversation_messages` for the resolved conversation, strips the trailing current-question append, windows to the last K=5 turn pairs, and threads a `priorTurnContext: PriorTurnContext` slot onto `BriefingState` so the supervisor and synthesizer both see prior-turn context. See "Prior-turn context" below.
 
@@ -159,11 +162,13 @@ The pipeline is a separate `StateGraph` compiled once at agent boot. Its state s
 
 | Invoker | Trigger | Authority | Phase |
 |---|---|---|---|
-| Conversational supervisor | Envelope carries `document_uuid` with no existing artifact | Acting clinician's JWT (panel session) | MVP |
+| Conversational supervisor | Envelope's `pendingUploads[]` contains a `documentUuid` with no matching `kickoffExtractionResults` entry this turn | Acting clinician's JWT (panel session) | MVP |
 | OpenEMR `DocumentUploadedEvent` listener | Front-desk uploads through OpenEMR's existing document UI | System-actor JWT minted with the same `AgentTokenMinter` pattern | Post-MVP |
 | CLI replay | Debug, regression reproduction, eval re-runs | System-actor JWT or local-dev override | All phases |
 
 The pipeline does not know which invoker triggered it. It receives `(document_uuid, pid, doc_type, trigger_source: 'panel' | 'autosweep' | 'cli')` as inputs; `trigger_source` is logged on the trace for observability but does not change behavior. The same code runs whether a doc arrives via path A, path B, or CLI.
+
+For the conversational invoker, **the supervisor is the only point of authority** for turning "user attached a doc" into a briefing. The panel uploads the canonical bytes via `document_upload.php`, then issues a single `briefing` request whose envelope carries `pendingUploads: [{documentUuid, docType}]`. The supervisor sees that list on its first iteration, decides whether to fire `kickoffExtraction` for each entry, then iterates over the extracted results — pulling prior trends via `retrieveChart`, querying the guideline corpus via `evidenceRetriever`, retrieving structured fact snippets via `documentEvidenceRetriever`, etc. — before synthesizing. The legacy `/v1/agent/extract` HTTP endpoint stays in place for the autosweep and CLI invokers, but the panel does not call it.
 
 ### Idempotency
 
@@ -227,11 +232,12 @@ The supervisor is an **LLM call with structured-output handoff selection**, invo
      handoff: 'kickoffExtraction' | 'retrieveChart' | 'documentEvidenceRetriever'
             | 'evidenceRetriever' | 'prescriptionChangeBranch' | 'reminderBranch'
             | 'medicationStatementBranch' | 'synthesize',
-     reason: string,            // non-empty by Zod contract — required rationale
+     reason: string,            // non-empty by Zod contract — required rationale (engineer-facing)
+     narration: string,          // ≤120 chars, clinician-facing one-sentence "what I'm about to do"
      args?: object               // structured arguments for the chosen handoff
    }
    ```
-   The model picks from a finite enumeration; it cannot invent handoffs. The Zod schema rejects malformed output before it reaches graph state.
+   The model picks from a finite enumeration; it cannot invent handoffs. The Zod schema rejects malformed output before it reaches graph state. The `narration` field flows out as a `supervisorNarration` SSE event so the panel's progress line tracks the agent's intent dynamically.
 3. **The chosen handoff runs** with the supplied args. Control returns. Supervisor LLM runs again with updated state.
 4. **Loop terminates** when the supervisor picks `synthesize` (terminal handoff) or hits the iteration cap.
 

@@ -42,7 +42,7 @@ const buildLoopingStubSupervisor = (): SupervisorDecide => {
     return vi.fn<SupervisorDecide>(() => {
         const decision: SupervisorDecision = {
             handoff: 'evidenceRetriever',
-            reason: 'pathological stub: always asks for more guideline evidence',
+            reason: 'pathological stub: always asks for more guideline evidence', narration: 'test narration',
             args: { query: 'evidence forever' },
         };
         return Promise.resolve(decision);
