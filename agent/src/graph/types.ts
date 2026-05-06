@@ -641,3 +641,78 @@ export interface PersistedRecord {
     readonly requestId: string;
     readonly persistedAt: string;
 }
+
+/**
+ * §B.9 closed enumeration of pipeline error codes the kickoffExtraction
+ * node may surface back to the supervisor. Mirrors `PipelineErrorCode`
+ * in `agent/src/pipeline/state.ts`; duplicated here so the conversational
+ * graph's typings don't reach across into the pipeline package's
+ * internals. The two lists must stay in sync — see
+ * `agent/tests/graph/nodes/kickoffExtraction.test.ts` for the contract
+ * pin.
+ */
+export const KICKOFF_EXTRACTION_ERROR_CODES = [
+    'cost-cap-exceeded',
+    'rasterize_failed',
+    'storage-unreachable',
+    'rate-limited',
+    'schema_invalid',
+    'patient_mismatch',
+    'persist_failed',
+    'invalid_args',
+    'pipeline_runtime_error',
+    'pipeline_no_terminal_state',
+] as const;
+export type KickoffExtractionErrorCode = typeof KICKOFF_EXTRACTION_ERROR_CODES[number];
+
+/**
+ * §B.9 supervisor handoff args for `kickoffExtraction`. The supervisor
+ * picks an unprocessed `document_uuid` already attached to this
+ * conversation plus the doc type the panel uploaded; the patient pid
+ * is non-negotiable and comes from the envelope, not the args (same
+ * pattern as `documentEvidenceRetriever`'s `pid` scope rule).
+ *
+ * `document_uuid` width matches the §B.8 extract route's bound so the
+ * two surfaces accept the same identifiers — the canonical UUIDs are
+ * 36-char strings but extra width is harmless and a strict 36 would
+ * reject any future format migration. `lab_pdf` and `intake_form` are
+ * the only doc types the strict pipeline schemas support today (§B.4);
+ * adding a new doc type is a paired schema + enum change.
+ */
+export const KickoffExtractionArgsSchema = z.object({
+    document_uuid: z.string().min(1).max(200),
+    doc_type: z.union([z.literal('lab_pdf'), z.literal('intake_form')]),
+});
+
+export type KickoffExtractionArgs = z.infer<typeof KickoffExtractionArgsSchema>;
+
+/**
+ * §B.9 summary projection the kickoffExtraction node appends to
+ * `state.kickoffExtractionResults` after each pipeline run. The full
+ * `ExtractionArtifact` row lives in agent Postgres and the C.1
+ * `documentEvidenceRetriever` reads it from there; the supervisor's
+ * downstream iterations only need to know that *an* artifact landed for
+ * a given `(document_uuid, doc_type)` and what its terminal status was,
+ * so the supervisor can route around a `failed` artifact (per
+ * `W2_ARCHITECTURE.md` §"Failure isolation") without re-fetching the
+ * row.
+ *
+ * `artifactId` is null on the failed path before the persist node ran
+ * (cost-cap, schema-invalid, patient-mismatch, rasterize failure); it
+ * is set on the failed path only when the persist node itself failed
+ * after writing a `failed`-status artifact (today the pipeline does
+ * not write a row on persist failure — `artifactId` will read as null
+ * in that case too, but the type leaves room for it).
+ */
+export interface KickoffExtractionResult {
+    readonly documentUuid: string;
+    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly status: 'persisted' | 'failed';
+    readonly artifactId: string | null;
+    /**
+     * Pipeline error code on the failed path; null when the pipeline
+     * persisted successfully. Mirrors the pipeline's `PipelineErrorCode`
+     * union.
+     */
+    readonly errorCode: KickoffExtractionErrorCode | null;
+}

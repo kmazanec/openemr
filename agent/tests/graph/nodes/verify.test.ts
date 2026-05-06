@@ -133,7 +133,7 @@ describe('createVerify', () => {
             retrieveChartArgs: null,            documentEvidenceArgs: null,            documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,            evidenceRetrieverArgs: null,            evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
         });
 
         expect(out.verified?.passed).toBe(true);
@@ -159,7 +159,7 @@ describe('createVerify', () => {
             retrieveChartArgs: null,            documentEvidenceArgs: null,            documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,            evidenceRetrieverArgs: null,            evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
         });
 
         expect(out.verified?.accepted.map((c) => c.id)).toEqual(['good']);
@@ -190,7 +190,7 @@ describe('createVerify', () => {
                 retrieveChartArgs: null,                documentEvidenceArgs: null,                documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,                evidenceRetrieverArgs: null,                evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
             }),
         ).rejects.toThrow(/snapshot/i);
     });
@@ -212,7 +212,7 @@ describe('createVerify', () => {
             retrieveChartArgs: null,            documentEvidenceArgs: null,            documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,            evidenceRetrieverArgs: null,            evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
         });
 
         expect(out.verified?.passed).toBe(true);
@@ -240,7 +240,7 @@ describe('createVerify', () => {
             retrieveChartArgs: null,            documentEvidenceArgs: null,            documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,            evidenceRetrieverArgs: null,            evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
         });
 
         expect(failingRecord).toHaveBeenCalledOnce();
@@ -268,7 +268,7 @@ describe('createVerify', () => {
             retrieveChartArgs: null,            documentEvidenceArgs: null,            documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,            evidenceRetrieverArgs: null,            evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
         });
 
         const snap = counters.snapshot();
@@ -297,7 +297,7 @@ describe('createVerify', () => {
             retrieveChartArgs: null,            documentEvidenceArgs: null,            documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,            evidenceRetrieverArgs: null,            evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
         });
 
         const snap = counters.snapshot();

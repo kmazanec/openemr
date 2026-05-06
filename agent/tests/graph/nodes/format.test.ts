@@ -137,7 +137,7 @@ const baseState = (
     retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,    evidenceRetrieverArgs: null,    evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
 });
 
 describe('format', () => {
@@ -280,7 +280,7 @@ describe('format', () => {
                 retrieveChartArgs: null,                documentEvidenceArgs: null,                documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,                evidenceRetrieverArgs: null,                evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
             }),
         ).rejects.toThrow(/verify/i);
     });
@@ -300,7 +300,7 @@ describe('format', () => {
                 retrieveChartArgs: null,                documentEvidenceArgs: null,                documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,                evidenceRetrieverArgs: null,                evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
             }),
         ).rejects.toThrow(/draft|synthesi/i);
     });
