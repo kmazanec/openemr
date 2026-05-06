@@ -1,4 +1,5 @@
 import type { AssistantMessage, PersistedRecord, RequestEnvelope } from '../graph/types.js';
+import type { PipelineStreamEvent } from './pipelineStream.js';
 
 /**
  * §3.4 SSE event protocol, reshaped in §4.5 around a single
@@ -64,6 +65,22 @@ export type BriefingStreamEvent =
     | {
           readonly type: 'error';
           readonly code: string;
+      }
+    | {
+          /**
+           * §B.9 forwarded ingestion-pipeline event when the
+           * conversational supervisor's `kickoffExtraction` handoff
+           * fires synchronously inside the turn. The event vocabulary
+           * is the disjoint set defined in `pipelineStream.ts`; the
+           * outer `pipelineEvent` wrapper keeps the conversation
+           * stream's own event names from colliding with the
+           * pipeline's. The renderer can listen on
+           * `addEventListener('pipelineEvent', …)` and switch on the
+           * inner `event.type` to decide what to render (start chip,
+           * page-count chip, terminal exit/error).
+           */
+          readonly type: 'pipelineEvent';
+          readonly event: PipelineStreamEvent;
       };
 
 export const eventsForBriefing = (
