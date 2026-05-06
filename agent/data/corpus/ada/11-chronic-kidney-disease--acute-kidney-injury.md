@@ -1,0 +1,17 @@
+---
+publication: ADA
+title: "11. Chronic Kidney Disease and Risk Management: Standards of Care in Diabetes—2026"
+section: acute-kidney-injury
+section_label: "Acute Kidney Injury"
+year: 2025
+url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690176/"
+publisher_url: "https://doi.org/10.2337/dc26-S011"
+license_tier: fair_use_cds
+slug: 11-chronic-kidney-disease
+surface: pmc-section
+fetched_at: "2026-05-06T23:17:07.560Z"
+content_sha256: "420c7770a6105d3a313c8cb6f45c891fd0152a9d5b3319dd8a1553b2e41ea4ea"
+---
+Acute kidney injury (AKI) is defined as a rapid decline in kidney function, typically within a short period (hours to days), characterized by increase in serum creatinine and/or decrease in urine output (26). People with diabetes are at higher risk of AKI than those without diabetes (27). The rates of hospitalizations for AKI requiring dialysis are five times higher in adults with diabetes compared with adults without diabetes (risk ratio 5.0; 95% CI 4.8–5.1) (28). Other risk factors for AKI include preexisting CKD, the use of medications that cause kidney injury (e.g., nonsteroidal anti-inflammatory drugs), certain intravenous dyes (e.g., iodinated radiocontrast agents), and the use of medications that alter kidney blood flow and intrakidney hemodynamics. In particular, many antihypertensive medications (e.g., diuretics, ACE inhibitors, and angiotensin receptor blockers [ARBs]) can reduce intravascular volume, kidney blood flow, and/or glomerular filtration. There was concern that sodium–glucose cotransporter 2 (SGLT2) inhibitors may promote AKI through volume depletion, particularly when combined with diuretics or other medications that reduce glomerular filtration; however, this has not been found to be true in randomized controlled trials of advanced kidney disease (29) or high CVD risk with normal kidney function (30–32). Nonsteroidal mineralocorticoid receptor antagonists (nsMRAs) do not increase the risk of AKI when used to slow kidney disease progression (33). Timely identification and treatment of AKI is important because AKI is associated with increased risks of progressive CKD and other poor health outcomes (34).
+Elevations in serum creatinine (up to 30% from baseline) with renin-angiotensin system (RAS) blockers (such as ACE inhibitors and ARBs) must not be confused with AKI (35). An analysis of the Action to Control Cardiovascular Risk in Diabetes Blood Pressure (ACCORD BP) trial demonstrated that participants randomized to intensive blood pressure lowering with up to a 30% increase in serum creatinine did not have any increase in mortality or progressive kidney disease (36,37). Urine biomarkers of tubule function (β2-microglobulin, α1-microglobulin, and uromodulin), injury (interleukin-18, kidney injury molecule 1, and neutrophil gelatinase-associated lipocalin), inflammation (monocyte chemoattractant protein 1), and repair (human cartilage glycoprotein 40) did not increase in individuals assigned to intensive blood pressure control in the Systolic Blood Pressure Intervention Trial (SPRINT) trial despite decrease in eGFR (37).
+Accordingly, ACE inhibitors and ARBs should not be discontinued for increases in serum creatinine (<30%) in the absence of volume depletion. Similar rises in creatinine are seen at the initiation of SGLT2 inhibitors and glucagon-like peptide 1 receptor agonists (GLP-1 RA) due to hemodynamic changes in the tubuloglomerular feedback, and the medication should not be discontinued.

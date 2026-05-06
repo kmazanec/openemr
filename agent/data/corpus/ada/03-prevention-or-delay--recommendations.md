@@ -1,0 +1,19 @@
+---
+publication: ADA
+title: "3. Prevention or Delay of Diabetes and Associated Comorbidities: Standards of Care in Diabetes—2026"
+section: recommendations
+section_label: "Recommendations"
+year: 2025
+url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690170/"
+publisher_url: "https://doi.org/10.2337/dc26-S003"
+license_tier: fair_use_cds
+slug: 03-prevention-or-delay
+surface: pmc-section
+fetched_at: "2026-05-06T23:16:42.329Z"
+content_sha256: "a4cef91dc33b3f385fddaeeea1f1db8446ddc1602f627780653d752f0f9631be"
+---
+3.1 In people with prediabetes, monitor for the development of diabetes at least annually; modify frequency of testing based on individual risk assessment. E
+3.2 In people with presymptomatic type 1 diabetes, monitor for disease progression using A1C approximately every 6 months and 75-g oral glucose tolerance test (i.e., fasting and 2-h plasma glucose) annually; modify frequency of monitoring and consider augmenting with other glycemic assessment tools such as continuous glucose monitoring metrics based on individual risk assessment incorporating age, number and type of autoantibodies, and glycemic metrics. E
+
+Screening for prediabetes (which refers to hyperglycemia preceding the diagnosis of type 2 diabetes only) and type 2 diabetes risk through an assessment of risk factors (Table 2.5) or with an assessment tool, such as the American Diabetes Association risk test, which can be used by either a layperson or a health care professional (diabetes.org/diabetes-risk-test), is recommended to guide whether to perform a diagnostic test for prediabetes (Table 2.2) and type 2 diabetes (Table 2.1) (see section 2, “Diagnosis and Classification of Diabetes”). Testing high-risk individuals for prediabetes is warranted because the laboratory assessment is safe and reasonable in cost, and early detection of hyperglycemia affords substantial time to intervene and delay or prevent the onset of type 2 diabetes and/or its long-term complications. Indeed, once identified, several effective therapeutic approaches exist that can delay type 2 diabetes in those with prediabetes with an A1C 5.7–6.4% (39–47 mmol/mol), impaired glucose tolerance (IGT) on 75-g oral glucose tolerance test (OGTT), or impaired fasting glucose (IFG). The utility of screening with A1C for prediabetes and diabetes may be limited in the presence of certain hemoglobinopathies and conditions that affect red blood cell turnover (Table 2.3). See section 2, “Diagnosis and Classification of Diabetes,” and section 6, “Glycemic Goals, Hypoglycemia, and Hyperglycemic Crises,” for additional details on the appropriate use and limitations of A1C testing.
+Three stages of type 1 diabetes have been defined, with symptomatic type 1 diabetes classified as stage 3 (Table 2.4). In individuals at risk for developing clinical type 1 diabetes, younger age of seroconversion (particularly under age 3 years), the total number of diabetes-related autoantibodies (1), and the development of autoantibodies against islet antigen 2 (IA-2) have all been associated with a more rapid progression to stage 3 type 1 diabetes. While continuous glucose monitoring can predict progression to stage 3 type 1 diabetes in children and adolescents with autoantibodies (2), OGTT-based metrics are more predictive of progression compared with continuous glucose monitoring (3). The decision to perform an OGTT may depend on such factors as eligibility and interest for stage-specific treatments, interest in participation in clinical research, OGTT availability, and the burden of testing. Consensus guidance provides expert recommendations on what should be monitored and how often in people with presymptomatic type 1 diabetes (4). Cost-effectiveness of population-based screening programs for type 1 diabetes has not been established (5,6), but such screening is being implemented outside the U.S. (7).
