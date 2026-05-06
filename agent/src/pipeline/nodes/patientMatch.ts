@@ -75,6 +75,28 @@ const fail = (state: PipelineState, error: PipelineError): Partial<PipelineState
 const isPartial = (name: MatchScore, dob: MatchScore): boolean =>
     name < 1.0 || dob < 1.0;
 
+/**
+ * Dev-only diagnostic payload for the patient-match log lines. In
+ * production these strings are PHI; in development they are the only
+ * way to see what the vision model returned, since `extraction` is
+ * redacted at the pino layer and the `failed` artifact is never
+ * persisted to postgres on a refusal. Gated on `NODE_ENV` so a real
+ * deployment cannot accidentally leak names/DOBs into application logs.
+ */
+const devDiagnostics = (
+    extractedName: string,
+    extractedDob: string,
+    chart: Demographics,
+): Record<string, string | null> | undefined => {
+    if (process.env['NODE_ENV'] === 'production') return undefined;
+    return {
+        extractedName,
+        extractedDob,
+        chartDisplayName: chart.displayName,
+        chartDateOfBirth: chart.dateOfBirth,
+    };
+};
+
 const buildWarnings = (name: MatchScore, dob: MatchScore): readonly string[] => {
     const warnings: string[] = [];
     if (name === 0.6) warnings.push('name_partial_match');
@@ -94,8 +116,15 @@ export const patientMatch = async (
     const extractedName = extractCitedString(state.schema, 'name');
     const extractedDob = extractCitedString(state.schema, 'dob');
     if (extractedName === null || extractedDob === null) {
+        const isDev = process.env['NODE_ENV'] !== 'production';
         deps.logger.warn(
-            { documentUuid: state.documentUuid, pid: state.pid },
+            {
+                documentUuid: state.documentUuid,
+                pid: state.pid,
+                hasExtractedName: extractedName !== null,
+                hasExtractedDob: extractedDob !== null,
+                ...(isDev ? { extractedName, extractedDob } : {}),
+            },
             'patientMatch: extracted demographics missing name or dob',
         );
         return fail(state, {
@@ -135,6 +164,7 @@ export const patientMatch = async (
                 mismatchReason,
                 nameScore,
                 dobScore,
+                ...devDiagnostics(extractedName, extractedDob, chart),
             },
             'patientMatch: confident mismatch — refusing extraction',
         );
@@ -160,6 +190,7 @@ export const patientMatch = async (
             nameScore,
             dobScore,
             partial,
+            ...devDiagnostics(extractedName, extractedDob, chart),
         },
         'patientMatch: chart demographics matched',
     );

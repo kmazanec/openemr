@@ -50,6 +50,23 @@ export const cleanup = async (
         return {};
     }
 
+    // Dev-only escape hatch: when AGENT_KEEP_TRANSIENT_PAGES=1, leave
+    // the rasterized PNGs in place so the operator can click the
+    // signed URL from the rasterize log line and inspect what the
+    // vision model was actually shown. The 24h lifecycle policy on
+    // the transient prefix is the eventual mop-up. Production must
+    // never set this — orphaned PHI rendering would otherwise pile up.
+    if (process.env['AGENT_KEEP_TRANSIENT_PAGES'] === '1') {
+        deps.logger.warn(
+            {
+                documentUuid: state.documentUuid,
+                keptKeys: transientKeys.length,
+            },
+            'cleanup: AGENT_KEEP_TRANSIENT_PAGES=1 set — leaving transient pages in place',
+        );
+        return {};
+    }
+
     let succeeded = 0;
     let failed = 0;
     for (const key of transientKeys) {

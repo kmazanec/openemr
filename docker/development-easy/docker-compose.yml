@@ -177,6 +177,12 @@ services:
       NODE_ENV: development
       PORT: '8080'
       DATABASE_URL: postgresql://agent:agent@agent-postgres:5432/agent
+      # Dev-only: keep rasterized page PNGs in the Spaces transient
+      # prefix so an operator can click the signed URL from the
+      # rasterize log and inspect exactly what the vision model saw.
+      # The 24h lifecycle policy on the prefix mops up the leftovers.
+      # Production must NOT set this.
+      AGENT_KEEP_TRANSIENT_PAGES: '1'
       # Matches what dev-easy's openemr container's site_addr_oath produces.
       AGENT_JWT_ISSUER: https://localhost:${WT_HTTPS_PORT:-9300}/oauth2/default
       AGENT_JWT_AUDIENCE: openemr-clinical-copilot-agent

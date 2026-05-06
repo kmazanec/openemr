@@ -361,6 +361,29 @@ export const vision = async (
         'vision: extraction succeeded',
     );
 
+    // Dev-only structural dump of the parsed extraction. The pino
+    // logger redacts the leaf names (`name`, `dob`, `address`, …) and
+    // the keys in `VISION_PHI_LEAFS` (including `extraction` itself)
+    // listed in `observability/logger.ts`, so we deliberately rename
+    // the dump key to `parsedSchema` and rely on the leaf-level redact
+    // (which still catches `name`, `dob`, etc. *inside* the object) to
+    // keep production logs PHI-safe even if NODE_ENV is wrong. The
+    // unredacted fields (lab values, ordering provider, page numbers,
+    // confidence) are enough to spot column-misalignment bugs (vision
+    // pulling demographics from the ordering-provider block, etc.).
+    // We pass through `JSON.parse(JSON.stringify(...))` to drop any
+    // non-serializable fields the structured-output adapter may attach.
+    if (process.env['NODE_ENV'] !== 'production') {
+        logger.debug(
+            {
+                documentUuid: state.documentUuid,
+                docType: state.docType,
+                parsedSchema: JSON.parse(JSON.stringify(parsed.data)) as unknown,
+            },
+            'vision: parsed extraction (dev-only diagnostic)',
+        );
+    }
+
     return { schema: parsed.data, status: 'extracted' };
 };
 

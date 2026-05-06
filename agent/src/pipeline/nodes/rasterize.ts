@@ -229,5 +229,25 @@ export const rasterize = async (
         },
         'rasterize: PDF rasterized + uploaded to transient prefix',
     );
+
+    // Dev-only: emit the signed URLs so an operator can click through
+    // and see exactly what the vision model received. Pino redacts
+    // `signedUrl` (see VISION_PHI_LEAFS in observability/logger.ts),
+    // so we rename the leaf here. Combined with
+    // AGENT_KEEP_TRANSIENT_PAGES=1 (cleanup escape hatch) this gives a
+    // post-hoc view of the bytes the model actually saw.
+    if (process.env['NODE_ENV'] !== 'production') {
+        for (const page of pages) {
+            logger.debug(
+                {
+                    documentUuid: state.documentUuid,
+                    pageNum: page.pageNum,
+                    key: page.key,
+                    signedUrlPreview: page.signedUrl,
+                },
+                'rasterize: signed URL (dev-only diagnostic)',
+            );
+        }
+    }
     return { pages, status: 'rasterized' };
 };
