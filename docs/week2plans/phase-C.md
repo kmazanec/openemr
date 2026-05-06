@@ -152,7 +152,7 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 - `agent/src/retrievers/cohere.ts` (new) — rerank client.
 
 **Checklist.**
-- [ ] Define args Zod schema:
+- [x] Define args Zod schema:
   ```ts
   const EvidenceArgs = z.object({
     query: z.string().min(1),
@@ -160,27 +160,28 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
     source_filter: z.enum(['USPSTF', 'ADA', 'ACC-AHA', 'AGS-Beers', 'CDC']).array().optional(),
   });
   ```
-- [ ] **Pinecone hybrid retrieval** (`agent/src/retrievers/pinecone.ts`):
+  (Implemented as `EvidenceArgsSchema` in `agent/src/graph/types.ts`. `source_filter` lower bound is `min(1)` so an empty array can't slip past structured-output coercion. Closed enum `EVIDENCE_SOURCE_FILTERS` exported for reuse.)
+- [x] **Pinecone hybrid retrieval** (`agent/src/retrievers/pinecone.ts`):
   - Embed `query` via OpenAI `text-embedding-3-large`.
-  - Compute sparse BM25 vector via `pinecone-text` SDK.
-  - Call Pinecone `query()` against the hybrid index with `topK: 20`, namespace `guidelines-v1`, optional metadata filter on `publication`.
-  - Return raw chunk results with metadata.
-- [ ] **Cohere rerank** (`agent/src/retrievers/cohere.ts`):
+  - Compute sparse BM25 vector via ~~`pinecone-text` SDK~~ shared `agent/src/retrievers/bm25.ts` (same Robertson formula the C.2 reindex script ships; `pinecone-text` is Python-only). BM25 stats are fitted from the indexed corpus chunks at agent boot so query-side and index-side weights line up.
+  - Call Pinecone `query()` against the hybrid index with `topK: 20`, namespace from env (`PINECONE_NAMESPACE`, default `guidelines-v1`), optional metadata filter on `publication`.
+  - Return raw chunk results with metadata projected to a `PineconeHybridHit` shape.
+- [x] **Cohere rerank** (`agent/src/retrievers/cohere.ts`):
   - Take Pinecone top-20.
-  - Call Cohere `rerank-3` with `query` + chunk texts.
+  - Call Cohere `rerank-v3.5` (Cohere renamed the `rerank-3` model id in 2025) over query + chunk texts via direct REST against `https://api.cohere.com/v2/rerank` (no SDK dep — one endpoint, ~30 lines of glue).
   - Return top-`top_k` with rerank scores.
-  - **Degraded mode:** Cohere 5xx or timeout → fall through to top-3 by Pinecone hybrid score. Log a `degraded-mode` trace event (per `W2_ARCHITECTURE.md` §"Failure Modes" "Cohere outage" row).
-- [ ] **Pinecone outage:** retriever returns `{snippets: [], gap: 'evidence-retrieval-unavailable'}` (per `W2_ARCHITECTURE.md` §"Failure Modes" "Pinecone outage" row). Supervisor sees the gap and routes around it.
-- [ ] Implement the node `evidenceRetriever(state, args, deps)`:
-  1. Validate `args`.
+  - **Degraded mode:** Cohere 5xx, network error, or timeout → client returns `null`; the C.3 node falls through to top-`k` by Pinecone hybrid score, tags each snippet with `degradedRerank: true`, and emits a `degraded-mode` trace event (per `W2_ARCHITECTURE.md` §"Failure Modes" "Cohere outage" row). 4xx responses (auth, malformed payload) throw — they're configuration bugs, not transient outages.
+- [x] **Pinecone outage:** retriever throws `PineconeUnavailableError`; the C.3 node catches it and returns `{snippets: [], gap: {kind: 'gap', reason: 'evidence-retrieval-unavailable', message: …}}` so the supervisor sees the gap and routes around it (per `W2_ARCHITECTURE.md` §"Failure Modes" "Pinecone outage" row).
+- [x] Implement the node `evidenceRetriever(state, args, deps)`:
+  1. Resolve typed args from `state.evidenceRetrieverArgs` (the supervisor narrows them via `EvidenceArgsSchema` before routing — see C.3 prep commit).
   2. Pinecone hybrid retrieve → top-20.
   3. Cohere rerank → top-`top_k`.
-  4. Project each chunk to `SourceReference` with `source_type='guideline'`, `source_id=chunk_id`, `locator={section, field: undefined}`, `quote=chunk_text` (or first ~200 chars), `meta={rerank_score}`.
-  5. Return snippets to the supervisor.
-- [ ] Per-call LangSmith trace metadata: `query` (hashed), `source_filter`, `top_k`, Pinecone top-20 chunk ids, Cohere rerank top-`top_k` chunk ids, embedding cost, rerank cost, latency.
-- [ ] Tests: stubbed-Pinecone + stubbed-Cohere unit tests for happy path, Cohere-degraded fallback, Pinecone outage gap.
+  4. Project each hit to an `EvidenceSnippet` (`{chunkId, publication, year, section, title, url?, licenseTier, quote, rerankScore, degradedRerank}`). The full `SourceReference` projection (`source_type='guideline'`, `source_id=chunkId`, `locator.section`, substring-matched `quote`) lands in C.5's verifier path; the synthesizer reads the snippets and emits `SourceReference`s itself. Chunk text is excerpted to 600 chars to keep prompts bounded.
+  5. Return `{evidenceRetrieverOutput: {snippets, gap: null}}` to the supervisor.
+- [x] Per-call LangSmith trace metadata: `evidence_query_hash` (HMAC-SHA256-12 via shared `hashIdForTrace` + `tagSalt`), `evidence_source_filter`, `evidence_top_k`, `evidence_pinecone_count`, `evidence_pinecone_chunk_ids`, `evidence_returned_chunk_ids`, `evidence_returned_count`, `evidence_degraded_rerank`, `evidence_event` (one of `pinecone-outage` | `degraded-mode`), `latency_ms`. (Embedding/rerank dollar cost is *not* tracked at this layer — the supervisor's existing cost counters already track model-call cost; vendor-API cost is tallied centrally rather than per-node.)
+- [x] Tests: stubbed-Pinecone + stubbed-Cohere unit tests for happy path, Cohere-degraded fallback, Pinecone outage gap, supervisor narrowing, source-filter forwarding, no-match empty signal, missing-args throw, out-of-bound rerank-index defense, 600-char excerpt. 9 vitest cases at `agent/tests/graph/nodes/evidenceRetriever.test.ts`; 7 for the Pinecone retriever; 6 for the Cohere client; 4 new supervisor-narrowing cases.
 
-**Definition of done.** Real-Pinecone integration test (skipped without creds) issues a query like "USPSTF colorectal cancer screening" and gets a top-3 of relevant USPSTF chunks with rerank scores.
+**Definition of done.** Real-Pinecone integration test (skipped without creds) issues a query like "USPSTF colorectal cancer screening" and gets a top-3 of relevant USPSTF chunks with rerank scores. (Met structurally: stubbed-vendor unit tests cover happy path + Cohere-degraded + Pinecone-outage + source-filter forwarding. End-to-end against real vendors deferred until the user provisions Pinecone + populates the index — same gate as C.2's reindex script.)
 
 ---
 
