@@ -127,6 +127,28 @@ Across all archetypes, ~15% of patients pick up an opportunistic recent
 abnormal lab result (last 90 days) so UC1's "new abnormal labs" briefing
 slot has content even for otherwise healthy patients.
 
+## Fixture patients
+
+`seed:patients` also pins four **fixture patients** before the random
+fill — Chen / Whitaker / Reyes / Kowalski — whose name+DOB+sex match the
+intake forms and lab results under `docs/example-documents/`. The agent
+pipeline's §B.6 `patientMatch` node refuses on a confident demographic
+mismatch, so the fixtures need a chart to match against; pinning them
+here keeps every run's demo + eval state consistent without a manual
+chart-creation step.
+
+The fixture truth-table lives in `bin/seed/FixturePatient.php` (one enum
+case per document, with the exact `lname` + `DOB` the fixtures encode).
+Fixture inserts are skipped when a `patient_data` row with the same
+`(lname, DOB)` already exists, so re-running the seed without a baseline
+restore is idempotent for the four pinned fixtures.
+
+`seed:schedule` then adds **one upcoming appointment per week per
+fixture patient** for the next `--fixture-weeks` weeks (default 12),
+anchored to a fixed slot on the default PCP. This keeps each fixture
+patient visible on the morning-prep view for the whole demo window and
+gives the panel-upload trigger a deterministic patient to fire against.
+
 ## PCP assignment
 
 ~70% of seeded patients are assigned to the baseline `physician` user

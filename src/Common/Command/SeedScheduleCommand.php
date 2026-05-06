@@ -35,6 +35,7 @@ use Faker\Factory as FakerFactory;
 use Faker\Generator as Faker;
 use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Common\Session\SessionUtil;
+use OpenEMR\Seed\FixturePatient;
 use OpenEMR\Seed\Generators\AppointmentGenerator;
 use OpenEMR\Seed\Generators\VisitReasonPicker;
 use OpenEMR\Seed\PatientArchetype;
@@ -50,6 +51,17 @@ class SeedScheduleCommand extends Command
     private const DEFAULT_DAYS = 10;
     private const DEFAULT_PER_PROVIDER_PER_DAY = 18;
     private const DEFAULT_PCP_USERNAME = 'physician';
+
+    /**
+     * How many weeks forward to seed the per-fixture-patient weekly
+     * recurrence. 12 weeks (~3 months) keeps every fixture patient
+     * visible on the calendar for the whole demo window without
+     * ballooning past `seed:availability`'s default 26-week horizon.
+     */
+    private const DEFAULT_FIXTURE_WEEKS = 12;
+
+    /** Anchor slot for the weekly fixture appointments. */
+    private const FIXTURE_APPT_TIME = '10:00:00';
 
     /** Probability (out of 100) that a patient is paired with a non-PCP provider for a given visit. */
     private const COVERAGE_SWAP_PERCENT = 30;
@@ -78,6 +90,7 @@ class SeedScheduleCommand extends Command
             ->setDescription('Populate calendar with appointments for today + N business days, plus 1 backfill day.')
             ->addOption('days', 'd', InputOption::VALUE_REQUIRED, 'Business days into the future to schedule.', (string) self::DEFAULT_DAYS)
             ->addOption('per-provider-per-day', 'p', InputOption::VALUE_REQUIRED, 'Appointments per provider per day.', (string) self::DEFAULT_PER_PROVIDER_PER_DAY)
+            ->addOption('fixture-weeks', null, InputOption::VALUE_REQUIRED, 'Weeks forward to seed one weekly appointment per fixture patient.', (string) self::DEFAULT_FIXTURE_WEEKS)
             ->addOption('seed', null, InputOption::VALUE_REQUIRED, 'Optional integer Faker seed for deterministic output.');
     }
 
@@ -188,6 +201,51 @@ class SeedScheduleCommand extends Command
         }
 
         $io->progressFinish();
+
+        // Fixture patients: one appointment per week, on the default
+        // PCP, anchored to a fixed slot. This keeps each fixture
+        // patient (Chen/Whitaker/Reyes/Kowalski) visible on the
+        // upcoming calendar so the demo can pull up their chart from
+        // the morning-prep view without first scrolling past three
+        // months of randomly-rolled patients.
+        $fixtureWeeks = $this->intOption($input, 'fixture-weeks', self::DEFAULT_FIXTURE_WEEKS);
+        $stats['fixture_appts'] = 0;
+        $stats['fixture_missing'] = 0;
+        if ($fixtureWeeks > 0) {
+            $io->section("Fixture-patient weekly recurrence ({$fixtureWeeks} weeks × " . count(FixturePatient::cases()) . ' patient(s))');
+            foreach (FixturePatient::cases() as $fixture) {
+                $pid = $this->lookupFixturePid($fixture);
+                if ($pid === null) {
+                    $stats['fixture_missing']++;
+                    $io->warning("Fixture patient {$fixture->value} not found in patient_data — run seed:patients first.");
+                    continue;
+                }
+                $apptDate = $this->nextBusinessDay(new \DateTimeImmutable('today'));
+                for ($w = 0; $w < $fixtureWeeks; $w++) {
+                    $payload = $generator->generate(
+                        $fixture->archetype(),
+                        $defaultPcpId,
+                        $apptDate->format('Y-m-d'),
+                        self::FIXTURE_APPT_TIME,
+                        '-',
+                    );
+                    try {
+                        $insertId = $service->insert($pid, $payload);
+                        if ($insertId) {
+                            $stats['fixture_appts']++;
+                            $stats['inserted']++;
+                            $stats['future']++;
+                        } else {
+                            $stats['failed']++;
+                        }
+                    } catch (\RuntimeException | \InvalidArgumentException) {
+                        $stats['failed']++;
+                    }
+                    $apptDate = $this->nextBusinessDay($apptDate->modify('+7 days'));
+                }
+            }
+        }
+
         $elapsed = round(microtime(true) - $start, 1);
 
         $io->table(['metric', 'count'], [
@@ -196,10 +254,37 @@ class SeedScheduleCommand extends Command
             ['appointments inserted', $stats['inserted']],
             ['  past', $stats['past']],
             ['  future', $stats['future']],
+            ['  fixture-weekly', $stats['fixture_appts']],
+            ['fixture patients missing', $stats['fixture_missing']],
             ['failures', $stats['failed']],
         ]);
         $io->success("Done in {$elapsed}s.");
         return $stats['failed'] === 0 ? Command::SUCCESS : Command::FAILURE;
+    }
+
+    /**
+     * Walk forward from `$from` (inclusive) to the next non-weekend
+     * date. Used so the weekly fixture-appointment series never lands
+     * on a Saturday/Sunday — providers don't have availability blocks
+     * on weekends so the appointment would be unbookable.
+     */
+    private function nextBusinessDay(\DateTimeImmutable $from): \DateTimeImmutable
+    {
+        $cursor = $from;
+        while ($this->isWeekend($cursor)) {
+            $cursor = $cursor->modify('+1 day');
+        }
+        return $cursor;
+    }
+
+    private function lookupFixturePid(FixturePatient $fixture): ?int
+    {
+        $row = QueryUtils::fetchSingleValue(
+            'SELECT pid FROM patient_data WHERE lname = ? AND DOB = ? LIMIT 1',
+            'pid',
+            [$fixture->lastName(), $fixture->dateOfBirth()]
+        );
+        return is_numeric($row) && (int) $row > 0 ? (int) $row : null;
     }
 
     /**
