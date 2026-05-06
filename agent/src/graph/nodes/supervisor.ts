@@ -128,46 +128,46 @@ export interface SupervisorDeps {
  */
 const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
-        handoff: 'kickoffExtraction',
+        handoff: 'evidenceRetriever',
         description:
-            "Triggers synchronous extraction of an unprocessed document already uploaded to this conversation. Args: { document_uuid: string, doc_type: 'lab_pdf'|'intake_form' }. Awaits the pipeline; appends the resulting artifact to state. Use only when envelope carries a document_uuid with no existing artifact.",
+            "Retrieves clinical-guideline chunks from the curated guideline corpus (USPSTF). Pick FIRST whenever the user's question is about screening recommendations, screening intervals, prevention guidance, treatment thresholds, dosing rules, risk-stratification, or anything a clinician would normally answer by reaching for a published guideline rather than chart data alone. Args: { query: string, top_k?: number, source_filter?: ('USPSTF')[] }.",
+    },
+    {
+        handoff: 'documentEvidenceRetriever',
+        description:
+            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. Pick when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number, top_k?: number }.",
     },
     {
         handoff: 'retrieveChart',
         description:
             "Re-fetch chart categories. First call (deterministic) seeds the snapshot; subsequent calls accept structured args { categories: [...] } picking from " +
             RETRIEVE_CHART_CATEGORIES.join(', ') +
-            '.',
-    },
-    {
-        handoff: 'documentEvidenceRetriever',
-        description:
-            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. Use when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number, top_k?: number }.",
-    },
-    {
-        handoff: 'evidenceRetriever',
-        description:
-            "Retrieves clinical-guideline chunks from the curated guideline corpus (USPSTF for MVP). Use when the question would benefit from authoritative guideline reference — screening recommendations, treatment thresholds, prevention guidance. Args: { query: string, top_k?: number, source_filter?: ('USPSTF')[] }.",
+            ". Pick only when the chart slot is missing a category the question requires.",
     },
     {
         handoff: 'prescriptionChangeBranch',
         description:
-            "UC3 deterministic prescription-change branch. Use only when the envelope's followUp.type is 'prescription_change'.",
+            "UC3 deterministic prescription-change branch. Pick ONLY when the envelope's followUp.type is 'prescription_change'. Forbidden otherwise.",
     },
     {
         handoff: 'reminderBranch',
         description:
-            "UC4.6.5 deterministic reminder-detail branch. Use only when followUp.type is 'reminder_detail'.",
+            "UC4.6.5 deterministic reminder-detail branch. Pick ONLY when followUp.type is 'reminder_detail'. Forbidden otherwise.",
     },
     {
         handoff: 'medicationStatementBranch',
         description:
-            "UC4.6.6 deterministic medication-statement-detail branch. Use only when followUp.type is 'medication_statement_detail'.",
+            "UC4.6.6 deterministic medication-statement-detail branch. Pick ONLY when followUp.type is 'medication_statement_detail'. Forbidden otherwise.",
+    },
+    {
+        handoff: 'kickoffExtraction',
+        description:
+            "Triggers synchronous extraction of an unprocessed document already uploaded to this conversation. Pick ONLY when the envelope carries a document_uuid with no existing artifact. Forbidden when no document_uuid was supplied — picking it for any other reason wastes an iteration on a no-op. Args: { document_uuid: string, doc_type: 'lab_pdf'|'intake_form' }.",
     },
     {
         handoff: 'synthesize',
         description:
-            "Terminal handoff. Pick this when chart context plus retrieved evidence is sufficient to answer the user's question.",
+            "Terminal handoff that produces the final assistant message. Pick when chart context plus retrieved evidence is sufficient to answer the question, AND when the question does not match a guideline-shaped pattern that evidenceRetriever should have handled first.",
     },
 ];
 
@@ -484,7 +484,9 @@ Rules:
 - Pick exactly one handoff from the manifest.
 - Provide a non-empty reason — you are accountable for every routing decision.
 - When you pick retrieveChart on a turn that has already retrieved chart data once, you must include args.categories naming which categories to re-fetch.
-- Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question.
+- Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question. The synthesizer is forbidden from citing clinical knowledge from its own training data — its only valid sources are this turn's chart records and any retriever output already in state.
+- Decide before each handoff: would the answer benefit from authoritative guideline backing? If yes, pick evidenceRetriever first. The synthesizer is forbidden from naming named guidelines (USPSTF, ADA, AHA, JNC, etc.) unless they appear as snippets in state — so routing directly to synthesize for a guideline-shaped question yields a chart-only answer the clinician will read as "you didn't actually look it up." Triggers include but are not limited to: prevention guidance ("should X be on aspirin"), screening intervals ("when is the next mammogram due"), treatment thresholds ("at what BP do we start medication"), dosing rules, risk-stratification, and any question that would normally be answered by reaching for a clinical guideline rather than the chart alone. ONLY skip evidenceRetriever when the question is purely a chart-data lookup ("when was her last visit", "what's her current Rx list").
+- For follow-up questions that reference a recently uploaded document or where the chart alone won't answer a question that documents likely address — pick documentEvidenceRetriever before synthesize.
 - The deterministic branches (prescriptionChangeBranch, reminderBranch, medicationStatementBranch) are appropriate only when the envelope's followUp.type matches.
 - Do not invent handoffs; do not invent arg shapes outside the documented per-handoff schema.`;
 
