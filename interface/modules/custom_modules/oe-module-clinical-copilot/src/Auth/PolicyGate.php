@@ -88,6 +88,26 @@ final readonly class PolicyGate
             'openid',
             'fhirUser',
         ],
+        // §B.8 ingestion-pipeline trigger (path A — panel upload during
+        // a conversation). The agent invokes the full pipeline with this
+        // token: rasterize/vision/schemaValidate use no chart scopes;
+        // patientMatch + emitDeltas read demographics, allergies,
+        // medications and conditions through the snapshot endpoint;
+        // persist writes a DocumentReference back. Scopes mirror
+        // briefing's read set plus the DocumentReference write scope.
+        'extract' => [
+            'openid',
+            'fhirUser',
+            'api:fhir',
+            'user/Patient.rs',
+            'user/Condition.rs',
+            'user/AllergyIntolerance.rs',
+            'user/Observation.rs',
+            'user/MedicationRequest.rs',
+            'user/Encounter.rs',
+            'user/MedicationStatement.rs',
+            'user/DocumentReference.cs',
+        ],
     ];
 
     public function evaluate(SessionContext $session, AgentRequest $request): PolicyDecision
