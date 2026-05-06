@@ -19,7 +19,20 @@ db/seeds/seed-all.sh --count=100 --days=10
 
 # Production / any environment with real users: SKIP THE BASELINE.
 db/seeds/seed-all.sh --skip-baseline --count=100 --days=10
+
+# Incremental: only add (or refresh) the docs/example-documents fixture
+# patients + their weekly appointments — no random fill, no baseline.
+db/seeds/seed-all.sh --fixtures-only
 ```
+
+> **Container path note.** The container's default cwd is one level
+> above `openemr/`, so the relative path `db/seeds/seed-all.sh` won't
+> resolve from `docker compose exec`. Use the absolute path:
+>
+> ```sh
+> docker compose exec openemr \
+>   /var/www/localhost/htdocs/openemr/db/seeds/seed-all.sh --fixtures-only
+> ```
 
 The default invocation includes a destructive first step
 (`restore-baseline.sh`) that drops and replaces every table, including
@@ -27,6 +40,13 @@ the `users` table. Always pass `--skip-baseline` on environments where
 the admin password and real users matter. The script prompts before
 running the destructive step and refuses to proceed in non-interactive
 contexts unless `--yes` is also passed.
+
+`--fixtures-only` implies `--skip-baseline` and propagates to both
+`seed:patients` and `seed:schedule` — only the four `docs/example-documents/`
+fixture patients (Chen / Whitaker / Reyes / Kowalski) and their weekly
+appointments are inserted (idempotent on `(lname, DOB)` so re-running
+without baseline restore doesn't duplicate). `seed:availability` still
+runs because it's idempotent and harmless.
 
 ## Production usage
 

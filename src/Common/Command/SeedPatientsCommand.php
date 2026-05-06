@@ -86,6 +86,12 @@ class SeedPatientsCommand extends Command
                 (string) self::DEFAULT_COUNT
             )
             ->addOption(
+                'fixtures-only',
+                null,
+                InputOption::VALUE_NONE,
+                'Skip the random Faker fill — only run the docs/example-documents fixture pre-loop. Useful for incremental re-seeds.'
+            )
+            ->addOption(
                 'seed',
                 null,
                 InputOption::VALUE_REQUIRED,
@@ -96,11 +102,12 @@ class SeedPatientsCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+        $fixturesOnly = (bool) $input->getOption('fixtures-only');
         $countOption = $input->getOption('count');
         $count = is_numeric($countOption) ? (int) $countOption : 0;
 
-        if ($count < 1) {
-            $io->error('--count must be a positive integer.');
+        if (!$fixturesOnly && $count < 1) {
+            $io->error('--count must be a positive integer (or pass --fixtures-only to skip the random fill).');
             return Command::FAILURE;
         }
 
@@ -198,48 +205,53 @@ class SeedPatientsCommand extends Command
             );
         }
 
-        $io->section("Generating {$count} patient(s)");
-        $io->progressStart($count);
+        if ($fixturesOnly) {
+            $io->note('--fixtures-only: skipping random Faker fill.');
+        } else {
+            $io->section("Generating {$count} patient(s)");
+            $io->progressStart($count);
 
-        for ($i = 0; $i < $count; $i++) {
-            $archetype = $this->pickArchetype($faker);
-            $archetypeCounts[$archetype->value] = ($archetypeCounts[$archetype->value] ?? 0) + 1;
+            for ($i = 0; $i < $count; $i++) {
+                $archetype = $this->pickArchetype($faker);
+                $archetypeCounts[$archetype->value] = ($archetypeCounts[$archetype->value] ?? 0) + 1;
 
-            $pcpId = $faker->numberBetween(1, 100) <= self::PCP_PANEL_FRACTION
-                ? $defaultPcpId
-                : $providerIds[array_rand($providerIds)];
+                $pcpId = $faker->numberBetween(1, 100) <= self::PCP_PANEL_FRACTION
+                    ? $defaultPcpId
+                    : $providerIds[array_rand($providerIds)];
 
-            $patientData = $patientGen->generate($archetype, $pcpId);
-            $insert = $this->insertPatientRecord($patientService, $patientData, $pcpId, $stats, $io);
-            if ($insert === null) {
+                $patientData = $patientGen->generate($archetype, $pcpId);
+                $insert = $this->insertPatientRecord($patientService, $patientData, $pcpId, $stats, $io);
+                if ($insert === null) {
+                    $io->progressAdvance();
+                    continue;
+                }
+                $this->scaffoldClinicalRecord(
+                    $insert['pid'],
+                    $insert['puuid'],
+                    $pcpId,
+                    $archetype,
+                    $faker,
+                    $stats,
+                    $encounterGen,
+                    $problemGen,
+                    $medGen,
+                    $allergyGen,
+                    $vitalsGen,
+                    $labGen,
+                    $noteGen,
+                    $extEncGen,
+                    $encounterService,
+                    $listService,
+                    $prescriptionService,
+                    $vitalsService,
+                );
+
                 $io->progressAdvance();
-                continue;
             }
-            $this->scaffoldClinicalRecord(
-                $insert['pid'],
-                $insert['puuid'],
-                $pcpId,
-                $archetype,
-                $faker,
-                $stats,
-                $encounterGen,
-                $problemGen,
-                $medGen,
-                $allergyGen,
-                $vitalsGen,
-                $labGen,
-                $noteGen,
-                $extEncGen,
-                $encounterService,
-                $listService,
-                $prescriptionService,
-                $vitalsService,
-            );
 
-            $io->progressAdvance();
+            $io->progressFinish();
         }
 
-        $io->progressFinish();
         $elapsed = round(microtime(true) - $start, 1);
 
         $io->table(

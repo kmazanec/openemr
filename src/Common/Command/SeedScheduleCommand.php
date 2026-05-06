@@ -91,6 +91,7 @@ class SeedScheduleCommand extends Command
             ->addOption('days', 'd', InputOption::VALUE_REQUIRED, 'Business days into the future to schedule.', (string) self::DEFAULT_DAYS)
             ->addOption('per-provider-per-day', 'p', InputOption::VALUE_REQUIRED, 'Appointments per provider per day.', (string) self::DEFAULT_PER_PROVIDER_PER_DAY)
             ->addOption('fixture-weeks', null, InputOption::VALUE_REQUIRED, 'Weeks forward to seed one weekly appointment per fixture patient.', (string) self::DEFAULT_FIXTURE_WEEKS)
+            ->addOption('fixtures-only', null, InputOption::VALUE_NONE, 'Skip the random per-provider schedule fill — only run the fixture-patient weekly recurrence.')
             ->addOption('seed', null, InputOption::VALUE_REQUIRED, 'Optional integer Faker seed for deterministic output.');
     }
 
@@ -98,15 +99,18 @@ class SeedScheduleCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
+        $fixturesOnly = (bool) $input->getOption('fixtures-only');
         $days = $this->intOption($input, 'days', self::DEFAULT_DAYS);
         $perDay = $this->intOption($input, 'per-provider-per-day', self::DEFAULT_PER_PROVIDER_PER_DAY);
-        if ($days < 1 || $perDay < 1) {
-            $io->error('--days and --per-provider-per-day must both be positive integers.');
-            return Command::FAILURE;
-        }
-        if ($perDay > count(self::TIME_SLOTS)) {
-            $io->error('--per-provider-per-day cannot exceed ' . count(self::TIME_SLOTS) . ' (number of available slots).');
-            return Command::FAILURE;
+        if (!$fixturesOnly) {
+            if ($days < 1 || $perDay < 1) {
+                $io->error('--days and --per-provider-per-day must both be positive integers (or pass --fixtures-only to skip the random fill).');
+                return Command::FAILURE;
+            }
+            if ($perDay > count(self::TIME_SLOTS)) {
+                $io->error('--per-provider-per-day cannot exceed ' . count(self::TIME_SLOTS) . ' (number of available slots).');
+                return Command::FAILURE;
+            }
         }
 
         $faker = FakerFactory::create('en_US');
@@ -135,72 +139,77 @@ class SeedScheduleCommand extends Command
         $generator = new AppointmentGenerator($reasonPicker);
         $service = new AppointmentService();
 
-        $businessDays = $this->businessDayRange($days);
-        $totalSlots = count($businessDays) * count($providers) * $perDay;
-
-        $io->section(sprintf(
-            'Scheduling up to %d slots across %d business days × %d provider(s) × %d slots/day',
-            $totalSlots,
-            count($businessDays),
-            count($providers),
-            $perDay,
-        ));
-        $io->progressStart($totalSlots);
-
         $stats = ['inserted' => 0, 'failed' => 0, 'past' => 0, 'future' => 0];
         $today = new \DateTimeImmutable('today');
         $start = microtime(true);
+        $businessDays = [];
 
-        // Group patients by PCP so we can pick the provider's panel first.
-        $patientsByPcp = [];
-        foreach ($patients as $patient) {
-            $patientsByPcp[$patient['providerID']][] = $patient;
-        }
+        if ($fixturesOnly) {
+            $io->note('--fixtures-only: skipping random per-provider schedule fill.');
+        } else {
+            $businessDays = $this->businessDayRange($days);
+            $totalSlots = count($businessDays) * count($providers) * $perDay;
 
-        foreach ($businessDays as $date) {
-            $isPast = $date < $today;
-            foreach ($providers as $providerId) {
-                $slots = (array) array_rand(self::TIME_SLOTS, $perDay);
-                $slots = array_map(fn(int $idx): string => self::TIME_SLOTS[$idx], $slots);
-                sort($slots);
+            $io->section(sprintf(
+                'Scheduling up to %d slots across %d business days × %d provider(s) × %d slots/day',
+                $totalSlots,
+                count($businessDays),
+                count($providers),
+                $perDay,
+            ));
+            $io->progressStart($totalSlots);
 
-                foreach ($slots as $slot) {
-                    $patient = $this->pickPatientForProvider($patientsByPcp, $patients, $providerId, $faker);
-                    if ($patient === null) {
-                        $io->progressAdvance();
-                        continue;
-                    }
-                    $apptStatus = $isPast ? $this->pickPastStatus($faker) : '-';
+            // Group patients by PCP so we can pick the provider's panel first.
+            $patientsByPcp = [];
+            foreach ($patients as $patient) {
+                $patientsByPcp[$patient['providerID']][] = $patient;
+            }
 
-                    $payload = $generator->generate(
-                        PatientArchetype::tryFrom($patient['archetype']) ?? PatientArchetype::HealthyAdult,
-                        $providerId,
-                        $date->format('Y-m-d'),
-                        $slot,
-                        $apptStatus,
-                    );
+            foreach ($businessDays as $date) {
+                $isPast = $date < $today;
+                foreach ($providers as $providerId) {
+                    $slots = (array) array_rand(self::TIME_SLOTS, $perDay);
+                    $slots = array_map(fn(int $idx): string => self::TIME_SLOTS[$idx], $slots);
+                    sort($slots);
 
-                    try {
-                        $insertId = $service->insert($patient['pid'], $payload);
-                        if ($insertId) {
-                            $stats['inserted']++;
-                            if ($isPast) {
-                                $stats['past']++;
+                    foreach ($slots as $slot) {
+                        $patient = $this->pickPatientForProvider($patientsByPcp, $patients, $providerId, $faker);
+                        if ($patient === null) {
+                            $io->progressAdvance();
+                            continue;
+                        }
+                        $apptStatus = $isPast ? $this->pickPastStatus($faker) : '-';
+
+                        $payload = $generator->generate(
+                            PatientArchetype::tryFrom($patient['archetype']) ?? PatientArchetype::HealthyAdult,
+                            $providerId,
+                            $date->format('Y-m-d'),
+                            $slot,
+                            $apptStatus,
+                        );
+
+                        try {
+                            $insertId = $service->insert($patient['pid'], $payload);
+                            if ($insertId) {
+                                $stats['inserted']++;
+                                if ($isPast) {
+                                    $stats['past']++;
+                                } else {
+                                    $stats['future']++;
+                                }
                             } else {
-                                $stats['future']++;
+                                $stats['failed']++;
                             }
-                        } else {
+                        } catch (\RuntimeException | \InvalidArgumentException) {
                             $stats['failed']++;
                         }
-                    } catch (\RuntimeException | \InvalidArgumentException) {
-                        $stats['failed']++;
+                        $io->progressAdvance();
                     }
-                    $io->progressAdvance();
                 }
             }
-        }
 
-        $io->progressFinish();
+            $io->progressFinish();
+        }
 
         // Fixture patients: one appointment per week, on the default
         // PCP, anchored to a fixed slot. This keeps each fixture

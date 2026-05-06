@@ -28,8 +28,13 @@
 #   db/seeds/seed-all.sh                          # 100 patients, 10 schedule days
 #   db/seeds/seed-all.sh --count=50 --days=14     # custom counts
 #   db/seeds/seed-all.sh --skip-baseline          # PRODUCTION: additive run
+#   db/seeds/seed-all.sh --fixtures-only          # only seed/refresh the docs/example-documents fixture patients + their weekly appts (skips random fill)
 #   db/seeds/seed-all.sh --seed=42                # deterministic Faker output
 #   db/seeds/seed-all.sh --yes                    # skip the confirmation prompt
+#
+# Note: from inside the container, run with the absolute path —
+#   docker compose exec openemr /var/www/localhost/htdocs/openemr/db/seeds/seed-all.sh ...
+# (the container's default cwd is one level above the openemr/ directory).
 #
 # Exit codes:
 #   0 = success
@@ -50,6 +55,7 @@ SEED=""
 SKIP_BASELINE=0
 FORCE_BASELINE=0
 ASSUME_YES=0
+FIXTURES_ONLY=0
 
 for arg in "$@"; do
     case "$arg" in
@@ -59,6 +65,7 @@ for arg in "$@"; do
         --seed=*)          SEED="${arg#--seed=}" ;;
         --skip-baseline)   SKIP_BASELINE=1 ;;
         --force-baseline)  FORCE_BASELINE=1 ;;
+        --fixtures-only)   FIXTURES_ONLY=1; SKIP_BASELINE=1 ;;
         -y|--yes)          ASSUME_YES=1 ;;
         -h|--help)
             sed -n '2,40p' "${BASH_SOURCE[0]}"
@@ -70,6 +77,11 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+FIXTURES_ARG=""
+if [[ "${FIXTURES_ONLY}" -eq 1 ]]; then
+    FIXTURES_ARG="--fixtures-only"
+fi
 
 SEED_ARG=""
 if [[ -n "${SEED}" ]]; then
@@ -123,16 +135,24 @@ else
 fi
 
 echo
-echo "==> [2/5] Seeding ${COUNT} patient(s)"
-php "${CONSOLE}" seed:patients --count="${COUNT}" ${SEED_ARG}
+if [[ "${FIXTURES_ONLY}" -eq 1 ]]; then
+    echo "==> [2/5] Seeding fixture patients only (--fixtures-only)"
+else
+    echo "==> [2/5] Seeding ${COUNT} patient(s)"
+fi
+php "${CONSOLE}" seed:patients --count="${COUNT}" ${SEED_ARG} ${FIXTURES_ARG}
 
 echo
 echo "==> [3/5] Seeding provider availability (${WEEKS} weeks forward)"
 php "${CONSOLE}" seed:availability --weeks="${WEEKS}"
 
 echo
-echo "==> [4/5] Seeding ${DAYS} business days of appointments"
-php "${CONSOLE}" seed:schedule --days="${DAYS}" ${SEED_ARG}
+if [[ "${FIXTURES_ONLY}" -eq 1 ]]; then
+    echo "==> [4/5] Seeding fixture-patient weekly appointments only (--fixtures-only)"
+else
+    echo "==> [4/5] Seeding ${DAYS} business days of appointments"
+fi
+php "${CONSOLE}" seed:schedule --days="${DAYS}" ${SEED_ARG} ${FIXTURES_ARG}
 
 echo
 echo "==> [5/5] Final state"
