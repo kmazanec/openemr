@@ -84,6 +84,20 @@ export const BriefingStateAnnotation = Annotation.Root({
         () => null,
     ),
     /**
+     * §C.5 per-artifact confidence-signal payload, keyed by
+     * `artifactId`. Populated by `documentEvidenceRetriever` from each
+     * artifact row's `confidence_signal` JSONB column so the verifier
+     * can resolve the combined-signal hard stop (self-reported ×
+     * schema-warning × patient-match) without re-fetching artifacts.
+     * The value type is `unknown` because the B.4–B.6 ingestion
+     * pipeline hasn't pinned the JSON shape; the verifier parses each
+     * entry tolerantly via `parseConfidenceSignal`. `null` here means
+     * the retriever did not run this turn.
+     */
+    documentEvidenceArtifactConfidence: lastValueChannel<ReadonlyMap<string, unknown> | null>(
+        () => null,
+    ),
+    /**
      * §C.3 supervisor handoff args for `evidenceRetriever`. Null until
      * the supervisor picks the handoff with structured args; narrowed
      * against `EvidenceArgsSchema` before reaching this slot so the node

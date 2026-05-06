@@ -55,7 +55,13 @@ export const createVerify = (
             throw new Error('Verify called before Retrieve populated the snapshot');
         }
         const ledger = state.claimLedger ?? { claims: [] };
-        const verified: VerifiedLedger = verifyLedger(state.snapshot, ledger);
+        const verified: VerifiedLedger = verifyLedger(state.snapshot, ledger, {
+            documentEvidenceSnippets: state.documentEvidenceSnippets,
+            evidenceRetrieverOutput: state.evidenceRetrieverOutput,
+            ...(state.documentEvidenceArtifactConfidence !== null
+                ? { artifactConfidence: state.documentEvidenceArtifactConfidence }
+                : {}),
+        });
 
         const promptInjections = countPromptInjections(verified);
         const passed = verified.rejected.length === 0 && verified.safetyHardStops.length === 0;

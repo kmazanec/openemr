@@ -221,20 +221,21 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 - `agent/src/verify/confidenceThresholds.ts` (new) — pinned 0.7 threshold.
 
 **Checklist.**
-- [ ] Define `agent/src/verify/confidenceThresholds.ts` with:
+- [x] Define `agent/src/verify/confidenceThresholds.ts` with:
   ```ts
   export const EXTRACTION_CONFIDENCE_THRESHOLD = 0.7;
   export const ALLERGY_CONFIDENCE_THRESHOLD = 0.7;  // category-level fail-closed
   export function isLowConfidence(signal: ConfidenceSignal): boolean { /* combined */ }
   ```
-  Combined signal per architecture: self-reported vision confidence + zero schema warnings + full patient-match. Any one failing → low confidence.
-- [ ] Extend the verifier's resolver:
-  - **`extracted_document`:** `source_id` must be in this turn's `state.extractionArtifacts`; `locator.page` and `locator.bbox` must equal the recorded extraction's bbox/page (no fabricated bboxes); `quote` substring-matches the extracted value at `locator.field`. Reject otherwise.
-  - **`guideline`:** `source_id` must be in this turn's `state.evidenceRetrieverOutputs` (track these as a state slot if not already); `quote` substring-matches the chunk text at `locator.section`. Reject otherwise.
-- [ ] Confidence hard-stops — applied AFTER source-reference resolution, BEFORE fact-level rejection:
+  Combined signal per architecture: self-reported vision confidence + zero schema warnings + full patient-match. Any one failing → low confidence. (Implemented with a tolerant `parseConfidenceSignal` for the artifact's `confidence_signal` JSONB column — B.4–B.6 hasn't pinned the writer-side shape yet; missing/garbage signals fail-closed to low-confidence.)
+- [x] Extend the verifier's resolver:
+  - **`extracted_document`:** `source_id` must be in this turn's `state.documentEvidenceSnippets` (the architecture text reads "extraction_artifacts" — that's the source-of-truth table; the verifier resolves against the snippets the C.1 retriever produced this turn, since the supervisor's narrowed query is what gates which artifacts get cited); `locator.page` and `locator.bbox` must equal the snippet's recorded values (no fabricated bboxes); `quote` substring-matches the snippet's quote OR its stringified value at `locator.field`. Reject otherwise.
+  - **`guideline`:** `source_id` must be in this turn's `state.evidenceRetrieverOutput.snippets`; `locator.section` must match the snippet's section; `quote` substring-matches the chunk text. Reject otherwise. (A retriever output with a Gap is treated as unavailable — the supervisor was supposed to route around the gap, so any guideline citation under one rejects as unresolved.)
+- [x] Confidence hard-stops — applied AFTER source-reference resolution, BEFORE fact-level rejection:
   - Default: fact-level rejection. Low-confidence claim is dropped from the response with reason `low-confidence-extraction`. UI shows a Gap chip on the affected fact (renderer is F's responsibility, but the rejection reason is set here).
-  - Allergy exception: category-level fail-closed. Low-confidence allergy fact in an intake form fails the entire medication section closed (per `W2_ARCHITECTURE.md` §"Hard stops on extraction confidence" allergy exception). User sees "Medication summary withheld — allergy data unverified."
-- [ ] Tests: per-`source_type` accept/reject; fabricated-bbox extracted-document claim rejected; chunk-not-in-retriever-output guideline claim rejected; low-confidence allergy → category fail-closed.
+  - Allergy exception: category-level fail-closed. Low-confidence allergy fact in an intake form fails the entire medication section closed (per `W2_ARCHITECTURE.md` §"Hard stops on extraction confidence" allergy exception). User sees "Medication summary withheld — allergy data unverified." (Wired by emitting `HARD_STOP_ALLERGIES_UNAVAILABLE` from a pre-pass over the ledger's intake-form allergy claims; `isStoppedCategory` and `format.ts` then suppress allergy + prescription content symmetrically with the chart-side allergy gap.)
+- [x] Tests: per-`source_type` accept/reject; fabricated-bbox extracted-document claim rejected; chunk-not-in-retriever-output guideline claim rejected; low-confidence allergy → category fail-closed. (60 verifier cases — 13 confidenceThresholds + 47 verifyLedger.)
+- [x] Wire the verify graph node to pass `documentEvidenceSnippets`, `evidenceRetrieverOutput`, and a new `documentEvidenceArtifactConfidence` state slot into `verifyLedger`. C.1's `documentEvidenceRetriever` populates the confidence map from each retrieved artifact's `confidence_signal` column so the verifier never re-fetches artifacts.
 
 **Definition of done.** A claim citing a fabricated bbox is rejected. A claim citing a non-existent guideline chunk is rejected. Low-confidence allergy on intake fails the category closed.
 
