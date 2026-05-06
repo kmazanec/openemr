@@ -93,14 +93,60 @@ The three CDC surfaces are:
 
 **Goal.** Add the ADA Standards of Care to the corpus. License is copyrighted-but-fair-use-for-CDS; the `license_tier='fair_use_cds'` field surfaces this in the renderer's citation popover, and `agent/README.md` documents the production-readiness note ("explicit ADA license required for production deployment").
 
-The ADA Standards are published as the December annual supplement to *Diabetes Care* and structured into ~17 numbered sections. Two of six W1 archetypes are diabetic, so signal density per chunk is high.
+The ADA Standards are published as the December annual supplement to *Diabetes Care* and structured into 17 numbered sections plus an Introduction & Methodology front-matter article. Two of six W1 archetypes are diabetic, so signal density per chunk is high.
+
+The publisher's direct site (`diabetesjournals.org`) returns a Cloudflare JS-challenge to scripted fetches, so the fetcher targets the open-access PMC mirror (`pmc.ncbi.nlm.nih.gov/articles/PMC<id>/`) where every Standards-of-Care section is published as a separate article. The PMC mirror is a fetch-time choice; the chunk frontmatter records both `url` (PMC, what the fetcher actually used) and `publisher_url` (the canonical `diabetesjournals.org` link, what citation popovers display to users). License tier remains `fair_use_cds` — PMC's "free to read" doesn't relax ADA's copyright.
 
 **Blocked by:** I.1 (proves the source-agnostic ingest pattern with a second publisher).
 **Unblocks:** I.5 eval-validation gate.
 
-**Refs.** `WEEK2-PRESEARCH.md` Q9 (ADA license posture, content density); `W2_ARCHITECTURE.md` §"evidenceRetriever" (license_tier metadata).
+**Refs.**
+- `WEEK2-PRESEARCH.md` Q9 (ADA license posture, content density).
+- `W2_ARCHITECTURE.md` §"evidenceRetriever" (license_tier metadata).
+- `agent/scripts/fetch-cdc-corpus.ts`, `agent/scripts/extract-cdc-corpus.ts` — the I.1 reference implementation. ADA mirrors the structure but uses PMC as the fetch surface and emits `publisher_url` alongside `url`.
+- `agent/scripts/reindex-corpus.ts` — already source-agnostic; ADA plugs in by dropping a `agent/data/corpus/ada/index.json` next to the chunk files.
 
-**Checklist.** _(To be expanded when picked up; same shape as I.1.)_
+**Files touched.**
+- `agent/scripts/fetch-ada-corpus.ts` (new) — multi-target fetcher: each target is a typed `{slug, pmc_id, publisher_url, surface}` record.
+- `agent/scripts/extract-ada-corpus.ts` (new) — PMC `<h2>`-section walker; emits chunks under `agent/data/corpus/ada/`.
+- `agent/data/corpus/ada/{fetch-manifest.json,index.json}` (new — generated, committed).
+- `agent/data/corpus/ada/<slug>--<section>.md` (new — generated, committed; chunk text verbatim from PMC).
+- `agent/package.json` — `corpus:fetch:ada`, `corpus:extract:ada` script aliases.
+- `agent/tests/scripts/extract-ada-corpus.test.ts` (new) — fixture-driven extractor tests.
+- `agent/tests/scripts/fixtures/ada/*.html` (new) — saved fixture HTML for the PMC ADA shape.
+- `agent/README.md` — corpus section gains an ADA line item plus a one-line production-readiness footnote.
+
+**Checklist.**
+- [x] Implement `agent/scripts/fetch-ada-corpus.ts`:
+  - Hardcode the typed target list (Introduction & Methodology + sections 1–17, 18 entries total) in a top-of-file constant. PMC IDs are stable per article — discovery-by-index doesn't help here, an explicit list is honest about scope.
+  - Polite crawl: 3 second inter-request delay against PMC. Single-threaded. Descriptive `User-Agent` matching the CDC/USPSTF fetcher shape.
+  - For each target: GET the PMC article URL → write to `agent/.corpus-cache/ada/<slug>.html` → record `{slug, pmc_id, url, publisher_url, surface, fetched_at, content_sha256}`.
+  - Persist `agent/data/corpus/ada/fetch-manifest.json` with `{source: 'ada', fetcher_version, first_run_at, last_run_at, entries[]}`. Re-runs skip when the cached file's sha256 still matches the manifest entry — same recovery story as USPSTF/CDC (manual cache wipe to force a re-fetch).
+  (18 PMC IDs were discovered up front via NCBI eutils — `esearch.fcgi?db=pmc&term="Standards of Care in Diabetes—2026"[Title]` plus an esummary call to harvest titles + DOIs — so the typed list lands once with stable identifiers. Disclosures (`PMC12690169` / `dc26-SDIS`) and Summary of Revisions (`PMC12690167` / `dc26-SREV`) are intentionally excluded. `publisher_url` is the DOI form `https://doi.org/10.2337/dc26-S<NN>`, which redirects to the canonical `diabetesjournals.org` URL even when the publisher restructures slugs.)
+- [x] Implement `agent/scripts/extract-ada-corpus.ts`:
+  - Single surface `pmc-section` (every ADA target shares the same PMC article shape). PMC pages put the article body inside `<section class="body main-article-body">`, with each top-level topic announced by `<h2 class="pmc_sec_title">`. The extractor walks every direct `<h2>` under the body and emits one chunk per topic.
+  - Drop PMC's surrounding chrome by `<section>` class (everything outside `body main-article-body` — front-matter banner, citation block, references, history, footer). Chrome-label drop list (e.g. `References`, `Article information`) excludes the references list, which is bibliography rather than guidance.
+  - Selectors that fail on a page log a structured warning (`[extract] ada/<slug>: <reason>`) and skip that section. Pages are never given fabricated content.
+  - Each chunk file is markdown with YAML frontmatter `{publication: 'ADA', title, section, section_label, year, url, publisher_url, license_tier: 'fair_use_cds', slug, surface, fetched_at, content_sha256}`. Frontmatter emitter mirrors `extract-cdc-corpus.ts`'s hand-rolled YAML; one new field (`publisher_url`) sits between `url` and `license_tier`.
+  - Regenerate `agent/data/corpus/ada/index.json` from the filesystem (sorted, stable). `index.json` shape matches USPSTF/CDC plus a top-level `license_tier: 'fair_use_cds'` so `reindex-corpus.ts` reads it without changes.
+  (Title comes from `<meta name="citation_title">`; year from `<meta name="citation_publication_date">` (e.g. "2025 Dec 8"); URL from `<link rel="canonical">`. The h2-walker uses each h2's enclosing `<section>` for body capture, with a sibling-walk fallback when an h2 isn't in a section. Chrome-label drop list expanded beyond `References`/`Footnotes`/`Contributor Information` to also exclude PMC's `Article information`, `Author Contributions`, `Funding Statement`, `Conflict of Interest`, and `Acknowledgments` so future PMC template additions don't quietly leak into chunks.)
+- [x] Add scripts to `agent/package.json`: `"corpus:fetch:ada": "tsx scripts/fetch-ada-corpus.ts"`, `"corpus:extract:ada": "tsx scripts/extract-ada-corpus.ts"`.
+- [x] Vitest fixture tests (`agent/tests/scripts/extract-ada-corpus.test.ts`):
+  - Saved PMC HTML fixture under `agent/tests/scripts/fixtures/ada/pmc-section-sample.html` — trimmed-down real article (a few `<h2 class="pmc_sec_title">` sections plus PMC chrome). Same posture as USPSTF/CDC fixtures.
+  - Assert: each fixture parses to the expected chunk count + section slugs; recommendation text appears verbatim in the body; missing-body and chrome-only pages log structured warnings and emit zero chunks.
+  (3 vitest cases: pmc-section happy path with chrome dropping + verbatim recommendation text + empty-section warning, missing-article-body fallback, chrome-only fallback. Fixture is hand-built to exercise the canonical PMC shape — abstract + 3 real h2 topics + chrome — without committing 350 KB of real article HTML.)
+- [x] Run `npm run corpus:fetch:ada && npm run corpus:extract:ada` from `agent/`, review the chunk count and content, commit the resulting `agent/data/corpus/ada/` tree.
+  (Output: 126 chunks across 18 source articles — 6 to 13 chunks per ADA section depending on size; section 16 (Hospital) and 13 (Older Adults) are densest. Bodies inspected and verbatim from PMC DOM, including numbered recommendations like "11.1a Assess kidney function with random urine albumin-to-creatinine ratio (UACR) ... B" and "9.24 Include healthy behaviors ... A". Idempotent re-run reports 0 fetched / 18 skipped.)
+- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert ADA chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as I.1's last checkbox.)
+- [x] Update `agent/README.md` corpus section: add an "ADA Standards of Care in Diabetes (2026, license_tier: `fair_use_cds`)" row to the sources table, with a one-line production-readiness footnote ("explicit ADA license required for production deployment"); add an ADA quick-start mirroring the CDC block.
+  (Sources table now has three rows; ADA row carries a footnote ¹ explaining the fair-use posture, and an ADA-specific quick-start block follows the CDC one — including the one-line rationale for why the fetcher targets PMC over the publisher's direct URL.)
+
+**Definition of done.**
+- `npm run corpus:fetch:ada && npm run corpus:extract:ada` populates `agent/data/corpus/ada/` with verbatim chunks across all 18 PMC articles; re-running is idempotent.
+- `agent/data/corpus/ada/index.json` is shape-identical to USPSTF/CDC's (with `license_tier: 'fair_use_cds'` at the top level) so `reindex-corpus.ts` indexes it with no changes.
+- Vitest tests green.
+- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts ADA alongside USPSTF and CDC.
+- `evidenceRetriever({source_filter: ['ADA']})` returns ADA chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate).
 
 ---
 
