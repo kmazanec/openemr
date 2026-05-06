@@ -132,13 +132,23 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
      * pattern as `QueryUtils::generateId()` but expressed through the
      * DBAL connection this writer already holds (avoids a cross-DB
      * dependency on ADOdb).
+     *
+     * The `sequences` table is a single-row counter (not AUTO_INCREMENT).
+     * The atomic `UPDATE sequences SET id = LAST_INSERT_ID(id + 1)` is
+     * the canonical MySQL pattern: `LAST_INSERT_ID(expr)` sets the
+     * connection-local last-insert-id to `expr` AND returns it, so
+     * `lastInsertId()` afterwards returns the freshly minted value
+     * without a separate read-back. Mirrors ADOdb's mysqli driver
+     * `_genIDSQL`.
      */
     private function generateSequenceId(): int
     {
-        $this->connection->executeStatement('INSERT INTO sequences VALUES (NULL)');
+        $this->connection->executeStatement(
+            'UPDATE sequences SET id = LAST_INSERT_ID(id + 1)',
+        );
         $idRaw = $this->connection->lastInsertId();
         if (!is_numeric($idRaw) || (int) $idRaw <= 0) {
-            throw new \RuntimeException('sequences insert did not return an autoincrement id');
+            throw new \RuntimeException('sequences update did not return a generated id');
         }
         return (int) $idRaw;
     }
