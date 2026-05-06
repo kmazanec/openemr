@@ -1,7 +1,7 @@
 import { createLogger } from '../observability/logger.js';
 
 /**
- * §C.3 Cohere `rerank-3` client. The supervisor's `evidenceRetriever`
+ * §C.3 Cohere rerank client. The supervisor's `evidenceRetriever`
  * calls Pinecone for top-20 hybrid hits, then this client reranks them
  * down to `top_k` using Cohere's cross-encoder. Per
  * `W2_ARCHITECTURE.md` §"evidenceRetriever" — rerank is the final
@@ -11,6 +11,11 @@ import { createLogger } from '../observability/logger.js';
  *
  * Direct REST against `https://api.cohere.com/v2/rerank` rather than
  * the `cohere-ai` SDK: one endpoint, ~30 lines of glue, no extra dep.
+ *
+ * Default model is `rerank-v3.5` (Cohere's current latest English
+ * rerank model — supersedes the `rerank-english-v3.0` / "rerank-3"
+ * generation referenced in some older docs). Override via the
+ * `COHERE_RERANK_MODEL` env var without a code change.
  *
  * Degraded-mode contract per `W2_ARCHITECTURE.md` §"Failure Modes"
  * "Cohere outage" row: a 5xx, a network error, or an HTTP timeout
@@ -24,7 +29,7 @@ import { createLogger } from '../observability/logger.js';
 const logger = createLogger('retrievers:cohere');
 
 const COHERE_RERANK_URL = 'https://api.cohere.com/v2/rerank';
-const DEFAULT_MODEL = 'rerank-v3.5';
+export const DEFAULT_COHERE_RERANK_MODEL = 'rerank-v3.5';
 const DEFAULT_TIMEOUT_MS = 5_000;
 
 export interface CohereRerankInput {
@@ -42,7 +47,7 @@ export interface CohereRerankResult {
     readonly index: number;
     /**
      * Relevance score in `[0, 1]`. Cohere doesn't pin a precise lower
-     * bound across model versions, but rerank-3 returns probabilities.
+     * bound across model versions, but `rerank-v3.5` returns probabilities.
      */
     readonly relevanceScore: number;
 }
@@ -93,7 +98,9 @@ export const createCohereRerankClient = (
     deps: CohereRerankClientDeps,
 ): CohereRerankClient => {
     const fetchImpl = deps.fetch ?? globalThis.fetch.bind(globalThis);
-    const model = deps.model ?? DEFAULT_MODEL;
+    const model = deps.model
+        ?? process.env['COHERE_RERANK_MODEL']
+        ?? DEFAULT_COHERE_RERANK_MODEL;
     const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
     return {

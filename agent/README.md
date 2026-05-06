@@ -79,7 +79,12 @@ Required for the guideline-corpus path (`evals:reindex-corpus`,
 - `PINECONE_NAMESPACE` — defaults to `guidelines-v1`. Bump the
   namespace (e.g. `guidelines-v2`) before adding a new corpus version
   so old experiments stay comparable.
-- `COHERE_API_KEY` — `rerank-3` reranker over Pinecone's top-20.
+- The Pinecone index must be created with `metric=dotproduct`,
+  dimension 3072, serverless. Cosine indexes do not support sparse
+  vectors and the retriever's hybrid query will fail against them.
+- `COHERE_API_KEY` — `rerank-v3.5` reranker over Pinecone's top-20.
+- `COHERE_RERANK_MODEL` — optional override for the Cohere rerank
+  model id; defaults to `rerank-v3.5`.
 
 In addition, the service requires:
 

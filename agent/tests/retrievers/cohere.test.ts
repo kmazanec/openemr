@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCohereRerankClient } from '../../src/retrievers/cohere.js';
+import {
+    DEFAULT_COHERE_RERANK_MODEL,
+    createCohereRerankClient,
+} from '../../src/retrievers/cohere.js';
 
 const okResponse = (body: unknown): Response =>
     new Response(JSON.stringify(body), {
@@ -14,7 +17,66 @@ interface Captured {
     readonly headers: Record<string, string>;
 }
 
+afterEach(() => {
+    delete process.env['COHERE_RERANK_MODEL'];
+});
+
 describe('createCohereRerankClient (§C.3)', () => {
+    it('sends the default model id (rerank-v3.5) when neither dep nor env override is set', async () => {
+        const captured: { body: string }[] = [];
+        const fetchStub: typeof globalThis.fetch = (_url, init) => {
+            captured.push({ body: typeof init?.body === 'string' ? init.body : '' });
+            return Promise.resolve(okResponse({ results: [] }));
+        };
+        const client = createCohereRerankClient({
+            apiKey: 'test-key',
+            fetch: fetchStub,
+        });
+
+        await client.rerank({ query: 'q', documents: ['a'], topN: 1 });
+
+        const body = JSON.parse(captured[0]?.body ?? '{}') as Record<string, unknown>;
+        expect(body['model']).toBe(DEFAULT_COHERE_RERANK_MODEL);
+        expect(body['model']).toBe('rerank-v3.5');
+    });
+
+    it('honors COHERE_RERANK_MODEL env override', async () => {
+        process.env['COHERE_RERANK_MODEL'] = 'rerank-experimental-v9';
+        const captured: { body: string }[] = [];
+        const fetchStub: typeof globalThis.fetch = (_url, init) => {
+            captured.push({ body: typeof init?.body === 'string' ? init.body : '' });
+            return Promise.resolve(okResponse({ results: [] }));
+        };
+        const client = createCohereRerankClient({
+            apiKey: 'test-key',
+            fetch: fetchStub,
+        });
+
+        await client.rerank({ query: 'q', documents: ['a'], topN: 1 });
+
+        const body = JSON.parse(captured[0]?.body ?? '{}') as Record<string, unknown>;
+        expect(body['model']).toBe('rerank-experimental-v9');
+    });
+
+    it('explicit deps.model wins over env override', async () => {
+        process.env['COHERE_RERANK_MODEL'] = 'rerank-from-env';
+        const captured: { body: string }[] = [];
+        const fetchStub: typeof globalThis.fetch = (_url, init) => {
+            captured.push({ body: typeof init?.body === 'string' ? init.body : '' });
+            return Promise.resolve(okResponse({ results: [] }));
+        };
+        const client = createCohereRerankClient({
+            apiKey: 'test-key',
+            model: 'rerank-from-deps',
+            fetch: fetchStub,
+        });
+
+        await client.rerank({ query: 'q', documents: ['a'], topN: 1 });
+
+        const body = JSON.parse(captured[0]?.body ?? '{}') as Record<string, unknown>;
+        expect(body['model']).toBe('rerank-from-deps');
+    });
+
     it('posts query + documents + top_n and returns parsed results', async () => {
         const captured: Captured[] = [];
         const fetchStub: typeof globalThis.fetch = (url, init) => {

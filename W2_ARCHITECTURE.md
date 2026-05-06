@@ -300,7 +300,7 @@ Hybrid sparse-dense retrieval over the guideline corpus in Pinecone, with Cohere
 | Embedding (dense) | OpenAI `text-embedding-3-large` (3072d). Computed at index time per chunk; per-query at retrieval time. |
 | Sparse | BM25 vectors via `pinecone-text` SDK, stored alongside dense vectors in the same Pinecone hybrid index. |
 | Fusion | Pinecone-native sparse-dense fusion. Top-20 returned. |
-| Rerank | Cohere `rerank-3` over the top-20 → `top_k` (default 3) returned to the synthesizer. |
+| Rerank | Cohere `rerank-v3.5` over the top-20 → `top_k` (default 3) returned to the synthesizer. |
 
 The corpus is sourced one publisher at a time, not bulk-ingested across publishers. MVP ships with USPSTF only (public domain). Within a publisher, all published recommendations are fetched and chunked deterministically — every chunk body is verbatim text from the publisher's site, never model-authored. (C.2 implementation: chunk count for USPSTF is whatever the publisher has — typically ~100 active recommendations × 2 sections each ≈ 200 chunks, superseding the earlier "~50–80" hand-curation target.) Subsequent phases add ADA Standards of Care, ACC/AHA hypertension, AGS Beers Criteria (license-conditional), CDC vaccine schedules — one publisher at a time, eval-validated between each. The corpus regenerator records `(source, version, ingested_at)` per chunk so a single source can be re-ingested when it updates.
 
@@ -597,7 +597,7 @@ W1 §6.1 metadata path carries forward. W2 additions in `agent/src/observability
 - **Supervisor** — Claude Sonnet 4.x for handoff selection. ~3–6 iterations per typical turn × short prompt + structured-output response. Real meaningful line item at high tier counts; we instrument supervisor token counts on every iteration so the cost-per-turn rollup reflects actual usage.
 - **Embedding** — OpenAI `text-embedding-3-large`. Index-time cost (one-time per corpus version) + per-query embed cost on each `evidenceRetriever` invocation.
 - **Pinecone** — serverless billing (stored vectors + reads). Tiny at MVP corpus size.
-- **Rerank** — Cohere `rerank-3` per `evidenceRetriever` invocation.
+- **Rerank** — Cohere `rerank-v3.5` per `evidenceRetriever` invocation.
 - **Synthesizer** — Claude Sonnet 4.x per conversational turn (W1 carry-forward).
 - **Vision** — Claude Sonnet 4.x per `attach_and_extract` call (pipeline graph, deterministic — one call per extraction).
 - **CI gate** — ~$2.50 per PR × PR cadence.
@@ -624,7 +624,7 @@ A new suite `documentExtractionSuite.ts` covers the 50-case W2 gate. Existing W1
 W2 deliberately diverges from the W1 stubbed-synthesizer pattern. All 50 cases run against:
 - Real Claude Sonnet 4.x for vision and synthesis.
 - Real OpenAI `text-embedding-3-large` for embeddings.
-- Real Cohere `rerank-3`.
+- Real Cohere `rerank-v3.5`.
 - Real Pinecone hybrid index against the curated corpus.
 
 Per-PR cost: ~$2.50, bounded by the CI hard cap of $5. Per-PR latency: 3–5 minutes parallelized.

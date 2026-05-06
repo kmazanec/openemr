@@ -26,7 +26,7 @@ import type {
  * The supervisor narrows its structured-output args into
  * `state.evidenceRetrieverArgs` (a typed {@link EvidenceArgs}); this
  * node reads the slot, runs Pinecone hybrid retrieval (top-20) over
- * the `guidelines-v1` namespace, reranks via Cohere `rerank-3` to
+ * the `guidelines-v1` namespace, reranks via Cohere `rerank-v3.5` to
  * `args.top_k` (default 3), and writes the result to
  * `state.evidenceRetrieverOutput`.
  *

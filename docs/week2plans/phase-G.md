@@ -41,7 +41,7 @@
   - Supervisor (Claude Sonnet 4.x): ~3-6 iterations per typical turn × short prompt + structured-output response. Token-count from real LangSmith traces.
   - Embedding (OpenAI `text-embedding-3-large`): index-time cost (one-time per corpus version) + per-query embed cost on each `evidenceRetriever` invocation.
   - Pinecone: serverless billing — stored vectors + reads. Tiny at MVP corpus size; scales with corpus growth.
-  - Rerank (Cohere `rerank-3`): per `evidenceRetriever` invocation.
+  - Rerank (Cohere `rerank-v3.5`): per `evidenceRetriever` invocation.
   - Synthesizer (Claude Sonnet 4.x): per conversational turn (W1 carry-forward; numbers updated for any prompt-size growth from prior-turn context).
   - Vision (Claude Sonnet 4.x): per `attach_and_extract` call — pipeline graph, deterministic, one call per extraction.
   - CI gate: ~$2.50 per PR × PR cadence.

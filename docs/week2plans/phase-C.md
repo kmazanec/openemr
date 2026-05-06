@@ -39,7 +39,7 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 **Checklist.**
 - [x] Pinecone account + API key. Region `us-east-1` (default) is fine. Free tier or starter tier sufficient for the MVP corpus (~50–80 USPSTF chunks).
 - [x] OpenAI account + API key with embeddings access. Set a billing cap (belt-and-suspenders).
-- [x] Cohere account + API key with `rerank-3` access. Free trial credits typically sufficient for the W2 sprint.
+- [x] Cohere account + API key with `rerank-v3.5` access. Free trial credits typically sufficient for the W2 sprint.
 - [x] All three keys populated in `/etc/openemr/.env` on the Droplet. Local `.env.example` updated with the new env-var names: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE` (defaults to `guidelines-v1`), `OPENAI_API_KEY`, `COHERE_API_KEY`.
 
 **Definition of done.** Engineer has all three keys resolvable from `.env` locally and the user confirms they're on the Droplet. (Per `feedback_never_read_env_files`, engineer never reads `.env` directly — confirmation via the user.)
@@ -168,7 +168,7 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
   - Return raw chunk results with metadata projected to a `PineconeHybridHit` shape.
 - [x] **Cohere rerank** (`agent/src/retrievers/cohere.ts`):
   - Take Pinecone top-20.
-  - Call Cohere `rerank-v3.5` (Cohere renamed the `rerank-3` model id in 2025) over query + chunk texts via direct REST against `https://api.cohere.com/v2/rerank` (no SDK dep — one endpoint, ~30 lines of glue).
+  - Call Cohere `rerank-v3.5` (overridable via `COHERE_RERANK_MODEL` env var; default pinned in `agent/src/retrievers/cohere.ts`) over query + chunk texts via direct REST against `https://api.cohere.com/v2/rerank` (no SDK dep — one endpoint, ~30 lines of glue).
   - Return top-`top_k` with rerank scores.
   - **Degraded mode:** Cohere 5xx, network error, or timeout → client returns `null`; the C.3 node falls through to top-`k` by Pinecone hybrid score, tags each snippet with `degradedRerank: true`, and emits a `degraded-mode` trace event (per `W2_ARCHITECTURE.md` §"Failure Modes" "Cohere outage" row). 4xx responses (auth, malformed payload) throw — they're configuration bugs, not transient outages.
 - [x] **Pinecone outage:** retriever throws `PineconeUnavailableError`; the C.3 node catches it and returns `{snippets: [], gap: {kind: 'gap', reason: 'evidence-retrieval-unavailable', message: …}}` so the supervisor sees the gap and routes around it (per `W2_ARCHITECTURE.md` §"Failure Modes" "Pinecone outage" row).

@@ -296,7 +296,7 @@ export type EvidenceArgs = z.infer<typeof EvidenceArgsSchema>;
  * verifier resolves the citation by matching `chunkId` against this
  * turn's retriever outputs. `quote` is the chunk body (or its leading
  * window) — the synthesizer's quote must substring-match it.
- * `rerankScore` is the Cohere rerank-3 relevance score in `[0, 1]`; on
+ * `rerankScore` is the Cohere `rerank-v3.5` relevance score in `[0, 1]`; on
  * Cohere outage it's the Pinecone hybrid score (degraded mode).
  */
 export interface EvidenceSnippet {
