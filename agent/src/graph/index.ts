@@ -4,6 +4,10 @@ import {
     createDocumentEvidenceRetriever,
     type DocumentEvidenceRetrieverDeps,
 } from './nodes/documentEvidenceRetriever.js';
+import {
+    createEvidenceRetriever,
+    type EvidenceRetrieverDeps,
+} from './nodes/evidenceRetriever.js';
 import { format } from './nodes/format.js';
 import {
     createMedicationStatementBranch,
@@ -79,6 +83,14 @@ export interface BriefingGraphDeps {
      */
     readonly documentEvidenceRetriever?: DocumentEvidenceRetrieverDeps;
     /**
+     * §C.3 evidence retriever deps (Pinecone hybrid + Cohere rerank).
+     * Optional — when absent, the A.7 stub continues to no-op so the
+     * graph compiles without Pinecone/OpenAI/Cohere credentials. Present
+     * only when the runner has fitted BM25 stats from the corpus and
+     * built the hybrid + rerank clients (see `briefingRunner`).
+     */
+    readonly evidenceRetriever?: EvidenceRetrieverDeps;
+    /**
      * §3.5: when set, the compiled graph persists state via this saver,
      * keyed by the `thread_id` the caller passes on `invoke`. Production
      * wires the LangGraph Postgres saver here; in-memory tests omit it
@@ -111,11 +123,13 @@ export interface BriefingGraphDeps {
  * when the envelope's typed `followUp` matches), but the conditional
  * edge graph treats them as terminals-before-verify.
  *
- * `kickoffExtraction`, `documentEvidenceRetriever`, and
- * `evidenceRetriever` are no-op stubs in Phase A — their nodes emit a
- * "stub invoked" trace event and return control to supervisor with no
- * state changes. Phase B and Phase C swap each stub for a real
- * implementation without touching the manifest or the wiring.
+ * `kickoffExtraction` is a no-op stub until Phase B; its node emits
+ * a "stub invoked" trace event and returns control to the supervisor
+ * with no state changes. `documentEvidenceRetriever` (C.1) and
+ * `evidenceRetriever` (C.3) have real implementations now — the
+ * `documentEvidenceRetriever`/`evidenceRetriever` deps slots are
+ * optional so the graph still compiles for tests that don't supply
+ * the upstream stores/clients (the stub then runs).
  *
  * `retrieveChart` is the deterministic seed of chart context (call
  * count 0 → full fan-out per §A.4) and a supervisor-pickable handoff
@@ -195,6 +209,12 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     const documentEvidenceRetrieverNode = deps.documentEvidenceRetriever !== undefined
         ? createDocumentEvidenceRetriever(deps.documentEvidenceRetriever)
         : documentEvidenceRetrieverStub;
+    // §C.3: real `evidenceRetriever` (Pinecone hybrid + Cohere rerank)
+    // when deps are wired; the A.7 stub keeps running otherwise so the
+    // graph compiles without Pinecone/OpenAI/Cohere credentials.
+    const evidenceRetrieverNode = deps.evidenceRetriever !== undefined
+        ? createEvidenceRetriever(deps.evidenceRetriever)
+        : evidenceRetrieverStub;
 
     const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: w1FallbackDecide };
     const builder = new StateGraph(BriefingStateAnnotation)
@@ -202,7 +222,7 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
         .addNode('supervisor', createSupervisor(supervisorDeps))
         .addNode('kickoffExtraction', kickoffExtractionStub)
         .addNode('documentEvidenceRetriever', documentEvidenceRetrieverNode)
-        .addNode('evidenceRetriever', evidenceRetrieverStub)
+        .addNode('evidenceRetriever', evidenceRetrieverNode)
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)
         .addNode('reminderBranch', reminderNode)
         .addNode('medicationStatementBranch', medicationStatementNode)
