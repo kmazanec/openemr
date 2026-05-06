@@ -43,6 +43,7 @@ import {
     type BriefingRunner,
 } from './briefingRunner.js';
 import { classifyBriefingError } from './errorClassifier.js';
+import { createExtractHandler, type PipelineRunner } from './routes/extract.js';
 
 const DEFAULT_AUDIENCE = 'openemr-clinical-copilot-agent';
 
@@ -80,6 +81,13 @@ interface AppDeps {
      * the interactive default-briefing path.
      */
     readonly scheduleBriefingsLog?: ScheduleBriefingsLog;
+    /**
+     * §B.8 ingestion pipeline runner. Required by the `/v1/agent/extract`
+     * route. Optional so legacy tests that exercise only the
+     * conversational graph stay green — the route returns 503 if the
+     * dep isn't wired.
+     */
+    readonly pipeline?: PipelineRunner;
 }
 
 // `analyte` is an identifier we feed into a SQL `LIKE` pattern downstream.
@@ -192,6 +200,7 @@ export const createApp = ({
     conversationApi,
     conversationSuggestions,
     scheduleBriefingsLog,
+    pipeline,
 }: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
@@ -641,6 +650,25 @@ export const createApp = ({
                 generated_at: r.generatedAt,
             })),
         });
+    });
+
+    /**
+     * §B.8 ingestion pipeline trigger. Path A: panel uploads a doc
+     * during a conversation; OpenEMR's `agent.php` proxy mints a
+     * scoped JWT and forwards the body here, then pipes the SSE
+     * response back to the panel. Pipeline progress is surfaced as
+     * `pipeline.*.complete` events, terminal status as `pipeline.exit`,
+     * failures as `pipeline.error`.
+     *
+     * Wired only when the pipeline dep is supplied. Boot wires the
+     * production pipeline; legacy tests that don't construct one see a
+     * 503 with `pipeline_unavailable` instead.
+     */
+    app.post('/v1/agent/extract', async (c) => {
+        if (pipeline === undefined) {
+            return c.json({ code: 'pipeline_unavailable' }, 503);
+        }
+        return createExtractHandler({ pipeline })(c);
     });
 
     // Smoke-test endpoint paired with the proxy's `echo` action. End-to-end
