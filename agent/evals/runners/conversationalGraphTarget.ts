@@ -1,12 +1,12 @@
 /**
  * Conversational-graph experiment target.
  *
- * Each of the three case groups exercises a specific structural
- * invariant the conversational graph must hold; the per-MR Vitest
- * cases at `agent/evals/cases/conversational-graph/` pin those
- * invariants over stubbed vendors. This target re-runs the same
- * scenarios through the **real** `briefingGraph` against real
- * Anthropic, and (for the `guidelines` case) real Pinecone+Cohere.
+ * Each case group exercises a specific structural invariant the
+ * conversational graph must hold; the per-MR Vitest cases at
+ * `agent/evals/cases/conversational-graph/` pin those invariants over
+ * stubbed vendors. This target re-runs the same scenarios through the
+ * **real** `briefingGraph` against real Anthropic, and (for guideline-
+ * needing cases) real Pinecone+Cohere.
  *
  * The verdict reducer keys off whichever surface is load-bearing for
  * the case:
@@ -16,9 +16,18 @@
  *     (verifier-accepted)
  *   - `verification`: did the verifier fire
  *     `HARD_STOP_ALLERGIES_UNAVAILABLE`? (hard-stop)
+ *   - `multi-retriever`: did the verifier accept BOTH an
+ *     `extracted_document` AND a `guideline` claim in the same turn?
+ *     (verifier-accepted)
+ *   - `cap-hit`: with retrievers that return empty turn after turn,
+ *     does the supervisor eventually produce a usable response —
+ *     either by routing to synthesize (gap-emitted, the model
+ *     reacted to the empty signal) or by hitting the iteration cap
+ *     and forcing synthesize (still gap-emitted from the rubric's
+ *     point of view: response rendered, no hard-stop, no infinite
+ *     loop)?
  *
- * The target keeps the deterministic per-MR layer's framing intact:
- * each verdict maps 1:1 to one of the dataset's `expectedGate`
+ * Each verdict maps 1:1 to one of the dataset's `expectedGate`
  * values, so an experiment row that drifts surfaces in the same diff
  * as a Vitest regression.
  */
@@ -45,7 +54,12 @@ import type { AgentRubricInput, RubricClaim } from '../rubrics/types.js';
 
 import { buildDatasetSnapshotClient } from './shared.js';
 
-export type ConversationalGraphCaseId = 'document-evidence' | 'guidelines' | 'verification';
+export type ConversationalGraphCaseId =
+    | 'document-evidence'
+    | 'guidelines'
+    | 'verification'
+    | 'multi-retriever'
+    | 'cap-hit';
 
 export type ConversationalGraphVerdict =
     | 'verifier-accepted'
@@ -257,6 +271,56 @@ const fixtureFor = (group: ConversationalGraphCaseId): CaseFixture => {
                 },
                 artifacts: [lowConfidenceAllergyArtifact],
             };
+        case 'multi-retriever':
+            // Question naturally needs both an extracted-document fact
+            // (the recent HbA1c) and a guideline (USPSTF threshold for
+            // diabetes screening intensification). The supervisor
+            // should route to documentEvidenceRetriever AND
+            // evidenceRetriever within the same turn.
+            return {
+                snapshot: baseSnapshot(),
+                envelope: {
+                    conversationId: `cg-${group}`,
+                    requestId: `cg-${group}-req-1`,
+                    siteId: 'default',
+                    actor: {
+                        userId: 'experiment',
+                        fhirUser: 'https://emr/Practitioner/experiment',
+                    },
+                    patient: { pid: PID, uuid: UUID },
+                    task: 'follow_up',
+                    question:
+                        'Given her recent HbA1c result, what does USPSTF recommend for follow-up screening cadence?',
+                },
+                artifacts: [labArtifact],
+            };
+        case 'cap-hit':
+            // No artifacts seeded; Pinecone (when wired) will return
+            // no hits for the contrived question. The supervisor's
+            // expected behavior is to recognize the empty retrievers
+            // and route to synthesize for a chart-only briefing. If
+            // it fails to do so, the iteration cap forces synthesize
+            // and the response still renders — both outcomes count
+            // as a usable response (gap-emitted from the rubric's
+            // point of view); only an infinite loop or hard-stop
+            // would fail the gate.
+            return {
+                snapshot: baseSnapshot(),
+                envelope: {
+                    conversationId: `cg-${group}`,
+                    requestId: `cg-${group}-req-1`,
+                    siteId: 'default',
+                    actor: {
+                        userId: 'experiment',
+                        fhirUser: 'https://emr/Practitioner/experiment',
+                    },
+                    patient: { pid: PID, uuid: UUID },
+                    task: 'follow_up',
+                    question:
+                        'What does the literature on quokka-specific glycemic targets advise?',
+                },
+                artifacts: [],
+            };
     }
 };
 
@@ -288,6 +352,28 @@ const reduceVerdict = (
             : args.rejectedCount > 0
               ? 'verifier-rejected'
               : 'gap-emitted';
+    } else if (group === 'multi-retriever') {
+        // The case demands BOTH source types in one turn. Either alone
+        // is verifier-rejected — the rubric is "did the supervisor
+        // pull both evidence sources and did the verifier accept
+        // claims from each?".
+        const hasDoc = args.accepted.some((c) =>
+            c.sourceReferences.some((s) => s.source_type === 'extracted_document'),
+        );
+        const hasGuide = args.accepted.some((c) =>
+            c.sourceReferences.some((s) => s.source_type === 'guideline'),
+        );
+        verdict = hasDoc && hasGuide ? 'verifier-accepted' : 'verifier-rejected';
+    } else if (group === 'cap-hit') {
+        // Cap-hit: any usable response is a pass. The rubric is "did
+        // the supervisor not get stuck?" — either it routed to
+        // synthesize voluntarily (verifierPassed with chart-only
+        // claims) or the cap forced synthesize (response still
+        // rendered). An infinite loop would never reach this reducer;
+        // a hard-stop is caught above.
+        verdict = args.verifierPassed || args.acceptedCount > 0
+            ? 'gap-emitted'
+            : 'verifier-rejected';
     } else {
         // verification group; if no hard-stop fired and the case
         // expected one, surface as verifier-accepted (the gate
@@ -342,11 +428,7 @@ export const runConversationalGraphCase = async (
     };
 
     // Wire evidenceRetriever whenever Pinecone+Cohere deps are
-    // available — the supervisor decides whether to call it. The
-    // per-fixture flag was a premature optimization that left the
-    // graph with the §A.7 stub on rows where the model legitimately
-    // routed to evidenceRetriever, surfacing as `phase-A stub
-    // invoked` warnings in the experiment logs.
+    // available — the supervisor decides whether to call it.
     const evidenceRetrieverDeps =
         deps.evidenceRetriever !== undefined ? { evidenceRetriever: deps.evidenceRetriever } : {};
 

@@ -1,23 +1,27 @@
 /**
- * Conversational-graph eval suite — registry entry for the
- * document-evidence retriever, guidelines retriever, and verifier.
+ * Conversational-graph eval suite — registry entry for the structural
+ * invariants the conversational graph must hold across a turn:
+ * retrievers (document-evidence, guidelines), the verifier, the
+ * supervisor's multi-retriever sequencing, and the iteration-cap
+ * backstop.
  *
  * The per-MR Vitest gate for these cases lives at
- * `agent/evals/cases/conversational-graph/{document-evidence,
- * guidelines,verification}/*.test.ts` and asserts the structural
- * invariants (patient-scope cannot widen, fabricated bboxes reject,
- * retriever gaps surface as unresolved, low-confidence allergy fails
- * closed). This file is the **nightly-experiment** layer per
- * `W2_ARCHITECTURE.md` §"Eval Architecture" — same dataset, real
- * Anthropic + Pinecone + Cohere + OpenAI clients.
+ * `agent/evals/cases/conversational-graph/<group>/*.test.ts` and
+ * asserts each invariant over stubbed vendors (patient-scope cannot
+ * widen, fabricated bboxes reject, retriever gaps surface as
+ * unresolved, low-confidence allergy fails closed, supervisor pulls
+ * both retrievers in a turn that needs both, cap binds when the
+ * supervisor would otherwise loop). This file is the
+ * nightly-experiment layer per `W2_ARCHITECTURE.md` §"Eval
+ * Architecture" — same dataset, real Anthropic + Pinecone + Cohere +
+ * OpenAI clients.
  *
- * Dataset shape: one example per case-group. The inputs encode the
- * scenario (a stubbed-vendor scenario for the deterministic gates;
- * a real-query scenario for the real-vendor experiment); the
+ * Dataset shape: one example per case group. Inputs encode the
+ * scenario (a stubbed-vendor scenario for the deterministic Vitest
+ * gates; a real-query scenario for the real-vendor experiment);
  * outputs encode the ground-truth gate the experiment compares the
- * live run's verdict against. Three groups → three rows. The shape
- * mirrors the per-MR test files so a regression in either layer
- * shows up in the same diff.
+ * live run's verdict against. The shape mirrors the per-MR test
+ * files so a regression in either layer shows up in the same diff.
  *
  * Real-vendor `runExperiment` skips when any of PINECONE_API_KEY /
  * PINECONE_INDEX_NAME / OPENAI_API_KEY / COHERE_API_KEY is missing,
@@ -46,10 +50,10 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-conversational-graph-v1';
+export const DATASET_NAME = 'clinical-copilot-conversational-graph-v2';
 
 const DATASET_DESCRIPTION =
-    'Conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI.';
+    'Conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type, multi-retriever sequencing, iteration-cap backstop). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI.';
 
 interface ConversationalGraphInputs {
     readonly group: ConversationalGraphCaseId;
@@ -97,6 +101,24 @@ const EXAMPLES: readonly EvalExample<
         },
         outputs: { expectedGate: 'hard-stop' },
         metadata: { group: 'verification' },
+    },
+    {
+        inputs: {
+            group: 'multi-retriever',
+            description:
+                'Question naturally needs both an extracted-document fact (the recent HbA1c) and a guideline (USPSTF screening cadence). Supervisor should route to both retrievers in the same turn; verifier accepts an extracted_document claim AND a guideline claim.',
+        },
+        outputs: { expectedGate: 'verifier-accepted' },
+        metadata: { group: 'multi-retriever' },
+    },
+    {
+        inputs: {
+            group: 'cap-hit',
+            description:
+                'Contrived off-topic question with no seeded artifacts and no matching guideline chunks. Supervisor should recognize the empty retrievers and route to synthesize; if it loops, the iteration cap forces synthesize. Either path renders a usable response without hard-stop or infinite loop.',
+        },
+        outputs: { expectedGate: 'gap-emitted' },
+        metadata: { group: 'cap-hit' },
     },
 ];
 
