@@ -18,15 +18,18 @@
  *
  *   p01  Chen, Margaret L.   1967-08-14  Female   diabetic + hyperlipidemia
  *   p02  Whitaker, James E.  1958-11-03  Male     complex elderly (AFib)
- *   p03  Reyes, Sofia M.     1982-10-15  Female   diabetic uncontrolled
+ *   p03  Reyes, Sofia M.     1983-12-19  Female   diabetic uncontrolled
  *   p04  Kowalski, Robert    1971-06-08  Male     recent ED visit (RUQ pain)
  *
  * The Reyes intake/lab fixtures are intentionally photograph-quality
  * (low-res, perspective-skewed, partially smudged) so the §B.10
  * adversarial / degraded eval cases can exercise the OCR-grade-bad
- * branch. The DOB encoded above (1982-10-15) is what the seed inserts
- * and what the eval harness assumes — if a clearer rescan ever lands,
- * make sure both stay in sync.
+ * branch. The DOB encoded above (1983-12-19) matches what those
+ * fixtures literally show — both the lab (`1983-12-19 (42F)`) and the
+ * intake (`12/19/1983 (42)`). An earlier revision of this enum
+ * encoded `1982-10-15`, which made the patient-match node refuse
+ * every Reyes upload as a confident DOB mismatch. If a clearer
+ * rescan ever lands, keep all three (seed enum, lab, intake) in sync.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -82,7 +85,7 @@ enum FixturePatient: string
         return match ($this) {
             self::Chen => '1967-08-14',
             self::Whitaker => '1958-11-03',
-            self::Reyes => '1982-10-15',
+            self::Reyes => '1983-12-19',
             self::Kowalski => '1971-06-08',
         };
     }
