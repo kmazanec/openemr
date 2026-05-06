@@ -1,0 +1,78 @@
+{
+  "source": "cdc",
+  "fetcher_version": "1",
+  "first_run_at": "2026-05-06T19:16:59.104Z",
+  "last_run_at": "2026-05-06T19:21:13.153Z",
+  "entries": [
+    {
+      "slug": "acip-adult-age",
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-age.html",
+      "surface": "acip-schedule",
+      "fetched_at": "2026-05-06T19:16:37.590Z",
+      "content_sha256": "39bec3cacc7c4d697aa923c4be85f8d96da3d2df5304963cf247f8ab8db6a87a"
+    },
+    {
+      "slug": "acip-adult-notes",
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "slug": "acip-child-adolescent-age",
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-age.html",
+      "surface": "acip-schedule",
+      "fetched_at": "2026-05-06T19:16:41.679Z",
+      "content_sha256": "b59d34f46f4c4c03800a136b3d8f856e45cdeae68005f98d6c53a586a45a2962"
+    },
+    {
+      "slug": "acip-child-adolescent-notes",
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "slug": "opioid-prescribing-2022",
+      "url": "https://www.cdc.gov/overdose-prevention/hcp/clinical-guidance/index.html",
+      "surface": "opioid-landing",
+      "fetched_at": "2026-05-06T19:16:45.761Z",
+      "content_sha256": "c12f23fc332cd32fe6f68f027f620d2a8d22ef6256c457d5753e867c24da758e"
+    },
+    {
+      "slug": "sti-availability-of-products",
+      "url": "https://www.cdc.gov/sti/hcp/clinical-guidance/availability-of-products.html",
+      "surface": "sti-clinical-guidance",
+      "fetched_at": "2026-05-06T19:16:47.799Z",
+      "content_sha256": "00d5dcfa220ec096bca471aec184836d52aab9ad1ad5d015843ba8c0e1e8d002"
+    },
+    {
+      "slug": "sti-duty-to-warn",
+      "url": "https://www.cdc.gov/sti/hcp/clinical-guidance/duty-to-warn-for-health-care-settings.html",
+      "surface": "sti-clinical-guidance",
+      "fetched_at": "2026-05-06T19:16:50.536Z",
+      "content_sha256": "6d95a097b917f153b3476d488458be230f16736546ea0da63572c0f89adb264d"
+    },
+    {
+      "slug": "sti-expedited-partner-therapy",
+      "url": "https://www.cdc.gov/sti/hcp/clinical-guidance/expedited-partner-therapy.html",
+      "surface": "sti-clinical-guidance",
+      "fetched_at": "2026-05-06T19:16:52.661Z",
+      "content_sha256": "2d60d10ed498b546ffbfc17f33a21b2720c0de6453073cac3879c809440eb14c"
+    },
+    {
+      "slug": "sti-quality-clinical-services",
+      "url": "https://www.cdc.gov/sti/hcp/clinical-guidance/qcs.html",
+      "surface": "sti-clinical-guidance",
+      "fetched_at": "2026-05-06T19:16:55.062Z",
+      "content_sha256": "0a3a95212158f265f6ee9f2ece2e033fb9b917f47dec9330b9bc16032f492a56"
+    },
+    {
+      "slug": "sti-taking-a-sexual-history",
+      "url": "https://www.cdc.gov/sti/hcp/clinical-guidance/taking-a-sexual-history.html",
+      "surface": "sti-clinical-guidance",
+      "fetched_at": "2026-05-06T19:16:57.102Z",
+      "content_sha256": "2a1215a6f214d6ab066702c5c4d1b00c09979dd0b2ffa5fae9ba8039b8b8f82b"
+    }
+  ]
+}

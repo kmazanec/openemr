@@ -79,6 +79,8 @@ Poppler installed will see the suite as skipped rather than failed.
 | `npm run format:check` | Prettier `--check`                                         |
 | `npm run corpus:fetch:uspstf`   | Download every published USPSTF recommendation to `agent/.corpus-cache/uspstf/` (gitignored). Idempotent on `content_sha256`; honors `Crawl-delay: 5`. |
 | `npm run corpus:extract:uspstf` | Parse cached HTML into committed chunk files under `agent/data/corpus/uspstf/`; refreshes `fetch-manifest.json` and `index.json`.                     |
+| `npm run corpus:fetch:cdc`      | Download CDC clinical-guidance pages (ACIP schedules + notes, opioid prescribing, STI clinical guidance) to `agent/.corpus-cache/cdc/`. Idempotent on `content_sha256`. |
+| `npm run corpus:extract:cdc`    | Parse cached CDC HTML into committed chunk files under `agent/data/corpus/cdc/`; refreshes `fetch-manifest.json` and `index.json`.                                       |
 | `npm run evals:reindex-corpus`  | Embed every chunk under `agent/data/corpus/<source>/` and upsert to Pinecone (namespace `guidelines-v1`). No-ops with a warning when corpus env vars are missing.        |
 
 ## Environment variables
@@ -248,6 +250,21 @@ Step 3 is what populates Pinecone. Run it once after the index is
 provisioned, and again whenever steps 1–2 produce a chunk diff or the
 namespace is wiped. CI does **not** reindex — the assumption is that
 the namespace already holds the corpus before retrieval-eval cases run.
+
+### Sources currently in the corpus
+
+| Source  | License tier      | Surfaces                                                                                                              |
+| ------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| USPSTF  | `public_domain`   | All published preventive-services recommendations (recommendation summary + clinical considerations + practice notes) |
+| CDC     | `public_domain`   | ACIP adult + child/adolescent immunization schedules and notes; 2022 opioid prescribing guideline at-a-glance; STI clinical-guidance sub-pages |
+
+CDC is added via the same fetch + extract + reindex flow:
+
+```sh
+npm run corpus:fetch:cdc       # cache HTML under agent/.corpus-cache/cdc/
+npm run corpus:extract:cdc     # emit chunks under agent/data/corpus/cdc/
+npm run evals:reindex-corpus   # picks up every source under data/corpus/* automatically
+```
 
 The fetch + extract pipeline is source-agnostic by convention: future
 publishers (ADA, ACC/AHA, etc.) plug in by adding a new
