@@ -1267,6 +1267,116 @@ const __copilotPanel = (function () {
         });
     };
 
+    /**
+     * F.4 — side-by-side document viewer state.
+     *
+     * The viewer pane is a sibling `<aside>` of `.copilot-main` in the
+     * panel template, hidden by default. On the first extracted_document
+     * chip click we un-hide the pane and call
+     * `documentViewer.openDocument(...)` to mount the rendered document.
+     * Subsequent clicks on a different extracted_document chip swap the
+     * document/page/bbox in place by calling `openDocument` again
+     * against the same mount element. Clicks on a non-extracted chip,
+     * the close button, or Escape close the pane and clear the mount.
+     *
+     * The viewer module is loaded as a separate `<script>` tag in
+     * `panel.html.twig` and exposes itself via the global
+     * `__copilotDocumentViewer`. We resolve the global lazily so the
+     * panel JS can be required from node tests (where the global is
+     * absent) without throwing at module init.
+     */
+    let viewerPaneEl = null;
+    let viewerMountEl = null;
+    let viewerCloseEl = null;
+    let viewerActiveChip = null;
+
+    const documentViewerImpl = () => {
+        if (typeof globalThis === 'undefined') return null;
+        const impl = globalThis.__copilotDocumentViewer;
+        return (impl !== undefined && impl !== null) ? impl : null;
+    };
+
+    const documentViewUrlBase = () => {
+        if (root === null) return null;
+        const url = root.dataset.documentViewUrl;
+        return (typeof url === 'string' && url.length > 0) ? url : null;
+    };
+
+    const ensureViewerEls = () => {
+        if (root === null) return null;
+        if (viewerPaneEl !== null) return viewerPaneEl;
+        viewerPaneEl = root.querySelector('[data-role="document-viewer-pane"]');
+        viewerMountEl = root.querySelector('[data-role="document-viewer"]');
+        viewerCloseEl = root.querySelector('[data-role="document-viewer-close"]');
+        return viewerPaneEl;
+    };
+
+    const closeDocumentViewer = () => {
+        if (viewerPaneEl === null) return;
+        const impl = documentViewerImpl();
+        if (impl !== null && viewerMountEl !== null) {
+            impl.closeViewer(viewerMountEl);
+        }
+        viewerPaneEl.hidden = true;
+        viewerActiveChip = null;
+    };
+
+    /**
+     * Extract the (`documentUuid`, `page`, `bbox`, `mime`) tuple from
+     * the source reference. The architecture's `SourceReference` shape
+     * locks `meta.document_uuid` and `meta.mime_type` as the canonical
+     * carriers; pipeline-side they're populated when the extraction
+     * artifact is registered, so any extracted_document chip in the
+     * panel either has them or the chip click cannot resolve to a
+     * fetchable document. Returning null short-circuits the click.
+     */
+    const viewerArgsFromSource = (source) => {
+        if (!source || source.source_type !== 'extracted_document') return null;
+        const meta = (source.meta !== undefined && source.meta !== null) ? source.meta : {};
+        const locator = (source.locator !== undefined && source.locator !== null) ? source.locator : {};
+        const documentUuid = typeof meta.document_uuid === 'string' ? meta.document_uuid : null;
+        if (documentUuid === null || documentUuid.length === 0) return null;
+        const page = typeof locator.page === 'number' ? locator.page : null;
+        const bbox = Array.isArray(locator.bbox) ? locator.bbox : null;
+        const mime = typeof meta.mime_type === 'string' ? meta.mime_type : null;
+        return { documentUuid, page, bbox, mime };
+    };
+
+    const openDocumentForChip = (chip, source) => {
+        if (root === null) return;
+        if (ensureViewerEls() === null || viewerMountEl === null) return;
+        const impl = documentViewerImpl();
+        if (impl === null) return;
+        const urlBase = documentViewUrlBase();
+        if (urlBase === null) return;
+        const args = viewerArgsFromSource(source);
+        if (args === null) return;
+        viewerPaneEl.hidden = false;
+        viewerActiveChip = chip;
+        // Fire-and-forget — the openDocument promise mounts the new
+        // content; if it rejects, the placeholder card already inside
+        // the mount communicates the failure to the user.
+        impl.openDocument(viewerMountEl, { ...args, urlBase }).catch(() => {
+            /* mount placeholder already rendered; no further action. */
+        });
+    };
+
+    const wireDocumentViewerControls = () => {
+        if (root === null) return;
+        if (ensureViewerEls() === null) return;
+        if (viewerCloseEl !== null) {
+            viewerCloseEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                closeDocumentViewer();
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (viewerPaneEl === null || viewerPaneEl.hidden) return;
+            closeDocumentViewer();
+        });
+    };
+
     const wireSourceChipClicks = () => {
         if (!threadEl) return;
         threadEl.addEventListener('click', (e) => {
@@ -1303,6 +1413,29 @@ const __copilotPanel = (function () {
             if (!claim) return;
             const ref = (claim.sourceReferences || [])[sourceIdx];
             if (!ref) return;
+            // F.4 Layer-1 dispatch on source_type:
+            //   - extracted_document → open the side-by-side viewer.
+            //     A second click on the *same* extracted_document chip
+            //     closes the pane; a click on a *different* one swaps
+            //     the document/page/bbox in place via openDocument.
+            //   - chart / guideline → fall through to the popover.
+            //     Any open viewer pane closes so the chip's popover
+            //     isn't half-occluded by the side-by-side layout.
+            const viewerOpen = viewerPaneEl !== null && !viewerPaneEl.hidden;
+            if (ref.source_type === 'extracted_document') {
+                if (viewerOpen && viewerActiveChip === chip) {
+                    closeDocumentViewer();
+                    return;
+                }
+                if (popoverEl !== null && !popoverEl.hidden) {
+                    closePopover();
+                }
+                openDocumentForChip(chip, ref);
+                return;
+            }
+            if (viewerOpen) {
+                closeDocumentViewer();
+            }
             // Re-clicking the chip the popover is anchored to closes
             // it; clicking a different chip moves the popover there.
             if (popoverChip === chip && popoverEl !== null && !popoverEl.hidden) {
@@ -1981,6 +2114,7 @@ const __copilotPanel = (function () {
         wireHistoryInfiniteScroll();
         wireSuggestionsClicks();
         wireSourceChipClicks();
+        wireDocumentViewerControls();
         setStatus('Connecting to Co-Pilot…', 'connecting');
 
         // Resume lookup and history fetch are independent — fire them
@@ -2031,6 +2165,9 @@ const __copilotPanel = (function () {
         PIPELINE_STATUS_TEXT,
         MAX_UPLOAD_BYTES,
         ALLOWED_UPLOAD_MIMES,
+        // F.4 viewer-args extractor, exposed for
+        // `tests/js/copilot-panel-document-viewer.test.js`.
+        viewerArgsFromSource,
     };
 })();
 

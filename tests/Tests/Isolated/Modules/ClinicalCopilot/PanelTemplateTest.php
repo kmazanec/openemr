@@ -60,6 +60,8 @@ final class PanelTemplateTest extends TestCase
         return [
             'cssUrl' => '/modules/copilot/panel.css',
             'jsUrl' => '/modules/copilot/panel.js',
+            'documentViewerJsUrl' => '/modules/copilot/documentViewer.js',
+            'documentViewUrlBase' => '/modules/copilot/document_view.php',
             'proxyUrl' => '/modules/copilot/agent.php',
             'pid' => 42,
             'siteId' => 'default',
@@ -199,6 +201,63 @@ final class PanelTemplateTest extends TestCase
         // show a stripe of unused chrome below the composer.
         self::assertMatchesRegularExpression(
             '/data-role="upload-toast"[^>]*hidden|hidden[^>]*data-role="upload-toast"/',
+            $html,
+        );
+    }
+
+    #[Test]
+    public function rendersTheF4DocumentViewerMountPointAndCloseControl(): void
+    {
+        // F.4: extracted_document chip click → side-by-side viewer pane
+        // un-hides and `documentViewer.openDocument` mounts inside
+        // `[data-role="document-viewer"]`. The pane renders hidden by
+        // default; the close button gives the clinician a discoverable
+        // exit (Escape also works, wired in panel.js).
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('class="copilot-doc-viewer"', $html);
+        self::assertStringContainsString('data-role="document-viewer-pane"', $html);
+        self::assertStringContainsString('data-role="document-viewer"', $html);
+        self::assertStringContainsString('data-role="document-viewer-close"', $html);
+        // Pane ships hidden so an empty viewer doesn't claim half the
+        // panel on first paint.
+        self::assertMatchesRegularExpression(
+            '/data-role="document-viewer-pane"[^>]*hidden|hidden[^>]*data-role="document-viewer-pane"/',
+            $html,
+        );
+    }
+
+    #[Test]
+    public function rendersTheDocumentViewUrlBaseAttributeForJsViewer(): void
+    {
+        // F.4: panel.js reads `dataset.documentViewUrl` off the
+        // `.copilot-panel` root to compose the document-fetch URL.
+        // Drift in this attribute name silently breaks chip clicks.
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString(
+            'data-document-view-url="/modules/copilot/document_view.php"',
+            $html,
+        );
+    }
+
+    #[Test]
+    public function loadsTheDocumentViewerJsBundleAlongsidePanelJs(): void
+    {
+        // F.4: documentViewer.js is loaded as a separate <script> tag
+        // (with `defer`, same as panel.js) so it's ready when the panel
+        // resolves the global on the first chip click. Loading it
+        // separately keeps the lazy-import contract honest: the
+        // viewer's PDF.js dynamic-import fires only on PDF chip click,
+        // not on every page load.
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('src="/modules/copilot/documentViewer.js"', $html);
+        self::assertMatchesRegularExpression(
+            '/<script[^>]*src="\/modules\/copilot\/documentViewer\.js"[^>]*\sdefer/',
             $html,
         );
     }
