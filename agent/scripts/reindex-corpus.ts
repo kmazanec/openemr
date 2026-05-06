@@ -27,15 +27,19 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import matter from 'gray-matter';
-// natural's package types reference .ts source files which break under
-// verbatimModuleSyntax. We use the @types/natural declarations (global)
-// and pull the runtime via createRequire to avoid the typed import path.
-import { createRequire } from 'node:module';
 import OpenAI from 'openai';
 import { Pinecone } from '@pinecone-database/pinecone';
 
-const require = createRequire(import.meta.url);
-const natural = require('natural') as { WordTokenizer: new () => { tokenize: (s: string) => string[] } };
+import {
+    bm25Sparse,
+    computeBM25Stats,
+    tokenize,
+    type BM25Stats,
+    type SparseVector,
+} from '../src/retrievers/bm25.js';
+
+export { bm25Sparse, computeBM25Stats, tokenize };
+export type { BM25Stats, SparseVector };
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGENT_DIR = resolve(SCRIPT_DIR, '..');
@@ -74,89 +78,6 @@ export interface ChunkRecord {
     readonly body: string;
     readonly tokens: readonly string[];
     readonly metadata: Record<string, string | number>;
-}
-
-export interface SparseVector {
-    readonly indices: number[];
-    readonly values: number[];
-}
-
-const tokenizer = new natural.WordTokenizer();
-
-export function tokenize(text: string): string[] {
-    return tokenizer
-        .tokenize(text.toLowerCase())
-        .filter((t) => t.length > 1 && t.length < 30)
-        .map((t) => t.replace(/[^a-z0-9]/g, ''))
-        .filter((t) => t.length > 0);
-}
-
-/**
- * 32-bit FNV-1a hash. Good enough for BM25 sparse-vector token IDs —
- * stable across runs, low collision rate at our vocabulary size.
- */
-function hashToken(token: string): number {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < token.length; i += 1) {
-        h ^= token.charCodeAt(i);
-        h = Math.imul(h, 0x01000193);
-    }
-    return h >>> 0;
-}
-
-export interface BM25Stats {
-    readonly avgDocLength: number;
-    readonly docCount: number;
-    readonly docFreq: ReadonlyMap<string, number>;
-}
-
-export function computeBM25Stats(docs: readonly (readonly string[])[]): BM25Stats {
-    const docCount = docs.length;
-    let totalLen = 0;
-    const docFreq = new Map<string, number>();
-    for (const doc of docs) {
-        totalLen += doc.length;
-        const seen = new Set<string>();
-        for (const t of doc) {
-            if (seen.has(t)) continue;
-            seen.add(t);
-            docFreq.set(t, (docFreq.get(t) ?? 0) + 1);
-        }
-    }
-    return { avgDocLength: docCount > 0 ? totalLen / docCount : 0, docCount, docFreq };
-}
-
-export function bm25Sparse(tokens: readonly string[], stats: BM25Stats): SparseVector {
-    // Standard BM25 weights. k1=1.2, b=0.75 are the canonical defaults.
-    const k1 = 1.2;
-    const b = 0.75;
-    const tf = new Map<string, number>();
-    for (const t of tokens) tf.set(t, (tf.get(t) ?? 0) + 1);
-
-    const indicesMap = new Map<number, number>();
-    for (const [term, freq] of tf) {
-        const df = stats.docFreq.get(term) ?? 0;
-        if (df === 0) continue;
-        const idf = Math.log(1 + (stats.docCount - df + 0.5) / (df + 0.5));
-        const norm = k1 * (1 - b + (b * tokens.length) / (stats.avgDocLength || 1));
-        const weight = (idf * (freq * (k1 + 1))) / (freq + norm);
-        if (!Number.isFinite(weight) || weight <= 0) continue;
-        const id = hashToken(term);
-        // On hash collision keep the larger weight — collisions are rare and
-        // this is a deterministic tie-break.
-        const existing = indicesMap.get(id);
-        if (existing === undefined || weight > existing) {
-            indicesMap.set(id, weight);
-        }
-    }
-
-    const indices: number[] = [];
-    const values: number[] = [];
-    for (const [id, w] of indicesMap) {
-        indices.push(id);
-        values.push(w);
-    }
-    return { indices, values };
 }
 
 async function loadIndex(sourceDir: string): Promise<CorpusIndex | null> {
