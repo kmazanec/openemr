@@ -32,19 +32,34 @@
  * row. Otherwise we mint nothing here and let the agent create a fresh
  * row when the default_briefing turn arrives.
  */
-(function () {
+const __copilotPanel = (function () {
     'use strict';
 
-    const root = document.querySelector('.copilot-panel');
-    if (!root) {
-        return;
-    }
+    // The pure-function helpers (sourceLinkUrl, chipTooltipText,
+    // claimGroupsToSections, etc.) defined inside this IIFE are
+    // captured in the returned exports object at the bottom so
+    // `tests/js/copilot-panel-claim-groups.test.js` can require them
+    // from node. The DOM-touching bootstrap below short-circuits when
+    // there's no document (i.e., when this file is loaded under
+    // CommonJS for tests).
+    const hasDom = typeof document !== 'undefined';
+    const root = hasDom ? document.querySelector('.copilot-panel') : null;
 
-    const proxyUrl = root.dataset.proxyUrl;
-    const pid = Number.parseInt(root.dataset.pid, 10);
-    const siteId = root.dataset.siteId || 'default';
-    const statusEl = root.querySelector('[data-role="status"]');
-    const threadEl = root.querySelector('[data-role="thread"]');
+    // Bootstrap variables — assigned only when the DOM is present.
+    // Under CommonJS (tests), they stay null and the helpers below are
+    // exported without the bootstrap ever running.
+    let proxyUrl = null;
+    let pid = NaN;
+    let siteId = 'default';
+    let statusEl = null;
+    let threadEl = null;
+    if (root) {
+        proxyUrl = root.dataset.proxyUrl;
+        pid = Number.parseInt(root.dataset.pid, 10);
+        siteId = root.dataset.siteId || 'default';
+        statusEl = root.querySelector('[data-role="status"]');
+        threadEl = root.querySelector('[data-role="thread"]');
+    }
 
     /**
      * `conversationId` is mutable: a placeholder until either a resume
@@ -147,29 +162,174 @@
     };
 
     /**
+     * Translate the W2 unified `SourceReference` shape into the W1
+     * record-kind taxonomy the OpenEMR record-page URLs key off. The
+     * agent ships every chart citation with `source_type='chart'` and a
+     * `locator.field` like `medication.name` / `condition.code`; this
+     * helper recovers the FHIR-shaped record type so the existing deep
+     * links keep working without touching the agent contract.
+     *
+     * Returns null when the field doesn't map — `extracted_document` and
+     * `guideline` chips are tooltip-only by design (Layer-1 / Layer-2
+     * click-throughs defer to Phase F per `W2_ARCHITECTURE.md`
+     * §"Click-to-source UI"), so they always land here.
+     */
+    const recordTypeForChartField = (field) => {
+        if (typeof field !== 'string') return null;
+        if (field.startsWith('patient.')) return 'Patient';
+        if (field.startsWith('encounter.')) return 'Encounter';
+        if (field.startsWith('appointment.')) return 'Appointment';
+        if (field.startsWith('condition.')) return 'Condition';
+        if (field.startsWith('medication.')) return 'MedicationRequest';
+        if (field.startsWith('medicationStatement.')) return 'MedicationStatement';
+        if (field.startsWith('allergy.')) return 'AllergyIntolerance';
+        if (field.startsWith('observation.')) return 'Observation';
+        if (field.startsWith('task.')) return 'Task';
+        if (field.startsWith('documentReference.')) return 'DocumentReference';
+        return null;
+    };
+
+    /**
      * Map a SourceReference to a stable record-view URL where there is
-     * one. "Where practical" per the plan — diagnoses, encounters, and
-     * patient demographics have well-known view pages; others render as
-     * a tooltip-only chip. The record-id is always shown in the tooltip
-     * so even unmappable types are auditable from the UI.
+     * one. Chart refs (W1 carry-forward, per the D.2 plan and
+     * `W2_ARCHITECTURE.md` §"Click-to-source UI" Layer 0) link to the
+     * existing OpenEMR record pages; extracted-document and guideline
+     * chips are tooltip-only in D — Layer 1 PDF.js bbox overlay and
+     * Layer 2 section-snippet popover defer to Phase F.
      */
     const sourceLinkUrl = (source) => {
-        if (!source || !source.recordType || !source.recordId) return null;
-        switch (source.recordType) {
+        if (!source || source.source_type !== 'chart') return null;
+        const recordId = source.source_id;
+        if (typeof recordId !== 'string' || recordId.length === 0) return null;
+        const field = source.locator !== undefined && source.locator !== null
+            ? source.locator.field
+            : undefined;
+        const recordType = recordTypeForChartField(field);
+        switch (recordType) {
             case 'Patient':
-                return `../../../../patient_file/summary/demographics.php?set_pid=${encodeURIComponent(source.recordId)}`;
+                return `../../../../patient_file/summary/demographics.php?set_pid=${encodeURIComponent(recordId)}`;
             case 'Encounter':
-                return `../../../../patient_file/encounter/encounter_top.php?set_encounter=${encodeURIComponent(source.recordId)}`;
+                return `../../../../patient_file/encounter/encounter_top.php?set_encounter=${encodeURIComponent(recordId)}`;
             case 'Condition':
-                return `../../../../patient_file/summary/stats_full.php`;
             case 'AllergyIntolerance':
-                return `../../../../patient_file/summary/stats_full.php`;
             case 'MedicationRequest':
+            case 'MedicationStatement':
                 return `../../../../patient_file/summary/stats_full.php`;
             case 'Observation':
                 return `../../../../patient_file/encounter/load_form.php?formname=procedure_order_results`;
             default:
                 return null;
+        }
+    };
+
+    /**
+     * §C.6 publication labels keyed off the `source_id` prefix the
+     * `agent/scripts/reindex-corpus.ts` reindexer mints (`uspstf::…`,
+     * `ada::…`, etc.). Extending here is a one-line change when a new
+     * publisher lands in the corpus. Falls through to `null` so the
+     * tooltip degrades to "section only" rather than printing a raw
+     * prefix the clinician shouldn't see.
+     */
+    const PUBLICATION_LABELS = {
+        uspstf: 'USPSTF',
+        ada: 'ADA',
+        'acc-aha': 'ACC/AHA',
+        'ags-beers': 'AGS Beers',
+        cdc: 'CDC',
+    };
+
+    const publicationFromSourceId = (sourceId) => {
+        if (typeof sourceId !== 'string') return null;
+        const idx = sourceId.indexOf('::');
+        if (idx <= 0) return null;
+        const prefix = sourceId.slice(0, idx).toLowerCase();
+        return PUBLICATION_LABELS[prefix] || null;
+    };
+
+    /**
+     * Variant-aware chip tooltip text. The full Layer-1 PDF.js bbox
+     * overlay and Layer-2 section-snippet popover defer to Phase F, so
+     * extracted-document and guideline chips need a tooltip that's
+     * informative in isolation:
+     *
+     *   - chart: "<RecordKind> <recordId>" (W1 carry-forward).
+     *   - extracted_document: "page <N> · document <uuid-prefix>".
+     *     `meta.document_uuid` may be absent (the extractor doesn't
+     *     always emit it); fall through to the page reference.
+     *   - guideline: "<publication> · <section>". Publication is
+     *     derived from the `source_id` prefix; falls through to
+     *     section only when the prefix is unknown.
+     *
+     * Reviewer note: the D.2 plan's tooltip wording referenced
+     * `<doc_type>` and `<year>` fields that aren't on the unified
+     * `SourceReference` today. Extending `meta` with optional
+     * `doc_type`, `publication`, and `year` is a small follow-up patch;
+     * for D.2 the tooltip uses what's already on the wire so the
+     * unified citation contract stays untouched.
+     */
+    /**
+     * Friendly label for the W1 record-type taxonomy. Strips FHIR
+     * resource suffixes the clinician doesn't think in
+     * (`MedicationRequest` → "Medication") so the chip's tooltip reads
+     * the way the chart row reads.
+     */
+    const CHART_RECORD_LABELS = {
+        Patient: 'Patient',
+        Encounter: 'Encounter',
+        Appointment: 'Appointment',
+        Condition: 'Diagnosis',
+        MedicationRequest: 'Medication',
+        MedicationStatement: 'Medication',
+        AllergyIntolerance: 'Allergy',
+        Observation: 'Lab',
+        Task: 'Task',
+        DocumentReference: 'Document',
+    };
+
+    const chipTooltipText = (source) => {
+        if (!source || typeof source !== 'object') return 'Source';
+        switch (source.source_type) {
+            case 'chart': {
+                const recordType = recordTypeForChartField(
+                    source.locator !== undefined && source.locator !== null
+                        ? source.locator.field
+                        : undefined,
+                );
+                const kindLabel = recordType !== null && CHART_RECORD_LABELS[recordType] !== undefined
+                    ? CHART_RECORD_LABELS[recordType]
+                    : 'Record';
+                const id = typeof source.source_id === 'string' ? source.source_id : '';
+                return `${kindLabel} ${id}`.trim();
+            }
+            case 'extracted_document': {
+                const page = source.locator !== undefined && source.locator !== null
+                    ? source.locator.page
+                    : undefined;
+                const uuid = source.meta !== undefined && source.meta !== null
+                    ? source.meta.document_uuid
+                    : undefined;
+                const parts = [];
+                if (typeof page === 'number') parts.push(`page ${page}`);
+                if (typeof uuid === 'string' && uuid.length > 0) {
+                    // Truncate the uuid to the leading 8 chars — long
+                    // enough to disambiguate uploads in the same turn,
+                    // short enough to read at a glance.
+                    parts.push(`document ${uuid.slice(0, 8)}`);
+                }
+                return parts.length > 0 ? parts.join(' · ') : 'From document';
+            }
+            case 'guideline': {
+                const publication = publicationFromSourceId(source.source_id);
+                const section = source.locator !== undefined && source.locator !== null
+                    ? source.locator.section
+                    : undefined;
+                const parts = [];
+                if (publication !== null) parts.push(publication);
+                if (typeof section === 'string' && section.length > 0) parts.push(section);
+                return parts.length > 0 ? parts.join(' · ') : 'Evidence';
+            }
+            default:
+                return 'Source';
         }
     };
 
@@ -185,13 +345,34 @@
      * recover the exact `Claim` + `SourceReference` from the in-memory
      * `thread[]` without serializing the whole object into the DOM.
      */
+    /**
+     * Per-`source_type` chip-style modifier so the three section types
+     * are visually scannable at a glance: chart chips keep the W1 blue
+     * styling; extracted-document chips get a document-themed tone;
+     * guideline chips get an evidence-themed tone. The CSS rules live
+     * in `panel.css` keyed off these modifier classes.
+     */
+    const sourceVariantClass = (source) => {
+        if (!source) return '';
+        switch (source.source_type) {
+            case 'extracted_document':
+                return ' copilot-source--document';
+            case 'guideline':
+                return ' copilot-source--guideline';
+            case 'chart':
+            default:
+                return '';
+        }
+    };
+
     const renderSourceChip = (source, indices) => {
         if (!source) {
             return '';
         }
-        const tooltip = `${source.recordType || 'record'} ${source.recordId || ''}`.trim();
+        const tooltip = chipTooltipText(source);
+        const variant = sourceVariantClass(source);
         const inert = sourceLinkUrl(source) === null ? ' copilot-source--inert' : '';
-        return `<button type="button" class="copilot-source${inert}"
+        return `<button type="button" class="copilot-source${variant}${inert}"
                         data-role="source-chip"
                         data-bubble-idx="${indices.bubble}"
                         data-segment-idx="${indices.segment}"
@@ -276,6 +457,147 @@
         return gaps
             .map((g) => `<p class="copilot-gap" role="status">${escapeText(g.message || 'Section unavailable.')}</p>`)
             .join('');
+    };
+
+    /**
+     * §C.6 / D.2 — project the format-node's `claimGroups` shape into an
+     * ordered list of sections the renderer can iterate without any
+     * per-shape branching. Empty buckets are *absent* from the input
+     * (per format.ts), so omitting empty sections is a natural
+     * consequence of "iterate over what's there".
+     *
+     * The section order is fixed: chart → documents → evidence. That
+     * matches the W2 architecture's Format-node spec
+     * (`W2_ARCHITECTURE.md` §"Format") which orders the panel as
+     * "What's in the chart" / "From documents" / "Evidence".
+     *
+     * Pure function — exported via the CommonJS guard at the bottom of
+     * this file so the Jest tests in `tests/js/copilot-panel-claim-groups.test.js`
+     * can pin its behavior without spinning up a DOM.
+     */
+    const SECTION_HEADINGS = {
+        chart: "What's in the chart",
+        extractedDocument: 'From documents',
+        guideline: 'Evidence',
+    };
+
+    const claimGroupsToSections = (claimGroups) => {
+        if (!claimGroups || typeof claimGroups !== 'object') return [];
+        const sections = [];
+        if (claimGroups.chart && Array.isArray(claimGroups.chart.subsections)) {
+            sections.push({
+                kind: 'chart',
+                heading: SECTION_HEADINGS.chart,
+                subsections: claimGroups.chart.subsections,
+            });
+        }
+        if (claimGroups.extractedDocument && Array.isArray(claimGroups.extractedDocument.cards)) {
+            sections.push({
+                kind: 'extractedDocument',
+                heading: SECTION_HEADINGS.extractedDocument,
+                cards: claimGroups.extractedDocument.cards,
+            });
+        }
+        if (claimGroups.guideline && Array.isArray(claimGroups.guideline.claims)) {
+            sections.push({
+                kind: 'guideline',
+                heading: SECTION_HEADINGS.guideline,
+                claims: claimGroups.guideline.claims,
+            });
+        }
+        return sections;
+    };
+
+    /**
+     * §C.6 / D.2 — render one citation chip inside a section. Distinct
+     * from the inline-segment chip (`renderSourceChip` above) on
+     * purpose:
+     *
+     *   - chart → real `<a href>` to the OpenEMR record page (W1
+     *     carry-forward; no popover).
+     *   - extracted_document → inert button with the variant tooltip
+     *     ("page N · document <uuid-prefix>"). The Layer-1 PDF.js bbox
+     *     overlay defers to Phase F.
+     *   - guideline → inert button with the variant tooltip
+     *     ("<publication> · <section>"). The Layer-2 popover defers
+     *     to Phase F.
+     */
+    const renderSectionChip = (source) => {
+        if (!source) return '';
+        const tooltip = chipTooltipText(source);
+        const variant = sourceVariantClass(source);
+        const url = sourceLinkUrl(source);
+        if (typeof url === 'string' && url.length > 0) {
+            return `<a class="copilot-source${variant}"
+                       data-role="section-source-link"
+                       href="${escapeText(url)}"
+                       title="${escapeText(tooltip)}"
+                       aria-label="Source: ${escapeText(tooltip)}">[source]</a>`;
+        }
+        return `<span class="copilot-source${variant} copilot-source--inert"
+                      data-role="section-source-tooltip"
+                      title="${escapeText(tooltip)}"
+                      aria-label="Source: ${escapeText(tooltip)}">[source]</span>`;
+    };
+
+    const renderClaimWithChips = (claim) => {
+        const text = formatDatesInText(escapeText(claim.text || ''));
+        const refs = Array.isArray(claim.sourceReferences) ? claim.sourceReferences : [];
+        const chips = refs.map((ref) => renderSectionChip(ref)).join(' ');
+        return `<li class="copilot-claim-groups__claim">${text}${chips ? ' ' + chips : ''}</li>`;
+    };
+
+    const renderChartSubsection = (subsection) => {
+        const heading = escapeText(titleCaseCategory(subsection.category));
+        const claims = (subsection.claims || []).map(renderClaimWithChips).join('');
+        return `<section class="copilot-claim-groups__chart-subsection"
+                         data-category="${escapeText(subsection.category)}">
+            <h4 class="copilot-claim-groups__subheading">${heading}</h4>
+            <ul class="copilot-claim-groups__list">${claims}</ul>
+        </section>`;
+    };
+
+    const renderDocumentCard = (card) => {
+        const uuidLabel = typeof card.documentUuid === 'string' && card.documentUuid.length > 0
+            ? `Document ${escapeText(card.documentUuid.slice(0, 8))}`
+            : 'Document';
+        const claims = (card.claims || []).map(renderClaimWithChips).join('');
+        return `<section class="copilot-claim-groups__doc-card"
+                         data-document-uuid="${escapeText(card.documentUuid || '')}">
+            <h4 class="copilot-claim-groups__subheading">${uuidLabel}</h4>
+            <ul class="copilot-claim-groups__list">${claims}</ul>
+        </section>`;
+    };
+
+    /**
+     * Render the C.6 panel-side projection of accepted claims grouped
+     * by `source_type`. Empty `claimGroups` (e.g. a turn that produced
+     * no accepted claims, or a follow-up that only emits redacted
+     * segments) yields the empty string so the bubble doesn't grow an
+     * unused header section.
+     */
+    const renderClaimGroups = (claimGroups) => {
+        const sections = claimGroupsToSections(claimGroups);
+        if (sections.length === 0) return '';
+        const sectionHtml = sections.map((section) => {
+            const heading = escapeText(section.heading);
+            let body = '';
+            if (section.kind === 'chart') {
+                body = section.subsections.map(renderChartSubsection).join('');
+            } else if (section.kind === 'extractedDocument') {
+                body = section.cards.map(renderDocumentCard).join('');
+            } else if (section.kind === 'guideline') {
+                const claims = section.claims.map(renderClaimWithChips).join('');
+                body = `<ul class="copilot-claim-groups__list">${claims}</ul>`;
+            }
+            return `<section class="copilot-claim-groups__section copilot-claim-groups__section--${section.kind}"
+                             data-role="claim-group-section"
+                             data-kind="${section.kind}">
+                <h3 class="copilot-claim-groups__heading">${heading}</h3>
+                ${body}
+            </section>`;
+        }).join('');
+        return `<div class="copilot-claim-groups" data-role="claim-groups">${sectionHtml}</div>`;
     };
 
     /**
@@ -379,9 +701,11 @@
             const unverified = renderUnverifiedChip(messageSegments, index);
             const gaps = renderGapsBanner(entry.message.gaps);
             const suggestions = renderSuggestionsRail(entry.message.suggestedFollowUps, index);
+            const claimGroups = renderClaimGroups(entry.message.claimGroups);
             return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered" data-bubble-index="${index}">
                 ${gaps}
                 <div class="copilot-bubble__body">${segments}${unverified ? ' ' + unverified : ''}</div>
+                ${claimGroups}
                 ${suggestions}
             </article>`;
         }
@@ -785,10 +1109,13 @@
     const renderPopoverBody = (claim, ref) => {
         const category = titleCaseCategory(claim.category);
         const claimText = formatDatesInText(escapeText(claim.text || ''));
-        const recordLine = `${escapeText(ref.recordType || 'record')} ${escapeText(ref.recordId || '')}`.trim();
+        const recordLine = escapeText(chipTooltipText(ref));
         const url = sourceLinkUrl(ref);
-        const recordedAt = typeof ref.recordedAt === 'string' && ref.recordedAt.length > 0
-            ? `<p class="copilot-source-popover__recorded">Recorded ${formatDatesInText(escapeText(ref.recordedAt))}</p>`
+        const recordedAtRaw = ref && ref.meta !== undefined && ref.meta !== null
+            ? ref.meta.record_recorded_at
+            : undefined;
+        const recordedAt = typeof recordedAtRaw === 'string' && recordedAtRaw.length > 0
+            ? `<p class="copilot-source-popover__recorded">Recorded ${formatDatesInText(escapeText(recordedAtRaw))}</p>`
             : '';
         const linkRow = url
             ? `<a class="copilot-source-popover__link" href="${escapeText(url)}">View full record →</a>`
@@ -1051,9 +1378,9 @@
      * before returning the thread, so a forged UUID in the DOM
      * cannot smuggle in another doctor's conversation.
      */
-    const historyEl = root.querySelector('[data-role="history-list"]');
-    const historyEmptyEl = root.querySelector('[data-role="history-empty"]');
-    const historySentinelEl = root.querySelector('[data-role="history-sentinel"]');
+    const historyEl = root ? root.querySelector('[data-role="history-list"]') : null;
+    const historyEmptyEl = root ? root.querySelector('[data-role="history-empty"]') : null;
+    const historySentinelEl = root ? root.querySelector('[data-role="history-sentinel"]') : null;
     let historyNextBefore = null;
     let historyExhausted = false;
     let historyLoading = false;
@@ -1250,5 +1577,23 @@
         });
     };
 
-    start();
+    if (root) {
+        start();
+    }
+
+    // Pure-function helpers — exported for `tests/js/copilot-panel-claim-groups.test.js`.
+    // The browser ignores this object (the IIFE's return value is
+    // assigned to `__copilotPanel` but never read in the page).
+    return {
+        sourceLinkUrl,
+        chipTooltipText,
+        claimGroupsToSections,
+        recordTypeForChartField,
+    };
 })();
+
+// CommonJS bridge for Jest. The browser-side `<script>` tag has no
+// `module` global, so this branch is a no-op there.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = __copilotPanel;
+}
