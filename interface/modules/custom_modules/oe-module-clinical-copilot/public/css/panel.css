@@ -340,6 +340,82 @@
     background: rgba(255, 255, 255, 0.28);
 }
 
+/* §C.6 / D.2 chip variants — extracted-document and guideline chips
+   shift the chip palette so the three section types stay visually
+   scannable. Chart chips keep the W1 blue palette unchanged. */
+.copilot-source--document {
+    color: #6a3c00;
+    background: #fff1d9;
+    border-color: #e9c884;
+}
+
+.copilot-source--document:hover {
+    background: #fbe5ba;
+}
+
+.copilot-source--guideline {
+    color: #1f6a3d;
+    background: #e6f5ec;
+    border-color: #b6dcc4;
+}
+
+.copilot-source--guideline:hover {
+    background: #d4ecdc;
+}
+
+/* ───────── §C.6 / D.2 claim-groups (three source-type sections) ───────── */
+
+.copilot-claim-groups {
+    margin-top: 0.9em;
+    padding-top: 0.9em;
+    border-top: 1px solid #e3e7ee;
+}
+
+.copilot-claim-groups__section {
+    margin: 0 0 0.9em;
+}
+
+.copilot-claim-groups__section:last-child {
+    margin-bottom: 0;
+}
+
+.copilot-claim-groups__heading {
+    margin: 0 0 0.3em;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #2c3340;
+}
+
+.copilot-claim-groups__subheading {
+    margin: 0.5em 0 0.2em;
+    font-size: 0.85em;
+    font-weight: 500;
+    color: #4a5360;
+    text-transform: capitalize;
+}
+
+.copilot-claim-groups__list {
+    margin: 0;
+    padding-left: 1.2em;
+}
+
+.copilot-claim-groups__claim {
+    margin: 0 0 0.2em;
+    line-height: 1.45;
+}
+
+.copilot-claim-groups__doc-card {
+    margin: 0 0 0.5em;
+    padding: 0.5em 0.7em;
+    background: #fffaf0;
+    border: 1px solid #f1e0bf;
+    border-radius: 4px;
+}
+
+.copilot-claim-groups__doc-card .copilot-claim-groups__subheading {
+    margin-top: 0;
+}
+
 /* ───────── Gaps + errors inside bubbles ───────── */
 
 .copilot-gap {
