@@ -155,6 +155,13 @@ services:
     depends_on:
       agent-postgres:
         condition: service_healthy
+    # Load API keys + Spaces credentials from the repo-root .env (the
+    # canonical local-dev secrets file). `required: false` so a fresh
+    # checkout without an .env file still boots — the individual values
+    # are still optional in the env block below.
+    env_file:
+    - path: ../../.env
+      required: false
     volumes:
     - ${OPENEMR_DIR:-../..}/agent:/app
     - agentnodemodules:/app/node_modules
@@ -173,30 +180,21 @@ services:
       # Base URL the agent uses for callbacks (snapshot endpoint, etc).
       # Same docker-network hostname as JWKS — avoids the self-signed cert.
       OPENEMR_BASE_URL: http://openemr
-      # Required for the §3.4 briefing graph's Synthesize node. Local-dev
-      # default is a placeholder so the route can boot even without an API
-      # key; the graph will fail-fast at the synthesize step rather than
-      # hang. Override in your shell or `.env` for live LLM calls.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      # §C.3 evidence retriever (Pinecone hybrid + Cohere rerank). Each
-      # is optional — when any of these is empty, the briefing runner
-      # logs a warning at boot and the graph falls back to the C.3 stub.
-      # Set in your shell or agent/.env to enable guideline retrieval
-      # against the corpus indexed by `npm run evals:reindex-corpus`.
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
-      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME:-}
-      PINECONE_NAMESPACE: ${PINECONE_NAMESPACE:-guidelines-v1}
-      COHERE_API_KEY: ${COHERE_API_KEY:-}
-      COHERE_RERANK_MODEL: ${COHERE_RERANK_MODEL:-rerank-v3.5}
-      # §6.1 LangSmith tracing. Off by default in dev — set
-      # LANGSMITH_TRACING=true and LANGSMITH_API_KEY in your shell to opt
-      # in. Project name is namespaced -dev so traces from local work
-      # don't pollute prod metrics. PHI suppression is enforced in code
-      # (server boot defaults LANGSMITH_HIDE_INPUTS/OUTPUTS=true).
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
-      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
-      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-openemr-clinical-copilot-dev}
+      # API keys, vendor credentials, and Spaces config flow in via
+      # the `env_file:` directive above (repo-root .env). Inlining
+      # `${VAR:-}` defaults here would override those values with empty
+      # strings — `environment:` wins over `env_file:` per the Compose
+      # spec — so we let the env_file populate them and don't redeclare:
+      #   - ANTHROPIC_API_KEY (briefing/follow-up synthesizer)
+      #   - OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME,
+      #     PINECONE_NAMESPACE, COHERE_API_KEY, COHERE_RERANK_MODEL
+      #     (§C.3 evidence retriever — graph falls back to the stub
+      #     when any are missing)
+      #   - SPACES_BUCKET / SPACES_REGION / SPACES_*_KEY /
+      #     SPACES_*_SECRET / SPACES_TRANSIENT_PREFIX (§B.2 ingestion
+      #     pipeline; required at boot)
+      #   - LANGSMITH_API_KEY, LANGSMITH_TRACING, LANGSMITH_PROJECT
+      #     (§6.1 trace upload; off by default in dev)
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8080/health']
       start_period: 30s
