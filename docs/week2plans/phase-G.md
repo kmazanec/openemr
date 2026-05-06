@@ -211,3 +211,35 @@
 - [ ] User submits the final package per the program's submission process.
 
 **Definition of done.** Sunday Final gate satisfied. The architecture is interview-ready: deployed app reachable with W2 flow working end-to-end; final demo video uploaded; cost-and-latency report complete; LangSmith dataset publicly shared; READMEs updated.
+
+---
+
+## G.9 Host BM25 corpus stats instead of shipping the corpus in the image
+
+**Goal.** Replace the temporary "ship `agent/data/corpus/` into the runtime image" workaround with a hosted, derived stats artifact. The agent fetches `bm25-stats-<namespace>.json` at boot instead of walking the source corpus tree.
+
+**Background.** Pinecone hybrid retrieval needs query-side BM25 sparse vectors that share the same vocabulary stats (`avgDocLength`, `docFreq`, `docCount`) as the index-time vectors. Pinecone stores per-chunk sparse vectors but not the corpus-level stats, so the agent has to re-derive them. Today `loadCorpusBM25Stats()` walks `agent/data/corpus/`, which means the corpus source files have to ship with the image. A prod outage on 2026-05-06 ("Guideline evidence is temporarily unavailable") was caused by the Dockerfile not copying the corpus dir into the runtime image; the fix was a one-line `COPY` but the underlying coupling between image layout and corpus state is fragile.
+
+**Blocked by:** Nothing structural; can land any time after the immediate Dockerfile fix.
+**Unblocks:** Decoupling image builds from corpus revisions — reindex no longer requires a redeploy.
+
+**Refs.** `agent/src/retrievers/corpusLoader.ts`, `agent/src/retrievers/bm25.ts`, `agent/scripts/reindex-corpus.ts`, `agent/Dockerfile`.
+
+**Files touched.**
+- `agent/scripts/reindex-corpus.ts` — emit `bm25-stats-<namespace>.json` to Spaces after upserting to Pinecone.
+- `agent/src/retrievers/corpusLoader.ts` (or successor) — fetch stats JSON at boot (with a local cache); drop the directory walk.
+- `agent/src/server/briefingRunner.ts` — wire the new loader.
+- `agent/Dockerfile` — remove the `COPY data/corpus` line once the new path is verified in prod.
+- `agent/README.md` — document the new env vars / artifact name.
+- `docs/RUNBOOK.md` — recovery: how to re-publish stats if the artifact is missing or version-mismatched.
+
+**Checklist.**
+- [ ] Pick the host. Default to DO Spaces (the `SPACES_*` env vars are already wired). Alternatives considered: Pinecone metadata blob, Postgres row, repo-committed JSON. Spaces is the right shape because it's the same store the corpus source already lives in for the precompute path.
+- [ ] **Version pinning:** filename ties 1:1 to the Pinecone namespace (e.g. `bm25-stats-guidelines-v1.json` for namespace `guidelines-v1`). A namespace bump forces a stats bump; a stats bump forces a namespace bump. Mismatch is impossible by construction.
+- [ ] **Reindex script writes the artifact** atomically after a successful Pinecone upsert. If upsert fails, no stats file is written — the previous (still-valid) artifact stays live.
+- [ ] **Boot-time loader:** fetch `bm25-stats-<PINECONE_NAMESPACE>.json` from Spaces; on 404 emit a structured error and refuse to wire the retriever (rather than falling back to empty stats — the empty-stats path is the bug we're fixing). Cache the parsed stats in-memory; no per-query refetch.
+- [ ] **Dockerfile:** remove the `COPY data/corpus ./data/corpus` line and its accompanying comment once the new path is green in prod for at least one redeploy.
+- [ ] **Vitest coverage:** unit-test the loader against a fixture stats JSON; integration-test the reindex-write path against a Spaces stub.
+- [ ] **Runbook entry:** "BM25 stats artifact missing/mismatched" — detection (boot error log), recovery (re-run reindex script), prevention (CI check that the namespace and artifact filename match).
+
+**Definition of done.** A reindex run publishes the stats artifact to Spaces. The agent boots cleanly without the corpus dir in the image. The Dockerfile has no `data/corpus` copy. RUNBOOK has the recovery entry. A namespace/stats version mismatch is detectable at boot, not at first query.

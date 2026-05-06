@@ -59,6 +59,15 @@ COPY --chown=node:node package.json ./
 # up by the runner's loader (it iterates everything in the dir) and
 # fail with `ERR_UNKNOWN_FILE_EXTENSION`.
 COPY --chown=node:node migrations/*.sql ./migrations/
+# `evidenceRetriever` fits BM25 stats at boot from the same corpus the
+# reindex script upserted to Pinecone (see `src/retrievers/corpusLoader.ts`).
+# Pinecone stores per-chunk sparse vectors but not the corpus-level stats
+# (avgDocLength, docFreq), so we must re-derive them from the source
+# files on the query side. Without this copy the stats are empty, every
+# query produces an empty sparse vector, and Pinecone rejects the hybrid
+# query → "Guideline evidence is temporarily unavailable." (Tracked for
+# replacement by a hosted stats JSON in phase-G.9.)
+COPY --chown=node:node data/corpus ./data/corpus
 
 USER node
 
