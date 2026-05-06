@@ -57,7 +57,10 @@ export const SourceReferenceSchema = z
                 document_uuid: z.string().min(1).optional(),
                 extractor_version: z.string().min(1).optional(),
                 rerank_score: z.number().optional(),
-                record_recorded_at: z.string().min(1).optional(),
+                record_recorded_at: z
+                    .union([z.literal(''), z.string().min(1)])
+                    .optional()
+                    .transform((v) => (v === '' ? undefined : v)),
             })
             .optional(),
     })
