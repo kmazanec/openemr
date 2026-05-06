@@ -30,6 +30,14 @@ services:
     ports:
     - "${WT_HTTP_PORT:-8300}:80"
     - "${WT_HTTPS_PORT:-9300}:443"
+    # Load Spaces credentials from the repo-root .env. The PHP-side
+    # `document_upload.php` controller needs SPACES_BUCKET / SPACES_REGION /
+    # SPACES_OPENEMR_KEY / SPACES_OPENEMR_SECRET to upload to DigitalOcean
+    # Spaces. `required: false` so a fresh checkout still boots without
+    # the secrets file — the upload route will 503 instead.
+    env_file:
+    - path: ../../.env
+      required: false
     volumes:
     - ${OPENEMR_DIR:-../..}:/openemr:ro
     - ${OPENEMR_DIR:-../..}:/var/www/localhost/htdocs/openemr:rw
