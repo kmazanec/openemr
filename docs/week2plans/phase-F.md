@@ -110,16 +110,17 @@
 **Refs.** `W2_ARCHITECTURE.md` §"Tier 3 — chart records" (per-fact promotion writes own `AgentDisclosedEvent`); `WEEK2-PRESEARCH.md` §W2-9 (artifact-level + fact-level disposition).
 
 **Files touched.**
-- `agent/src/state/extractionArtifacts.ts` — new sibling table or extension.
-- Migration script for the new table/column.
+- `agent/src/state/extractionArtifacts.ts` — F.3 helpers + types (no inline DDL).
+- `agent/migrations/1700000007000_extracted_fact_dispositions.sql` — schema.
+- Plus the schema-management refactor companion (the surrounding MR also introduces `node-pg-migrate`, baseline-migrates the 6 W1+B.1 tables, and removes every inline `SCHEMA_SQL` constant).
 
 **Checklist.**
-- [ ] Decide between (a) a new `extracted_fact_dispositions` table keyed on `(artifact_id, field_path)` with status + accepted_at + accepted_by_user, or (b) a `dispositions_json` column on the existing artifact row. (a) is cleaner for queries; (b) is a smaller migration. Default to (a) — write rationale in a top-of-file comment.
-- [ ] Implement helpers: `recordDisposition(artifactId, fieldPath, status, userId)`, `getDispositions(artifactId)`. Idempotent on re-call (an already-accepted fact stays accepted; logged warning if status would change).
-- [ ] Integration test: round-trip a per-fact disposition.
-- [ ] When all facts on an artifact have been dispositioned, the artifact-level status auto-rolls to `confirmed` (if all accepted) or `rejected` (if all rejected) or stays `pending_confirmation` (if mixed).
+- [x] Decide between (a) a new `extracted_fact_dispositions` table keyed on `(artifact_id, field_path)` with status + accepted_at + accepted_by_user, or (b) a `dispositions_json` column on the existing artifact row. (a) is cleaner for queries; (b) is a smaller migration. Default to (a) — write rationale in a top-of-file comment. (Picked (a). New `extracted_fact_dispositions` table with `(artifact_id, field_path)` PK, FK + ON DELETE CASCADE to `extraction_artifacts`. Schema lives in `agent/migrations/1700000007000_extracted_fact_dispositions.sql`. Rationale block at the top of `extractionArtifacts.ts`.)
+- [x] Implement helpers: `recordDisposition(artifactId, fieldPath, status, userId)`, `getDispositions(artifactId)`. Idempotent on re-call (an already-accepted fact stays accepted; logged warning if status would change). (Implemented as `recordDisposition({artifactId, fieldPath, status, userId, acceptedAt?, expectedFactPaths?})` — the `RecordDispositionInput` shape carries the optional auto-roll set; SELECT-then-INSERT-with-`ON CONFLICT DO NOTHING` enforces "first-write wins" so already-accepted stays accepted regardless of subsequent calls. Status conflict logs a structured pino warning.)
+- [x] Integration test: round-trip a per-fact disposition. (Added under the existing opt-in `integrationDescribe` block. Asserts insert → idempotent re-call → conflict-refused → completion auto-rolls to `confirmed`. Runs against `AGENT_TEST_DATABASE_URL`.)
+- [x] When all facts on an artifact have been dispositioned, the artifact-level status auto-rolls to `confirmed` (if all accepted) or `rejected` (if all rejected) or stays `pending_confirmation` (if mixed). (`computeRollupTarget` evaluates the dispositioned set against the caller-provided `expectedFactPaths`. All-accepted → `confirmed`; all-rejected → `rejected`; mixed or any `pending` → no roll.)
 
-**Definition of done.** Per-fact disposition round-trip works. Artifact-level status auto-rolls correctly.
+**Definition of done.** Per-fact disposition round-trip works. Artifact-level status auto-rolls correctly. (Both met. Verified by 11 fake-pool unit tests + 1 real-Postgres round-trip test.)
 
 ---
 

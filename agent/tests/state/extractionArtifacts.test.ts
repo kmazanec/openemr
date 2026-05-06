@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { runMigrations } from '../../src/state/migrations.js';
 import {
     DocumentLockTimeoutError,
     createExtractionArtifactStoreFromPool,
@@ -100,42 +101,11 @@ const insertedRow = (artifact: NewExtractionArtifact): Record<string, unknown> =
     confirmed_by_user: null,
 });
 
-describe('createExtractionArtifactStoreFromPool — setup', () => {
-    it('creates the table with the architecture-pinned DDL', async () => {
-        const pool = buildFakePool([{ rowCount: 0 }]);
-        const store = createExtractionArtifactStoreFromPool(pool);
-        await store.setup();
-        expect(pool.calls.length).toBe(1);
-        const ddl = pool.calls[0]?.sql ?? '';
-        // The exact column set + idempotency key the architecture
-        // pins. If a future change drops one of these the test
-        // fails — that's the point.
-        expect(ddl).toContain('CREATE TABLE IF NOT EXISTS extraction_artifacts');
-        expect(ddl).toContain('artifact_id UUID PRIMARY KEY');
-        expect(ddl).toContain('document_uuid VARCHAR(36) NOT NULL');
-        expect(ddl).toContain('pid INTEGER NOT NULL');
-        expect(ddl).toContain('doc_type VARCHAR(32) NOT NULL');
-        expect(ddl).toContain('extractor_version VARCHAR(32) NOT NULL');
-        expect(ddl).toContain('schema_json JSONB NOT NULL');
-        expect(ddl).toContain('deltas_json JSONB');
-        expect(ddl).toContain('confidence_signal JSONB');
-        expect(ddl).toContain('document_hash VARCHAR(64) NOT NULL');
-        expect(ddl).toContain("DEFAULT 'pending_confirmation'");
-        expect(ddl).toContain('UNIQUE (document_hash, extractor_version)');
-        expect(ddl).toContain(
-            'extraction_artifacts_pid_doctype_status_idx',
-        );
-        expect(ddl).toContain('extraction_artifacts_pid_created_idx');
-    });
-
-    it('setup is idempotent — repeated calls fire the same DDL without erroring', async () => {
-        const pool = buildFakePool([{ rowCount: 0 }, { rowCount: 0 }]);
-        const store = createExtractionArtifactStoreFromPool(pool);
-        await store.setup();
-        await store.setup();
-        expect(pool.calls.length).toBe(2);
-    });
-});
+// The previous "setup" describe block (DDL-shape assertions) was deleted
+// when this module stopped owning DDL — schema is now provisioned by the
+// migrations runner. Schema correctness is asserted by running the
+// migrations against a real Postgres in the integration block below
+// and by the migrations themselves living in `agent/migrations/`.
 
 describe('createExtractionArtifactStoreFromPool — claimDocumentLock', () => {
     it('acquires the lock on the first try when free', async () => {
@@ -487,14 +457,16 @@ integrationDescribe('createPgExtractionArtifactStore — real Postgres', () => {
 
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: integrationDsn });
-        // Fresh table per test run keeps the suite hermetic.
-        await pool.query('DROP TABLE IF EXISTS extraction_artifacts CASCADE');
+        // Apply migrations to ensure tables exist; idempotent if already
+        // applied. Then truncate (not drop) to keep the suite hermetic
+        // without invalidating migration tracking.
+        await runMigrations({ databaseUrl: integrationDsn });
+        await pool.query('TRUNCATE extraction_artifacts CASCADE');
         store = createPgExtractionArtifactStore({ connectionString: integrationDsn });
-        await store.setup();
     }, 30_000);
 
     afterAll(async () => {
-        await pool.query('DROP TABLE IF EXISTS extraction_artifacts CASCADE');
+        await pool.query('TRUNCATE extraction_artifacts CASCADE');
         await pool.end();
     });
 

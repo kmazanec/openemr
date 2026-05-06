@@ -84,7 +84,6 @@ export interface DocumentLockHandle {
 }
 
 export interface ExtractionArtifactStore {
-    readonly setup: () => Promise<void>;
     readonly claimDocumentLock: (
         documentUuid: string,
         options?: { readonly timeoutMs?: number },
@@ -117,6 +116,23 @@ export interface ExtractionArtifactStore {
     readonly searchArtifacts: (
         filters: SearchArtifactsFilters,
     ) => Promise<readonly ExtractionArtifact[]>;
+    /**
+     * §F.3 record (or no-op-on-conflict) a per-fact disposition. When
+     * the existing row's status differs from the requested status, the
+     * existing row wins — already-accepted stays accepted — and a
+     * structured warning is logged. When `expectedFactPaths` is
+     * supplied and every path in the set now has a non-`pending`
+     * disposition, the artifact-level status auto-rolls (all-accepted
+     * → `confirmed`, all-rejected → `rejected`, mixed →
+     * `pending_confirmation`).
+     */
+    readonly recordDisposition: (
+        input: RecordDispositionInput,
+    ) => Promise<RecordDispositionResult>;
+    /** §F.3 fetch every disposition row for an artifact, sorted by `field_path`. */
+    readonly getDispositions: (
+        artifactId: string,
+    ) => Promise<readonly FactDisposition[]>;
 }
 
 /**
@@ -138,28 +154,65 @@ const SEARCHABLE_STATUSES: readonly ArtifactStatus[] = [
     'confirmed',
 ];
 
-const SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS extraction_artifacts (
-        artifact_id UUID PRIMARY KEY,
-        document_uuid VARCHAR(36) NOT NULL,
-        pid INTEGER NOT NULL,
-        doc_type VARCHAR(32) NOT NULL,
-        extractor_version VARCHAR(32) NOT NULL,
-        schema_json JSONB NOT NULL,
-        deltas_json JSONB,
-        confidence_signal JSONB,
-        status VARCHAR(32) NOT NULL DEFAULT 'pending_confirmation',
-        document_hash VARCHAR(64) NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        confirmed_at TIMESTAMPTZ,
-        confirmed_by_user UUID,
-        UNIQUE (document_hash, extractor_version)
-    );
-    CREATE INDEX IF NOT EXISTS extraction_artifacts_pid_doctype_status_idx
-        ON extraction_artifacts (pid, doc_type, status);
-    CREATE INDEX IF NOT EXISTS extraction_artifacts_pid_created_idx
-        ON extraction_artifacts (pid, created_at);
-`;
+/**
+ * §F.3 Per-fact disposition status. Tracks accept/reject for each
+ * cited field on an artifact independently of the artifact-level
+ * `ArtifactStatus`, so the UI can render "5 facts accepted, 2
+ * rejected, 3 pending" within a single artifact and the artifact-level
+ * status auto-rolls only when every expected fact has been
+ * dispositioned.
+ *
+ * `pending` is included as an explicit row state for parity with
+ * future UI affordances (e.g. "defer this fact"); the common case is
+ * callers writing `accepted` or `rejected` directly.
+ */
+export type FactDispositionStatus = 'accepted' | 'rejected' | 'pending';
+
+const KNOWN_DISPOSITION_STATUSES: ReadonlySet<FactDispositionStatus> = new Set<
+    FactDispositionStatus
+>(['accepted', 'rejected', 'pending']);
+
+export interface FactDisposition {
+    readonly artifactId: string;
+    readonly fieldPath: string;
+    readonly status: FactDispositionStatus;
+    readonly acceptedAt: string | null;
+    readonly acceptedByUser: string | null;
+}
+
+export interface RecordDispositionInput {
+    readonly artifactId: string;
+    readonly fieldPath: string;
+    readonly status: FactDispositionStatus;
+    readonly userId: string;
+    /** ISO timestamp. Falls back to `now()` in the SQL when omitted. */
+    readonly acceptedAt?: string;
+    /**
+     * Full set of cited field paths the UI surfaced for this artifact.
+     * When supplied, `recordDisposition` evaluates whether every
+     * expected path now has a non-`pending` disposition; if yes, it
+     * auto-rolls the artifact-level status (`confirmed` /
+     * `rejected` / mixed → stays `pending_confirmation`).
+     *
+     * Omit this when you don't want the auto-roll — e.g. a partial
+     * pre-flight write that the caller will reconcile later.
+     */
+    readonly expectedFactPaths?: readonly string[];
+}
+
+export interface RecordDispositionResult {
+    readonly disposition: FactDisposition;
+    /**
+     * The artifact-level status the auto-roll transitioned to, or
+     * `null` when nothing rolled (mixed dispositions, incomplete vs.
+     * `expectedFactPaths`, or the caller omitted `expectedFactPaths`).
+     */
+    readonly artifactStatusRolledTo: ArtifactStatus | null;
+}
+
+// Schema lives in `agent/migrations/`:
+//   1700000006000_baseline_extraction_artifacts.sql        — §B.1 table.
+//   1700000007000_extracted_fact_dispositions.sql          — §F.3 sibling table.
 
 const FIND_BY_HASH_SQL = `
     SELECT
@@ -257,6 +310,53 @@ const SEARCH_SELECT_SQL = `
 const SEARCH_DOC_TYPE_PREDICATE = ' AND doc_type = ANY($4)';
 const SEARCH_ORDER_BY = ' ORDER BY created_at DESC';
 
+/**
+ * §F.3 disposition queries. The SELECT-existing read protects the
+ * already-accepted-stays-accepted invariant; the UPSERT-on-fresh-row
+ * is conditional on that read returning nothing. The SELECT-all read
+ * powers both `getDispositions` and the post-upsert auto-roll
+ * computation. The status column is constrained at the application
+ * layer (parsed via `parseDispositionStatus`); we keep it `VARCHAR`
+ * rather than a Postgres `enum` so adding a future status doesn't
+ * require a schema migration.
+ */
+const DISPOSITION_SELECT_ROW_SQL = `
+    SELECT
+        artifact_id,
+        field_path,
+        status,
+        accepted_at,
+        accepted_by_user
+    FROM extracted_fact_dispositions
+    WHERE artifact_id = $1 AND field_path = $2
+    LIMIT 1
+`;
+
+const DISPOSITION_INSERT_SQL = `
+    INSERT INTO extracted_fact_dispositions (
+        artifact_id, field_path, status, accepted_at, accepted_by_user
+    ) VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()), $5)
+    ON CONFLICT (artifact_id, field_path) DO NOTHING
+    RETURNING
+        artifact_id,
+        field_path,
+        status,
+        accepted_at,
+        accepted_by_user
+`;
+
+const DISPOSITION_SELECT_ALL_SQL = `
+    SELECT
+        artifact_id,
+        field_path,
+        status,
+        accepted_at,
+        accepted_by_user
+    FROM extracted_fact_dispositions
+    WHERE artifact_id = $1
+    ORDER BY field_path
+`;
+
 const TRY_ADVISORY_LOCK_SQL = 'SELECT pg_try_advisory_lock($1) AS locked';
 const ADVISORY_UNLOCK_SQL = 'SELECT pg_advisory_unlock($1) AS released';
 
@@ -307,6 +407,14 @@ interface ArtifactRow {
     readonly confirmed_by_user: string | null;
 }
 
+interface DispositionRow {
+    readonly artifact_id: string;
+    readonly field_path: string;
+    readonly status: string;
+    readonly accepted_at: Date | string | null;
+    readonly accepted_by_user: string | null;
+}
+
 const parseDocType = (raw: string): DocumentType => {
     if (raw === 'lab_pdf' || raw === 'intake_form') return raw;
     throw new Error(`unexpected doc_type from extraction_artifacts row: ${raw}`);
@@ -317,8 +425,23 @@ const parseStatus = (raw: string): ArtifactStatus => {
     throw new Error(`unexpected status from extraction_artifacts row: ${raw}`);
 };
 
+const parseDispositionStatus = (raw: string): FactDispositionStatus => {
+    if (KNOWN_DISPOSITION_STATUSES.has(raw as FactDispositionStatus)) {
+        return raw as FactDispositionStatus;
+    }
+    throw new Error(`unexpected status from extracted_fact_dispositions row: ${raw}`);
+};
+
 const toIsoString = (value: Date | string): string =>
     value instanceof Date ? value.toISOString() : value;
+
+const rowToDisposition = (row: DispositionRow): FactDisposition => ({
+    artifactId: row.artifact_id,
+    fieldPath: row.field_path,
+    status: parseDispositionStatus(row.status),
+    acceptedAt: row.accepted_at === null ? null : toIsoString(row.accepted_at),
+    acceptedByUser: row.accepted_by_user,
+});
 
 const rowToArtifact = (row: ArtifactRow): ExtractionArtifact => ({
     artifactId: row.artifact_id,
@@ -388,10 +511,6 @@ export const createExtractionArtifactStoreFromPool = (
     const logger = createLogger('extractionArtifactStore');
     const sleep = deps.sleepMs
         ?? ((ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms)));
-
-    const setup = async (): Promise<void> => {
-        await pool.query(SCHEMA_SQL);
-    };
 
     const claimDocumentLock = async (
         documentUuid: string,
@@ -523,12 +642,145 @@ export const createExtractionArtifactStoreFromPool = (
         return rowToArtifact(row as unknown as ArtifactRow);
     };
 
+    const getDispositions = async (
+        artifactId: string,
+    ): Promise<readonly FactDisposition[]> => {
+        const result = await pool.query(DISPOSITION_SELECT_ALL_SQL, [artifactId]);
+        return result.rows.map((r) => rowToDisposition(r as unknown as DispositionRow));
+    };
+
+    /**
+     * Compute the artifact-level rollup target from a complete
+     * disposition set. The "complete" predicate is the caller's
+     * `expectedFactPaths` set being a subset of the dispositioned
+     * paths and every dispositioned path being non-`pending`.
+     */
+    const computeRollupTarget = (
+        dispositions: readonly FactDisposition[],
+        expected: readonly string[],
+    ): { target: ArtifactStatus; confirmedAt: string; confirmedByUser: string | null } | null => {
+        const dispositionedPaths = new Set(dispositions.map((d) => d.fieldPath));
+        for (const path of expected) {
+            if (!dispositionedPaths.has(path)) return null;
+        }
+        // Filter to only the expected set so a stray extra disposition
+        // doesn't taint the rollup. (UI surfacing is the source of
+        // truth for "what counts.")
+        const relevant = dispositions.filter((d) => expected.includes(d.fieldPath));
+        if (relevant.some((d) => d.status === 'pending')) return null;
+        const allAccepted = relevant.every((d) => d.status === 'accepted');
+        const allRejected = relevant.every((d) => d.status === 'rejected');
+        if (!allAccepted && !allRejected) return null; // mixed → stays pending_confirmation
+        const target: ArtifactStatus = allAccepted ? 'confirmed' : 'rejected';
+        // Use the most recent acceptedAt as the confirmedAt floor.
+        // Fall back to "now" if every relevant row lacks one.
+        const acceptedAtCandidates = relevant
+            .map((d) => d.acceptedAt)
+            .filter((a): a is string => a !== null);
+        const confirmedAt = acceptedAtCandidates.length > 0
+            ? acceptedAtCandidates.sort().at(-1) ?? new Date().toISOString()
+            : new Date().toISOString();
+        // Pick a single reviewer to record on the artifact: the user
+        // who dispositioned the last (sorted) row. If multiple
+        // clinicians touched the artifact this is a known imprecision —
+        // per-fact reviewer remains accurate on the disposition rows.
+        const lastByPath = [...relevant].sort((a, b) => a.fieldPath.localeCompare(b.fieldPath));
+        const confirmedByUser = lastByPath.at(-1)?.acceptedByUser ?? null;
+        return { target, confirmedAt, confirmedByUser };
+    };
+
+    const recordDisposition = async (
+        input: RecordDispositionInput,
+    ): Promise<RecordDispositionResult> => {
+        if (input.fieldPath.length === 0) {
+            throw new Error('recordDisposition: fieldPath must be non-empty');
+        }
+
+        // Step 1: read existing row to enforce the "already-accepted
+        // stays accepted" invariant. The status column is application-
+        // managed, so we don't try to express the invariant in the
+        // schema (which would force a CASE-heavy ON CONFLICT clause).
+        const existingResult = await pool.query(DISPOSITION_SELECT_ROW_SQL, [
+            input.artifactId,
+            input.fieldPath,
+        ]);
+        const existingRow = existingResult.rows[0];
+        let disposition: FactDisposition;
+        if (existingRow === undefined) {
+            // Step 2a: fresh insert. ON CONFLICT DO NOTHING is a
+            // belt-and-suspenders against a concurrent write that
+            // landed between our SELECT and INSERT — we re-read in
+            // that case rather than hold a row lock.
+            const insertResult = await pool.query(DISPOSITION_INSERT_SQL, [
+                input.artifactId,
+                input.fieldPath,
+                input.status,
+                input.acceptedAt ?? null,
+                input.userId,
+            ]);
+            const insertedRow = insertResult.rows[0];
+            if (insertedRow !== undefined) {
+                disposition = rowToDisposition(insertedRow as unknown as DispositionRow);
+            } else {
+                // Concurrent writer beat us; re-read the row to get
+                // the canonical state.
+                const reread = await pool.query(DISPOSITION_SELECT_ROW_SQL, [
+                    input.artifactId,
+                    input.fieldPath,
+                ]);
+                const rereadRow = reread.rows[0];
+                if (rereadRow === undefined) {
+                    throw new Error(
+                        'recordDisposition: race lost re-read returned no row',
+                    );
+                }
+                disposition = rowToDisposition(rereadRow as unknown as DispositionRow);
+            }
+        } else {
+            disposition = rowToDisposition(existingRow as unknown as DispositionRow);
+            if (disposition.status !== input.status) {
+                logger.warn(
+                    {
+                        artifactId: input.artifactId,
+                        fieldPath: input.fieldPath,
+                        existingStatus: disposition.status,
+                        attemptedStatus: input.status,
+                    },
+                    'recordDisposition: refusing to overwrite existing disposition',
+                );
+            }
+        }
+
+        // Step 3: optional auto-roll. When the caller didn't pass
+        // `expectedFactPaths` the read+update cost is wasted, so skip
+        // it. When they did, evaluate completeness and roll.
+        if (input.expectedFactPaths === undefined || input.expectedFactPaths.length === 0) {
+            return { disposition, artifactStatusRolledTo: null };
+        }
+        const all = await getDispositions(input.artifactId);
+        const rollup = computeRollupTarget(all, input.expectedFactPaths);
+        if (rollup === null) {
+            return { disposition, artifactStatusRolledTo: null };
+        }
+        const updated = await updateArtifactStatus(input.artifactId, rollup.target, {
+            confirmedAt: rollup.confirmedAt,
+            ...(rollup.confirmedByUser !== null
+                ? { confirmedByUser: rollup.confirmedByUser }
+                : {}),
+        });
+        return {
+            disposition,
+            artifactStatusRolledTo: updated?.status ?? rollup.target,
+        };
+    };
+
     return {
-        setup,
         claimDocumentLock,
         findArtifactByDocumentHash,
         insertArtifact,
         updateArtifactStatus,
         searchArtifacts,
+        recordDisposition,
+        getDispositions,
     };
 };
