@@ -4,7 +4,7 @@
 
 **Phase summary.** Eval cases have been landing continuously across A → D with their respective surface (per the "Eval continuity rule" in `W2_IMPLEMENTATION_PHASES.md`). E adds the final integration-only cases that genuinely need the full system, wires the PR-blocking CI gate against real models, and runs the regression-injection drill that the PDF requires.
 
-By the end of E: every suite's nightly experiment runs against real models; the unified per-rubric baseline is committed; CI is PR-blocking and fails when more than 5% of scored rubric × case cells flip across the whole eval suite; the regression-injection drill has been executed once with a deliberate weakening + revert and verified to make CI fail; vendor-outage detection skips gracefully so a vendor blip doesn't block PRs; the deployed app on `emr.biograph.dev` is up to date; a rough demo video is recorded for the Thursday gate.
+By the end of E: every suite's nightly experiment runs against real models; the unified per-rubric baseline is committed; CI is PR-blocking and fails when more than 5% of scored rubric × case cells flip across the whole eval suite; the regression-injection drill has been executed once with a deliberate weakening + revert and verified to make CI fail; vendor-outage detection skips gracefully so a vendor blip doesn't block PRs.
 
 **Phase definition of done.**
 - Every suite (`briefingGraph`, `conversationalGraph`, `endToEnd`, `documentExtraction`) runs its nightly experiment against real models with the boolean rubrics scored uniformly via `evaluators: [...RUBRICS]`.
@@ -13,8 +13,6 @@ By the end of E: every suite's nightly experiment runs against real models; the 
 - Unified eval baseline `agent/evals/baselines/eval-suite.json` committed (covers all four datasets); rebaseline procedure documented.
 - Vendor-outage detection: graceful "skip with warning" on Anthropic / OpenAI / Cohere / Pinecone outages.
 - Regression-injection drill documented in `docs/RUNBOOK.md`; executed once, verified to make CI fail, then reverted.
-- Deployed app on `emr.biograph.dev` runs all of A + B + C + D + E.
-- Rough demo video for Early Submission recorded.
 
 **Owner.** Engineer for code + drill execution; user for sign-off on the rough demo recording.
 
@@ -137,7 +135,7 @@ By the end of E: every suite's nightly experiment runs against real models; the 
 **Goal.** The PDF's hard gate test is verified. Deliberately weaken the verifier, watch CI go red, revert. Procedure documented in `RUNBOOK.md`.
 
 **Blocked by:** E.2 (baseline + CI must exist for the drill to demonstrate anything).
-**Unblocks:** E.5 (Thursday gate is the drill being demonstrably effective).
+**Unblocks:** Phase E definition of done (the drill is the proof that the gate catches injected regressions).
 
 **Refs.** `W2_ARCHITECTURE.md` §"Regression-injection drill"; `WEEK2-PRESEARCH.md` §W2-13.
 
@@ -193,24 +191,3 @@ By the end of E: every suite's nightly experiment runs against real models; the 
 - [ ] Tests: stubbed-model unit tests for the gate script's pass/fail logic. Inputs are synthetic baseline + live-experiment shapes (no real LangSmith call). Assert exit code 0 on a 4%-flip rate (within tolerance), exit code 1 on a 6%-flip rate (over tolerance), exit code 1 on any unrecognized live case ID (the live run drifted off the baseline's tracked-case set), exit code 1 on a baseline `true` cell that's missing from the live run (silent disappearance is a regression too).
 
 **Definition of done.** A throwaway PR with no real changes: gate runs against real models, passes. The drill PR from E.3: gate fails because the drill flips enough verifier-resolution cells that `flippedCells / totalScoredCells > 0.05`. Cost reported per run, < $5 hard cap.
-
----
-
-## E.5 Deployed app updated + rough demo video recorded
-
-**Goal.** `emr.biograph.dev` reflects all of A + B + C + D + E. A rough demo video is recorded — sufficient for the Thursday gate, not the polished version.
-
-**Blocked by:** E.4.
-**Unblocks:** Thursday Early Submission gate.
-
-**Refs.** `W2_IMPLEMENTATION_PHASES.md` Phase E "Phase definition of done" — "Deployed app reachable, rough demo video".
-
-**Owner.** Engineer for the deploy; user for the video.
-
-**Checklist.**
-- [ ] Deploy current `master` to `emr.biograph.dev` (per existing procedure in `RUNBOOK.md`).
-- [ ] Smoke test: open a fixture patient, attach a fixture lab PDF, observe end-to-end with all source types in output.
-- [ ] **Rough demo video (user records):** open Mrs. Patel's chart → upload her recent lab PDF → watch extraction stream → see briefing with three source-type sections → click eval results in CI to show every suite's experiment green. 3–5 minutes; not polished. Loom or QuickTime is fine.
-- [ ] Place the video URL in `docs/EVAL_RESULTS.md` (for traceability) and confirm with user it's accessible to graders.
-
-**Definition of done.** Thursday Early Submission gate satisfied: supervisor + 2 workers visible in LangSmith with logged handoffs; every suite's experiment running green in CI under the unified baseline; gate verified by the E.3 deliberate-weakening drill; deployed app reachable; rough demo video uploaded.
