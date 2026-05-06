@@ -2,164 +2,103 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createBriefingGraph } from '../../../src/graph/index.js';
 import type { Synthesizer } from '../../../src/graph/nodes/synthesize.js';
+import type {
+    SupervisorDecide,
+    SupervisorDeps,
+} from '../../../src/graph/nodes/supervisor.js';
 import type { Claim, ClaimLedger, RequestEnvelope } from '../../../src/graph/types.js';
-import type { AgentHttpClient } from '../../../src/tools/agentHttp.js';
 import { createNullUnverifiedClaimsLog } from '../../../src/verify/unverifiedClaimsLog.js';
 import { verifyLedger } from '../../../src/verify/verifier.js';
 
 import { buildClient, loadFixture } from './_helpers.js';
 
 /**
- * §4.3 UC3 — medication-change drill-down per-MR Vitest gate.
+ * Medication-change drill-down regression coverage.
  *
- * Per user direction these cases live alongside the archetype cases
- * under `archetypes/` rather than a sibling folder. The fixtures are
- * named (not in the archetype sampling distribution) and loaded by name.
- *
- * Each case wires the graph with a stub `AgentHttpClient` that returns
- * the matching `medication_provenance` JSON for the fixture, builds a
- * follow-up envelope with the typed params, and asserts:
- *  - the synthesizer is NOT called (the branch bypasses it),
- *  - the verifier accepts exactly one `prescription_change` claim,
- *  - the formatted segment text includes the expected fields and
- *    omits the absent ones.
+ * The deterministic prescription-change branch is gone — a tapped chip
+ * or typed question now flows as a free-text follow-up through the
+ * supervisor + synthesizer. The verifier's prescription-change rule
+ * still pins documented provenance (claim text must mention non-null
+ * prescriber + indication when the source row carries them), so most
+ * of this file is direct `verifyLedger` coverage. The remaining graph-
+ * level case stubs the supervisor + synthesizer to confirm the same
+ * rule fires when the claim flows through the full pipeline.
  */
 
 const TOKEN = 'eval-token';
 
-const followUpEnvelope = (
-    pid: number,
-    uuid: string,
-    prescriptionId: string,
-): RequestEnvelope => ({
-    conversationId: `conv-${uuid}`,
-    requestId: `req-${uuid}`,
+const followUpEnvelope = (snapshot: { patient: { pid: number; uuid: string } }): RequestEnvelope => ({
+    conversationId: `conv-${snapshot.patient.uuid}`,
+    requestId: `req-${snapshot.patient.uuid}`,
     siteId: 'default',
     actor: { userId: 'eval-actor', fhirUser: 'https://emr/Practitioner/eval-actor' },
-    patient: { pid, uuid },
+    patient: { pid: snapshot.patient.pid, uuid: snapshot.patient.uuid },
     task: 'follow_up',
-    followUp: { type: 'prescription_change', prescriptionId },
+    question: 'Why was Lisinopril prescribed?',
 });
 
-interface ProvenanceJson {
-    readonly provenance: {
-        readonly prescriptionId: number;
-        readonly drugName: string;
-        readonly prescriber: string | null;
-        readonly prescribingDate: string | null;
-        readonly indication: string | null;
-        readonly doseAdjustments: readonly { readonly dose: string | null; readonly date: string | null }[];
-    };
-}
+/**
+ * Stub supervisor that picks `synthesize` immediately. The supervisor
+ * is the LLM-driven router in production; the eval gate's job is to
+ * exercise the synthesize → verify path, not the router.
+ */
+const synthesizeNowSupervisor: SupervisorDeps = {
+    decide: vi.fn<SupervisorDecide>(() =>
+        Promise.resolve({
+            handoff: 'synthesize',
+            reason: 'free-text follow-up; chart context already loaded; synthesizing',
+            narration: 'Drafting your answer.',
+        }),
+    ),
+};
 
-const buildProvenanceClient = (response: ProvenanceJson): AgentHttpClient => ({
-    get: vi.fn(() => Promise.resolve<unknown>(response)),
-});
-
-describe('§4.3 UC3 medication change — eval cases (colocated under archetypes/)', () => {
-    it('lisinopril_recent_start: surfaces date + prescriber + indication from documented fields', async () => {
+describe('medication change — verifier rule (documented prescriber + indication)', () => {
+    it('lisinopril_recent_start: faithful claim citing every documented field is accepted', () => {
         const snapshot = loadFixture('lisinopril_recent_start');
         const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril).toBeDefined();
         if (lisinopril === undefined) return;
+        expect(lisinopril.prescriber).not.toBeNull();
+        expect(lisinopril.indication).not.toBeNull();
 
-        const synth = vi.fn() as unknown as Synthesizer;
-        const provenance: ProvenanceJson = {
-            provenance: {
-                prescriptionId: Number.parseInt(lisinopril.source.source_id, 10),
-                drugName: 'Lisinopril',
-                prescriber: 'Dr. Patel',
-                prescribingDate: '2026-03-20',
-                indication: 'new-onset hypertension',
-                doseAdjustments: [{ dose: '10 mg', date: '2026-03-20' }],
-            },
+        const claim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel for new-onset hypertension.',
+            category: 'prescription_change',
+            sourceReferences: [lisinopril.source],
+            safetyCritical: true,
         };
-        const graph = createBriefingGraph({
-            retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
-            synthesize: { synthesizer: synth },
-            verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-            prescriptionChange: {
-                client: buildProvenanceClient(provenance),
-                token: TOKEN,
-                siteId: 'default',
-                openEmrBaseUrl: 'http://openemr',
-            },
-        });
+        const ledger: ClaimLedger = { claims: [claim] };
 
-        const envelope = followUpEnvelope(
-            snapshot.patient.pid,
-            snapshot.patient.uuid,
-            `${lisinopril.source.locator.field}:${lisinopril.source.source_id}`,
-        );
-        const out = await graph.invoke({ envelope });
+        const out = verifyLedger(snapshot, ledger);
 
-        expect(synth).not.toHaveBeenCalled();
-        expect(out.verified?.passed).toBe(true);
-        expect(out.verified?.accepted).toHaveLength(1);
-        expect(out.verified?.accepted[0]?.category).toBe('prescription_change');
-
-        const seg = out.formatted?.segments[0];
-        expect(seg?.redacted).toBe(false);
-        expect(seg?.text).toContain('Lisinopril');
-        expect(seg?.text).toContain('Dr. Patel');
-        expect(seg?.text).toContain('new-onset hypertension');
-        expect(seg?.text).toContain('2026-03-20');
+        expect(out.passed).toBe(true);
+        expect(out.accepted).toHaveLength(1);
+        expect(out.rejected).toHaveLength(0);
     });
 
-    it('med_no_indication: claim text omits "indication" when source is null', async () => {
+    it('med_no_indication: claim text omits "for" when source indication is null', () => {
         const snapshot = loadFixture('med_no_indication');
         const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.indication).toBeNull();
         if (lisinopril === undefined) return;
 
-        const synth = vi.fn() as unknown as Synthesizer;
-        const provenance: ProvenanceJson = {
-            provenance: {
-                prescriptionId: Number.parseInt(lisinopril.source.source_id, 10),
-                drugName: 'Lisinopril',
-                prescriber: 'Dr. Patel',
-                prescribingDate: '2026-03-20',
-                indication: null,
-                doseAdjustments: [{ dose: '10 mg', date: '2026-03-20' }],
-            },
+        const claim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel.',
+            category: 'prescription_change',
+            sourceReferences: [lisinopril.source],
+            safetyCritical: true,
         };
-        const graph = createBriefingGraph({
-            retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
-            synthesize: { synthesizer: synth },
-            verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-            prescriptionChange: {
-                client: buildProvenanceClient(provenance),
-                token: TOKEN,
-                siteId: 'default',
-                openEmrBaseUrl: 'http://openemr',
-            },
-        });
+        const ledger: ClaimLedger = { claims: [claim] };
 
-        const envelope = followUpEnvelope(
-            snapshot.patient.pid,
-            snapshot.patient.uuid,
-            `${lisinopril.source.locator.field}:${lisinopril.source.source_id}`,
-        );
-        const out = await graph.invoke({ envelope });
+        const out = verifyLedger(snapshot, ledger);
 
-        expect(synth).not.toHaveBeenCalled();
-        expect(out.verified?.passed).toBe(true);
-        const seg = out.formatted?.segments[0];
-        expect(seg?.redacted).toBe(false);
-        expect(seg?.text).toContain('Lisinopril');
-        expect(seg?.text).toContain('Dr. Patel');
-        // No fabricated reason — verifier wouldn't have accepted the
-        // claim if the branch invented one, but we also assert the
-        // observable surface so a future renderer change is caught.
-        expect(seg?.text).not.toMatch(/for \w/);
+        expect(out.passed).toBe(true);
+        expect(out.accepted).toHaveLength(1);
     });
 
     it('adversarial: rejects a claim that omits a non-null prescriber', () => {
-        // The §4.3 verifier rule pins documented provenance: when the
-        // source row carries a prescriber, the claim text MUST mention
-        // it. A model that drops the prescriber for stylistic prose
-        // looks plausible to the eye but breaks the documented-fields
-        // promise — verify the gate refuses.
         const snapshot = loadFixture('lisinopril_recent_start');
         const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.prescriber).not.toBeNull();
@@ -213,7 +152,6 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
             category: 'prescription_change',
             sourceReferences: [{
                 source_type: 'chart',
-                // Plausible-shape id that does not match any rx in the fixture.
                 source_id: '999999',
                 locator: { field: 'medication.name' },
                 quote: '999999',
@@ -229,48 +167,70 @@ describe('§4.3 UC3 medication change — eval cases (colocated under archetypes
         expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
     });
 
-    it('med_unknown_prescriber: claim text omits prescriber when source is null', async () => {
+    it('med_unknown_prescriber: claim text omits prescriber when source is null', () => {
         const snapshot = loadFixture('med_unknown_prescriber');
         const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
         expect(lisinopril?.prescriber).toBeNull();
         if (lisinopril === undefined) return;
 
-        const synth = vi.fn() as unknown as Synthesizer;
-        const provenance: ProvenanceJson = {
-            provenance: {
-                prescriptionId: Number.parseInt(lisinopril.source.source_id, 10),
-                drugName: 'Lisinopril',
-                prescriber: null,
-                prescribingDate: '2026-03-20',
-                indication: 'new-onset hypertension',
-                doseAdjustments: [{ dose: '10 mg', date: '2026-03-20' }],
-            },
+        const claim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20 for new-onset hypertension.',
+            category: 'prescription_change',
+            sourceReferences: [lisinopril.source],
+            safetyCritical: true,
         };
+        const ledger: ClaimLedger = { claims: [claim] };
+
+        const out = verifyLedger(snapshot, ledger);
+
+        expect(out.passed).toBe(true);
+        expect(out.accepted).toHaveLength(1);
+    });
+});
+
+describe('medication change — graph integration via free-text follow-up', () => {
+    it('routes a "Why was X prescribed?" question through synthesize and accepts a faithful claim', async () => {
+        const snapshot = loadFixture('lisinopril_recent_start');
+        const lisinopril = snapshot.prescriptions.find((m) => m.name === 'Lisinopril');
+        expect(lisinopril).toBeDefined();
+        if (lisinopril === undefined) return;
+
+        const ledgerClaim: Claim = {
+            id: 'mc-1',
+            text: 'Lisinopril 10 mg, started 2026-03-20, prescribed by Dr. Patel for new-onset hypertension.',
+            category: 'prescription_change',
+            sourceReferences: [lisinopril.source],
+            safetyCritical: true,
+        };
+        const synth: Synthesizer = vi.fn(() =>
+            Promise.resolve({
+                draft: {
+                    segments: [
+                        { text: ledgerClaim.text, claimIds: ['mc-1'] },
+                    ],
+                },
+                ledger: { claims: [ledgerClaim] },
+            }),
+        );
+
         const graph = createBriefingGraph({
             retrieveChart: { client: buildClient(snapshot), token: TOKEN, siteId: 'default' },
+            supervisor: synthesizeNowSupervisor,
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
-            prescriptionChange: {
-                client: buildProvenanceClient(provenance),
-                token: TOKEN,
-                siteId: 'default',
-                openEmrBaseUrl: 'http://openemr',
-            },
         });
 
-        const envelope = followUpEnvelope(
-            snapshot.patient.pid,
-            snapshot.patient.uuid,
-            `${lisinopril.source.locator.field}:${lisinopril.source.source_id}`,
-        );
-        const out = await graph.invoke({ envelope });
+        const out = await graph.invoke({ envelope: followUpEnvelope(snapshot) });
 
-        expect(synth).not.toHaveBeenCalled();
         expect(out.verified?.passed).toBe(true);
+        expect(out.verified?.accepted).toHaveLength(1);
+        expect(out.verified?.accepted[0]?.category).toBe('prescription_change');
+
         const seg = out.formatted?.segments[0];
         expect(seg?.redacted).toBe(false);
         expect(seg?.text).toContain('Lisinopril');
+        expect(seg?.text).toContain('Dr. Patel');
         expect(seg?.text).toContain('new-onset hypertension');
-        expect(seg?.text).not.toContain('prescribed by');
     });
 });

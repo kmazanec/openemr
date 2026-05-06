@@ -12,9 +12,9 @@ import type {
     Reminder,
     SourceReference,
 } from '../snapshot/types.js';
-import type { SuggestedFollowUp, SuggestedFollowUpParams } from './followUps.js';
+import type { SuggestedFollowUp } from './followUps.js';
 
-export type { SuggestedFollowUp, SuggestedFollowUpParams };
+export type { SuggestedFollowUp };
 
 /**
  * Unified W2 `SourceReference` shape — the single citation contract
@@ -197,24 +197,13 @@ export interface RequestEnvelope {
     readonly patient: { readonly pid: number; readonly uuid: string };
     readonly task: 'default_briefing' | 'follow_up';
     /**
-     * §4.5 free-text follow-up: the clinician's typed question. Present
-     * only when `task === 'follow_up'` and the suggestions rail did not
-     * pre-fill a typed parameter set. The synthesizer routes a follow-up
-     * with `question` through the generic "answer cited question" path;
-     * the verifier still gates every emitted claim against the snapshot,
-     * so the source-citation guarantee holds whether the question came
-     * from a typed suggestion or free text.
+     * Free-text follow-up: the clinician's typed question. Present only
+     * when `task === 'follow_up'`. Both typed-into-the-composer questions
+     * and tapped suggestion chips arrive here as plain text — the panel
+     * sends a chip's `displayText` as `question` so the supervisor sees
+     * one shape regardless of how the user expressed the follow-up.
      */
     readonly question?: string;
-    /**
-     * §4.1 typed suggested-follow-up parameter set. Mutually exclusive
-     * with `question` at the schema layer — the boundary parses one or
-     * the other into the envelope, never both. The §4.1 server bridges
-     * a typed `followUp` into a deterministic `question` so the existing
-     * free-text path runs end-to-end; §4.2/§4.3/§4.4 will replace that
-     * bridge with UC-specific graph branches.
-     */
-    readonly followUp?: SuggestedFollowUpParams;
     /**
      * Documents the user just attached this turn that the supervisor
      * has not yet processed. The agent's first supervisor iteration
@@ -394,27 +383,17 @@ export interface ExtractedFactSnippet {
 }
 
 /**
- * §A.7 closed enumeration of handoffs the supervisor may pick. Mirrors
- * `W2_ARCHITECTURE.md` §"Supervisor loop" verbatim. The Zod schema below
- * binds the model to this set — picking a value outside the enum fails
- * structured-output coercion, not just a runtime check. Order is
+ * Closed enumeration of handoffs the supervisor may pick. The Zod schema
+ * below binds the model to this set — picking a value outside the enum
+ * fails structured-output coercion, not just a runtime check. Order is
  * informational; the supervisor reads its own decision history this turn
  * to detect cycles.
- *
- * The three W2 stubs (`kickoffExtraction`, `documentEvidenceRetriever`,
- * `evidenceRetriever`) are present in the manifest from Phase A even
- * though their nodes no-op until B/C land — so the supervisor's contract
- * is stable across phases. Replacing a stub with a real node in B or C
- * is a node-body change, not a manifest change.
  */
 export const SUPERVISOR_HANDOFFS = [
     'kickoffExtraction',
     'retrieveChart',
     'documentEvidenceRetriever',
     'evidenceRetriever',
-    'prescriptionChangeBranch',
-    'reminderBranch',
-    'medicationStatementBranch',
     'synthesize',
 ] as const;
 export type SupervisorHandoff = typeof SUPERVISOR_HANDOFFS[number];
@@ -470,13 +449,14 @@ export interface Gap {
 }
 
 /**
- * UC2 lab-history slot. Only populated when the envelope carries
- * `followUp.type === 'lab_trend'` — `Retrieve` fans out an extra
- * `getLabHistory` call for the suggested-follow-up's analyte and
- * files the result here. `null` is the default ("this turn does not
- * need history") and is what every non-UC2 turn carries; a `Gap`
- * means the history endpoint failed-open and the synthesizer should
- * say so explicitly rather than render an empty trend.
+ * Lab-history slot. Reserved for a future supervisor-invoked
+ * lab-history fetch — the slot survives the deterministic-branch
+ * removal so the verifier can still resolve trend citations against
+ * a populated series, and so the seed pipeline keeps a place to
+ * land analyte-scoped history when it becomes useful again. `null`
+ * is the default ("this turn does not need history"); a `Gap` means
+ * a future fetcher failed-open and the synthesizer should say so
+ * explicitly rather than render an empty trend.
  */
 export interface LabHistorySeries {
     readonly analyte: string;

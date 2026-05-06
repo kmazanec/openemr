@@ -13,19 +13,7 @@ import {
     createKickoffExtraction,
     type KickoffExtractionDeps,
 } from './nodes/kickoffExtraction.js';
-import {
-    createMedicationStatementBranch,
-    type MedicationStatementBranchDeps,
-} from './nodes/medicationStatementBranch.js';
 import { persist } from './nodes/persist.js';
-import {
-    createPrescriptionChangeBranch,
-    type PrescriptionChangeBranchDeps,
-} from './nodes/prescriptionChangeBranch.js';
-import {
-    createReminderBranch,
-    type ReminderBranchDeps,
-} from './nodes/reminderBranch.js';
 import { createRetrieveChart, type RetrieveChartDeps } from './nodes/retrieveChart.js';
 import {
     documentEvidenceRetrieverStub,
@@ -45,151 +33,85 @@ import type { SupervisorHandoff } from './types.js';
 export interface BriefingGraphDeps {
     readonly retrieveChart: RetrieveChartDeps;
     /**
-     * §A.7 supervisor deps. Optional in Phase A so existing tests that
-     * don't care about supervisor routing keep working — the default
-     * supervisor mimics W1's envelope-based router (pick the
-     * deterministic branch matching `envelope.followUp.type` if any,
-     * otherwise pick `synthesize`). Production wires the real LLM-backed
-     * `decide` via `briefingRunner`. The supervisor's manifest itself
-     * (the closed enum of handoffs) is fixed regardless of which
-     * `decide` is supplied.
+     * Supervisor deps. Optional so tests that don't care about supervisor
+     * routing keep working — the fallback `decide` always picks
+     * `synthesize`. Production wires the real LLM-backed `decide` via
+     * `briefingRunner`. The supervisor's manifest (the closed enum of
+     * handoffs) is fixed regardless of which `decide` is supplied.
      */
     readonly supervisor?: SupervisorDeps;
     readonly synthesize: SynthesizeDeps;
     readonly verify: VerifyDeps;
     /**
-     * §4.3 UC3 prescription-change branch deps. Optional so existing
-     * tests that build a graph without UC3 wiring still work — when
-     * absent, every follow-up routes through the synthesizer (the
-     * pre-§4.3 behavior). When present, follow-ups whose typed
-     * params carry `type: 'prescription_change'` route into the
-     * deterministic branch and bypass the synthesizer.
-     */
-    readonly prescriptionChange?: PrescriptionChangeBranchDeps;
-    /**
-     * §4.6.5 reminder-detail branch deps. Optional — when absent,
-     * `reminder_detail` follow-ups fall through to the synthesizer
-     * path (which won't have anything useful to say without the
-     * detail tool).
-     */
-    readonly reminderDetail?: ReminderBranchDeps;
-    /**
-     * §4.6.6 medication-statement-detail branch deps. Optional —
-     * when absent, `medication_statement_detail` follow-ups fall
-     * through to the synthesizer path.
-     */
-    readonly medicationStatementDetail?: MedicationStatementBranchDeps;
-    /**
-     * §C.1 document-evidence retriever deps. Optional — when absent,
-     * the A.7 stub continues to no-op so existing tests that don't
-     * exercise the retriever path keep working without wiring a Tier-2
-     * store.
+     * Document-evidence retriever deps. Optional — when absent, the
+     * stub continues to no-op so existing tests that don't exercise
+     * the retriever path keep working without wiring a Tier-2 store.
      */
     readonly documentEvidenceRetriever?: DocumentEvidenceRetrieverDeps;
     /**
-     * §C.3 evidence retriever deps (Pinecone hybrid + Cohere rerank).
-     * Optional — when absent, the A.7 stub continues to no-op so the
-     * graph compiles without Pinecone/OpenAI/Cohere credentials. Present
-     * only when the runner has fitted BM25 stats from the corpus and
-     * built the hybrid + rerank clients (see `briefingRunner`).
+     * Evidence retriever deps (Pinecone hybrid + Cohere rerank).
+     * Optional — when absent, the stub keeps running so the graph
+     * compiles without Pinecone/OpenAI/Cohere credentials. Present only
+     * when the runner has fitted BM25 stats from the corpus and built
+     * the hybrid + rerank clients (see `briefingRunner`).
      */
     readonly evidenceRetriever?: EvidenceRetrieverDeps;
     /**
-     * §B.9 kickoffExtraction deps. Optional — when absent, the A.7
-     * stub continues to no-op so existing tests that don't exercise
-     * the panel-upload path keep working without standing up a
-     * `PipelineRunner`. Production wires this in `briefingRunner` per
-     * request, threading the per-turn token / siteId / conversationId
-     * plus the SSE pipeline-event sink.
+     * kickoffExtraction deps. Optional — when absent, the stub continues
+     * to no-op so existing tests that don't exercise the panel-upload
+     * path keep working without standing up a `PipelineRunner`.
+     * Production wires this in `briefingRunner` per request, threading
+     * the per-turn token / siteId / conversationId plus the SSE
+     * pipeline-event sink.
      */
     readonly kickoffExtraction?: KickoffExtractionDeps;
     /**
-     * §3.5: when set, the compiled graph persists state via this saver,
-     * keyed by the `thread_id` the caller passes on `invoke`. Production
-     * wires the LangGraph Postgres saver here; in-memory tests omit it
-     * (state lives only for the duration of the call).
+     * When set, the compiled graph persists state via this saver, keyed
+     * by the `thread_id` the caller passes on `invoke`. Production wires
+     * the LangGraph Postgres saver here; in-memory tests omit it (state
+     * lives only for the duration of the call).
      */
     readonly checkpointer?: BaseCheckpointSaver;
 }
 
 /**
- * §A.7 graph wiring.
+ * Graph wiring.
  *
- * Topology (per `W2_ARCHITECTURE.md` §"Conversational graph"):
+ * Topology:
  *
  *   START → retrieveChart → supervisor (loop)
  *           supervisor ─┬→ kickoffExtraction          → supervisor
  *                       ├→ retrieveChart              → supervisor
  *                       ├→ documentEvidenceRetriever  → supervisor
  *                       ├→ evidenceRetriever          → supervisor
- *                       ├→ prescriptionChangeBranch   → verify (W1 carry-forward)
- *                       ├→ reminderBranch             → verify (W1 carry-forward)
- *                       ├→ medicationStatementBranch  → verify (W1 carry-forward)
  *                       └→ synthesize                 → verify
  *           verify → format → persist → END
  *
- * The deterministic UC3 / 4.6.5 / 4.6.6 branches go directly to
- * `verify`, not back to the supervisor. They produce a finalized
- * `claimLedger` themselves; routing them through `synthesize` would
- * overwrite that ledger with a model-authored one. The supervisor's
- * closed-enum manifest still names them (so the model can pick them
- * when the envelope's typed `followUp` matches), but the conditional
- * edge graph treats them as terminals-before-verify.
- *
- * `kickoffExtraction` (B.9), `documentEvidenceRetriever` (C.1), and
- * `evidenceRetriever` (C.3) all have real implementations now — each
- * deps slot is optional so the graph still compiles for tests that
- * don't supply the upstream pipeline runner / store / clients (the
- * matching A.7 stub then runs and returns control to the supervisor
- * with no state changes).
+ * `kickoffExtraction`, `documentEvidenceRetriever`, and
+ * `evidenceRetriever` each have real implementations — each deps slot is
+ * optional so the graph still compiles for tests that don't supply the
+ * upstream pipeline runner / store / clients (the matching stub then
+ * runs and returns control to the supervisor with no state changes).
  *
  * `retrieveChart` is the deterministic seed of chart context (call
- * count 0 → full fan-out per §A.4) and a supervisor-pickable handoff
- * (call count > 0 → narrowing fetch driven by
- * `state.retrieveChartArgs.categories`). Wiring it both as a START
- * successor and as a supervisor handoff keeps the architecture's "the
- * supervisor sees chart context on iteration 1" invariant without
+ * count 0 → full fan-out) and a supervisor-pickable handoff (call count
+ * > 0 → narrowing fetch driven by `state.retrieveChartArgs.categories`).
+ * Wiring it both as a START successor and as a supervisor handoff keeps
+ * the "supervisor sees chart context on iteration 1" invariant without
  * doubling the deterministic logic.
  */
 /**
- * Default `decide` for graphs whose deps don't supply a supervisor —
- * mimics the W1 envelope-based router so the W1 eval suite still runs
- * end-to-end while the LLM supervisor lands. Pick the deterministic
- * branch matching `envelope.followUp.type` if any; otherwise pick
- * `synthesize`. No retriever loops, no chart re-fetches.
- *
- * Production never relies on this — `briefingRunner` always wires the
- * real Anthropic `decide`.
+ * Fallback `decide` for graphs whose deps don't supply a supervisor.
+ * Always picks `synthesize` — used by tests that don't care about
+ * routing. Production wires the real Anthropic `decide` in
+ * `briefingRunner`.
  */
-const w1FallbackDecide: SupervisorDecide = ({ state }) => {
-    const followUpType = state.envelope.followUp?.type;
-    if (followUpType === 'prescription_change') {
-        return Promise.resolve({
-            handoff: 'prescriptionChangeBranch',
-            reason: 'follow-up type prescription_change',
-            narration: 'test narration',
-        });
-    }
-    if (followUpType === 'reminder_detail') {
-        return Promise.resolve({
-            handoff: 'reminderBranch',
-            reason: 'follow-up type reminder_detail',
-            narration: 'test narration',
-        });
-    }
-    if (followUpType === 'medication_statement_detail') {
-        return Promise.resolve({
-            handoff: 'medicationStatementBranch',
-            reason: 'follow-up type medication_statement_detail',
-            narration: 'test narration',
-        });
-    }
-    return Promise.resolve({
+const defaultSupervisorDecide: SupervisorDecide = () =>
+    Promise.resolve({
         handoff: 'synthesize',
-        reason: 'no W2 retriever wiring; fall through to synthesize',
-        narration: 'test narration',
+        reason: 'no supervisor wiring; fall through to synthesize',
+        narration: 'Drafting your briefing.',
     });
-};
 
 export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     const routeFromSupervisor = (state: BriefingState): SupervisorHandoff => {
@@ -204,51 +126,26 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     };
 
     // When the matching deps slot is undefined the conditional edge can
-    // still pick the corresponding branch name — the supervisor's
-    // manifest is fixed by Phase A — so the no-op handler below makes
-    // sure the graph compiles even when an optional branch isn't wired.
-    // The supervisor's prompt steers it away from picking these for
-    // non-matching follow-up types, and the unwired branch acts like a
-    // stub if the supervisor still picks it.
-    const prescriptionChangeNode = deps.prescriptionChange !== undefined
-        ? createPrescriptionChangeBranch(deps.prescriptionChange)
-        : () => Promise.resolve({});
-    const reminderNode = deps.reminderDetail !== undefined
-        ? createReminderBranch(deps.reminderDetail)
-        : () => Promise.resolve({});
-    const medicationStatementNode = deps.medicationStatementDetail !== undefined
-        ? createMedicationStatementBranch(deps.medicationStatementDetail)
-        : () => Promise.resolve({});
-    // §C.1: real `documentEvidenceRetriever` when deps are wired; the
-    // A.7 stub continues to run otherwise so existing tests that don't
-    // exercise the retriever path keep working without a Tier-2 store.
+    // still pick the corresponding handoff name — the supervisor's
+    // manifest is fixed — so the stubs below make sure the graph compiles
+    // even when an optional retriever isn't wired.
     const documentEvidenceRetrieverNode = deps.documentEvidenceRetriever !== undefined
         ? createDocumentEvidenceRetriever(deps.documentEvidenceRetriever)
         : documentEvidenceRetrieverStub;
-    // §C.3: real `evidenceRetriever` (Pinecone hybrid + Cohere rerank)
-    // when deps are wired; the A.7 stub keeps running otherwise so the
-    // graph compiles without Pinecone/OpenAI/Cohere credentials.
     const evidenceRetrieverNode = deps.evidenceRetriever !== undefined
         ? createEvidenceRetriever(deps.evidenceRetriever)
         : evidenceRetrieverStub;
-    // §B.9: real `kickoffExtraction` when deps are wired (production
-    // path A — panel upload during a conversation); the A.7 stub keeps
-    // running otherwise so legacy tests that don't construct a
-    // `PipelineRunner` don't have to.
     const kickoffExtractionNode = deps.kickoffExtraction !== undefined
         ? createKickoffExtraction(deps.kickoffExtraction)
         : kickoffExtractionStub;
 
-    const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: w1FallbackDecide };
+    const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: defaultSupervisorDecide };
     const builder = new StateGraph(BriefingStateAnnotation)
         .addNode('retrieveChart', createRetrieveChart(deps.retrieveChart))
         .addNode('supervisor', createSupervisor(supervisorDeps))
         .addNode('kickoffExtraction', kickoffExtractionNode)
         .addNode('documentEvidenceRetriever', documentEvidenceRetrieverNode)
         .addNode('evidenceRetriever', evidenceRetrieverNode)
-        .addNode('prescriptionChangeBranch', prescriptionChangeNode)
-        .addNode('reminderBranch', reminderNode)
-        .addNode('medicationStatementBranch', medicationStatementNode)
         .addNode('synthesize', createSynthesize(deps.synthesize))
         .addNode('verify', createVerify(deps.verify))
         .addNode('format', format)
@@ -260,21 +157,12 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
             retrieveChart: 'retrieveChart',
             documentEvidenceRetriever: 'documentEvidenceRetriever',
             evidenceRetriever: 'evidenceRetriever',
-            prescriptionChangeBranch: 'prescriptionChangeBranch',
-            reminderBranch: 'reminderBranch',
-            medicationStatementBranch: 'medicationStatementBranch',
             synthesize: 'synthesize',
         })
-        // Stubs and W2 retrievers loop back to the supervisor.
+        // Retrievers loop back to the supervisor for the next decision.
         .addEdge('kickoffExtraction', 'supervisor')
         .addEdge('documentEvidenceRetriever', 'supervisor')
         .addEdge('evidenceRetriever', 'supervisor')
-        // Deterministic W1 branches go directly to verify — they produce
-        // a finalized ledger; running synthesize after them would
-        // overwrite it.
-        .addEdge('prescriptionChangeBranch', 'verify')
-        .addEdge('reminderBranch', 'verify')
-        .addEdge('medicationStatementBranch', 'verify')
         .addEdge('synthesize', 'verify')
         .addEdge('verify', 'format')
         .addEdge('format', 'persist')

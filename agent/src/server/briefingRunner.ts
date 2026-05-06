@@ -6,7 +6,6 @@ import { Pinecone } from '@pinecone-database/pinecone';
 import { createBriefingGraph, type BriefingGraphDeps } from '../graph/index.js';
 import type { DocumentEvidenceRetrieverDeps } from '../graph/nodes/documentEvidenceRetriever.js';
 import type { EvidenceRetrieverDeps } from '../graph/nodes/evidenceRetriever.js';
-import { createLabHistoryFetcher, type LabHistoryFetcher } from '../graph/nodes/retrieveChart.js';
 import {
     createAnthropicSupervisorDecide,
     type SupervisorDeps,
@@ -23,12 +22,9 @@ import { loadCorpusBM25Stats } from '../retrievers/corpusLoader.js';
 import { createPineconeRetriever } from '../retrievers/pinecone.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
-import type { ConversationSuggestionStore } from '../state/conversationSuggestions.js';
 import type { ExtractionArtifactStore } from '../state/extractionArtifacts.js';
 import type { PipelineStreamEvent } from './pipelineStream.js';
 import type { PipelineRunner } from './routes/extract.js';
-import { createAgentHttpClient } from '../tools/agentHttp.js';
-import type { AgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
 import type { UnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
@@ -93,31 +89,10 @@ export type BriefingRunner = (input: {
 export interface BriefingRunnerDeps {
     readonly snapshotClient: SnapshotClient;
     readonly synthesizer: Synthesizer;
-    /**
-     * §4.3 narrow-tool HTTP client. Used by the prescription-change
-     * graph branch to fetch prescription provenance. Optional so the
-     * runner is backwards-compatible — tests that don't exercise UC3
-     * may omit it, and the graph routes follow-ups through the
-     * synthesizer when missing.
-     */
-    readonly agentHttpClient?: AgentHttpClient;
-    /**
-     * §4.3: OpenEMR base URL the prescription-change branch composes
-     * narrow-endpoint URLs against. Required when `agentHttpClient`
-     * is set; ignored otherwise.
-     */
-    readonly openEmrBaseUrl?: string;
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
     /**
-     * §4.2: lab-history fetcher for the UC2 trend path. Optional —
-     * tests that don't drive a `lab_trend` envelope can omit it; if
-     * a `lab_trend` turn arrives without a fetcher wired, Retrieve
-     * files a `fetcher-unwired` gap so the graph still completes.
-     */
-    readonly fetchLabHistory?: LabHistoryFetcher;
-    /**
-     * §4.6: read-side store for the rendered conversation thread.
+     * Read-side store for the rendered conversation thread.
      * Append-only; written here on every persisted turn so the resume
      * endpoint and a future history UI can replay the conversation.
      */
@@ -136,18 +111,11 @@ export interface BriefingRunnerDeps {
      */
     readonly counters?: Counters;
     /**
-     * Persisted suggestion-chip set per default-briefing turn. Optional —
-     * when omitted, the runner skips the chip recording (defense-in-depth
-     * is degraded but the user-visible turn still completes). Production
-     * always wires this and pairs it with the route-level validation.
-     */
-    readonly conversationSuggestions?: ConversationSuggestionStore;
-    /**
-     * §A.7 LLM-driven supervisor. When wired, the conversational graph
-     * routes through the model-backed supervisor manifest; when omitted,
-     * the graph falls back to `w1FallbackDecide` which short-circuits
-     * every follow-up to `synthesize` (no retriever fan-out). Production
-     * always wires this; per-MR Vitest cases inject a deterministic stub.
+     * LLM-driven supervisor. When wired, the conversational graph routes
+     * through the model-backed supervisor manifest; when omitted, the
+     * graph falls back to a default `decide` that short-circuits to
+     * `synthesize`. Production always wires this; per-MR Vitest cases
+     * inject a deterministic stub.
      */
     readonly supervisor?: SupervisorDeps;
     /**
@@ -282,7 +250,6 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                 token,
                 siteId: envelope.siteId,
                 ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
-                ...(deps.fetchLabHistory !== undefined ? { fetchLabHistory: deps.fetchLabHistory } : {}),
             },
             synthesize: {
                 synthesizer: deps.synthesizer,
@@ -292,36 +259,6 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                 unverifiedClaimsLog: deps.unverifiedClaimsLog,
                 ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
             },
-            // §4.3 + §4.6.5: wire the deterministic drill-down
-            // branches when the narrow-tool HTTP client is available.
-            // Both deps must be set for the branches to fire —
-            // otherwise the matching follow-up types fall back to the
-            // synthesizer path.
-            ...(deps.agentHttpClient !== undefined && deps.openEmrBaseUrl !== undefined
-                ? {
-                    prescriptionChange: {
-                        client: deps.agentHttpClient,
-                        token,
-                        siteId: envelope.siteId,
-                        openEmrBaseUrl: deps.openEmrBaseUrl,
-                        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
-                    },
-                    reminderDetail: {
-                        client: deps.agentHttpClient,
-                        token,
-                        siteId: envelope.siteId,
-                        openEmrBaseUrl: deps.openEmrBaseUrl,
-                        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
-                    },
-                    medicationStatementDetail: {
-                        client: deps.agentHttpClient,
-                        token,
-                        siteId: envelope.siteId,
-                        openEmrBaseUrl: deps.openEmrBaseUrl,
-                        ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
-                    },
-                }
-                : {}),
             ...(deps.supervisor !== undefined ? { supervisor: deps.supervisor } : {}),
             ...(deps.evidenceRetriever !== undefined
                 ? { evidenceRetriever: deps.evidenceRetriever }
@@ -516,36 +453,6 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
         });
         await deps.conversationStore.touch(conversationId);
 
-        // Record the suggestion-chip IDs offered on a default-briefing
-        // turn. Validation is the route's job; this side-channel only has
-        // to land before the next user turn arrives, so failures are
-        // logged-and-swallowed — the panel still gets its briefing, and
-        // the next follow-up will fail closed against the missing chip set.
-        if (
-            canonicalEnvelope.task === 'default_briefing'
-            && deps.conversationSuggestions !== undefined
-            && out.formatted.suggestedFollowUps.length > 0
-        ) {
-            const chipIds = out.formatted.suggestedFollowUps.map((s) => s.id);
-            try {
-                await deps.conversationSuggestions.record({
-                    conversationId,
-                    requestId: canonicalEnvelope.requestId,
-                    chipIds,
-                });
-            } catch (err: unknown) {
-                logger.warn(
-                    {
-                        err,
-                        conversationId,
-                        requestId: canonicalEnvelope.requestId,
-                        chipCount: chipIds.length,
-                    },
-                    'failed to record suggested-follow-up chip IDs; continuing',
-                );
-            }
-        }
-
         // We emitted `meta` up-front, plus interleaved `progress`
         // events as the graph ran. Now flush the terminal pair
         // (`assistantMessage`, `done`) — `eventsForBriefing` would
@@ -564,7 +471,6 @@ export interface ProductionRunnerOptions {
     readonly unverifiedClaimsLog: UnverifiedClaimsLog;
     readonly conversationStore: ConversationStore;
     readonly conversationMessages: ConversationMessagesStore;
-    readonly conversationSuggestions: ConversationSuggestionStore;
     readonly checkpointer: BaseCheckpointSaver;
     readonly counters: Counters;
     /**
@@ -655,23 +561,11 @@ export const buildProductionBriefingRunner = async (
 ): Promise<BriefingRunner> => {
     const snapshotClient = createSnapshotClient({ baseUrl: options.openEmrBaseUrl });
     const synthesizer = createAnthropicSynthesizer();
-    // A single AgentHttpClient powers all narrow tools (UC2's
-    // `getLabHistory`, UC3's `getPrescriptionProvenance`, future
-    // ones). Keeps the bulk-snapshot client's wiring untouched and
-    // gives the narrow tools their own retry policy + tracing
-    // namespace under one logger.
-    const narrowHttpClient = createAgentHttpClient({ loggerName: 'narrowHttp' });
-    const fetchLabHistory = createLabHistoryFetcher({
-        client: narrowHttpClient,
-        openEmrBaseUrl: options.openEmrBaseUrl,
-    });
-
-    // §A.7 LLM supervisor. The architecture pins this as the production
-    // router across the 8-handoff manifest — without it the graph runs
-    // `w1FallbackDecide` which never picks `evidenceRetriever`, so
-    // every follow-up bypasses guideline retrieval. Sonnet is the
-    // default per the price-vs-routing-accuracy tradeoff in the
-    // supervisor module.
+    // LLM supervisor. The architecture pins this as the production
+    // router across the handoff manifest — without it the graph runs the
+    // fallback `decide` which never picks `evidenceRetriever`, so every
+    // follow-up bypasses guideline retrieval. Sonnet is the default per
+    // the price-vs-routing-accuracy tradeoff in the supervisor module.
     const supervisor: SupervisorDeps = {
         decide: createAnthropicSupervisorDecide(),
         counters: options.counters,
@@ -685,15 +579,11 @@ export const buildProductionBriefingRunner = async (
     return createBriefingRunner({
         snapshotClient,
         synthesizer,
-        agentHttpClient: narrowHttpClient,
-        openEmrBaseUrl: options.openEmrBaseUrl,
         unverifiedClaimsLog: options.unverifiedClaimsLog,
         conversationStore: options.conversationStore,
         conversationMessages: options.conversationMessages,
-        conversationSuggestions: options.conversationSuggestions,
         checkpointer: options.checkpointer,
         counters: options.counters,
-        fetchLabHistory,
         supervisor,
         documentEvidenceRetriever,
         ...(evidenceRetriever !== null ? { evidenceRetriever } : {}),

@@ -6,7 +6,6 @@ import { createNullUnverifiedClaimsLog } from '../../../src/verify/unverifiedCla
 import {
     UC2_ANALYTE,
     buildClient,
-    buildLabHistoryFetcher,
     buildSynth,
     historySeries,
     loadUc2Fixture,
@@ -45,7 +44,6 @@ describe('UC2 trend-up — Diabetic-Uncontrolled archetype', () => {
                 client: buildClient(snapshot),
                 token: 'eval-token',
                 siteId: 'default',
-                fetchLabHistory: buildLabHistoryFetcher(snapshot),
             },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
@@ -84,7 +82,6 @@ describe('UC2 trend-up — Diabetic-Uncontrolled archetype', () => {
                 client: buildClient(snapshot),
                 token: 'eval-token',
                 siteId: 'default',
-                fetchLabHistory: buildLabHistoryFetcher(snapshot),
             },
             synthesize: { synthesizer: synth },
             verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },

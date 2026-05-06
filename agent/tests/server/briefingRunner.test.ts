@@ -2,14 +2,12 @@ import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BriefingContractError, createBriefingRunner } from '../../src/server/briefingRunner.js';
-import { stableId } from '../../src/graph/followUps.js';
 import type { Synthesizer } from '../../src/graph/nodes/synthesize.js';
 import type { SupervisorDecide, SupervisorDeps } from '../../src/graph/nodes/supervisor.js';
 import type { ClaimLedger, RequestEnvelope, SupervisorDecision } from '../../src/graph/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 import { createInMemoryConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import { createInMemoryConversationStore } from '../../src/state/conversationStore.js';
-import { createInMemoryConversationSuggestionStore } from '../../src/state/conversationSuggestions.js';
 import { createNullUnverifiedClaimsLog } from '../../src/verify/unverifiedClaimsLog.js';
 
 const PID = 42;
@@ -415,130 +413,6 @@ describe('createBriefingRunner — §4.6 conversation persistence and resume', (
         }
     });
 
-    it('records suggested chip IDs after a default briefing produces them', async () => {
-        // The §4.1 generator emits a `lab_trend` chip when an accepted lab
-        // claim's analyte is recognized (A1c here). Drive the synthesizer
-        // to produce that claim and confirm the runner persists the chip
-        // ID derived from `(conversationId, params)`.
-        const a1cSnapshot = {
-            ...happyPathSnapshot,
-            labs: [
-                {
-                    analyte: 'A1c',
-                    value: '8.4',
-                    unit: '%',
-                    referenceRange: null,
-                    abnormalFlag: 'H',
-                    observedAt: null,
-                    source: sourceRef('Observation', 'lab-1'),
-                },
-            ],
-        };
-        const a1cClient: SnapshotClient = {
-            fetchSnapshot: vi.fn(() => Promise.resolve(a1cSnapshot)),
-        };
-        const labLedger: ClaimLedger = {
-            claims: [
-                {
-                    id: 'lab-1',
-                    text: 'A1c is 8.4%.',
-                    category: 'lab',
-                    sourceReferences: [sourceRef('Observation', 'lab-1')],
-                    safetyCritical: false,
-                },
-            ],
-        };
-        const labSynth: Synthesizer = vi.fn(() =>
-            Promise.resolve({
-                draft: { segments: [{ text: 'A1c is 8.4%.', claimIds: ['lab-1'] }] },
-                ledger: labLedger,
-            }),
-        );
-
-        const { conversationStore, conversationMessages } = buildDeps();
-        const conversationSuggestions = createInMemoryConversationSuggestionStore();
-        const runner = createBriefingRunner({
-            snapshotClient: a1cClient,
-            synthesizer: labSynth,
-            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
-            conversationStore,
-            conversationMessages,
-            conversationSuggestions,
-        });
-
-        const events = await runner({ envelope: buildEnvelope(), token: 'tok' });
-        const meta = events.find((e) => e.type === 'meta');
-        if (meta?.type !== 'meta') throw new Error('expected meta event');
-
-        const expectedChipId = stableId(meta.conversationId, {
-            type: 'lab_trend',
-            analyte: 'A1c',
-        });
-        await expect(
-            conversationSuggestions.hasChip(meta.conversationId, expectedChipId),
-        ).resolves.toBe(true);
-    });
-
-    it('chip recording is best-effort — write failures do not break the user-visible turn', async () => {
-        // Defense-in-depth invariant: if the suggestion store throws, the
-        // briefing must still complete. The next follow-up turn will then
-        // fail closed against the missing chip set, which is the correct
-        // fail-closed behavior — the user-visible default briefing is not
-        // blocked on the side-channel.
-        const a1cSnapshot = {
-            ...happyPathSnapshot,
-            labs: [
-                {
-                    analyte: 'A1c',
-                    value: '8.4',
-                    unit: '%',
-                    referenceRange: null,
-                    abnormalFlag: 'H',
-                    observedAt: null,
-                    source: sourceRef('Observation', 'lab-1'),
-                },
-            ],
-        };
-        const a1cClient: SnapshotClient = {
-            fetchSnapshot: vi.fn(() => Promise.resolve(a1cSnapshot)),
-        };
-        const labLedger: ClaimLedger = {
-            claims: [
-                {
-                    id: 'lab-1',
-                    text: 'A1c is 8.4%.',
-                    category: 'lab',
-                    sourceReferences: [sourceRef('Observation', 'lab-1')],
-                    safetyCritical: false,
-                },
-            ],
-        };
-        const labSynth: Synthesizer = vi.fn(() =>
-            Promise.resolve({
-                draft: { segments: [{ text: 'A1c is 8.4%.', claimIds: ['lab-1'] }] },
-                ledger: labLedger,
-            }),
-        );
-
-        const explodingSuggestions = {
-            record: () => Promise.reject(new Error('db down')),
-            hasChip: () => Promise.resolve(false),
-        };
-
-        const { conversationStore, conversationMessages } = buildDeps();
-        const runner = createBriefingRunner({
-            snapshotClient: a1cClient,
-            synthesizer: labSynth,
-            unverifiedClaimsLog: createNullUnverifiedClaimsLog(),
-            conversationStore,
-            conversationMessages,
-            conversationSuggestions: explodingSuggestions,
-        });
-
-        const events = await runner({ envelope: buildEnvelope(), token: 'tok' });
-        expect(events.find((e) => e.type === 'assistantMessage')).toBeDefined();
-        expect(events.find((e) => e.type === 'done')).toBeDefined();
-    });
 });
 
 describe('createBriefingRunner — progress event emission', () => {

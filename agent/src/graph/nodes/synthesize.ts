@@ -10,11 +10,9 @@ import { structuredOutputParseError } from './structuredOutputError.js';
 import {
     EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT,
     FOLLOW_UP_SYSTEM_PROMPT,
-    LAB_TREND_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     buildExtractionFollowUpUserMessage,
     buildFollowUpUserMessage,
-    buildLabTrendUserMessage,
     buildUserMessage,
 } from '../synthesize.prompt.js';
 import type {
@@ -273,29 +271,19 @@ export const createAnthropicSynthesizer = (options?: {
         documentEvidenceSnippets,
         kickoffExtractionResults,
     }) => {
-        // Per-task routing. Four paths, evaluated in order:
+        // Per-task routing. Three paths, evaluated in order:
         //
-        //   - `lab_trend` typed follow-up (§4.2): UC2 prompt, follow-up
-        //     model.
         //   - extraction follow-up: the supervisor ran kickoffExtraction
         //     on this turn (kickoffExtractionResults non-empty). Same
         //     model as free-text follow-up; tailored prompt that opens
         //     with "I analyzed the document you attached".
-        //   - free-text follow-up (§4.5): follow-up prompt, follow-up
-        //     model.
+        //   - free-text follow-up: follow-up prompt, follow-up model.
         //   - default briefing (everything else): briefing prompt,
         //     briefing model.
-        const labTrendAnalyte =
-            envelope.task === 'follow_up' && envelope.followUp?.type === 'lab_trend'
-                ? envelope.followUp.analyte
-                : null;
-        const isLabTrend = labTrendAnalyte !== null;
         const isExtractionFollowUp =
-            !isLabTrend &&
             kickoffExtractionResults !== undefined &&
             kickoffExtractionResults.length > 0;
         const question =
-            !isLabTrend &&
             !isExtractionFollowUp &&
             envelope.task === 'follow_up' &&
             typeof envelope.question === 'string' &&
@@ -304,13 +292,11 @@ export const createAnthropicSynthesizer = (options?: {
                 : null;
         const isFollowUp = question !== null;
 
-        const systemPrompt = isLabTrend
-            ? LAB_TREND_SYSTEM_PROMPT
-            : isExtractionFollowUp
-              ? EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT
-              : isFollowUp
-                ? FOLLOW_UP_SYSTEM_PROMPT
-                : SYSTEM_PROMPT;
+        const systemPrompt = isExtractionFollowUp
+            ? EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT
+            : isFollowUp
+              ? FOLLOW_UP_SYSTEM_PROMPT
+              : SYSTEM_PROMPT;
         const evidence = {
             ...(evidenceRetrieverOutput !== null && evidenceRetrieverOutput !== undefined
                 ? { evidenceRetrieverOutput }
@@ -319,19 +305,17 @@ export const createAnthropicSynthesizer = (options?: {
                 ? { documentEvidenceSnippets }
                 : {}),
         };
-        const userMessage = isLabTrend
-            ? buildLabTrendUserMessage(snapshot, labTrendAnalyte)
-            : isExtractionFollowUp
-              ? buildExtractionFollowUpUserMessage(
-                    snapshot,
-                    kickoffExtractionResults,
-                    priorTurnContext,
-                    evidence,
-                )
-              : isFollowUp
-                ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
-                : buildUserMessage(snapshot, priorTurnContext, evidence);
-        const useFollowUpModel = isLabTrend || isExtractionFollowUp || isFollowUp;
+        const userMessage = isExtractionFollowUp
+            ? buildExtractionFollowUpUserMessage(
+                  snapshot,
+                  kickoffExtractionResults,
+                  priorTurnContext,
+                  evidence,
+              )
+            : isFollowUp
+              ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
+              : buildUserMessage(snapshot, priorTurnContext, evidence);
+        const useFollowUpModel = isExtractionFollowUp || isFollowUp;
         const structured = useFollowUpModel ? followUpClient : briefingClient;
         const model = useFollowUpModel ? followUpModel : briefingModel;
         const result = await structured.invoke([

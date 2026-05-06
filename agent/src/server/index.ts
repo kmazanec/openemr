@@ -11,7 +11,7 @@ import {
 } from '../auth/middleware.js';
 import { createLocalKeyResolver, createRemoteKeyResolver } from '../auth/jwks.js';
 import { createAgentJwtVerifier, type AgentJwtVerifier } from '../auth/verify.js';
-import type { AssistantMessage, RequestEnvelope, SuggestedFollowUpParams } from '../graph/types.js';
+import type { AssistantMessage, RequestEnvelope } from '../graph/types.js';
 import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
@@ -25,14 +25,9 @@ import {
     type ConversationStore,
 } from '../state/conversationStore.js';
 import {
-    createPgConversationSuggestionStore,
-    type ConversationSuggestionStore,
-} from '../state/conversationSuggestions.js';
-import {
     createPgScheduleBriefingsLog,
     type ScheduleBriefingsLog,
 } from '../state/scheduleBriefings.js';
-import { stableId } from '../graph/followUps.js';
 import { createPgUnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
 import type { JWK } from 'jose';
 
@@ -79,14 +74,7 @@ interface AppDeps {
         readonly resumeWindowHours: number;
     };
     /**
-     * Suggestion-chip provenance gate. When wired, follow-up turns whose
-     * `followUp` params don't match a chip ID this conversation actually
-     * surfaced are rejected as `unknown_chip_id` before the runner runs.
-     * Optional so legacy tests stay green; production always sets this.
-     */
-    readonly conversationSuggestions?: ConversationSuggestionStore;
-    /**
-     * §5.3 morning-prep cache. Required by the `precompute=true` branch
+     * Morning-prep cache. Required by the `precompute=true` branch
      * of the briefing route; absent in legacy tests that exercise only
      * the interactive default-briefing path.
      */
@@ -99,33 +87,6 @@ interface AppDeps {
      */
     readonly pipeline?: PipelineRunner;
 }
-
-// `analyte` is an identifier we feed into a SQL `LIKE` pattern downstream.
-// The PHP layer escapes `%` and `_` defensively, but rejecting glob chars at
-// the boundary keeps a single hostile character (e.g. `%`) from ever reaching
-// the database. The character class matches the real seed values today
-// (`Hemoglobin A1c`, `Sodium`, etc.) — letters, digits, spaces, hyphens,
-// slashes, parens, and dots — and excludes `_` because no seed analyte uses
-// it and it doubles as a LIKE wildcard.
-const ANALYTE_PATTERN = /^[A-Za-z0-9 \-/().]+$/;
-
-const followUpParamsSchema = z.discriminatedUnion('type', [
-    z.object({
-        type: z.literal('lab_trend'),
-        analyte: z
-            .string()
-            .min(1)
-            .max(200)
-            .regex(ANALYTE_PATTERN, 'analyte may not contain glob characters'),
-    }),
-    z.object({ type: z.literal('prescription_change'), prescriptionId: z.string().min(1).max(200) }),
-    z.object({ type: z.literal('external_care'), lookbackDays: z.number().int().positive().max(3650) }),
-    z.object({ type: z.literal('reminder_detail'), reminderId: z.string().min(1).max(200) }),
-    z.object({
-        type: z.literal('medication_statement_detail'),
-        listId: z.string().min(1).max(200),
-    }),
-]);
 
 /**
  * Per-upload reference the panel attaches to a briefing request when the
@@ -161,13 +122,12 @@ const briefingRequestSchema = z
             uuid: z.string().default(''),
         }),
         task: z.union([z.literal('default_briefing'), z.literal('follow_up')]).default('default_briefing'),
-        // §4.5 free-text follow-up. Bounded to keep the prompt + trace logs
-        // tractable; the panel composer enforces the same cap client-side.
+        // Free-text follow-up question. Both typed-into-the-composer
+        // questions and tapped suggestion chips arrive in this field —
+        // the panel sends a chip's displayText as `question`. Bounded
+        // to keep the prompt + trace logs tractable; the panel composer
+        // enforces the same cap client-side.
         question: z.string().min(1).max(2000).optional(),
-        // §4.1 typed suggested-follow-up parameter set. Mutually exclusive
-        // with `question` — the boundary parses one or the other into the
-        // envelope, never both.
-        followUp: followUpParamsSchema.optional(),
         // Documents the user just attached this turn. The supervisor's
         // first-iteration prompt receives this list and chooses whether to
         // pick `kickoffExtraction` for each. Bounded to keep the prompt
@@ -185,10 +145,6 @@ const briefingRequestSchema = z
         force: z.boolean().default(false),
     })
     .refine(
-        (v) => !(v.question !== undefined && v.followUp !== undefined),
-        { message: 'question and followUp are mutually exclusive', path: ['followUp'] },
-    )
-    .refine(
         (v) => !v.precompute || (typeof v.appointmentId === 'string' && v.appointmentId.length > 0),
         { message: 'appointmentId is required when precompute=true', path: ['appointmentId'] },
     )
@@ -197,44 +153,10 @@ const briefingRequestSchema = z
         { message: 'practitionerUuid is required when precompute=true', path: ['practitionerUuid'] },
     );
 
-/**
- * §4.1 → §4.2/§4.3/§4.4 transitional bridge. Stringifies a typed
- * follow-up parameter set into the deterministic question that the
- * §4.5 free-text path already understands. UC-specific graph branches
- * replace this one type at a time; the typed envelope shape stays.
- *
- * §4.2 + §4.3 have shipped: `lab_trend` and `prescription_change` no
- * longer go through this bridge — each flows as a typed `followUp`
- * envelope and the corresponding graph branch (UC2 synthesizer prompt
- * / UC3 deterministic prescriptionChangeBranch) reads the typed params
- * directly. Returning `null` here signals "do not bridge this type";
- * the route handler leaves `question` unset on the envelope and the
- * UC-specific branch wins. `external_care` still bridges until §4.4.
- */
-export const stringifyFollowUp = (params: SuggestedFollowUpParams): string | null => {
-    switch (params.type) {
-        case 'lab_trend':
-            return null;
-        case 'prescription_change':
-            return null;
-        case 'reminder_detail':
-            // §4.6.5 deterministic branch reads the typed params; no
-            // bridging needed.
-            return null;
-        case 'medication_statement_detail':
-            // §4.6.6 deterministic branch reads the typed params; no
-            // bridging needed.
-            return null;
-        case 'external_care':
-            return `Summarize external care from the last ${params.lookbackDays} days.`;
-    }
-};
-
 export const createApp = ({
     auth,
     briefingRunner,
     conversationApi,
-    conversationSuggestions,
     scheduleBriefingsLog,
     pipeline,
 }: AppDeps): Hono => {
@@ -408,50 +330,6 @@ export const createApp = ({
                 return;
             }
 
-            // Suggestion-chip provenance gate. A typed `followUp` carries
-            // params we can re-hash (`stableId(conversationId, params)`)
-            // into the same chip ID the §4.1 generator emitted on a
-            // previous default-briefing turn. Reject if no such ID was
-            // ever shown in this conversation. Fail-closed by design:
-            // if the briefingRunner failed to persist the chip set on
-            // the prior turn (logged-and-swallowed there), the lookup
-            // returns false and the follow-up is rejected — the panel
-            // surfaces the same generic "request was malformed" UI the
-            // user already understands.
-            if (
-                parsed.data.followUp !== undefined
-                && conversationSuggestions !== undefined
-            ) {
-                const chipId = stableId(parsed.data.conversationId, parsed.data.followUp);
-                const known = await conversationSuggestions.hasChip(
-                    parsed.data.conversationId,
-                    chipId,
-                );
-                if (!known) {
-                    logger.warn(
-                        {
-                            conversationId: parsed.data.conversationId,
-                            requestId: parsed.data.requestId,
-                            followUpType: parsed.data.followUp.type,
-                        },
-                        'unknown chip ID — followUp rejected',
-                    );
-                    await writeEvent({ type: 'error', code: 'unknown_chip_id' });
-                    return;
-                }
-            }
-
-            // §4.1 → §4.2/§4.3/§4.4 transitional shim: bridge a typed
-            // `followUp` into the §4.5 free-text path for follow-up
-            // types whose UC-specific branch hasn't shipped yet. §4.2
-            // shipped (`lab_trend`) and §4.3 shipped
-            // (`prescription_change`), so both flow through their own
-            // typed branches and `stringifyFollowUp` returns `null`
-            // for them.
-            const bridgedFromFollowUp = parsed.data.followUp !== undefined
-                ? stringifyFollowUp(parsed.data.followUp)
-                : null;
-            const bridgedQuestion = parsed.data.question ?? bridgedFromFollowUp ?? undefined;
             const envelope: RequestEnvelope = {
                 conversationId: parsed.data.conversationId,
                 requestId: parsed.data.requestId,
@@ -459,8 +337,7 @@ export const createApp = ({
                 actor: { userId: principal.sub, fhirUser: principal.fhirUser },
                 patient: parsed.data.patient,
                 task: parsed.data.task,
-                ...(bridgedQuestion !== undefined ? { question: bridgedQuestion } : {}),
-                ...(parsed.data.followUp !== undefined ? { followUp: parsed.data.followUp } : {}),
+                ...(parsed.data.question !== undefined ? { question: parsed.data.question } : {}),
                 ...(parsed.data.pendingUploads !== undefined && parsed.data.pendingUploads.length > 0
                     ? { pendingUploads: parsed.data.pendingUploads }
                     : {}),
@@ -815,7 +692,6 @@ export const start = async (port: number): Promise<void> => {
     const unverifiedClaimsLog = createPgUnverifiedClaimsLog({ connectionString: databaseUrl });
     const conversationStore = createPgConversationStore({ connectionString: databaseUrl });
     const conversationMessages = createPgConversationMessagesStore({ connectionString: databaseUrl });
-    const conversationSuggestions = createPgConversationSuggestionStore({ connectionString: databaseUrl });
     const scheduleBriefingsLog = createPgScheduleBriefingsLog({ connectionString: databaseUrl });
     // §B.1 / §C.1: the conversational graph's documentEvidenceRetriever
     // takes the artifact store as a dep, so we construct it before the
@@ -904,7 +780,6 @@ export const start = async (port: number): Promise<void> => {
         unverifiedClaimsLog,
         conversationStore,
         conversationMessages,
-        conversationSuggestions,
         checkpointer,
         counters,
         extractionArtifactStore,
@@ -937,7 +812,6 @@ export const start = async (port: number): Promise<void> => {
             conversationMessages,
             resumeWindowHours: 12,
         },
-        conversationSuggestions,
         scheduleBriefingsLog,
         ...(pipelineRunner !== undefined ? { pipeline: pipelineRunner } : {}),
     });

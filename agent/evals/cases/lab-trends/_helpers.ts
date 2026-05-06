@@ -1,12 +1,13 @@
 /**
- * §4.2 UC2 (lab/vitals trend) case helpers.
+ * Lab-trend (UC2) case helpers.
  *
- * Mirrors the §3.6 UC1 `_helpers.ts` shape but builds typed
- * `lab_trend` envelopes instead of `default_briefing`. The Vitest
- * gate is the deterministic-only layer — every case stubs the
- * synthesizer so the test asserts the verifier's behavior on a known
- * ledger, not the model's output. Real-LLM coverage lives in the
- * nightly `experiment.ts` runner.
+ * The deterministic `lab_trend` branch is gone — the supervisor now
+ * routes free-text follow-ups via the synthesizer like any other
+ * question. These helpers preserve the verifier-focused regression
+ * coverage by composing a stubbed synthesizer + chart snapshot whose
+ * `labs[]` carries the analyte history rows. The Vitest gate remains
+ * deterministic-only; real-LLM coverage lives in the nightly
+ * `experiment.ts` runner.
  */
 
 import { vi } from 'vitest';
@@ -20,7 +21,6 @@ import type {
     LabHistorySeries,
     RequestEnvelope,
 } from '../../../src/graph/types.js';
-import type { LabHistoryFetcher } from '../../../src/graph/nodes/retrieveChart.js';
 import type { LabObservation } from '../../../src/snapshot/types.js';
 import type { ChartSnapshot } from '../../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../../src/tools/snapshotClient.js';
@@ -30,6 +30,11 @@ export type { Uc2Scenario } from '../../fixtures/load.js';
 
 export const UC2_ANALYTE = 'Hemoglobin A1c';
 
+/**
+ * Build a free-text follow-up envelope asking the supervisor to trend
+ * the analyte. The user's typed question is the only signal — there is
+ * no typed `followUp` field anymore.
+ */
 export const trendEnvelope = (snapshot: BriefingSnapshot): RequestEnvelope => ({
     conversationId: `conv-${snapshot.patient.uuid}`,
     requestId: `req-${snapshot.patient.uuid}`,
@@ -37,23 +42,35 @@ export const trendEnvelope = (snapshot: BriefingSnapshot): RequestEnvelope => ({
     actor: { userId: 'eval-actor', fhirUser: 'https://emr/Practitioner/eval-actor' },
     patient: { pid: snapshot.patient.pid, uuid: snapshot.patient.uuid },
     task: 'follow_up',
-    followUp: { type: 'lab_trend', analyte: UC2_ANALYTE },
+    question: `How is ${UC2_ANALYTE} trending?`,
 });
 
 /**
- * UC2-specific snapshot client. Retrieve calls `loadChartSnapshot`
- * for the bulk snapshot in addition to the lab-history fetcher; this
- * stub returns the fixture's bulk fields stripped of the UC2-only
- * `labHistory` slot (the bulk endpoint never carries it).
+ * Snapshot client that returns the bulk chart with the fixture's
+ * lab-history observations folded into `labs[]`. retrieveChart no
+ * longer auto-fetches lab history on a typed envelope; the trend
+ * regression coverage now relies on those rows being present in the
+ * standard `labs` slot the verifier already indexes.
  */
 export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
+    const baseLabs: readonly LabObservation[] = Array.isArray(snapshot.labs) ? snapshot.labs : [];
+    const series = snapshot.labHistory;
+    const historyLabs: readonly LabObservation[] =
+        series !== null && !('kind' in series) ? series.observations : [];
+    const seenIds = new Set<string>();
+    const mergedLabs: LabObservation[] = [];
+    for (const l of [...baseLabs, ...historyLabs]) {
+        if (seenIds.has(l.source.source_id)) continue;
+        seenIds.add(l.source.source_id);
+        mergedLabs.push(l);
+    }
     const chart: ChartSnapshot = {
         patient: snapshot.patient,
         appointment: snapshot.appointment,
         diagnoses: snapshot.diagnoses,
         prescriptions: snapshot.prescriptions,
         allergies: snapshot.allergies,
-        labs: Array.isArray(snapshot.labs) ? snapshot.labs : ([] as readonly LabObservation[]),
+        labs: mergedLabs,
         encounters: Array.isArray(snapshot.encounters) ? snapshot.encounters : [],
         reminders: Array.isArray(snapshot.reminders) ? snapshot.reminders : [],
         medications: Array.isArray(snapshot.medications) ? snapshot.medications : [],
@@ -64,28 +81,11 @@ export const buildClient = (snapshot: BriefingSnapshot): SnapshotClient => {
 };
 
 /**
- * Build a `LabHistoryFetcher` stub that returns the fixture's
- * `labHistory.observations` (or an empty list if the fixture carries
- * no history). Tests that want to drive a fail-open path (e.g.
- * "endpoint unavailable") build their own fetcher instead.
- */
-export const buildLabHistoryFetcher = (snapshot: BriefingSnapshot): LabHistoryFetcher => {
-    const series = snapshot.labHistory;
-    const observations: readonly LabObservation[] =
-        series !== null && !('kind' in series) ? series.observations : [];
-    return () =>
-        Promise.resolve({
-            kind: 'ok' as const,
-            labs: observations,
-        });
-};
-
-/**
- * Stub synthesizer factory. The model's job in UC2 is to read
- * `snapshot.labHistory.observations` and produce a trend assertion;
- * the verifier's job is to check that every cited value matches its
- * source row's value/observedAt/unit. Cases compose this baseline
- * with their own `produceLedger` to inject specific failure modes.
+ * Stub synthesizer factory. The model's job here is to read the
+ * snapshot's labs and produce a trend assertion; the verifier's job is
+ * to check that every cited value matches its source row's
+ * value/observedAt/unit. Cases compose this baseline with their own
+ * `produceLedger` to inject specific failure modes.
  */
 export const buildSynth = (
     produceLedger: (snapshot: BriefingSnapshot) => { draft: DraftBriefing; ledger: ClaimLedger },
@@ -105,8 +105,8 @@ export const historySeries = (snapshot: BriefingSnapshot): LabHistorySeries | nu
 
 /**
  * Build a single trend claim that cites every history row by its
- * recordId. Each ref is checked independently by the §4.2 verifier
- * pass; the claim text must mention each row's value AND observedAt.
+ * recordId. Each ref is checked independently by the verifier; the
+ * claim text must mention each row's value AND observedAt.
  */
 export const trendClaim = (input: {
     readonly id: string;

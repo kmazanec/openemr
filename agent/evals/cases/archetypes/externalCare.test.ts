@@ -40,7 +40,6 @@ const followUpEnvelope = (snapshot: { patient: { pid: number; uuid: string } }):
     patient: { pid: snapshot.patient.pid, uuid: snapshot.patient.uuid },
     task: 'follow_up',
     question: 'Summarize external care from the last 365 days.',
-    followUp: { type: 'external_care', lookbackDays: 365 },
 });
 
 describe('UC4 outside care — recent ED visit imported via CCDA', () => {
@@ -63,9 +62,9 @@ describe('UC4 outside care — recent ED visit imported via CCDA', () => {
 
         expect(out.verified?.passed).toBe(true);
         const suggestions = out.formatted?.suggestedFollowUps ?? [];
-        const external = suggestions.filter((s) => s.params.type === 'external_care');
+        const external = suggestions.filter((s) => /outside encounter/i.test(s.displayText));
         expect(external).toHaveLength(1);
-        expect(external[0]?.params).toEqual({ type: 'external_care', lookbackDays: 365 });
+        expect(external[0]?.displayText).toMatch(/365/);
         expect(external[0]?.groundedInClaimIds.length).toBeGreaterThan(0);
     });
 
@@ -119,7 +118,7 @@ describe('UC4 outside care — patient with no external records', () => {
 
         expect(out.verified?.passed).toBe(true);
         const suggestions = out.formatted?.suggestedFollowUps ?? [];
-        expect(suggestions.find((s) => s.params.type === 'external_care')).toBeUndefined();
+        expect(suggestions.find((s) => /outside encounter/i.test(s.displayText))).toBeUndefined();
     });
 
     it('verifier rejects a fabricated external-care claim citing an id not in the snapshot', () => {
