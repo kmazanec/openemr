@@ -4,6 +4,7 @@ import {
     DEFAULT_TRANSIENT_PREFIX,
     SpacesEnvError,
     parseSpacesEnv,
+    tryParseSpacesEnv,
 } from '../../src/config/spacesEnv.js';
 
 const validEnv = (): Record<string, string> => ({
@@ -84,5 +85,37 @@ describe('parseSpacesEnv', () => {
         expect(() =>
             parseSpacesEnv({ ...validEnv(), SPACES_TRANSIENT_PREFIX: 'tr/sub' }),
         ).toThrow(/SPACES_TRANSIENT_PREFIX/);
+    });
+});
+
+describe('tryParseSpacesEnv', () => {
+    it('returns null when none of the required keys are set — deploy-time migration path', () => {
+        expect(tryParseSpacesEnv({})).toBeNull();
+    });
+
+    it('returns null when the keys are present but all empty', () => {
+        expect(
+            tryParseSpacesEnv({
+                SPACES_BUCKET: '',
+                SPACES_REGION: '',
+                SPACES_OPENEMR_KEY: '',
+                SPACES_OPENEMR_SECRET: '',
+                SPACES_AGENT_KEY: '',
+                SPACES_AGENT_SECRET: '',
+            }),
+        ).toBeNull();
+    });
+
+    it('returns the parsed DTO when every required key is present', () => {
+        const env = tryParseSpacesEnv(validEnv());
+        expect(env).not.toBeNull();
+        expect(env?.bucket).toBe('cdn.biograph.dev');
+        expect(env?.openemr.accessKey).toBe('oe-key');
+    });
+
+    it('throws on a half-configured env — partial config is almost always a missing-secret bug', () => {
+        const partial = validEnv();
+        delete partial['SPACES_AGENT_SECRET'];
+        expect(() => tryParseSpacesEnv(partial)).toThrow(SpacesEnvError);
     });
 });

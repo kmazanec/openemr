@@ -45,7 +45,7 @@ import {
 import { classifyBriefingError } from './errorClassifier.js';
 import { createExtractHandler, type PipelineRunner } from './routes/extract.js';
 import { randomUUID } from 'node:crypto';
-import { parseSpacesEnv } from '../config/spacesEnv.js';
+import { tryParseSpacesEnv } from '../config/spacesEnv.js';
 import { buildProductionPipelineRunner } from '../pipeline/production.js';
 import { createPdfImgConvertRasterizer } from '../pipeline/rasterizer.js';
 import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
@@ -793,50 +793,66 @@ export const start = async (port: number): Promise<void> => {
     // are stateless and the per-call values (token, canonicalExt,
     // conversationId) thread through `PipelineCallContext` so the
     // production runner builds a fresh `PipelineDeps` per `stream()`.
-    const spacesEnv = parseSpacesEnv();
-    const openemrSpaces = createOpenEmrSpacesClient(spacesEnv);
-    const agentSpaces = createAgentSpacesClient(spacesEnv);
-    const documentReferenceClient = createOpenEmrDocumentReferenceClient({ baseUrl: openEmrBaseUrl });
-    const snapshotClient = createSnapshotClient({ baseUrl: openEmrBaseUrl });
-    // Both pipeline-side fetch boundaries hit the same snapshot
-    // endpoint with the same category set; the demographics fetcher
-    // just projects `.patient` off the result. Sharing the fetch
-    // keeps a single source of truth for the category list.
-    const fetchSnapshotForCtx = (ctx: { openemrToken: string; openemrSiteId: string }) =>
-        async (pid: number) =>
-            decodeChartSnapshot(
-                await snapshotClient.fetchSnapshot({
-                    pid,
-                    categories: [
-                        'diagnosis',
-                        'allergy',
-                        'lab',
-                        'encounter',
-                        'reminder',
-                        'medication_statement',
-                        'prescription',
-                    ],
-                    token: ctx.openemrToken,
-                    siteId: ctx.openemrSiteId,
-                }),
-            );
-    const pipelineRunner: PipelineRunner = buildProductionPipelineRunner({
-        artifactStore: extractionArtifactStore,
-        openemrSpaces,
-        agentSpaces,
-        rasterizer: createPdfImgConvertRasterizer(),
-        visionInvoker: createAnthropicVisionInvocation(),
-        documentReferenceClient,
-        buildFetchChartDemographics: (ctx) => {
-            const fetch = fetchSnapshotForCtx(ctx);
-            return async (pid) => (await fetch(pid)).patient;
-        },
-        buildFetchChartSnapshot: (ctx) => fetchSnapshotForCtx(ctx),
-        transientPrefix: spacesEnv.transientPrefix,
-        bucketName: spacesEnv.bucket,
-        artifactIdGenerator: () => randomUUID(),
-        logger,
-    });
+    //
+    // Spaces config is optional at boot: a deploy-time migration run
+    // applies schema changes and exits, and shouldn't need DigitalOcean
+    // credentials to do that. When `tryParseSpacesEnv` returns `null`,
+    // the pipeline runner is not constructed; the `/v1/agent/extract`
+    // route returns 503 and the supervisor's `kickoffExtraction`
+    // handoff falls back to the §A.7 stub. Half-configured Spaces (some
+    // keys present, others not) still throws — that's almost always a
+    // missing-secret bug.
+    const spacesEnv = tryParseSpacesEnv();
+    let pipelineRunner: PipelineRunner | undefined;
+    if (spacesEnv === null) {
+        logger.warn(
+            'SPACES_* env vars not set — document ingestion pipeline is disabled this boot',
+        );
+    } else {
+        const openemrSpaces = createOpenEmrSpacesClient(spacesEnv);
+        const agentSpaces = createAgentSpacesClient(spacesEnv);
+        const documentReferenceClient = createOpenEmrDocumentReferenceClient({ baseUrl: openEmrBaseUrl });
+        const snapshotClient = createSnapshotClient({ baseUrl: openEmrBaseUrl });
+        // Both pipeline-side fetch boundaries hit the same snapshot
+        // endpoint with the same category set; the demographics fetcher
+        // just projects `.patient` off the result. Sharing the fetch
+        // keeps a single source of truth for the category list.
+        const fetchSnapshotForCtx = (ctx: { openemrToken: string; openemrSiteId: string }) =>
+            async (pid: number) =>
+                decodeChartSnapshot(
+                    await snapshotClient.fetchSnapshot({
+                        pid,
+                        categories: [
+                            'diagnosis',
+                            'allergy',
+                            'lab',
+                            'encounter',
+                            'reminder',
+                            'medication_statement',
+                            'prescription',
+                        ],
+                        token: ctx.openemrToken,
+                        siteId: ctx.openemrSiteId,
+                    }),
+                );
+        pipelineRunner = buildProductionPipelineRunner({
+            artifactStore: extractionArtifactStore,
+            openemrSpaces,
+            agentSpaces,
+            rasterizer: createPdfImgConvertRasterizer(),
+            visionInvoker: createAnthropicVisionInvocation(),
+            documentReferenceClient,
+            buildFetchChartDemographics: (ctx) => {
+                const fetch = fetchSnapshotForCtx(ctx);
+                return async (pid) => (await fetch(pid)).patient;
+            },
+            buildFetchChartSnapshot: (ctx) => fetchSnapshotForCtx(ctx),
+            transientPrefix: spacesEnv.transientPrefix,
+            bucketName: spacesEnv.bucket,
+            artifactIdGenerator: () => randomUUID(),
+            logger,
+        });
+    }
 
     const briefingRunner = await buildProductionBriefingRunner({
         openEmrBaseUrl,
@@ -847,7 +863,7 @@ export const start = async (port: number): Promise<void> => {
         checkpointer,
         counters,
         extractionArtifactStore,
-        pipeline: pipelineRunner,
+        ...(pipelineRunner !== undefined ? { pipeline: pipelineRunner } : {}),
     });
     // §6.1: log the rolling cost-projection snapshot once a minute so the
     // numbers are searchable in the agent's stdout without needing a
@@ -878,7 +894,7 @@ export const start = async (port: number): Promise<void> => {
         },
         conversationSuggestions,
         scheduleBriefingsLog,
-        pipeline: pipelineRunner,
+        ...(pipelineRunner !== undefined ? { pipeline: pipelineRunner } : {}),
     });
     serve({ fetch: app.fetch, port });
     logger.info({ port }, 'agent service listening');

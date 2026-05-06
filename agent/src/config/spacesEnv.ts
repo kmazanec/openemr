@@ -82,3 +82,37 @@ export const parseSpacesEnv = (
         transientPrefix,
     });
 };
+
+/**
+ * Optional-mode parser for boot paths that should tolerate a missing
+ * Spaces config — primarily the deploy-time migration runner, where
+ * the agent boots only to apply schema changes and exit. Returns:
+ *
+ *  - `null` when ALL required keys (`SPACES_BUCKET`, `SPACES_REGION`,
+ *    `SPACES_OPENEMR_KEY`, `SPACES_OPENEMR_SECRET`, `SPACES_AGENT_KEY`,
+ *    `SPACES_AGENT_SECRET`) are absent or empty.
+ *  - The parsed DTO when ALL required keys are present.
+ *  - Throws via `parseSpacesEnv` when SOME but not all are set —
+ *    half-configured Spaces is almost always a typo or a missing
+ *    secret in the deploy environment, and silently disabling
+ *    uploads on a partial config would mask that bug.
+ */
+const SPACES_REQUIRED_KEYS = [
+    'SPACES_BUCKET',
+    'SPACES_REGION',
+    'SPACES_OPENEMR_KEY',
+    'SPACES_OPENEMR_SECRET',
+    'SPACES_AGENT_KEY',
+    'SPACES_AGENT_SECRET',
+] as const;
+
+export const tryParseSpacesEnv = (
+    raw: Record<string, string | undefined> = process.env,
+): SpacesEnv | null => {
+    const presence = SPACES_REQUIRED_KEYS.map((k) => {
+        const v = raw[k];
+        return v !== undefined && v.trim().length > 0;
+    });
+    if (presence.every((p) => !p)) return null;
+    return parseSpacesEnv(raw);
+};
