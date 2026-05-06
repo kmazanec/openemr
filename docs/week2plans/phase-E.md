@@ -38,8 +38,8 @@ By the end of E: 50-case suite is at 50, all green, all real-model in CI; CI is 
 **Owner.** User.
 
 **Checklist.**
-- [ ] GitLab CI variables populated: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`, `LANGSMITH_API_KEY`, all `SPACES_*`. **All marked "masked, protected"** per GitLab's CI variable best practices.
-- [ ] If a key needs to be different in CI vs prod (e.g., a separate Pinecone namespace for CI evals to avoid disturbing prod), document the namespace in `agent/README.md`.
+- [x] GitLab CI variables populated: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`, `LANGSMITH_API_KEY`, all `SPACES_*`. **All marked "masked, protected"** per GitLab's CI variable best practices.
+- [x] If a key needs to be different in CI vs prod (e.g., a separate Pinecone namespace for CI evals to avoid disturbing prod), document the namespace in `agent/README.md`.
 
 **Definition of done.** Engineer triggers a CI run on a feature branch; vendor-using job authenticates without env-var errors.
 
