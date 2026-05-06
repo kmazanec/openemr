@@ -169,6 +169,14 @@ services:
     depends_on:
       agent-postgres:
         condition: service_healthy
+    # Load every key from /etc/openemr/.env (Spaces creds, Pinecone /
+    # OpenAI / Cohere keys, the optional LANGSMITH_HIDE_* toggles, etc.)
+    # so adding a new secret to .env is a one-line ops change rather than
+    # a code edit + redeploy. The explicit `environment:` block below
+    # overrides any clashing key from the file (compose merge semantics:
+    # `environment` wins over `env_file`).
+    env_file:
+    - .env
     environment:
       NODE_ENV: production
       PORT: '8080'
@@ -235,6 +243,13 @@ services:
       # so we mount an empty named volume just to satisfy rsync's
       # link_stat — without this the container exits with code 23.
     - couchdbstub:/couchdb/data
+    # `document_upload.php` reads `SPACES_*` via `getenv()` to build the
+    # SigV4 client; without env_file the PHP container saw none of those
+    # keys and the upload endpoint 500'd at `SpacesConfig::fromEnv`.
+    # Loading the same .env both services share avoids enumerating each
+    # secret here.
+    env_file:
+    - .env
     environment:
       # Read by bootstrap.php via Firehed\Container\AutoDetect to pick
       # between the dynamic Builder (dev) and the cached Compiler (any
