@@ -7,8 +7,15 @@
  */
 
 import { Client } from 'langsmith';
+import OpenAI from 'openai';
+import { Pinecone } from '@pinecone-database/pinecone';
 
+import type { EvidenceRetrieverDeps } from '../../src/graph/nodes/evidenceRetriever.js';
 import type { BriefingSnapshot } from '../../src/graph/types.js';
+import { createLogger } from '../../src/observability/logger.js';
+import { createCohereRerankClient } from '../../src/retrievers/cohere.js';
+import { loadCorpusBM25Stats } from '../../src/retrievers/corpusLoader.js';
+import { createPineconeRetriever } from '../../src/retrievers/pinecone.js';
 import type { ChartSnapshot } from '../../src/snapshot/types.js';
 import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 
@@ -191,4 +198,61 @@ export const buildDatasetSnapshotClient = (snapshot: BriefingSnapshot): Snapshot
     return {
         fetchSnapshot: () => Promise.resolve(wire as unknown as ChartSnapshot),
     };
+};
+
+/**
+ * Boot the Pinecone+Cohere `EvidenceRetrieverDeps` used by the
+ * `conversational-graph` and `end-to-end` suites. Returns null when
+ * any of the required env vars (`OPENAI_API_KEY`, `PINECONE_API_KEY`,
+ * `PINECONE_INDEX_NAME`, `COHERE_API_KEY`) is missing — callers run
+ * the experiment without the retriever, which surfaces as a verdict
+ * mismatch on dataset rows that legitimately need guideline
+ * retrieval. Mirrors `agent/src/server/briefingRunner.ts`'s
+ * production builder so the eval target sees the same retriever
+ * shape the deployed app does.
+ *
+ * The `loggerName` is the suite's name so log lines are attributable
+ * to a specific suite when multiple boot in one experiment run.
+ */
+export const buildEvidenceRetrieverDepsFromEnv = async (
+    loggerName: string,
+): Promise<EvidenceRetrieverDeps | null> => {
+    const logger = createLogger(loggerName);
+    const openaiKey = process.env['OPENAI_API_KEY'] ?? '';
+    const pineconeKey = process.env['PINECONE_API_KEY'] ?? '';
+    const indexName = process.env['PINECONE_INDEX_NAME'] ?? '';
+    const cohereKey = process.env['COHERE_API_KEY'] ?? '';
+    const namespace = process.env['PINECONE_NAMESPACE'] ?? 'guidelines-v1';
+
+    const missing: string[] = [];
+    if (openaiKey.length === 0) missing.push('OPENAI_API_KEY');
+    if (pineconeKey.length === 0) missing.push('PINECONE_API_KEY');
+    if (indexName.length === 0) missing.push('PINECONE_INDEX_NAME');
+    if (cohereKey.length === 0) missing.push('COHERE_API_KEY');
+    if (missing.length > 0) {
+        logger.warn(
+            { missing },
+            'evidenceRetriever deps not wired — guideline-shaped rows will mismatch the dataset expectation',
+        );
+        return null;
+    }
+
+    const { stats, chunkCount } = await loadCorpusBM25Stats();
+    if (chunkCount === 0) {
+        logger.warn(
+            'evidenceRetriever corpus is empty — run npm run evals:reindex-corpus first',
+        );
+    }
+
+    const openai = new OpenAI({ apiKey: openaiKey });
+    const pinecone = new Pinecone({ apiKey: pineconeKey });
+    const pineconeRetriever = createPineconeRetriever({
+        pinecone,
+        indexName,
+        namespace,
+        embeddings: openai.embeddings,
+        bm25Stats: stats,
+    });
+    const cohereRerank = createCohereRerankClient({ apiKey: cohereKey });
+    return { pineconeRetriever, cohereRerank };
 };
