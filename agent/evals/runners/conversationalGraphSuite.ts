@@ -26,8 +26,17 @@
  */
 
 import type { Client } from 'langsmith';
+import { evaluate } from 'langsmith/evaluation';
+
+import type { EvidenceRetrieverDeps } from '../../src/graph/nodes/evidenceRetriever.js';
 
 import {
+    runConversationalGraphCase,
+    type ConversationalGraphCaseId,
+    type ConversationalGraphCaseRunResult,
+} from './conversationalGraphTarget.js';
+import {
+    buildEvidenceRetrieverDepsFromEnv,
     uploadDatasetGeneric,
     type EvalExample,
     type EvalSuite,
@@ -41,21 +50,14 @@ const DATASET_DESCRIPTION =
     'Conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI.';
 
 interface ConversationalGraphInputs {
-    readonly group:
-        | 'document-evidence'
-        | 'guidelines'
-        | 'verification';
+    readonly group: ConversationalGraphCaseId;
     /** Plain-language description of the case so the LangSmith UI is readable without a code crossreference. */
     readonly description: string;
 }
 
 interface ConversationalGraphOutputs {
     /** The deterministic gate the experiment's live run should reach. */
-    readonly expectedGate:
-        | 'verifier-accepted'
-        | 'verifier-rejected'
-        | 'gap-emitted'
-        | 'hard-stop';
+    readonly expectedGate: 'verifier-accepted' | 'verifier-rejected' | 'gap-emitted' | 'hard-stop';
 }
 
 interface ConversationalGraphMetadata {
@@ -112,38 +114,38 @@ export const uploadDataset = (
         ...options,
     });
 
-const REQUIRED_VENDOR_ENV: readonly string[] = [
-    'PINECONE_API_KEY',
-    'PINECONE_INDEX_NAME',
-    'OPENAI_API_KEY',
-    'COHERE_API_KEY',
-];
+const runExperiment = async (options: {
+    readonly anthropicApiKey: string;
+    readonly gitSha: string;
+}): Promise<ExperimentRunResult> => {
+    const evidenceRetriever = await buildEvidenceRetrieverDepsFromEnv(
+        'conversationalGraphSuite',
+    );
 
-const runExperiment = (
-    _options: { readonly anthropicApiKey: string; readonly gitSha: string },
-): Promise<ExperimentRunResult> => {
-    const missing = REQUIRED_VENDOR_ENV.filter((name) => {
-        const v = process.env[name];
-        return v === undefined || v.length === 0;
+    const target = async (
+        input: ConversationalGraphInputs,
+    ): Promise<ConversationalGraphCaseRunResult> => {
+        const targetDeps: {
+            anthropicApiKey: string;
+            evidenceRetriever?: EvidenceRetrieverDeps;
+        } = { anthropicApiKey: options.anthropicApiKey };
+        if (evidenceRetriever !== null) {
+            targetDeps.evidenceRetriever = evidenceRetriever;
+        }
+        return runConversationalGraphCase(input.group, targetDeps);
+    };
+
+    const results = await evaluate(target, {
+        data: DATASET_NAME,
+        experimentPrefix: `conversational-graph-${options.gitSha.slice(0, 7)}`,
+        metadata: { git_sha: options.gitSha, suite: 'conversational-graph' },
     });
-    if (missing.length > 0) {
-        return Promise.resolve({
-            suiteName: 'conversational-graph',
-            datasetName: DATASET_NAME,
-            skippedReason: `missing vendor env: ${missing.join(', ')}`,
-        });
-    }
-    // The real-vendor end-to-end run is gated behind the user
-    // provisioning the Pinecone index. Until then the per-MR Vitest
-    // layer is the load-bearing gate. Returning a skip with a
-    // descriptive reason keeps the runner's contract clean — it
-    // doesn't confuse "ran zero rows" with "ran all rows green."
-    return Promise.resolve({
+
+    return {
         suiteName: 'conversational-graph',
         datasetName: DATASET_NAME,
-        skippedReason:
-            'real-vendor experiment is gated until the Pinecone index is provisioned; per-MR Vitest gates protect the structural invariants',
-    });
+        experimentName: results.experimentName,
+    };
 };
 
 export const conversationalGraphSuite: EvalSuite = {
