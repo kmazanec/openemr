@@ -18,6 +18,8 @@ E  (eval coverage + CI gate — Thursday Early Submission gate)
 F ‖ G  (parallel: Tier-3 promotion UI ‖ polish + cost + runbook + demo)
 ↓
 END    (Sunday Final gate)
+↓
+H  (post-W2 fast-followers — verifier robustness, off the critical path)
 ```
 
 Within a phase, subphases are also ordered. Each subphase header notes its blockers explicitly (`Blocked by:` line) and which sibling subphases it unblocks (`Unblocks:` line) so the dependency graph is readable without reading the whole file.
@@ -31,6 +33,7 @@ Within a phase, subphases are also ordered. Each subphase header notes its block
 - [Phase E — Final eval coverage + real-model CI gate](phase-E.md) — Thursday Early Submission gate
 - [Phase F — Tier-3 promotion UI + side-by-side PDF.js + inline accept/reject](phase-F.md) — parallel with G
 - [Phase G — Polish: cost analysis, runbook, observability, README, demo video](phase-G.md) — parallel with F
+- [Phase H — Fast-followers: verifier robustness + supervisor narrative quality](phase-H.md) — post-W2, off the submission critical path
 
 ## Subphase shape
 
