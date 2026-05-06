@@ -250,6 +250,87 @@ export const DocumentEvidenceArgsSchema = z.object({
 export type DocumentEvidenceArgs = z.infer<typeof DocumentEvidenceArgsSchema>;
 
 /**
+ * §C.3 closed enumeration of guideline publishers the supervisor may
+ * filter on. MVP ships USPSTF only; the architecture (§"evidenceRetriever")
+ * pre-declares the full set so adding a new publisher in a later phase is
+ * a corpus-ingest change, not a schema change.
+ */
+export const EVIDENCE_SOURCE_FILTERS = [
+    'USPSTF',
+    'ADA',
+    'ACC-AHA',
+    'AGS-Beers',
+    'CDC',
+] as const;
+export type EvidenceSourceFilter = typeof EVIDENCE_SOURCE_FILTERS[number];
+
+/**
+ * §C.3 supervisor handoff args for `evidenceRetriever`. The model picks
+ * a `query` plus optional `top_k` and `source_filter`; defaults bind to
+ * the values pinned in `W2_ARCHITECTURE.md` §"evidenceRetriever" (top-3
+ * after rerank).
+ *
+ * Bounded ranges defend against degenerate queries: `top_k` caps at 10
+ * to keep the rerank window bounded and the synthesizer's prompt body
+ * small. `source_filter`, when set, restricts retrieval to the named
+ * publishers via Pinecone metadata filter — empty arrays are rejected so
+ * "filter to nothing" can't slip past structured-output coercion.
+ */
+export const EvidenceArgsSchema = z.object({
+    query: z.string().min(1),
+    top_k: z.number().int().min(1).max(10).default(3),
+    source_filter: z.array(z.enum(EVIDENCE_SOURCE_FILTERS)).min(1).optional(),
+});
+
+export type EvidenceArgs = z.infer<typeof EvidenceArgsSchema>;
+
+/**
+ * §C.3 single retriever-output snippet: one Pinecone hybrid hit, after
+ * Cohere rerank, projected onto a citable `SourceReference` shape with
+ * `source_type='guideline'`. Mirrors the architecture's
+ * `EvidenceSnippet` shape (`W2_ARCHITECTURE.md` §"evidenceRetriever").
+ *
+ * `chunkId` is the stable `<source>::<basename>` id the reindex script
+ * upserts to Pinecone (see `agent/scripts/reindex-corpus.ts`); the
+ * synthesizer cites it as `SourceReference.source_id` and the C.5
+ * verifier resolves the citation by matching `chunkId` against this
+ * turn's retriever outputs. `quote` is the chunk body (or its leading
+ * window) — the synthesizer's quote must substring-match it.
+ * `rerankScore` is the Cohere `rerank-v3.5` relevance score in `[0, 1]`; on
+ * Cohere outage it's the Pinecone hybrid score (degraded mode).
+ */
+export interface EvidenceSnippet {
+    readonly chunkId: string;
+    readonly publication: string;
+    readonly year: number;
+    readonly section: string;
+    readonly title: string;
+    readonly url?: string;
+    readonly licenseTier: string;
+    readonly quote: string;
+    readonly rerankScore: number;
+    /**
+     * True when Cohere's rerank service was unreachable and the order
+     * fell through to Pinecone hybrid score. Surfaced in trace metadata
+     * so degraded-mode runs are observable; the synthesizer treats the
+     * snippet identically. Per `W2_ARCHITECTURE.md` §"Failure Modes" —
+     * "Cohere outage" row.
+     */
+    readonly degradedRerank: boolean;
+}
+
+/**
+ * §C.3 retriever output. Either a list of snippets (possibly empty if
+ * the query matched nothing) or a {@link Gap} when Pinecone is
+ * unreachable. The supervisor reads the gap to route around the failure
+ * — per `W2_ARCHITECTURE.md` §"Failure Modes" "Pinecone outage" row.
+ */
+export interface EvidenceRetrieverOutput {
+    readonly snippets: readonly EvidenceSnippet[];
+    readonly gap: Gap | null;
+}
+
+/**
  * §C.1 single retriever-output snippet: one extracted fact projected
  * onto a citable `SourceReference` shape. Mirrors the architecture's
  * `ExtractedFactSnippet` shape (`W2_ARCHITECTURE.md` §"documentEvidenceRetriever").

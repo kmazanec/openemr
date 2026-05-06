@@ -7,6 +7,8 @@ import type {
     ClaimLedger,
     DocumentEvidenceArgs,
     DraftBriefing,
+    EvidenceArgs,
+    EvidenceRetrieverOutput,
     ExtractedFactSnippet,
     PersistedRecord,
     PriorTurnContext,
@@ -81,6 +83,23 @@ export const BriefingStateAnnotation = Annotation.Root({
     documentEvidenceSnippets: lastValueChannel<readonly ExtractedFactSnippet[] | null>(
         () => null,
     ),
+    /**
+     * §C.3 supervisor handoff args for `evidenceRetriever`. Null until
+     * the supervisor picks the handoff with structured args; narrowed
+     * against `EvidenceArgsSchema` before reaching this slot so the node
+     * can trust the shape.
+     */
+    evidenceRetrieverArgs: lastValueChannel<EvidenceArgs | null>(() => null),
+    /**
+     * §C.3 retriever output: the snippets `evidenceRetriever` returns
+     * for the supervisor's next iteration to reason over and for the
+     * C.5 verifier to resolve `guideline` citations against. The output
+     * carries a non-null `gap` when Pinecone is unreachable so the
+     * supervisor sees the failure rather than an empty `snippets` array
+     * (which legitimately means "indexed corpus has no match"). `null`
+     * at the slot level means the retriever has not run this turn.
+     */
+    evidenceRetrieverOutput: lastValueChannel<EvidenceRetrieverOutput | null>(() => null),
     /**
      * §A.7 per-turn supervisor iteration counter. The supervisor node
      * increments on entry; the iteration cap (10) forces synthesize when

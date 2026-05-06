@@ -61,7 +61,7 @@ const baseState = (overrides: Partial<BriefingState> = {}): BriefingState => ({
     formatted: null,
     persisted: null,
     retrieveChartCallCount: 1,
-    retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null,
+    retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null,    evidenceRetrieverArgs: null,    evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
     capHit: false,
@@ -162,6 +162,78 @@ describe('createSupervisor (§A.7)', () => {
             handoff: 'documentEvidenceRetriever',
             reason: 'pathological narrowing',
             args: { query: 'whatever', doc_types: [] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(supervisor(baseState())).rejects.toThrow();
+    });
+
+    it('§C.3: narrows evidenceRetriever args (with defaults) into the evidenceRetrieverArgs slot', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'screening guideline likely relevant',
+            args: { query: 'USPSTF colorectal cancer screening' },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState());
+
+        expect(out.supervisorDecisionHistory?.[0]?.handoff).toBe('evidenceRetriever');
+        expect(out.evidenceRetrieverArgs).toEqual({
+            query: 'USPSTF colorectal cancer screening',
+            // Schema default — top-3 after rerank per architecture.
+            top_k: 3,
+        });
+    });
+
+    it('§C.3: passes evidenceRetriever source_filter through to the slot', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'restrict to USPSTF',
+            args: {
+                query: 'colorectal screening',
+                top_k: 5,
+                source_filter: ['USPSTF'],
+            },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState());
+
+        expect(out.evidenceRetrieverArgs).toEqual({
+            query: 'colorectal screening',
+            top_k: 5,
+            source_filter: ['USPSTF'],
+        });
+    });
+
+    it('§C.3: rejects malformed evidenceRetriever args (missing query) before they reach state', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'forgot to set a query',
+            args: { top_k: 3 },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(supervisor(baseState())).rejects.toThrow(/query/i);
+    });
+
+    it('§C.3: rejects evidenceRetriever args with empty source_filter (Zod min(1))', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'pathological narrowing',
+            args: { query: 'A1c targets', source_filter: [] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(supervisor(baseState())).rejects.toThrow();
+    });
+
+    it('§C.3: rejects evidenceRetriever args with top_k beyond bounds', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'over-fetching',
+            args: { query: 'A1c', top_k: 999 },
         });
         const supervisor = createSupervisor({ decide: llm });
 

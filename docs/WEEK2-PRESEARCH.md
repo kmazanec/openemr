@@ -161,7 +161,7 @@ Both schemas carry per-field `citation` with `{page, bbox, quote}` so the citati
 | Stage | Service | Driver | Pricing dimension |
 |---|---|---|---|
 | Embedding (RAG indexing) | OpenAI `text-embedding-3-small` (Q8) | Corpus size at index time + per-query embed at retrieval time | $/1M tokens |
-| Rerank (RAG retrieval) | Cohere `rerank-3` (or fallback) | Per `evidence-retriever` invocation | $/1k searches |
+| Rerank (RAG retrieval) | Cohere `rerank-v3.5` (or fallback) | Per `evidence-retriever` invocation | $/1k searches |
 | Synthesizer (W1 carry-forward) | Claude Sonnet 4.x | Per briefing/follow-up turn | $/1M input + $/1M output tokens |
 | Vision (W2 new) | Claude Sonnet 4.x with image inputs | Per `attach_and_extract` call | $/1M input (incl. image tokens) + $/1M output |
 
@@ -417,7 +417,7 @@ Required: keyword + dense retrieval, rerank, top-k snippets fed to the answer mo
   - **Option A (recommended): Pinecone hybrid index.** Pinecone supports sparse-dense hybrid indices via the `pinecone-text` SDK — sparse vectors generated from BM25 over the corpus text live alongside dense vectors in the same index. One query returns fused results. Single vendor for retrieval; rerank still flows through Cohere on top of Pinecone's top-20.
   - **Option B (fallback): keep sparse on agent Postgres `tsvector`** + dense on Pinecone, fuse with reciprocal rank fusion in app code. More flexible (Postgres FTS is more expressive than BM25 over arbitrary text), more code to maintain.
   - **Recommendation: A.** The corpus is small enough that Postgres FTS's expressivity gain is theoretical, and "single vendor for retrieval" is the simpler operational story.
-- **Reranker.** Cohere `rerank-3` (PDF mentions Cohere by name; well-established API; ~$1 per 1k searches). Voyage AI `rerank-2` is a newer alternative but adds another vendor. **Recommendation:** Cohere `rerank-3` to track the PDF's example.
+- **Reranker.** Cohere `rerank-v3.5` (PDF mentions Cohere by name; well-established API; ~$1 per 1k searches). Voyage AI `rerank-2` is a newer alternative but adds another vendor. **Recommendation:** Cohere `rerank-v3.5` to track the PDF's example.
 - **Hybrid fusion.** Reciprocal rank fusion (RRF) with k=60 on the union of top-20 from sparse + top-20 from dense, then rerank top-10 down to top-3. Standard recipe; no novelty needed.
 
 **Q9 — RESOLVED. Corpus is curated, not bulk-ingested. Sources are added one at a time, with eval validation between each, in the priority order below. The MVP ships with USPSTF only; subsequent sources are separate sub-phases in the implementation plan.**
@@ -880,7 +880,7 @@ Every Q1–Q20 has been resolved. This summary is the version to lift into `W2_A
 | **Multi-agent shape (Q6)** | Two LangGraph apps. **Conversational graph:** `retrieveChart (deterministic, first call only) → supervisor (LLM loop, max 10 iterations) → {kickoffExtraction \| retrieveChart (model-driven) \| documentEvidenceRetriever (model-driven) \| evidenceRetriever (model-driven) \| W1 deterministic branches \| synthesize} → verify → format → persist`. **Ingestion pipeline:** separate compiled graph (`rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas`), deterministic. Three invokers (supervisor handoff, OpenEMR `DocumentUploadedEvent`, CLI). `loadState`/`planContext` hoisted to runner; runner-side `loadPriorContext` threads `priorTurnContext: PriorTurnContext` (user text verbatim, assistant turns replayed as `{citations, facts}` only) into `BriefingState` so supervisor and synthesizer have multi-turn dialog memory. Verifier and hard stops stay deterministic. Full LangSmith instrumentation per supervisor decision and per retriever call. |
 | **Vision LLM (Q7)** | Claude Sonnet 4.x. Same SDK + BAA as W1 synthesizer. |
 | **Embedding model + vector store (Q8)** | OpenAI `text-embedding-3-large` (3072d) for embeddings. **Pinecone serverless** for the vector store — hybrid sparse-dense index, no PHI (reference corpus only). |
-| **Reranker** | Cohere `rerank-3`. |
+| **Reranker** | Cohere `rerank-v3.5`. |
 | **Guideline corpus (Q9)** | Curated, one-at-a-time. **MVP ships USPSTF only.** Sequence: USPSTF → ADA → ACC/AHA HTN → AGS Beers (license-conditional) → CDC vaccines, then stop and review evals. License labeling in `W2_ARCHITECTURE.md`. |
 | **Citation contract (Q6/Q10)** | Unified `SourceReference` with `source_type` discriminator (`'chart' \| 'extracted_document' \| 'guideline'`). One shape, three click-through behaviors, three verifier resolution rules. W1 fields renamed (`recordType` → `source_type`, etc.) in coordinated PHP/TS migration. Zod refinement enforces locator polymorphism. |
 | **Persistence (Q11)** | **Tiered (C).** T1 = `DocumentReference` always lands in OpenEMR. T2 = `extraction_artifacts` row in agent Postgres at `pending_confirmation`. T3 = chart records (FHIR resources with `source_document_uuid`) only on explicit clinician acceptance. Demographics deltas surface but never auto-promote. |

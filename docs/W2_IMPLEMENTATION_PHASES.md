@@ -104,7 +104,7 @@ Phase A — Foundation refactor + W1 LLM-supervisor migration   [BLOCKER for eve
 
 **What lands:**
 - `documentEvidenceRetriever` retriever node: replace Phase A's no-op stub with a real query over `extraction_artifacts` (filtered by `pid`, `status`, `doc_types`, `lookback_days`, semantic relevance to the supervisor's `query`). Returns `ExtractedFactSnippet[]` with bbox + page + quote + field path. Per-call LangSmith metadata: query (hashed), filters, count returned, latency.
-- `evidenceRetriever` retriever node: replace Phase A's no-op stub with hybrid retrieval over Pinecone + Cohere rerank. Pinecone client wired, BM25 sparse vectors via `pinecone-text`, Cohere `rerank-3` over Pinecone's top-20 → top-3.
+- `evidenceRetriever` retriever node: replace Phase A's no-op stub with hybrid retrieval over Pinecone + Cohere rerank. Pinecone client wired, BM25 sparse vectors via `pinecone-text`, Cohere `rerank-v3.5` over Pinecone's top-20 → top-3.
 - USPSTF corpus ingest: one-shot `npm run evals:reindex-corpus` script that reads curated USPSTF chunks from a versioned source (`agent/data/corpus/uspstf/`), embeds via OpenAI `text-embedding-3-large`, upserts to Pinecone with metadata `{publication, year, section, url, license_tier}`, namespace `guidelines-v1`. Idempotent re-runs.
 - Synthesizer prompt extended to handle three source types and to wrap retriever outputs in delimited tags so embedded instructions inside any source can't smuggle prompt-injection.
 - Verifier extended with per-`source_type` resolution rules: chart claim resolution unchanged from W1; extracted-document claim resolution checks bbox + page + quote against the recorded extraction; guideline claim resolution checks chunk-id-in-this-turn + quote substring match.
@@ -234,7 +234,7 @@ While I'm coding any phase, here's the sequenced list of human-only tasks. Each 
 **Required by Phase C:**
 - Pinecone account setup. Free tier or starter is fine for MVP corpus size (USPSTF only — all published recommendations, ~200 chunks; supersedes the earlier "~50–80" hand-curation target — see C.2). Get an API key. Confirm region selection; default `us-east-1` is fine.
 - OpenAI account setup with embeddings access. Get an API key. No billing-cap action needed at our usage volume but worth setting one as belt-and-suspenders.
-- Cohere account setup with `rerank-3` access. Get an API key. Their free trial credits are typically sufficient for the W2 sprint.
+- Cohere account setup with `rerank-v3.5` access. Get an API key. Their free trial credits are typically sufficient for the W2 sprint.
 - All four keys (Pinecone, OpenAI, Cohere, plus Spaces from earlier) populated in `/etc/openemr/.env` on the Droplet.
 
 **Required by Phase E:**
