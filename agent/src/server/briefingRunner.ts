@@ -1,7 +1,16 @@
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 
+import OpenAI from 'openai';
+import { Pinecone } from '@pinecone-database/pinecone';
+
 import { createBriefingGraph, type BriefingGraphDeps } from '../graph/index.js';
+import type { DocumentEvidenceRetrieverDeps } from '../graph/nodes/documentEvidenceRetriever.js';
+import type { EvidenceRetrieverDeps } from '../graph/nodes/evidenceRetriever.js';
 import { createLabHistoryFetcher, type LabHistoryFetcher } from '../graph/nodes/retrieveChart.js';
+import {
+    createAnthropicSupervisorDecide,
+    type SupervisorDeps,
+} from '../graph/nodes/supervisor.js';
 import { createAnthropicSynthesizer } from '../graph/nodes/synthesize.js';
 import type { Synthesizer } from '../graph/nodes/synthesize.js';
 import type { BriefingState } from '../graph/state.js';
@@ -9,9 +18,13 @@ import type { RequestEnvelope } from '../graph/types.js';
 import type { Counters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { buildIdentityTags } from '../observability/traceMetadata.js';
+import { createCohereRerankClient } from '../retrievers/cohere.js';
+import { loadCorpusBM25Stats } from '../retrievers/corpusLoader.js';
+import { createPineconeRetriever } from '../retrievers/pinecone.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
 import type { ConversationSuggestionStore } from '../state/conversationSuggestions.js';
+import type { ExtractionArtifactStore } from '../state/extractionArtifacts.js';
 import { createAgentHttpClient } from '../tools/agentHttp.js';
 import type { AgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
@@ -127,6 +140,28 @@ export interface BriefingRunnerDeps {
      * always wires this and pairs it with the route-level validation.
      */
     readonly conversationSuggestions?: ConversationSuggestionStore;
+    /**
+     * §A.7 LLM-driven supervisor. When wired, the conversational graph
+     * routes through the model-backed supervisor manifest; when omitted,
+     * the graph falls back to `w1FallbackDecide` which short-circuits
+     * every follow-up to `synthesize` (no retriever fan-out). Production
+     * always wires this; per-MR Vitest cases inject a deterministic stub.
+     */
+    readonly supervisor?: SupervisorDeps;
+    /**
+     * §C.3 evidence retriever (Pinecone hybrid + Cohere rerank). When
+     * wired, the supervisor can pick `evidenceRetriever` and the
+     * synthesizer sees guideline snippets in the prompt. Omit when the
+     * upstream credentials/index aren't available — the graph falls
+     * back to the C.3 stub and guideline-typed claims fail verification.
+     */
+    readonly evidenceRetriever?: EvidenceRetrieverDeps;
+    /**
+     * §C.1 document evidence retriever. When wired, the supervisor can
+     * pick `documentEvidenceRetriever` and the synthesizer sees
+     * extraction-fact snippets for previously uploaded documents.
+     */
+    readonly documentEvidenceRetriever?: DocumentEvidenceRetrieverDeps;
 }
 
 /**
@@ -271,6 +306,13 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                         ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
                     },
                 }
+                : {}),
+            ...(deps.supervisor !== undefined ? { supervisor: deps.supervisor } : {}),
+            ...(deps.evidenceRetriever !== undefined
+                ? { evidenceRetriever: deps.evidenceRetriever }
+                : {}),
+            ...(deps.documentEvidenceRetriever !== undefined
+                ? { documentEvidenceRetriever: deps.documentEvidenceRetriever }
                 : {}),
             ...(deps.checkpointer !== undefined ? { checkpointer: deps.checkpointer } : {}),
         };
@@ -456,13 +498,82 @@ export interface ProductionRunnerOptions {
     readonly conversationSuggestions: ConversationSuggestionStore;
     readonly checkpointer: BaseCheckpointSaver;
     readonly counters: Counters;
+    /**
+     * §C.1 store seam for the document-evidence retriever. Already
+     * constructed at boot for the ingestion pipeline; passed through so
+     * the briefing graph can use the same Postgres-backed implementation.
+     */
+    readonly extractionArtifactStore: ExtractionArtifactStore;
 }
+
+/**
+ * Build the §C.3 evidence retriever's vendor clients from environment
+ * configuration. Returns `null` when any required key is missing — the
+ * runner then falls back to the A.7 stub, which is the right behavior
+ * for non-cloud-credential setups (CI sandboxes, local-dev without a
+ * Pinecone account). Logs the missing-key list once at boot so an
+ * operator who expected guideline retrieval to be on can see why it
+ * isn't.
+ */
+const buildEvidenceRetrieverDeps = async (): Promise<EvidenceRetrieverDeps | null> => {
+    const logger = createLogger('briefingRunner');
+    const openaiKey = process.env['OPENAI_API_KEY'] ?? '';
+    const pineconeKey = process.env['PINECONE_API_KEY'] ?? '';
+    const indexName = process.env['PINECONE_INDEX_NAME'] ?? '';
+    const cohereKey = process.env['COHERE_API_KEY'] ?? '';
+    const namespace = process.env['PINECONE_NAMESPACE'] ?? 'guidelines-v1';
+
+    const missing: string[] = [];
+    if (openaiKey.length === 0) missing.push('OPENAI_API_KEY');
+    if (pineconeKey.length === 0) missing.push('PINECONE_API_KEY');
+    if (indexName.length === 0) missing.push('PINECONE_INDEX_NAME');
+    if (cohereKey.length === 0) missing.push('COHERE_API_KEY');
+    if (missing.length > 0) {
+        logger.warn(
+            { missing },
+            'evidenceRetriever deps not wired — set the listed env vars to enable guideline retrieval',
+        );
+        return null;
+    }
+
+    // Boot-time corpus load. The BM25 stats fitted here must match what
+    // the index-time `evals:reindex-corpus` script wrote — `bm25.ts`'s
+    // weights are query-side adjustable but the doc-side weights are
+    // baked into Pinecone.
+    const { stats, chunkCount } = await loadCorpusBM25Stats();
+    if (chunkCount === 0) {
+        logger.warn(
+            'evidenceRetriever corpus is empty — guideline retrieval will return no hits',
+        );
+    } else {
+        logger.info({ chunkCount }, 'evidenceRetriever BM25 stats fitted');
+    }
+
+    const openai = new OpenAI({ apiKey: openaiKey });
+    const pinecone = new Pinecone({ apiKey: pineconeKey });
+    const pineconeRetriever = createPineconeRetriever({
+        pinecone,
+        indexName,
+        namespace,
+        embeddings: openai.embeddings,
+        bm25Stats: stats,
+    });
+    const cohereRerank = createCohereRerankClient({ apiKey: cohereKey });
+    return { pineconeRetriever, cohereRerank };
+};
 
 /**
  * Build a runner from environment configuration. Used by `start()` so the
  * route handler never instantiates LLM clients or HTTP clients on its own.
+ *
+ * Async because the §C.3 evidence retriever needs the BM25 corpus loaded
+ * before any briefing can fan out into Pinecone — fitting stats lazily
+ * on the first turn would couple boot ordering to an arbitrary user
+ * action and double-load the corpus on a cold parallel burst.
  */
-export const buildProductionBriefingRunner = (options: ProductionRunnerOptions): BriefingRunner => {
+export const buildProductionBriefingRunner = async (
+    options: ProductionRunnerOptions,
+): Promise<BriefingRunner> => {
     const snapshotClient = createSnapshotClient({ baseUrl: options.openEmrBaseUrl });
     const synthesizer = createAnthropicSynthesizer();
     // A single AgentHttpClient powers all narrow tools (UC2's
@@ -475,6 +586,23 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         client: narrowHttpClient,
         openEmrBaseUrl: options.openEmrBaseUrl,
     });
+
+    // §A.7 LLM supervisor. The architecture pins this as the production
+    // router across the 8-handoff manifest — without it the graph runs
+    // `w1FallbackDecide` which never picks `evidenceRetriever`, so
+    // every follow-up bypasses guideline retrieval. Sonnet is the
+    // default per the price-vs-routing-accuracy tradeoff in the
+    // supervisor module.
+    const supervisor: SupervisorDeps = {
+        decide: createAnthropicSupervisorDecide(),
+        counters: options.counters,
+    };
+
+    const evidenceRetriever = await buildEvidenceRetrieverDeps();
+    const documentEvidenceRetriever: DocumentEvidenceRetrieverDeps = {
+        store: options.extractionArtifactStore,
+    };
+
     return createBriefingRunner({
         snapshotClient,
         synthesizer,
@@ -487,5 +615,8 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         checkpointer: options.checkpointer,
         counters: options.counters,
         fetchLabHistory,
+        supervisor,
+        documentEvidenceRetriever,
+        ...(evidenceRetriever !== null ? { evidenceRetriever } : {}),
     });
 };

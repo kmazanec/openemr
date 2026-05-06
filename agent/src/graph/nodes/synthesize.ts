@@ -18,6 +18,8 @@ import type {
     BriefingSnapshot,
     ClaimLedger,
     DraftBriefing,
+    EvidenceRetrieverOutput,
+    ExtractedFactSnippet,
     PriorTurnContext,
     RequestEnvelope,
 } from '../types.js';
@@ -116,6 +118,23 @@ export type Synthesizer = (input: {
      * pre-A.8 shape (no extra tokens on the dominant path).
      */
     priorTurnContext: PriorTurnContext;
+    /**
+     * §C.3 evidence-retriever snippets the supervisor surfaced this
+     * turn. `null` means the retriever did not run; an output with a
+     * non-null `gap` means the retriever ran but failed open. The
+     * synthesizer may emit `guideline`-typed claims only when the
+     * snippets list is non-empty — the verifier will reject any
+     * guideline citation against an unindexed `chunkId`/`section` pair.
+     */
+    evidenceRetrieverOutput?: EvidenceRetrieverOutput | null;
+    /**
+     * §C.1 document-evidence snippets the supervisor surfaced this
+     * turn. Same null/empty-list semantics as `evidenceRetrieverOutput`.
+     * The synthesizer may emit `extracted_document`-typed claims only
+     * when the snippets list is non-empty — the verifier resolves each
+     * citation against the artifact + field-path pair recorded here.
+     */
+    documentEvidenceSnippets?: readonly ExtractedFactSnippet[] | null;
 }) => Promise<SynthesizerResult>;
 
 export interface SynthesizeDeps {
@@ -140,6 +159,8 @@ export const createSynthesize = (
             snapshot: state.snapshot,
             envelope: state.envelope,
             priorTurnContext: state.priorTurnContext,
+            evidenceRetrieverOutput: state.evidenceRetrieverOutput,
+            documentEvidenceSnippets: state.documentEvidenceSnippets,
         });
         if (usage !== undefined) {
             const costUsd = costForUsage(usage);
@@ -228,7 +249,13 @@ export const createAnthropicSynthesizer = (options?: {
     // double-allocates two identical clients. Skip when models match.
     const followUpClient = followUpModel === briefingModel ? briefingClient : buildClient(followUpModel);
 
-    return async ({ snapshot, envelope, priorTurnContext }) => {
+    return async ({
+        snapshot,
+        envelope,
+        priorTurnContext,
+        evidenceRetrieverOutput,
+        documentEvidenceSnippets,
+    }) => {
         // Per-task routing. Three paths:
         //
         //   - `lab_trend` typed follow-up (§4.2): UC2 prompt, follow-up
@@ -260,11 +287,19 @@ export const createAnthropicSynthesizer = (options?: {
             : isFollowUp
                 ? FOLLOW_UP_SYSTEM_PROMPT
                 : SYSTEM_PROMPT;
+        const evidence = {
+            ...(evidenceRetrieverOutput !== null && evidenceRetrieverOutput !== undefined
+                ? { evidenceRetrieverOutput }
+                : {}),
+            ...(documentEvidenceSnippets !== null && documentEvidenceSnippets !== undefined
+                ? { documentEvidenceSnippets }
+                : {}),
+        };
         const userMessage = isLabTrend
             ? buildLabTrendUserMessage(snapshot, labTrendAnalyte)
             : isFollowUp
-                ? buildFollowUpUserMessage(snapshot, question, priorTurnContext)
-                : buildUserMessage(snapshot, priorTurnContext);
+                ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
+                : buildUserMessage(snapshot, priorTurnContext, evidence);
         const useFollowUpModel = isLabTrend || isFollowUp;
         const structured = useFollowUpModel ? followUpClient : briefingClient;
         const model = useFollowUpModel ? followUpModel : briefingModel;
@@ -274,6 +309,15 @@ export const createAnthropicSynthesizer = (options?: {
         ]);
         const parsed = result.parsed;
         const raw = result.raw;
+        if (parsed === null || parsed === undefined) {
+            // `withStructuredOutput({ includeRaw: true })` sets `parsed`
+            // to null when JSON-coercion fails (or LangChain exhausts
+            // its retry budget). Surface a typed error rather than
+            // dereferencing — the runner's error classifier maps it to
+            // `briefing_failed` and the panel shows the generic retry
+            // message instead of crashing the SSE stream.
+            throw new Error('synthesizer: structured output failed to parse');
+        }
         const usageMeta = (raw as { usage_metadata?: { input_tokens?: number; output_tokens?: number } })
             .usage_metadata;
         const usage =

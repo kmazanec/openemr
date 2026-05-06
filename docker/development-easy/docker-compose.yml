@@ -178,6 +178,17 @@ services:
       # key; the graph will fail-fast at the synthesize step rather than
       # hang. Override in your shell or `.env` for live LLM calls.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # §C.3 evidence retriever (Pinecone hybrid + Cohere rerank). Each
+      # is optional — when any of these is empty, the briefing runner
+      # logs a warning at boot and the graph falls back to the C.3 stub.
+      # Set in your shell or agent/.env to enable guideline retrieval
+      # against the corpus indexed by `npm run evals:reindex-corpus`.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME:-}
+      PINECONE_NAMESPACE: ${PINECONE_NAMESPACE:-guidelines-v1}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      COHERE_RERANK_MODEL: ${COHERE_RERANK_MODEL:-rerank-v3.5}
       # §6.1 LangSmith tracing. Off by default in dev — set
       # LANGSMITH_TRACING=true and LANGSMITH_API_KEY in your shell to opt
       # in. Project name is namespaced -dev so traces from local work

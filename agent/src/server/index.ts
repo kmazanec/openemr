@@ -777,14 +777,14 @@ export const start = async (port: number): Promise<void> => {
     const conversationMessages = createPgConversationMessagesStore({ connectionString: databaseUrl });
     const conversationSuggestions = createPgConversationSuggestionStore({ connectionString: databaseUrl });
     const scheduleBriefingsLog = createPgScheduleBriefingsLog({ connectionString: databaseUrl });
-    // §B.1 `extractionArtifactStore` is constructed at C.1's wiring point
-    // (when the conversational graph's documentEvidenceRetriever takes it
-    // as a dep). The schema is provisioned at boot by `runMigrations`
-    // above, so we don't need to construct the store here just to ensure
-    // the table exists.
+    // §B.1 / §C.1: the conversational graph's documentEvidenceRetriever
+    // takes the artifact store as a dep, so we construct it before the
+    // briefing runner. The same instance is shared with the ingestion
+    // pipeline below.
+    const extractionArtifactStore = createPgExtractionArtifactStore({ connectionString: databaseUrl });
 
     const counters = createInMemoryCounters();
-    const briefingRunner = buildProductionBriefingRunner({
+    const briefingRunner = await buildProductionBriefingRunner({
         openEmrBaseUrl,
         unverifiedClaimsLog,
         conversationStore,
@@ -792,6 +792,7 @@ export const start = async (port: number): Promise<void> => {
         conversationSuggestions,
         checkpointer,
         counters,
+        extractionArtifactStore,
     });
     // §6.1: log the rolling cost-projection snapshot once a minute so the
     // numbers are searchable in the agent's stdout without needing a
@@ -821,7 +822,6 @@ export const start = async (port: number): Promise<void> => {
     const spacesEnv = parseSpacesEnv();
     const openemrSpaces = createOpenEmrSpacesClient(spacesEnv);
     const agentSpaces = createAgentSpacesClient(spacesEnv);
-    const extractionArtifactStore = createPgExtractionArtifactStore({ connectionString: databaseUrl });
     const documentReferenceClient = createOpenEmrDocumentReferenceClient({ baseUrl: openEmrBaseUrl });
     const snapshotClient = createSnapshotClient({ baseUrl: openEmrBaseUrl });
     // Both pipeline-side fetch boundaries hit the same snapshot

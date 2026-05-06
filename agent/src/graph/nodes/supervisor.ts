@@ -546,6 +546,13 @@ export const createAnthropicSupervisorDecide = (options?: {
         ]);
         const parsed = result.parsed;
         const raw = result.raw;
+        if (parsed === null || parsed === undefined) {
+            // `withStructuredOutput({ includeRaw: true })` sets `parsed`
+            // to null when JSON-coercion fails. The supervisor's caller
+            // runs `SupervisorDecisionSchema.parse(decision)` next,
+            // which would NPE on null without an explicit message.
+            throw new Error('supervisor: structured output failed to parse');
+        }
         const usageMeta = (raw as {
             usage_metadata?: { input_tokens?: number; output_tokens?: number };
         }).usage_metadata;
