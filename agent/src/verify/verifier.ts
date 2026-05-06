@@ -123,6 +123,107 @@ const tolerantContentMatch = (claimText: string, sourceField: string): boolean =
 };
 
 /**
+ * Lab-analyte alias groups: every group is a set of mutually-equivalent
+ * names for the same analyte. Chart `analyte` strings come from the
+ * snapshot endpoint's lab adapter, which preserves the LOINC-shaped
+ * display name verbatim ("Hemoglobin A1c", "Blood Urea Nitrogen",
+ * "LDL Cholesterol (calculated)"). Synthesizers — and clinicians —
+ * habitually use compact medical abbreviations ("HbA1c", "BUN",
+ * "LDL cholesterol") that don't word-for-word reproduce the chart's
+ * verbose form, so the strict token-bag rule rejected accurate
+ * claims as unverified.
+ *
+ * The alias check is asymmetric: we only consult it when the chart's
+ * `analyte` matches a group, and then accept the claim if it mentions
+ * ANY equivalent name from the same group. The numeric value, date,
+ * and unit checks downstream still gate fabrication — we relax the
+ * naming rule, not the verification surface.
+ *
+ * Adding a new alias is a one-line change; keep the canonical chart
+ * name first in each tuple so a future grep is obvious.
+ */
+const LAB_ANALYTE_ALIASES: readonly (readonly string[])[] = [
+    ['Hemoglobin A1c', 'HbA1c', 'A1c', 'Glycated hemoglobin', 'Glycohemoglobin'],
+    ['Blood Urea Nitrogen', 'BUN', 'Urea nitrogen'],
+    ['LDL Cholesterol (calculated)', 'LDL Cholesterol', 'LDL-C', 'LDL'],
+    ['HDL Cholesterol', 'HDL-C', 'HDL'],
+    ['Cholesterol, Total', 'Total cholesterol', 'Total chol'],
+    ['Glucose, Fasting', 'Fasting glucose', 'FPG', 'Fasting plasma glucose'],
+    ['eGFR (MDRD)', 'eGFR', 'Estimated GFR', 'Estimated glomerular filtration rate'],
+    ['eGFR (CKD-EPI)', 'eGFR', 'Estimated GFR'],
+    ['Triglycerides', 'TG', 'Triglyceride'],
+    ['Non-HDL Cholesterol', 'Non-HDL', 'Non-HDL-C'],
+];
+
+const matchesLabAnalyte = (claimText: string, chartAnalyte: string): boolean => {
+    if (tolerantContentMatch(claimText, chartAnalyte)) return true;
+    const claimLower = claimText.toLowerCase();
+    const chartLower = chartAnalyte.toLowerCase();
+    for (const group of LAB_ANALYTE_ALIASES) {
+        const groupLower = group.map((g) => g.toLowerCase());
+        if (!groupLower.includes(chartLower)) continue;
+        // The chart's analyte is in this group; accept if the claim
+        // mentions any member of the group as a substring (case-
+        // insensitive). Substring rather than token-bag because alias
+        // names are short ("BUN", "HbA1c") and word-boundary matching
+        // gets fiddly across mixed-case tokens like "HbA1c".
+        if (groupLower.some((alias) => claimLower.includes(alias))) {
+            return true;
+        }
+    }
+    return false;
+};
+
+/**
+ * Pharmaceutical descriptors (route + dosage form) that the chart's
+ * `drug` field carries from RxNorm-style display strings ("Metformin
+ * hydrochloride 500 MG Oral Tablet") but that the synthesizer
+ * legitimately omits when re-rendering as natural prose ("Metformin
+ * 500 mg twice daily"). The drug name and strength remain
+ * load-bearing for safety; these descriptors do not.
+ */
+const PRESCRIPTION_FORM_DESCRIPTORS: ReadonlySet<string> = new Set([
+    'oral',
+    'tablet',
+    'capsule',
+    'caplet',
+    'solution',
+    'suspension',
+    'injection',
+    'injectable',
+    'syrup',
+    'cream',
+    'ointment',
+    'patch',
+    'inhaler',
+    'spray',
+    'drop',
+    'lozenge',
+    'powder',
+    'gel',
+    'extended-release',
+    'er',
+    'xr',
+    'sr',
+    'ir',
+    'la',
+    'cr',
+    'mr',
+    'odt',
+    'sl',
+]);
+
+const matchesDrugName = (claimText: string, chartDrugName: string): boolean => {
+    if (containsCI(claimText, chartDrugName)) return true;
+    const tokens = tokenize(chartDrugName)
+        .map(stripPluralS)
+        .filter((t) => !PRESCRIPTION_FORM_DESCRIPTORS.has(t));
+    if (tokens.length === 0) return false;
+    const claimLower = claimText.toLowerCase();
+    return tokens.every((t) => claimMentionsToken(claimLower, t));
+};
+
+/**
  * §A.5 re-export. `loadPriorContext` resolves replayed citations
  * against the current turn's snapshot using the same indexer the
  * verifier uses, per `W2_ARCHITECTURE.md` §"Prior-turn context"
@@ -247,7 +348,7 @@ export const buildSnapshotIndex = (snapshot: BriefingSnapshot): SnapshotIndex =>
 const matchesPrescription = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const rx = idx.prescriptions.get(ref.source_id);
     if (rx === undefined) return false;
-    return tolerantContentMatch(claim.text, rx.name);
+    return matchesDrugName(claim.text, rx.name);
 };
 
 /**
@@ -280,7 +381,7 @@ const matchesPrescriptionChange = (
 ): boolean => {
     const rx = idx.prescriptions.get(ref.source_id);
     if (rx === undefined) return false;
-    if (!tolerantContentMatch(claim.text, rx.name)) return false;
+    if (!matchesDrugName(claim.text, rx.name)) return false;
     if (
         rx.indication !== null
         && rx.indication.length > 0
@@ -316,7 +417,7 @@ const matchesLab = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boo
     // re-orders into natural English ("Fasting glucose"). The value
     // stays on strict containsCI — fabricated numbers are exactly what
     // this rule exists to catch, so loosening it is unsafe.
-    if (!tolerantContentMatch(claim.text, lab.analyte) || !containsCI(claim.text, lab.value)) {
+    if (!matchesLabAnalyte(claim.text, lab.analyte) || !containsCI(claim.text, lab.value)) {
         return false;
     }
 

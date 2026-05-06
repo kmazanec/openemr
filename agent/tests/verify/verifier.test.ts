@@ -1611,3 +1611,249 @@ describe('verifyLedger — tolerant content matcher (regression)', () => {
         expect(out.accepted).toHaveLength(1);
     });
 });
+
+describe('verifyLedger — lab analyte aliases (regression)', () => {
+    // Production incident May 2026: synthesizer claims using standard
+    // medical abbreviations (HbA1c, BUN, "LDL cholesterol") were
+    // rejected as unverified because the chart's `analyte` carried
+    // the spelled-out LOINC display string ("Hemoglobin A1c", "Blood
+    // Urea Nitrogen", "LDL Cholesterol (calculated)"). The token-bag
+    // matcher demanded every chart token appear in the claim, so the
+    // model's compact prose failed even when value/date/unit were
+    // correct. Lab-analyte aliases now bridge the gap.
+
+    const labFixture = (
+        analyte: string,
+        overrides: { value?: string; unit?: string | null; observedAt?: string | null } = {},
+    ) => ({
+        analyte,
+        value: overrides.value ?? '8.1',
+        unit: overrides.unit ?? '%',
+        referenceRange: '4.0-5.6',
+        abnormalFlag: 'high',
+        observedAt: overrides.observedAt ?? '2026-04-06',
+        source: sourceRef('Observation', 'lab-1'),
+    });
+
+    it('accepts HbA1c claim against a "Hemoglobin A1c" chart row', () => {
+        const out = verifyLedger(
+            baseSnapshot({ labs: [labFixture('Hemoglobin A1c')] }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'HbA1c was 8.1% on 2026-04-06 (flagged high; reference range 4.0–5.6%).',
+                    sourceReferences: [sourceRef('Observation', 'lab-1')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('accepts BUN claim against a "Blood Urea Nitrogen" chart row', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                labs: [
+                    labFixture('Blood Urea Nitrogen', {
+                        value: '7',
+                        unit: 'mg/dL',
+                        observedAt: '2026-05-06',
+                    }),
+                ],
+            }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'BUN was 7 mg/dL on 2026-05-06, within the reference range of 7–20 mg/dL.',
+                    sourceReferences: [sourceRef('Observation', 'lab-1')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('accepts "LDL cholesterol" claim against an "LDL Cholesterol (calculated)" chart row', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                labs: [
+                    labFixture('LDL Cholesterol (calculated)', {
+                        value: '129',
+                        unit: 'mg/dL',
+                        observedAt: '2026-02-05',
+                    }),
+                ],
+            }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'LDL cholesterol 129 mg/dL on 2026-02-05 (flagged high)',
+                    sourceReferences: [sourceRef('Observation', 'lab-1')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('still rejects an aliased analyte claim that fabricates the value', () => {
+        // The alias relaxation is on the analyte name only — the
+        // value branch must still gate fabrication.
+        const out = verifyLedger(
+            baseSnapshot({ labs: [labFixture('Hemoglobin A1c')] }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'HbA1c was 12.0% — markedly elevated.',
+                    sourceReferences: [sourceRef('Observation', 'lab-1')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('still rejects an aliased analyte claim that mentions the wrong date', () => {
+        const out = verifyLedger(
+            baseSnapshot({ labs: [labFixture('Hemoglobin A1c')] }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'HbA1c was 8.1% on 2025-04-06 (a year earlier than the row).',
+                    sourceReferences: [sourceRef('Observation', 'lab-1')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+});
+
+describe('verifyLedger — prescription form/route descriptors (regression)', () => {
+    // Same May 2026 incident: chart drug names follow the RxNorm
+    // pattern "<name> <strength> <route> <form>" ("Metformin
+    // hydrochloride 500 MG Oral Tablet"). Synthesizers re-render
+    // these as natural prose ("Metformin hydrochloride 500 mg twice
+    // daily") and omit the route/form descriptors — those tokens are
+    // not load-bearing for safety. The drug name + strength remain
+    // load-bearing and stay enforced.
+
+    it('accepts a prescription claim that omits the "Oral Tablet" route+form', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                prescriptions: [
+                    {
+                        name: 'Metformin hydrochloride 500 MG Oral Tablet',
+                        dose: '500 mg',
+                        route: 'oral',
+                        frequency: 'twice daily',
+                        startDate: '2026-03-11',
+                        stopDate: null,
+                        prescriber: null,
+                        indication: 'Type 2 diabetes mellitus',
+                        prescriptionId: 'rx-met',
+                        source: sourceRef('MedicationRequest', 'rx-met'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'prescription',
+                    text: 'Metformin hydrochloride 500 mg twice daily, started 2026-03-11.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-met')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('accepts a prescription claim that uses an XR/ER suffix omission', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                prescriptions: [
+                    {
+                        name: 'Metoprolol succinate ER 50 MG Oral Tablet',
+                        dose: '50 mg',
+                        route: 'oral',
+                        frequency: 'once daily',
+                        startDate: '2026-01-15',
+                        stopDate: null,
+                        prescriber: null,
+                        indication: 'Hypertension',
+                        prescriptionId: 'rx-meto',
+                        source: sourceRef('MedicationRequest', 'rx-meto'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'prescription',
+                    text: 'Metoprolol succinate 50 mg once daily.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-meto')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('still rejects a prescription claim that names a different drug', () => {
+        // The descriptor stripping must not loosen the drug-name
+        // requirement. Lisinopril vs Metformin still rejects.
+        const out = verifyLedger(
+            baseSnapshot({
+                prescriptions: [
+                    {
+                        name: 'Metformin hydrochloride 500 MG Oral Tablet',
+                        dose: '500 mg',
+                        route: 'oral',
+                        frequency: 'twice daily',
+                        startDate: '2026-03-11',
+                        stopDate: null,
+                        prescriber: null,
+                        indication: 'Type 2 diabetes mellitus',
+                        prescriptionId: 'rx-met',
+                        source: sourceRef('MedicationRequest', 'rx-met'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'prescription',
+                    text: 'Lisinopril 10 mg once daily.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-met')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('still rejects a prescription claim that drops the strength', () => {
+        // Strength is load-bearing — a 500 mg vs 1000 mg confusion is
+        // a real safety risk. The matcher must keep strength tokens.
+        const out = verifyLedger(
+            baseSnapshot({
+                prescriptions: [
+                    {
+                        name: 'Metformin hydrochloride 500 MG Oral Tablet',
+                        dose: '500 mg',
+                        route: 'oral',
+                        frequency: 'twice daily',
+                        startDate: '2026-03-11',
+                        stopDate: null,
+                        prescriber: null,
+                        indication: 'Type 2 diabetes mellitus',
+                        prescriptionId: 'rx-met',
+                        source: sourceRef('MedicationRequest', 'rx-met'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'prescription',
+                    text: 'Metformin hydrochloride twice daily.',
+                    sourceReferences: [sourceRef('MedicationRequest', 'rx-met')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+});
