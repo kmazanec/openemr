@@ -67,9 +67,21 @@ export const runMigrations = async (
         count: options.count ?? Infinity,
         migrationsTable: 'pgmigrations',
         verbose: false,
-        // SQL files only; the loader auto-detects the `.sql` extension.
-        // We don't allow JS migrations (TypeScript compile complications +
-        // the SQL surface is sufficient for our shapes today).
+        // SQL files only. Despite the comment that previously claimed
+        // node-pg-migrate auto-detects the `.sql` extension, the loader
+        // actually iterates everything in the directory and tries to
+        // import each entry — choking on `migrations/README.md` with
+        // `ERR_UNKNOWN_FILE_EXTENSION`. The negative-lookahead regex
+        // ignores any name that does NOT end in `.sql`, which still
+        // covers the default dotfile filter (a name like `.gitkeep`
+        // doesn't end in `.sql` and so is ignored).
+        //
+        // The runtime Dockerfile separately copies only `*.sql` into
+        // the runtime image (see fix/agent-dockerfile-migrations) — but
+        // the dev container bind-mounts the host's `agent/migrations/`
+        // directory, README and all, so the filter has to live in the
+        // runner config too.
+        ignorePattern: '(?!.*\\.sql$).*',
         singleTransaction: true,
     });
     const names = applied.map((m) => m.name);
