@@ -1,19 +1,20 @@
 /**
- * §B.3 / §B.4 Pipeline graph wiring.
+ * §B.3 / §B.4 / §B.5 Pipeline graph wiring.
  *
  * The ingestion pipeline is a separate compiled LangGraph app
  * (W2_ARCHITECTURE.md §"Pipeline as a compiled LangGraph app"). It is
  * built once at agent boot and invoked synchronously per extraction.
  *
- * Currently wired: `rasterize` (B.3) → `vision` (B.4). Subsequent
- * subphases (B.5 `schemaValidate`, B.6 `patientMatch`, B.7 `persist`
- * + `emitDeltas`) extend the same graph factory.
+ * Currently wired: `rasterize` (B.3) → `vision` (B.4) →
+ * `schemaValidate` (B.5). Subsequent subphases (B.6 `patientMatch`,
+ * B.7 `persist` + `emitDeltas`) extend the same graph factory.
  */
 
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { LastValue } from '@langchain/langgraph/channels';
 
 import { rasterize, type RasterizeDeps } from './nodes/rasterize.js';
+import { schemaValidate, type SchemaValidateDeps } from './nodes/schemaValidate.js';
 import { vision, type VisionDeps } from './nodes/vision.js';
 import { type DocumentType } from '../state/extractionArtifacts.js';
 import {
@@ -50,28 +51,34 @@ export const PipelineStateAnnotation = Annotation.Root({
 export interface PipelineDeps {
     readonly rasterize: RasterizeDeps;
     readonly vision: VisionDeps;
+    readonly schemaValidate: SchemaValidateDeps;
 }
 
 /**
- * Routes the post-rasterize edge: if rasterize set status to 'failed'
- * (cost cap, corrupted PDF, storage unreachable, …), skip vision and
- * short-circuit to END. Otherwise continue to vision. Mirrors the
- * `Failure isolation` rule in `W2_ARCHITECTURE.md` — a failed pipeline
- * ends as a structured-error artifact, downstream nodes don't run on
- * top of failed state.
+ * Failure-isolation router used between every consecutive node pair:
+ * if the upstream node set `status='failed'`, short-circuit to END so
+ * downstream nodes don't run on poisoned state. The successor name is
+ * passed in so each edge keeps its own (failed → END, ok → next) shape.
  */
-const routeAfterRasterize = (state: PipelineState): 'vision' | typeof END =>
-    state.status === 'failed' ? END : 'vision';
+const routeOrFail =
+    (next: string) =>
+    (state: PipelineState): string =>
+        state.status === 'failed' ? END : next;
 
 export const createPipelineGraph = (deps: PipelineDeps) => {
     const builder = new StateGraph(PipelineStateAnnotation)
         .addNode('rasterize', (state: PipelineState) => rasterize(state, deps.rasterize))
         .addNode('vision', (state: PipelineState) => vision(state, deps.vision))
+        .addNode('schemaValidate', (state: PipelineState) => schemaValidate(state, deps.schemaValidate))
         .addEdge(START, 'rasterize')
-        .addConditionalEdges('rasterize', routeAfterRasterize, {
+        .addConditionalEdges('rasterize', routeOrFail('vision'), {
             vision: 'vision',
             [END]: END,
         })
-        .addEdge('vision', END);
+        .addConditionalEdges('vision', routeOrFail('schemaValidate'), {
+            schemaValidate: 'schemaValidate',
+            [END]: END,
+        })
+        .addEdge('schemaValidate', END);
     return builder.compile();
 };

@@ -177,13 +177,13 @@ No conversational-graph extension lands here — extracting and persisting facts
 - `agent/src/pipeline/nodes/schemaValidate.ts` (new).
 
 **Checklist.**
-- [ ] Implement `schemaValidate(state, deps): Promise<Partial<PipelineState>>`:
+- [x] Implement `schemaValidate(state, deps): Partial<PipelineState>`:
   1. Pick the schema by `state.doc_type` (same dispatch as `vision`).
   2. Run `schema.safeParse(state.schema)` — note that `state.schema` was already typed at vision time, this is a defense-in-depth re-validation post-LLM.
   3. On success: pass through (state unchanged).
-  4. On parse failure: return `{status: 'failed', errors: [{code: 'schema_invalid', message, path}]}`.
-- [ ] Bbox-required defense: if any cited field is missing `page` or `bbox`, the field is dropped during validation (strict-schema requires bbox + page on every cited field per `W2_ARCHITECTURE.md` §"Failure Modes" "Bbox missing for a field" row).
-- [ ] Tests: pass-through happy path; schema-invalid case; bbox-missing case (asserts the field is dropped, not the whole extraction).
+  4. On parse failure: return `{status: 'failed', errors: [{code: 'schema_invalid', message, path}]}`. (Shipped at `agent/src/pipeline/nodes/schemaValidate.ts`. Kept synchronous — the node has no I/O — but LangGraph still accepts the return as a node action; the graph wiring stays uniform with `rasterize` / `vision`. A null `state.schema` is treated as `schema_invalid` rather than crashing, so the node is safe to call even when invoked out-of-order. Issue paths surface as `{path, message}` strings under `errors[0].details.issues`, matching the shape vision uses for its own defense-in-depth check.)
+- [x] Bbox-required defense: if any cited field is missing `page` or `bbox`, the field is dropped during validation (strict-schema requires bbox + page on every cited field per `W2_ARCHITECTURE.md` §"Failure Modes" "Bbox missing for a field" row). (Implemented as a recursive `sanitizeBboxMissing` walk that runs **before** the strict `safeParse`. A "cited field" is detected structurally by the presence of `quote: string` + `confidence: number`; a cited-shaped object lacking `bbox` (4-tuple of finite numbers) or `page` (positive int) is removed — as an array element or as an object key. The walk preserves non-cited containers (the demographics object, the extraction root) and recurses into them. Required cited fields that get dropped still fail strict-parse downstream — that's the right behavior, the fact wasn't extractable.)
+- [x] Tests: pass-through happy path; schema-invalid case; bbox-missing case (asserts the field is dropped, not the whole extraction). (`agent/tests/pipeline/schemaValidate.test.ts` — 8 cases: lab+intake happy paths, missing-required-field, null-schema, array-element bbox-missing → drops only that element, optional-field bbox-missing → drops only that field, **required**-field bbox-missing → fails (proves we don't silently drop required structure), and `min(1)` array fully sanitized to empty → fails. Wired into the pipeline graph via `vision → schemaValidate → END` with the same `routeOrFail` short-circuit on `failed` upstream.)
 
 **Definition of done.** Unit tests green. Validation failure produces a `failed` artifact with structured error path; partial schemas are never accepted.
 
