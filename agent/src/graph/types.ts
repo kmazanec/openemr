@@ -172,6 +172,14 @@ export interface PriorTurnContext {
 export interface PendingUpload {
     readonly documentUuid: string;
     readonly docType: 'lab_pdf' | 'intake_form';
+    /**
+     * File extension of the canonical Spaces object the upload landed
+     * at — `pdf`, `png`, `jpg`, `jpeg`, `tiff`. The pipeline's rasterize
+     * node uses it to compose the canonical key (`<pid>/<uuid>.<ext>`)
+     * and to decide whether to PDF-render or pass the image through as
+     * a single page. The panel returns this from `document_upload.php`.
+     */
+    readonly canonicalExt: string;
 }
 
 /**

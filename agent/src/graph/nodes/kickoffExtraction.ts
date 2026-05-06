@@ -178,10 +178,28 @@ export const createKickoffExtraction = (
         }
         const args = parsedArgs.data;
 
+        // Resolve canonicalExt for this pipeline call. Order of
+        // precedence:
+        //   1. The matching `pendingUploads` entry from the envelope
+        //      (the conversational panel-upload path). This is the
+        //      load-bearing case — the panel knows the upload's actual
+        //      file extension and the supervisor must use it, not a
+        //      stale default.
+        //   2. The deps-level override (`deps.canonicalExt`), used by
+        //      the autosweep / CLI ctx builders that build their own
+        //      `PipelineCallContext` outside the conversational path.
+        //   3. The pipeline default (`pdf`), preserved for legacy
+        //      parity with pre-supervisor-driven invokers.
+        const matchingPendingUpload = state.envelope.pendingUploads?.find(
+            (p) => p.documentUuid === args.document_uuid,
+        );
         const callContext: PipelineCallContext = {
             openemrToken: deps.openemrToken,
             openemrSiteId: deps.openemrSiteId,
-            canonicalExt: deps.canonicalExt ?? DEFAULT_CANONICAL_EXT,
+            canonicalExt:
+                matchingPendingUpload?.canonicalExt
+                ?? deps.canonicalExt
+                ?? DEFAULT_CANONICAL_EXT,
             ...(deps.conversationId !== undefined ? { conversationId: deps.conversationId } : {}),
         };
         const initialState = initialPipelineState({

@@ -1631,6 +1631,7 @@ const __copilotPanel = (function () {
                         {
                             documentUuid: uploadResult.documentUuid,
                             docType: uploadResult.docType,
+                            canonicalExt: uploadResult.canonicalExt,
                         },
                     ],
                 },

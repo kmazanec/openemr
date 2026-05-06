@@ -378,6 +378,54 @@ describe('kickoffExtraction node (§B.9)', () => {
         expect(ctx.canonicalExt).toBe('pdf');
     });
 
+    it('resolves canonicalExt from the matching pendingUploads entry on the envelope (image upload)', async () => {
+        // The conversational panel-upload path: the user attached a
+        // PNG and the panel echoed `canonicalExt: 'png'` on the
+        // envelope's pendingUploads list. Without per-uuid lookup the
+        // pipeline would default to .pdf and 404 on the canonical key.
+        const runner = stubRunner([{ mode: 'values', payload: persistedState('art-png-1') }]);
+        const node = createKickoffExtraction({
+            pipeline: runner,
+            openemrToken: 'tok',
+            openemrSiteId: 'default',
+        });
+
+        await node(
+            baseState({
+                envelope: {
+                    ...envelope,
+                    pendingUploads: [
+                        { documentUuid: 'doc-uuid-1', docType: 'lab_pdf', canonicalExt: 'png' },
+                    ],
+                },
+            }),
+        );
+
+        const call = (runner.stream as ReturnType<typeof vi.fn>).mock.calls[0];
+        const ctx = call?.[1] as { canonicalExt: string };
+        expect(ctx.canonicalExt).toBe('png');
+    });
+
+    it('falls back to the deps-level canonicalExt when no matching pending entry exists', async () => {
+        // The autosweep / CLI path: no `pendingUploads` array on the
+        // envelope, the per-call ctx builder pre-set canonicalExt on
+        // the deps. The supervisor's chosen uuid still routes through
+        // the deps-level value, not the legacy `pdf` default.
+        const runner = stubRunner([{ mode: 'values', payload: persistedState('art-4') }]);
+        const node = createKickoffExtraction({
+            pipeline: runner,
+            openemrToken: 'tok',
+            openemrSiteId: 'default',
+            canonicalExt: 'tiff',
+        });
+
+        await node(baseState());
+
+        const call = (runner.stream as ReturnType<typeof vi.fn>).mock.calls[0];
+        const ctx = call?.[1] as { canonicalExt: string };
+        expect(ctx.canonicalExt).toBe('tiff');
+    });
+
     it('appends without forwarding events when onPipelineEvent is omitted', async () => {
         const runner = stubRunner([{ mode: 'values', payload: persistedState('art-4') }]);
         const node = createKickoffExtraction({

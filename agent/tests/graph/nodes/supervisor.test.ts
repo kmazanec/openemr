@@ -325,7 +325,7 @@ describe('createSupervisor (§A.7)', () => {
             envelope: {
                 ...envelope,
                 task: 'follow_up',
-                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf' }],
+                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf', canonicalExt: 'pdf' }],
             },
         }));
 
@@ -333,6 +333,12 @@ describe('createSupervisor (§A.7)', () => {
             pendingUploads: readonly { documentUuid: string; docType: string }[];
             kickoffExtractionResultsThisTurn: readonly unknown[];
         };
+        // The observation deliberately omits `canonicalExt` —
+        // the model doesn't need the storage extension to route, and
+        // keeping the supervisor prompt narrow keeps the supervisor's
+        // attention on the routing decision. The kickoffExtraction
+        // node looks up canonicalExt from the envelope's pendingUploads
+        // entry directly.
         expect(obs.pendingUploads).toEqual([
             { documentUuid: 'doc-1', docType: 'lab_pdf' },
         ]);
@@ -355,7 +361,7 @@ describe('createSupervisor (§A.7)', () => {
             envelope: {
                 ...envelope,
                 task: 'follow_up',
-                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf' }],
+                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf', canonicalExt: 'pdf' }],
             },
             kickoffExtractionResults: [
                 {
