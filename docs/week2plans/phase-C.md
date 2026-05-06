@@ -198,12 +198,12 @@ This phase doesn't touch the ingestion pipeline (that's B) and doesn't ship the 
 - `agent/src/graph/nodes/supervisor.ts` — handoff manifest descriptions.
 
 **Checklist.**
-- [ ] For `documentEvidenceRetriever`: update description to reflect real behavior — "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. Use when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: `{query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number, top_k?: number}`."
-- [ ] For `evidenceRetriever`: "Retrieves clinical-guideline chunks from the curated guideline corpus (USPSTF for MVP). Use when the question would benefit from authoritative guideline reference — screening recommendations, treatment thresholds, prevention guidance. Args: `{query: string, top_k?: number, source_filter?: ('USPSTF')[]}`."
-- [ ] For `kickoffExtraction`: confirm the description matches the B.9 wiring — "Triggers synchronous extraction of an unprocessed document already uploaded to this conversation. Args: `{document_uuid: string, doc_type: 'lab_pdf'|'intake_form'}`. Awaits the pipeline; appends the resulting artifact to state. Use only when envelope carries a `document_uuid` with no existing artifact."
-- [ ] No tests-only — this is a prompt change. The behavior is exercised by C.7's eval cases.
+- [x] For `documentEvidenceRetriever`: update description to reflect real behavior — "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. Use when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: `{query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number, top_k?: number}`."
+- [x] For `evidenceRetriever`: "Retrieves clinical-guideline chunks from the curated guideline corpus (USPSTF for MVP). Use when the question would benefit from authoritative guideline reference — screening recommendations, treatment thresholds, prevention guidance. Args: `{query: string, top_k?: number, source_filter?: ('USPSTF')[]}`."
+- [x] For `kickoffExtraction`: confirm the description matches the B.9 wiring — "Triggers synchronous extraction of an unprocessed document already uploaded to this conversation. Args: `{document_uuid: string, doc_type: 'lab_pdf'|'intake_form'}`. Awaits the pipeline; appends the resulting artifact to state. Use only when envelope carries a `document_uuid` with no existing artifact." (Applied verbatim per the C.4 prescribed text. B.9 itself is still unchecked, so the prompt now describes the real behavior the B.9 implementation will deliver; B.9 only needs to swap the implementation, not the prompt.)
+- [x] No tests-only — this is a prompt change. The behavior is exercised by C.7's eval cases.
 
-**Definition of done.** The supervisor's manifest descriptions are accurate. Supervisor-routing eval cases in C.7 pass.
+**Definition of done.** The supervisor's manifest descriptions are accurate. Supervisor-routing eval cases in C.7 pass. (Met for the prompt side. The C.7 eval cases land in §C.7 and validate the routing.)
 
 ---
 
