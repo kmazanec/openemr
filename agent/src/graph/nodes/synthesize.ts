@@ -6,6 +6,7 @@ import type { Counters } from '../../observability/counters.js';
 import { createNoopCounters } from '../../observability/counters.js';
 import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
+import { structuredOutputParseError } from './structuredOutputError.js';
 import {
     EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT,
     FOLLOW_UP_SYSTEM_PROMPT,
@@ -82,7 +83,9 @@ const synthesisOutputSchema = z.object({
         .object({
             claims: z.array(claimSchema),
         })
-        .describe('Every factual claim referenced by the segments, with the source records that back it.'),
+        .describe(
+            'Every factual claim referenced by the segments, with the source records that back it.',
+        ),
 });
 
 export interface SynthesizerUsage {
@@ -259,7 +262,8 @@ export const createAnthropicSynthesizer = (options?: {
     const briefingClient = buildClient(briefingModel);
     // Lazy: building the follow-up client also when briefing == follow-up
     // double-allocates two identical clients. Skip when models match.
-    const followUpClient = followUpModel === briefingModel ? briefingClient : buildClient(followUpModel);
+    const followUpClient =
+        followUpModel === briefingModel ? briefingClient : buildClient(followUpModel);
 
     return async ({
         snapshot,
@@ -282,21 +286,20 @@ export const createAnthropicSynthesizer = (options?: {
         //   - default briefing (everything else): briefing prompt,
         //     briefing model.
         const labTrendAnalyte =
-            envelope.task === 'follow_up'
-            && envelope.followUp?.type === 'lab_trend'
+            envelope.task === 'follow_up' && envelope.followUp?.type === 'lab_trend'
                 ? envelope.followUp.analyte
                 : null;
         const isLabTrend = labTrendAnalyte !== null;
         const isExtractionFollowUp =
-            !isLabTrend
-            && kickoffExtractionResults !== undefined
-            && kickoffExtractionResults.length > 0;
+            !isLabTrend &&
+            kickoffExtractionResults !== undefined &&
+            kickoffExtractionResults.length > 0;
         const question =
-            !isLabTrend
-            && !isExtractionFollowUp
-            && envelope.task === 'follow_up'
-            && typeof envelope.question === 'string'
-            && envelope.question.length > 0
+            !isLabTrend &&
+            !isExtractionFollowUp &&
+            envelope.task === 'follow_up' &&
+            typeof envelope.question === 'string' &&
+            envelope.question.length > 0
                 ? envelope.question
                 : null;
         const isFollowUp = question !== null;
@@ -304,10 +307,10 @@ export const createAnthropicSynthesizer = (options?: {
         const systemPrompt = isLabTrend
             ? LAB_TREND_SYSTEM_PROMPT
             : isExtractionFollowUp
-                ? EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT
-                : isFollowUp
-                    ? FOLLOW_UP_SYSTEM_PROMPT
-                    : SYSTEM_PROMPT;
+              ? EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT
+              : isFollowUp
+                ? FOLLOW_UP_SYSTEM_PROMPT
+                : SYSTEM_PROMPT;
         const evidence = {
             ...(evidenceRetrieverOutput !== null && evidenceRetrieverOutput !== undefined
                 ? { evidenceRetrieverOutput }
@@ -319,15 +322,15 @@ export const createAnthropicSynthesizer = (options?: {
         const userMessage = isLabTrend
             ? buildLabTrendUserMessage(snapshot, labTrendAnalyte)
             : isExtractionFollowUp
-                ? buildExtractionFollowUpUserMessage(
+              ? buildExtractionFollowUpUserMessage(
                     snapshot,
                     kickoffExtractionResults,
                     priorTurnContext,
                     evidence,
                 )
-                : isFollowUp
-                    ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
-                    : buildUserMessage(snapshot, priorTurnContext, evidence);
+              : isFollowUp
+                ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
+                : buildUserMessage(snapshot, priorTurnContext, evidence);
         const useFollowUpModel = isLabTrend || isExtractionFollowUp || isFollowUp;
         const structured = useFollowUpModel ? followUpClient : briefingClient;
         const model = useFollowUpModel ? followUpModel : briefingModel;
@@ -343,11 +346,15 @@ export const createAnthropicSynthesizer = (options?: {
             // its retry budget). Surface a typed error rather than
             // dereferencing — the runner's error classifier maps it to
             // `briefing_failed` and the panel shows the generic retry
-            // message instead of crashing the SSE stream.
-            throw new Error('synthesizer: structured output failed to parse');
+            // message instead of crashing the SSE stream. The thrown
+            // error carries a bounded excerpt of the raw model output
+            // so the LangSmith trace (and eval failure card) has
+            // enough signal to diagnose without re-running.
+            throw structuredOutputParseError('synthesizer', raw);
         }
-        const usageMeta = (raw as { usage_metadata?: { input_tokens?: number; output_tokens?: number } })
-            .usage_metadata;
+        const usageMeta = (
+            raw as { usage_metadata?: { input_tokens?: number; output_tokens?: number } }
+        ).usage_metadata;
         const usage =
             usageMeta !== undefined
                 ? {
