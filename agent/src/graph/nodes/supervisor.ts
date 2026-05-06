@@ -53,6 +53,17 @@ export const SUPERVISOR_ITERATION_CAP = 10;
 export interface SupervisorStateObservation {
     readonly iteration: number;
     readonly task: 'default_briefing' | 'follow_up';
+    /**
+     * The free-text follow-up question, when the envelope carries one.
+     * The supervisor needs the actual question text to route content-
+     * sensitive handoffs (e.g. evidenceRetriever for guideline-shaped
+     * questions). PHI suppression: the question is user-typed clinician
+     * input — same provenance as the chart that already crosses the
+     * LangSmith boundary, and `LANGSMITH_HIDE_INPUTS=true` redacts it
+     * from upload anyway. `null` for default briefings and for typed
+     * `followUp` envelopes whose params don't carry free text.
+     */
+    readonly question: string | null;
     readonly chartCategoriesPresent: readonly string[];
     readonly retrieveChartCallCount: number;
     readonly retrieversInvokedThisTurn: readonly string[];
@@ -204,6 +215,9 @@ const observeState = (state: BriefingState): SupervisorStateObservation => {
     return {
         iteration: state.supervisorIterations + 1,
         task: state.envelope.task,
+        question: typeof state.envelope.question === 'string' && state.envelope.question.length > 0
+            ? state.envelope.question
+            : null,
         chartCategoriesPresent: presentCategoryFlags(state),
         retrieveChartCallCount: state.retrieveChartCallCount,
         retrieversInvokedThisTurn: history.map((d) => d.handoff),
