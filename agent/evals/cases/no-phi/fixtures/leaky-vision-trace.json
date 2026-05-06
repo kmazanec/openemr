@@ -1,0 +1,50 @@
+{
+  "name": "pipeline.vision.invoke",
+  "run_type": "llm",
+  "inputs": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Extract structured fields from the lab PDF image."
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Patient Maya Patel, DOB 1968-03-15, SSN 123-45-6789, A1c 8.1 % (H)."
+          },
+          {
+            "type": "image",
+            "source": {
+              "media_type": "image/png",
+              "data": "iVBORw0KGgo..."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "outputs": {
+    "schema_json": {
+      "patient": {
+        "firstName": "Maya",
+        "lastName": "Patel",
+        "dob": "1968-03-15",
+        "ssn": "123-45-6789"
+      },
+      "results": [
+        {
+          "analyte": "HbA1c",
+          "value": 8.1,
+          "page": 1
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "model": "claude-sonnet-4-6",
+    "mrn": "MRN-99887",
+    "phone": "415-555-0142"
+  }
+}
