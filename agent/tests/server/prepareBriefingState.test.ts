@@ -145,4 +145,65 @@ describe('prepareBriefingState', () => {
         });
         expect(seed.priorTurnContext.turns[1]?.role).toBe('assistant');
     });
+
+    it('resets every per-turn graph slot so checkpointer-hydrated state cannot leak between turns', async () => {
+        // Production incident May 2026: follow-up turns errored at
+        //   "retrieveChart: subsequent invocation requires retrieveChartArgs"
+        // because the LangGraph Postgres checkpointer hydrated the prior
+        // turn's `retrieveChartCallCount` (=1 after the briefing) and
+        // the runner's seed didn't reset it. The retrieveChart node saw
+        // callCount > 0 on a fresh follow-up's first call, demanded
+        // `retrieveChartArgs` that don't exist on a new turn, and threw.
+        //
+        // The seed must explicitly null/zero every per-turn slot so the
+        // initialState passed to graph.stream() overwrites the hydrated
+        // values. Only `envelope` and `priorTurnContext` legitimately
+        // carry forward.
+        const envelope = buildEnvelope({
+            task: 'follow_up',
+            conversationId: 'conv-with-prior-checkpoint',
+            question: 'follow-up question',
+        });
+        const store = createInMemoryConversationMessagesStore();
+
+        const seed = await prepareBriefingState({
+            envelope,
+            conversationMessages: store,
+            logger: silentLogger(),
+        });
+
+        // The slot-by-slot pin: anything that retrieveChart, supervisor,
+        // synthesize, verify, format, or persist might write must start
+        // from its declared default.
+        expect(seed.snapshot).toBeNull();
+        expect(seed.draft).toBeNull();
+        expect(seed.claimLedger).toBeNull();
+        expect(seed.verified).toBeNull();
+        expect(seed.formatted).toBeNull();
+        expect(seed.persisted).toBeNull();
+        expect(seed.retrieveChartCallCount).toBe(0);
+        expect(seed.retrieveChartArgs).toBeNull();
+        expect(seed.documentEvidenceArgs).toBeNull();
+        expect(seed.documentEvidenceSnippets).toBeNull();
+        expect(seed.documentEvidenceArtifactConfidence).toBeNull();
+        expect(seed.evidenceRetrieverArgs).toBeNull();
+        expect(seed.evidenceRetrieverOutput).toBeNull();
+        expect(seed.supervisorIterations).toBe(0);
+        expect(seed.supervisorDecisionHistory).toEqual([]);
+        expect(seed.capHit).toBe(false);
+    });
+
+    it('also resets per-turn slots for a default_briefing turn (defensive symmetry)', async () => {
+        // Default-briefing turns mint a fresh conversation row, so a
+        // hydrated checkpoint is unexpected — but the runner reuses a
+        // single `prepareBriefingState` for both task kinds and the
+        // reset is cheap, so emit the same shape regardless of task.
+        const envelope = buildEnvelope({ task: 'default_briefing' });
+
+        const seed = await prepareBriefingState({ envelope });
+
+        expect(seed.retrieveChartCallCount).toBe(0);
+        expect(seed.retrieveChartArgs).toBeNull();
+        expect(seed.snapshot).toBeNull();
+    });
 });
