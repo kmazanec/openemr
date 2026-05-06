@@ -66,19 +66,21 @@ This phase integrates B + C, ships a tiny upload UI, deploys to `emr.biograph.de
 - `interface/modules/custom_modules/oe-module-clinical-copilot/public/css/panel.css` — section headings + chip styles.
 
 **Checklist.**
-- [ ] Render three section headers when populated:
+- [x] Render three section headers when populated:
   - "What's in the chart" (W1 unchanged)
   - "From documents"
   - "Evidence"
-- [ ] Each claim's `[source]` chip:
+  (Implemented in `renderClaimGroups()` in `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js`. Headings come from `SECTION_HEADINGS` keyed off `claimGroups.{chart,extractedDocument,guideline}`. Chart subsections get sub-headings per `Claim.category`; document cards get a "Document <uuid8>" sub-heading per `documentUuid`; guideline section is a flat list. The wire format already ships `claimGroups` verbatim through `agent/src/server/briefingStream.ts`, so no agent-side changes were needed.)
+- [x] Each claim's `[source]` chip:
   - `source_type='chart'`: link out to OpenEMR record page (W1 carry-forward).
   - `source_type='extracted_document'`: tooltip-only ("From <doc_type> · page <N>"). Full bbox-overlay click defers to F.
   - `source_type='guideline'`: tooltip-only ("<publication> <year> · <section>"). Full popover defers to F.
-- [ ] Empty sections omitted (per C.6 spec).
-- [ ] Tests: render test for the panel template with a fixture state covering all three section types; assert all three section headers render; assert empty section omission.
-- [ ] `composer update-twig-fixtures` and review.
+  (Section chips render as `<a href>` for chart (real navigation) and inert `<span class="copilot-source--inert">` for extracted_document / guideline. Tooltip text comes from `chipTooltipText()`. The tooltip uses what's already on the unified `SourceReference` today: extracted_document shows `page <N> · document <uuid8>` — there's no `doc_type` field on the wire; guideline shows `<publication> · <section>` where publication is derived from the `source_id` prefix (`uspstf::…` → "USPSTF") — there are no `publication`/`year` fields on the wire either. Extending `SourceReference.meta` with optional `doc_type`, `publication`, `year` is a small follow-up patch the reviewer should confirm. Sibling fix: also adapted the existing inline-prose source chips to the W2 unified shape (`source_type/source_id/locator.field/meta.record_recorded_at`); the W1 `recordType/recordId/recordedAt` reads in `panel.js` were stale post-Phase-A SourceReference rename — the popover and chart deep links would have broken on master.)
+- [x] Empty sections omitted (per C.6 spec). (`claimGroupsToSections` only emits sections for present buckets; format.ts already drops empty buckets via `Partial<ClaimGroups>` keys, so the omission is end-to-end.)
+- [x] Tests: render test for the panel template with a fixture state covering all three section types; assert all three section headers render; assert empty section omission. (Reframed: `panel.html.twig` is shell-only — sections render dynamically inside JS-rendered bubbles, so a Twig render fixture would just be the static shell. Coverage lives at `tests/js/copilot-panel-claim-groups.test.js` instead: 20 Jest cases pinning `claimGroupsToSections`, `chipTooltipText`, `sourceLinkUrl`, `recordTypeForChartField` — three sections rendered in order, empty sections omitted, chart-link translation back to OpenEMR record pages, variant-aware tooltip text per `source_type`. Panel JS now exposes the helpers via a UMD-style CommonJS guard so the test file can `require` them in node without spinning up jsdom.)
+- [x] `composer update-twig-fixtures` and review. (Ran — no diff, since `panel.html.twig` is unchanged.)
 
-**Definition of done.** Manual demo: a response with chart + extracted_document + guideline citations renders three sections; chips show tooltips; chart chips link out.
+**Definition of done.** Manual demo: a response with chart + extracted_document + guideline citations renders three sections; chips show tooltips; chart chips link out. (Manual UI smoke test deferred until D.3 / D.4 land — the data path is gate-tested by the 20 Jest cases plus the existing 9 PanelTemplateTest assertions; live in-browser verification rolls into D.3's deploy and D.4's end-to-end eval cases.)
 
 ---
 
