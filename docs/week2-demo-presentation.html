@@ -1,0 +1,1260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical Co-Pilot — Live Demo</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #132033;
+      --muted: #5e6b7c;
+      --line: #d9e0ea;
+      --primary: #2154d8;
+      --primary-dark: #14398f;
+      --accent: #0d8f75;
+      --danger: #bd3b3b;
+      --warn: #b7791f;
+      --soft-blue: #eaf0ff;
+      --soft-green: #e9f8f4;
+      --soft-red: #fff0f0;
+      --soft-warn: #fff8ea;
+      --shadow: 0 18px 45px rgba(19, 32, 51, 0.11);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(33, 84, 216, 0.16), transparent 36rem),
+        radial-gradient(circle at top right, rgba(13, 143, 117, 0.13), transparent 30rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 18rem minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 2rem 1.25rem;
+      overflow-y: auto;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+    }
+
+    nav h2 {
+      margin: 0 0 0.25rem;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary-dark);
+    }
+
+    nav p {
+      margin: 0 0 1.25rem;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    nav a {
+      display: block;
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.7rem;
+      color: var(--ink);
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    nav a:hover {
+      background: var(--soft-blue);
+      text-decoration: none;
+    }
+
+    nav a.active {
+      color: var(--primary-dark);
+      background: var(--soft-blue);
+      box-shadow: inset 0.25rem 0 0 var(--primary);
+    }
+
+    nav .nav-step {
+      display: block;
+      margin-top: 0.05rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    main { min-width: 0; }
+
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      align-content: center;
+      padding: 5rem clamp(2rem, 6vw, 6rem);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1.2rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid rgba(33, 84, 216, 0.22);
+      border-radius: 999px;
+      color: var(--primary-dark);
+      background: rgba(255, 255, 255, 0.75);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    h1 {
+      max-width: 64rem;
+      margin: 0;
+      font-size: clamp(2.6rem, 6.5vw, 6rem);
+      line-height: 0.95;
+      letter-spacing: -0.07em;
+    }
+
+    .hero .subtitle {
+      max-width: 54rem;
+      margin: 1.6rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1.1rem, 2vw, 1.45rem);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 3rem;
+    }
+
+    section {
+      min-height: 100vh;
+      padding: 4.5rem clamp(2rem, 6vw, 6rem);
+      border-top: 1px solid rgba(217, 224, 234, 0.72);
+    }
+
+    section.compact { min-height: auto; }
+
+    .section-head {
+      max-width: 60rem;
+      margin-bottom: 2rem;
+    }
+
+    .kicker {
+      margin: 0 0 0.4rem;
+      color: var(--primary);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4.5vw, 4rem);
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    h3 {
+      margin: 0 0 0.7rem;
+      font-size: 1.1rem;
+    }
+
+    .lead {
+      max-width: 56rem;
+      margin: 1rem 0 0;
+      color: var(--muted);
+      font-size: 1.15rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      padding: 1.25rem;
+      border: 1px solid rgba(217, 224, 234, 0.9);
+      border-radius: 1.25rem;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.06);
+    }
+
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .stat { min-height: 9rem; }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 0.45rem;
+      color: var(--primary-dark);
+      font-size: 2.2rem;
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    .stat span,
+    .card p,
+    li { color: var(--muted); }
+
+    .accent     { border-color: rgba(13, 143, 117, 0.28); background: var(--soft-green); }
+    .neutral    { border-color: rgba(33, 84, 216, 0.26); background: var(--soft-blue); }
+    .warn-card  { border-color: rgba(183, 121, 31, 0.32); background: var(--soft-warn); }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 1rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.42rem 0.62rem;
+      border-radius: 999px;
+      background: var(--soft-blue);
+      color: var(--primary-dark);
+      font-size: 0.8rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .pill.green  { background: var(--soft-green); color: var(--accent); }
+    .pill.warn   { background: var(--soft-warn);  color: var(--warn); }
+
+    .system-diagram {
+      padding: clamp(1rem, 2vw, 1.5rem);
+      border: 1px solid rgba(217, 224, 234, 0.95);
+      border-radius: 1.6rem;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(234, 240, 255, 0.78)),
+        var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .step-banner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .step-num {
+      width: 3.6rem;
+      height: 3.6rem;
+      border-radius: 1rem;
+      background: var(--primary);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 1.6rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      box-shadow: 0 8px 18px rgba(33, 84, 216, 0.25);
+    }
+
+    .step-num.refusal { background: var(--warn); box-shadow: 0 8px 18px rgba(183, 121, 31, 0.25); }
+    .step-num.followup { background: var(--accent); box-shadow: 0 8px 18px rgba(13, 143, 117, 0.25); }
+
+    .step-banner-text small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 800;
+      margin-bottom: 0.2rem;
+    }
+    .step-banner-text strong {
+      display: block;
+      color: var(--ink);
+      font-size: 1.4rem;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .question-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1.1rem;
+      align-items: center;
+      padding: 1.3rem 1.4rem;
+      border-radius: 1.1rem;
+      background: white;
+      border-left: 5px solid var(--primary);
+      box-shadow: 0 10px 25px rgba(19, 32, 51, 0.08);
+      margin: 0 0 1.5rem;
+    }
+
+    .question-card.refusal { border-left-color: var(--warn); }
+    .question-card.followup { border-left-color: var(--accent); }
+
+    .question-card small {
+      display: block;
+      margin-bottom: 0.3rem;
+      color: var(--primary);
+      font-weight: 900;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .question-card.refusal small { color: var(--warn); }
+    .question-card.followup small { color: var(--accent); }
+
+    .question-card p {
+      margin: 0;
+      color: var(--ink);
+      font-size: 1.18rem;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .copy-btn {
+      padding: 0.6rem 1rem;
+      border: 1px solid rgba(33, 84, 216, 0.3);
+      border-radius: 0.6rem;
+      background: var(--soft-blue);
+      color: var(--primary-dark);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: var(--primary); color: white; }
+    .copy-btn.copied { background: var(--accent); color: white; border-color: var(--accent); }
+    .question-card.refusal .copy-btn { border-color: rgba(183, 121, 31, 0.32); background: var(--soft-warn); color: var(--warn); }
+    .question-card.refusal .copy-btn:hover { background: var(--warn); color: white; }
+    .question-card.followup .copy-btn { border-color: rgba(13, 143, 117, 0.3); background: var(--soft-green); color: var(--accent); }
+    .question-card.followup .copy-btn:hover { background: var(--accent); color: white; }
+
+    .step-action {
+      padding: 1rem 1.15rem;
+      background: var(--soft-blue);
+      border: 1px solid rgba(33, 84, 216, 0.22);
+      border-radius: 0.85rem;
+      margin-bottom: 1.25rem;
+    }
+    .step-action small {
+      display: block;
+      margin-bottom: 0.3rem;
+      color: var(--primary);
+      font-weight: 900;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .step-action p { margin: 0; color: var(--ink); font-size: 1.02rem; }
+    .step-action.refusal { background: var(--soft-warn); border-color: rgba(183, 121, 31, 0.32); }
+    .step-action.refusal small { color: var(--warn); }
+
+    .source-types {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.7rem;
+      margin-top: 0.8rem;
+    }
+
+    .source-type {
+      padding: 0.85rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .source-type strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--primary-dark);
+      font-size: 0.95rem;
+    }
+
+    .source-type span { color: var(--muted); font-size: 0.85rem; }
+
+    .source-type.chart { border-color: rgba(13, 143, 117, 0.3); background: var(--soft-green); }
+    .source-type.doc { border-color: rgba(33, 84, 216, 0.3); background: var(--soft-blue); }
+    .source-type.guide { border-color: rgba(183, 121, 31, 0.32); background: var(--soft-warn); }
+
+    ul.tight { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+    ul.tight li { margin: 0.18rem 0; font-size: 0.92rem; line-height: 1.4; color: var(--muted); }
+
+    /* Architecture graph (mirrored from architecture deck) */
+    .graph-canvas {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .graph-col {
+      display: grid;
+      align-content: start;
+      gap: 0.7rem;
+      padding: 1rem;
+      border: 1px solid rgba(217, 224, 234, 0.85);
+      border-radius: 1.25rem;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .col-title {
+      margin: 0 0 0.35rem;
+      color: var(--primary-dark);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .node {
+      position: relative;
+      padding: 0.85rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 0.95rem;
+      background: var(--panel);
+      box-shadow: 0 8px 18px rgba(19, 32, 51, 0.06);
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--ink);
+      line-height: 1.2;
+      font-size: 0.95rem;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .node.primary  { border-color: rgba(33, 84, 216, 0.3); background: var(--soft-blue); }
+    .node.safe     { border-color: rgba(13, 143, 117, 0.3); background: var(--soft-green); }
+    .node.warn     { border-color: rgba(183, 121, 31, 0.32); background: var(--soft-warn); }
+    .node.danger   { border-color: rgba(189, 59, 59, 0.3); background: var(--soft-red); }
+    .node.new      { border-color: rgba(33, 84, 216, 0.45); background: var(--soft-blue); box-shadow: 0 8px 18px rgba(33, 84, 216, 0.18); }
+
+    .arrow-down {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      min-height: 1.5rem;
+      color: var(--primary);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .arrow-down::before { content: "↓"; }
+
+    .loop-block {
+      position: relative;
+      padding: 0.85rem;
+      border: 2px dashed rgba(33, 84, 216, 0.4);
+      border-radius: 1rem;
+      background: rgba(33, 84, 216, 0.04);
+    }
+
+    .loop-block-title {
+      display: block;
+      margin-bottom: 0.55rem;
+      color: var(--primary-dark);
+      font-size: 0.7rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .loop-block .node { margin-bottom: 0.45rem; }
+    .loop-block .node:last-child { margin-bottom: 0; }
+
+    .branch-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
+    }
+
+    .branch {
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.7rem;
+      background: white;
+      border: 1px solid rgba(33, 84, 216, 0.18);
+      font-size: 0.83rem;
+      color: var(--primary-dark);
+    }
+
+    .branch strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.92rem;
+      line-height: 1.2;
+      margin-bottom: 0.15rem;
+    }
+
+    .branch span { color: var(--muted); font-size: 0.78rem; }
+
+    .footer {
+      padding: 3rem clamp(2rem, 6vw, 6rem);
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 1100px) {
+      .shell { display: block; }
+      nav { position: static; height: auto; }
+      .hero-grid,
+      .source-types,
+      .graph-canvas {
+        grid-template-columns: 1fr 1fr;
+      }
+      .span-3, .span-4, .span-5, .span-6, .span-7, .span-8 {
+        grid-column: span 12;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .hero, section { min-height: auto; padding: 3rem 1rem; }
+      .hero-grid,
+      .source-types,
+      .graph-canvas { grid-template-columns: 1fr; }
+      .question-card { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { background: white; }
+      nav { display: none; }
+      .shell { display: block; }
+      section, .hero { min-height: auto; page-break-after: always; }
+      .copy-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav aria-label="Demo navigation">
+      <h2>Clinical Co-Pilot</h2>
+      <p>Live demo — Week 2</p>
+      <a class="active" href="#overview">Overview<span class="nav-step">Setup</span></a>
+      <a href="#step-1">Upload the lab<span class="nav-step">Step 1</span></a>
+      <a href="#step-2">Ask about the lab<span class="nav-step">Step 2</span></a>
+      <a href="#step-3">Ask for guideline evidence<span class="nav-step">Step 3</span></a>
+      <a href="#step-4">All three sources<span class="nav-step">Step 4</span></a>
+      <a href="#step-5">Multi-turn follow-up<span class="nav-step">Step 5</span></a>
+      <a href="#step-6">Wrong-patient refusal<span class="nav-step">Step 6</span></a>
+      <a href="#step-7">Out-of-scope refusal<span class="nav-step">Step 7</span></a>
+      <a href="#system">The system at a glance<span class="nav-step">Recap</span></a>
+      <a href="#architecture">Architecture<span class="nav-step">Diagram</span></a>
+    </nav>
+
+    <main>
+      <header id="overview" class="hero">
+        <div class="eyebrow">Multimodal Evidence Agent — Week 2 demo</div>
+        <h1>The Co-Pilot Sees, Routes, And Cites</h1>
+        <p class="subtitle">
+          A primary care physician opens a patient's chart and asks the co-pilot a question.
+          The co-pilot reads structured chart data, the messy lab PDF the front desk just
+          uploaded, and the relevant published guideline — and answers with every claim
+          grounded in a source the clinician can click on.
+        </p>
+        <div class="hero-grid">
+          <div class="card stat">
+            <strong>Margaret Chen</strong>
+            <span>58-year-old patient with type 2 diabetes and hyperlipidemia. Today's chart is open and ready.</span>
+          </div>
+          <div class="card stat">
+            <strong>3</strong>
+            <span>Source types in one citation shape — chart record, extracted document, published guideline.</span>
+          </div>
+          <div class="card stat">
+            <strong>108</strong>
+            <span>USPSTF recommendations indexed in the guideline corpus — hybrid retrieval, reranked before reaching the answer model.</span>
+          </div>
+          <div class="card stat">
+            <strong>0</strong>
+            <span>Auto-writes to the chart. Every derived fact is gated on explicit clinician review.</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="step-1">
+        <div class="step-banner">
+          <div class="step-num">1</div>
+          <div class="step-banner-text">
+            <small>Demo step 1</small>
+            <strong>Upload the scanned lab PDF</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>The Front Desk Just Dropped Off A Lab</h2>
+          <p class="lead">
+            With Margaret's chart open, drag the scanned lab PDF onto the conversation panel.
+            The agent has never seen these contents — the front desk just uploaded the bytes.
+          </p>
+        </div>
+
+        <div class="step-action">
+          <small>Action</small>
+          <p>Drag <code>chen-lab-results.pdf</code> onto the paperclip area in the conversation panel.</p>
+        </div>
+
+        <div class="grid">
+          <div class="card accent span-7">
+            <h3>What you'll see</h3>
+            <ul class="tight">
+              <li>Upload progress indicator, then a "Extracting document…" status line in the conversation thread.</li>
+              <li>Live SSE progress as the pipeline moves through each stage — rasterize, vision, validate, match, persist.</li>
+              <li>When the pipeline exits, the status line clears and the document is ready to be referenced.</li>
+            </ul>
+            <div class="pill-row">
+              <span class="pill green">Strict schema</span>
+              <span class="pill green">Per-field bbox</span>
+              <span class="pill warn">Pending confirmation</span>
+            </div>
+          </div>
+          <div class="card neutral span-5">
+            <h3>What's happening underneath</h3>
+            <ul class="tight">
+              <li><strong>Rasterize</strong> — PDF split into page images, uploaded to short-TTL storage.</li>
+              <li><strong>Vision</strong> — vision-capable LLM reads pages with a strict extraction schema. Each field carries a page, bounding box, verbatim quote, and self-reported confidence.</li>
+              <li><strong>Validate</strong> — Zod parse with strict mode. Missing required fields fail; unknown fields drop.</li>
+              <li><strong>Match</strong> — extracted demographics compared against the chart.</li>
+              <li><strong>Persist</strong> — structured extraction lands at <em>pending confirmation</em>. The chart is not modified.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="step-2">
+        <div class="step-banner">
+          <div class="step-num">2</div>
+          <div class="step-banner-text">
+            <small>Demo step 2</small>
+            <strong>Ask about what the lab shows</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>The Lab Is Now A First-Class Source</h2>
+          <p class="lead">
+            With the extraction complete, ask the agent what changed. Every claim in the
+            answer points back to a region of a specific page on the document.
+          </p>
+        </div>
+
+        <div class="question-card">
+          <div>
+            <small>Copy &amp; paste into the chat</small>
+            <p>What did this lab show that I should pay attention to, and is anything outside the reference range?</p>
+          </div>
+          <button class="copy-btn" type="button" data-copy="What did this lab show that I should pay attention to, and is anything outside the reference range?">Copy</button>
+        </div>
+
+        <div class="grid">
+          <div class="card accent span-12">
+            <h3>What you'll see</h3>
+            <p>
+              The answer renders below the chat with a <strong>From documents</strong> section.
+              Each claim has a chip — hover one and the tooltip shows the page number and the
+              document identifier. Every numeric value the answer mentions traces back to a
+              region the vision model bounded on a specific page of the upload.
+            </p>
+            <p style="margin-top: 0.6rem;">
+              The agent is reading a scanned PDF it has never seen before, extracting structured
+              data with a strict schema, and citing every claim back to a region on a specific
+              page. Malformed extractions never reach the answer.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="step-3">
+        <div class="step-banner">
+          <div class="step-num">3</div>
+          <div class="step-banner-text">
+            <small>Demo step 3</small>
+            <strong>Ask for guideline-grounded evidence</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>Now Pull In Published Guidance</h2>
+          <p class="lead">
+            No upload required. The agent decides on its own when to retrieve from the chart,
+            when to retrieve from the guideline corpus, and when to answer directly. Routing
+            decisions are logged and inspectable.
+          </p>
+        </div>
+
+        <div class="question-card">
+          <div>
+            <small>Copy &amp; paste into the chat</small>
+            <p>Should Margaret be on aspirin for cardiovascular disease prevention given her diabetes and hyperlipidemia?</p>
+          </div>
+          <button class="copy-btn" type="button" data-copy="Should Margaret be on aspirin for cardiovascular disease prevention given her diabetes and hyperlipidemia?">Copy</button>
+        </div>
+
+        <div class="grid">
+          <div class="card accent span-7">
+            <h3>What you'll see</h3>
+            <p>The answer renders in two sections:</p>
+            <ul class="tight">
+              <li><strong>What's in the chart</strong> — her age, lipid panel, current statin, ASCVD risk factors. Each chip clicks through to the OpenEMR record.</li>
+              <li><strong>Evidence</strong> — the relevant USPSTF aspirin recommendation. Each chip's tooltip shows publication, year, and section.</li>
+            </ul>
+            <p style="margin-top: 0.6rem;">
+              No <em>From documents</em> section appears, because no document was relevant to
+              this question. Empty sections are omitted by design.
+            </p>
+          </div>
+          <div class="card neutral span-5">
+            <h3>Why this is the marquee question</h3>
+            <p>
+              The agent didn't retrieve a guideline because that was hardcoded. It retrieved
+              because the LLM supervisor reasoned about the question and chose to. The routing
+              log shows closed-enum tool choice, written rationale per decision, capped
+              iteration count. The agent can't invent a tool, and it can't loop forever.
+            </p>
+            <div class="pill-row">
+              <span class="pill">Hybrid retrieval</span>
+              <span class="pill">Reranked top-3</span>
+              <span class="pill">Verifier-resolved</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="step-4">
+        <div class="step-banner">
+          <div class="step-num">4</div>
+          <div class="step-banner-text">
+            <small>Demo step 4</small>
+            <strong>Combine the lab, the chart, and a guideline</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>All Three Source Types In One Answer</h2>
+          <p class="lead">
+            With the lab from step 1 already extracted and the question style from step 3, ask
+            something that needs all three. This is the case where the architectural choices
+            pay off.
+          </p>
+        </div>
+
+        <div class="question-card">
+          <div>
+            <small>Copy &amp; paste into the chat</small>
+            <p>Given the new A1c result from this lab, does USPSTF recommend any change to her screening or preventive medications?</p>
+          </div>
+          <button class="copy-btn" type="button" data-copy="Given the new A1c result from this lab, does USPSTF recommend any change to her screening or preventive medications?">Copy</button>
+        </div>
+
+        <div class="card accent">
+          <h3>What you'll see</h3>
+          <p>
+            The supervisor fans out: <strong>chart</strong> for current preventive medications,
+            <strong>extracted document</strong> for the new A1c value the agent just learned
+            about, <strong>guideline</strong> for the USPSTF recommendation. The answer renders
+            all three sections with chips that behave differently per source type:
+          </p>
+          <div class="source-types">
+            <div class="source-type chart">
+              <strong>chart</strong>
+              <span>Click → opens the OpenEMR record page in a new tab.</span>
+            </div>
+            <div class="source-type doc">
+              <strong>extracted_document</strong>
+              <span>Hover → page number and document identifier. Every claim is anchored to a region the vision model bounding-boxed.</span>
+            </div>
+            <div class="source-type guide">
+              <strong>guideline</strong>
+              <span>Hover → publication, year, and section. The verifier confirms every quote substring matches the indexed chunk.</span>
+            </div>
+          </div>
+          <p style="margin-top: 1rem;">
+            Three source types, one citation shape under the hood. The verifier indexes all
+            three uniformly — every claim either resolves to a specific source or it gets
+            dropped before the answer reaches the screen.
+          </p>
+        </div>
+      </section>
+
+      <section id="step-5">
+        <div class="step-banner">
+          <div class="step-num followup">5</div>
+          <div class="step-banner-text">
+            <small>Demo step 5 — multi-turn coherence</small>
+            <strong>Ask a referential follow-up</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>Show Me The Source For That</h2>
+          <p class="lead">
+            The agent remembers what it just said. Ask a follow-up that refers to the
+            previous answer without naming it — the agent threads the prior turn into context
+            and points to the same source it cited a moment ago.
+          </p>
+        </div>
+
+        <div class="question-card followup">
+          <div>
+            <small>Copy &amp; paste into the chat</small>
+            <p>Show me the source for that guideline.</p>
+          </div>
+          <button class="copy-btn" type="button" data-copy="Show me the source for that guideline.">Copy</button>
+        </div>
+
+        <div class="grid">
+          <div class="card accent span-12">
+            <h3>What you'll see</h3>
+            <ul class="tight">
+              <li>The supervisor's rationale on this turn explicitly references the prior turn's claim — visible in the routing log.</li>
+              <li>The answer surfaces the same guideline citation, this time with the chip prominent so the publication and section are easy to see on hover.</li>
+              <li>No re-retrieval was needed — prior-turn context is replayed into the supervisor's prompt with a clean delimiter so the model knows what the user is referring to.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="step-6">
+        <div class="step-banner">
+          <div class="step-num refusal">6</div>
+          <div class="step-banner-text">
+            <small>Demo step 6 — safety guardrail</small>
+            <strong>Wrong-patient document</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>The Pipeline Refuses Mismatched Demographics</h2>
+          <p class="lead">
+            Most demos show the happy path. The interesting demos show what the system
+            refuses. Wrong-patient-into-the-wrong-chart is the harm scenario this product has
+            to avoid — the agent stops it cold before any persistence.
+          </p>
+        </div>
+
+        <div class="step-action refusal">
+          <small>Action</small>
+          <p>Open a different patient's chart, then drop Margaret's lab PDF onto the panel.</p>
+        </div>
+
+        <div class="grid">
+          <div class="card warn-card span-12">
+            <h3>What you'll see</h3>
+            <p>
+              The pipeline runs through extraction and validation, then the patient-match node
+              compares the demographics on the document against the chart. They don't match.
+              The pipeline halts with a typed refusal — the chart is never modified, no facts
+              are written, and the panel surfaces a clear "this document does not appear to
+              belong to this patient" error.
+            </p>
+            <p style="margin-top: 0.6rem;">
+              The match is structural and runs before any persistence. Even if the extraction
+              were perfect, mismatched demographics stop the pipeline cold.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="step-7">
+        <div class="step-banner">
+          <div class="step-num refusal">7</div>
+          <div class="step-banner-text">
+            <small>Demo step 7 — safety guardrail</small>
+            <strong>Out-of-scope question</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>The Supervisor Knows When Not To Do Work</h2>
+          <p class="lead">
+            The supervisor is allowed to refuse. When the question has nothing to do with the
+            patient's care, no tools are invoked, no tokens are spent, and the trace shows a
+            single iteration with the rationale recorded.
+          </p>
+        </div>
+
+        <div class="question-card refusal">
+          <div>
+            <small>Copy &amp; paste into the chat</small>
+            <p>What's the weather in Austin today?</p>
+          </div>
+          <button class="copy-btn" type="button" data-copy="What's the weather in Austin today?">Copy</button>
+        </div>
+
+        <div class="grid">
+          <div class="card warn-card span-12">
+            <h3>What you'll see</h3>
+            <p>
+              The supervisor recognizes on the first iteration that no clinical tool applies.
+              It routes directly to a refusal — no chart fan-out, no guideline retrieval. The
+              trace shows a single supervisor iteration with the rationale recorded.
+            </p>
+            <p style="margin-top: 0.6rem;">
+              This is one of the rubrics the eval suite specifically pins so it can't regress
+              quietly — <code>safe_refusal</code> is asserted on every change.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="system">
+        <div class="section-head">
+          <p class="kicker">Recap — the system at a glance</p>
+          <h2>What Just Happened, Across The Whole Stack</h2>
+          <p class="lead">
+            Seven steps, four capabilities — multimodal ingestion with provenance, hybrid
+            retrieval over a curated guideline corpus, an inspectable LLM supervisor making
+            tool-call decisions, and a verifier that drops any claim it can't anchor to a
+            specific source. The next slide shows where each of these lives.
+          </p>
+        </div>
+
+        <div class="grid">
+          <div class="card neutral span-6">
+            <h3>Multimodal ingestion with provenance</h3>
+            <p>
+              A separate ingestion pipeline reads scanned PDFs and intake forms with a
+              strict-schema vision LLM. Every extracted field carries a page, a bounding box,
+              a verbatim quote, and a self-reported confidence. Wrong-patient documents are
+              refused before persistence; the chart is never auto-modified.
+            </p>
+          </div>
+          <div class="card neutral span-6">
+            <h3>Hybrid evidence retrieval</h3>
+            <p>
+              Every published USPSTF recommendation is parsed deterministically into per-section
+              chunks, embedded, and indexed with both dense and sparse vectors. Retrieval fuses
+              both legs to a top-20 candidate set, then reranks to top-3 with a purpose-built
+              reranker. Top-3, not top-20, reaches the answer model.
+            </p>
+          </div>
+          <div class="card neutral span-6">
+            <h3>Inspectable LLM supervisor</h3>
+            <p>
+              The supervisor is an LLM, not a rule set — but it can only choose from a closed
+              set of tool calls and is required to write a rationale for every decision. The
+              iteration count is capped. Every iteration logs to LangSmith with state
+              observed, chosen tool, rationale, args, and token usage.
+            </p>
+          </div>
+          <div class="card neutral span-6">
+            <h3>Verifier as the final gate</h3>
+            <p>
+              Every claim in every answer must resolve against the indexed source set for its
+              <code>source_type</code> — chart record, document page+bbox, or guideline
+              chunk+quote. Claims that don't resolve are dropped before the answer reaches the
+              screen. There is no fallback path that lets unsourced text through.
+            </p>
+          </div>
+          <div class="card neutral span-12">
+            <h3>Eval-driven CI — what covers this demo today</h3>
+            <p>
+              Two layers run on every change: a deterministic Vitest gate against stubbed
+              vendors, and a nightly LangSmith experiment against the real model — vision,
+              supervisor, embeddings, reranker. Rubrics are boolean
+              (<code>schema_valid</code>, <code>citation_present</code>,
+              <code>factually_consistent</code>, <code>safe_refusal</code>,
+              <code>no_phi_in_logs</code>); failures are actionable; CI blocks merges that
+              regress them.
+            </p>
+            <table style="width: 100%; margin-top: 0.9rem; border-collapse: collapse; background: var(--panel); border-radius: 0.85rem; overflow: hidden; box-shadow: 0 6px 14px rgba(19, 32, 51, 0.05);">
+              <thead>
+                <tr style="background: var(--soft-blue);">
+                  <th style="padding: 0.7rem 0.9rem; text-align: left; color: var(--primary-dark); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;">Demo step</th>
+                  <th style="padding: 0.7rem 0.9rem; text-align: left; color: var(--primary-dark); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;">Coverage today</th>
+                  <th style="padding: 0.7rem 0.9rem; text-align: left; color: var(--primary-dark); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;">Coverage planned</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 1 — upload &amp; extract</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Per-node Vitest unit tests for every pipeline stage (rasterize, vision, schema validate, patient match) — schema-strict parse, bbox-required fields, idempotency on hash+version.</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">8 lab-PDF cases + 8 intake-form cases + 6 degraded-input cases (smudged, rotated, blank, unrelated) running real-model end-to-end in CI against fixture documents.</td>
+                </tr>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 2 — ask about the lab</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Document-evidence retriever cases pinning patient-scope enforcement, top-k respected, snippet projection preserves bbox + page + quote into the verifier.</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Citation-resolution cases asserting fabricated bboxes are rejected and that every claim with <code>source_type='extracted_document'</code> resolves to a real artifact.</td>
+                </tr>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 3 — guideline retrieval</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Guidelines retriever cases pinning hybrid sparse+dense+rerank behavior — relevant queries return expected chunks, out-of-scope queries return empty.</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Per-recommendation regression cases capturing the chunks the synthesizer should cite for each archetype + question pairing.</td>
+                </tr>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 4 — three sources combined</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Verifier dispatches per <code>source_type</code> — chart, extracted_document, guideline — each with its own resolution rule. Rule coverage is tested per type.</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">3 end-to-end Mrs. Patel scenario cases: chart + lab, intake + chart, all three together — asserting the briefing groups facts by source_type with citations per claim.</td>
+                </tr>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 5 — multi-turn follow-up</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Multi-turn follow-up coherence test pins prior-turn context replay; cross-conversation isolation prevents bleed.</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Referential follow-up cases asserting the supervisor's rationale on the second turn explicitly references the prior claim.</td>
+                </tr>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 6 — wrong-patient refusal</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Cross-patient refusal at the snapshot endpoint (zero tokens spent — refusal happens at the auth proxy).</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Patient-mismatch refusal at the pipeline's match node — fixture document with deliberately mismatched demographics asserts the typed <code>failed/patient_mismatch</code> artifact and chart never written.</td>
+                </tr>
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top;"><strong>Step 7 — out-of-scope refusal</strong></td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">Supervisor routing cases asserting the chosen handoff is in the closed enum and the rationale is non-empty.</td>
+                  <td style="padding: 0.7rem 0.9rem; vertical-align: top; color: var(--muted);">3 end-to-end refusal cases: cross-patient leakage, hidden-data extraction (SSN), out-of-scope question — each asserting <code>safe_refusal</code> + <code>no_phi_in_logs</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+            <p style="margin-top: 0.9rem; font-size: 0.95rem;">
+              <strong>Today:</strong> 49 cases across 22 files, ~430 assertions, deterministic
+              gate green on every push. <strong>Plan:</strong> grow to a 50-case real-model
+              suite with PR-blocking CI by the early-submission gate, with the new cases
+              concentrated in Step 1 (multimodal extraction) and Step 4 (end-to-end
+              three-source briefings). Every production incident lands as a permanent
+              regression case alongside the code fix.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-head">
+          <p class="kicker">Architecture</p>
+          <h2>One Diagram, Three Columns</h2>
+          <p class="lead">
+            Runner on the left, the conversational graph in the middle, the external systems
+            and data stores on the right. The supervisor in the centre is an LLM choosing
+            from a closed set of tools. The ingestion pipeline on the right is a separate
+            compiled graph; the conversation observes its result through the
+            <code>extraction_artifacts</code> table.
+          </p>
+        </div>
+
+        <div class="system-diagram" role="img" aria-label="System architecture">
+          <div class="graph-canvas">
+
+            <div class="graph-col">
+              <p class="col-title">Runner (host process)</p>
+              <div class="node primary">
+                <strong>Conversation persistence</strong>
+                <span>Keyed on (user, patient, appointment). LangGraph Postgres checkpointer keyed on the canonical conversation id.</span>
+              </div>
+              <div class="arrow-down">runner</div>
+              <div class="node primary">
+                <strong>Envelope validation</strong>
+                <span>Reject unknown task types before invoking the graph.</span>
+              </div>
+              <div class="arrow-down">invoke graph</div>
+              <div class="node">
+                <strong>SSE stream → panel</strong>
+                <span>Carries supervisor iterations, claim deltas, and verifier outcomes back to the conversation panel.</span>
+              </div>
+            </div>
+
+            <div class="graph-col">
+              <p class="col-title">Conversational graph</p>
+              <div class="node safe">
+                <strong>retrieveChart (deterministic, first call)</strong>
+                <span>Fan-out across chart endpoints so the supervisor has structured context on iteration 1. Subsequent retrievals are model-driven.</span>
+              </div>
+              <div class="arrow-down">always</div>
+
+              <div class="loop-block">
+                <span class="loop-block-title">Supervisor loop — LLM-driven, max 10 iterations</span>
+                <div class="node new">
+                  <strong>supervisor (LLM)</strong>
+                  <span>Each iteration: structured-output LLM call. Closed-enum handoff + required rationale. Cap-hit forces a synthesize. Every decision logged.</span>
+                </div>
+                <div class="branch-list" style="margin-top: 0.55rem;">
+                  <div class="branch">
+                    <strong>kickoffExtraction</strong>
+                    <span>An unprocessed document on the envelope triggers the ingestion pipeline; progress streams over SSE.</span>
+                  </div>
+                  <div class="branch">
+                    <strong>retrieveChart (re-fetch)</strong>
+                    <span>The model picks which chart categories to refresh after the first deterministic fan-out.</span>
+                  </div>
+                  <div class="branch">
+                    <strong>documentEvidenceRetriever</strong>
+                    <span>Reads the patient's extraction artifacts. Patient scope is non-negotiable — always restricted to the envelope's pid.</span>
+                  </div>
+                  <div class="branch">
+                    <strong>evidenceRetriever</strong>
+                    <span>Hybrid sparse + dense over the guideline corpus, then reranked to top-3.</span>
+                  </div>
+                  <div class="branch" style="background: var(--soft-green); border-color: rgba(13,143,117,0.3);">
+                    <strong>synthesize</strong>
+                    <span>Terminal handoff. Exits the loop directly to verify.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="arrow-down">terminal handoff</div>
+              <div class="node danger">
+                <strong>verify</strong>
+                <span>Per-<code>source_type</code> rules. Every claim resolves to a source or is dropped.</span>
+              </div>
+              <div class="arrow-down"></div>
+              <div class="node">
+                <strong>format → END</strong>
+                <span>Claims grouped by source_type ("chart", "documents", "evidence"). Verified output streams to the panel.</span>
+              </div>
+            </div>
+
+            <div class="graph-col">
+              <p class="col-title">External graphs &amp; services</p>
+              <div class="node new">
+                <strong>Ingestion pipeline</strong>
+                <span>Separate compiled graph: rasterize → vision → validate → match → persist. Awaited synchronously by <code>kickoffExtraction</code>.</span>
+              </div>
+              <div class="arrow-down">writes</div>
+              <div class="node">
+                <strong>extraction_artifacts</strong>
+                <span>Strict-schema extraction rows at <em>pending confirmation</em>. Cited by the synthesizer with <code>source_type='extracted_document'</code>.</span>
+              </div>
+              <div class="arrow-down">reads</div>
+              <div class="node warn">
+                <strong>Guideline corpus</strong>
+                <span>Pinecone serverless (no PHI). Dense embeddings + sparse BM25 in one index. Cohere rerank on top-20.</span>
+              </div>
+              <div class="arrow-down">reads</div>
+              <div class="node primary">
+                <strong>OpenEMR snapshot</strong>
+                <span>Custom-DAO endpoints behind JWT-scoped auth. Same trust boundary as the rest of the EHR.</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 1.25rem;">
+          <div class="card neutral span-4">
+            <h3>Why two graphs, not one</h3>
+            <p>
+              Producer-shaped work (ingest a document) and consumer-shaped work (answer a
+              question) have different latency, failure, and cost profiles. Forcing them into
+              one runtime collides their concerns. The same ingestion pipeline runs whether
+              it's triggered by a panel upload, a front-desk autosweep listener, or a
+              command-line replay.
+            </p>
+          </div>
+          <div class="card neutral span-4">
+            <h3>Why the supervisor is an LLM</h3>
+            <p>
+              Routing by hand-written rules is defensible but doesn't exercise agentic
+              reasoning. Constrained LLM routing — closed-enum handoffs, required rationale,
+              capped iteration count, full LangSmith logging — produces stronger
+              inspectability. The model is explaining itself per decision, and the
+              explanation is logged.
+            </p>
+          </div>
+          <div class="card neutral span-4">
+            <h3>Why one citation shape</h3>
+            <p>
+              The verifier resolves every claim against an indexed source set — same
+              accept-or-reject boundary regardless of source type. The renderer dispatches on
+              <code>source_type</code> for chip behavior. One shape keeps verification and UI
+              symmetric; a discriminated union of three shapes would force a switch on every
+              path.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Companion deck:
+          <a href="week2-architecture-presentation.html">Week 2 architecture</a> — the design
+          decisions and tradeoffs behind what you just saw.
+        </p>
+      </footer>
+    </main>
+  </div>
+  <script>
+    const navLinks = Array.from(document.querySelectorAll('nav a[href^="#"]'));
+    const sections = navLinks
+      .map((link) => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+
+    const setActiveLink = (id) => {
+      navLinks.forEach((link) => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+      });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target?.id) setActiveLink(visible.target.id);
+    }, {
+      rootMargin: '-35% 0px -45% 0px',
+      threshold: [0.1, 0.25, 0.5, 0.75]
+    });
+
+    sections.forEach((section) => observer.observe(section));
+
+    document.querySelectorAll('.copy-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const text = btn.getAttribute('data-copy') ?? '';
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch { /* noop */ }
+          document.body.removeChild(ta);
+        }
+        const original = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = original;
+          btn.classList.remove('copied');
+        }, 1400);
+      });
+    });
+  </script>
+</body>
+</html>
