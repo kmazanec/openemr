@@ -10,6 +10,10 @@ import {
 } from './nodes/evidenceRetriever.js';
 import { format } from './nodes/format.js';
 import {
+    createKickoffExtraction,
+    type KickoffExtractionDeps,
+} from './nodes/kickoffExtraction.js';
+import {
     createMedicationStatementBranch,
     type MedicationStatementBranchDeps,
 } from './nodes/medicationStatementBranch.js';
@@ -91,6 +95,15 @@ export interface BriefingGraphDeps {
      */
     readonly evidenceRetriever?: EvidenceRetrieverDeps;
     /**
+     * §B.9 kickoffExtraction deps. Optional — when absent, the A.7
+     * stub continues to no-op so existing tests that don't exercise
+     * the panel-upload path keep working without standing up a
+     * `PipelineRunner`. Production wires this in `briefingRunner` per
+     * request, threading the per-turn token / siteId / conversationId
+     * plus the SSE pipeline-event sink.
+     */
+    readonly kickoffExtraction?: KickoffExtractionDeps;
+    /**
      * §3.5: when set, the compiled graph persists state via this saver,
      * keyed by the `thread_id` the caller passes on `invoke`. Production
      * wires the LangGraph Postgres saver here; in-memory tests omit it
@@ -123,13 +136,12 @@ export interface BriefingGraphDeps {
  * when the envelope's typed `followUp` matches), but the conditional
  * edge graph treats them as terminals-before-verify.
  *
- * `kickoffExtraction` is a no-op stub until Phase B; its node emits
- * a "stub invoked" trace event and returns control to the supervisor
- * with no state changes. `documentEvidenceRetriever` (C.1) and
- * `evidenceRetriever` (C.3) have real implementations now — the
- * `documentEvidenceRetriever`/`evidenceRetriever` deps slots are
- * optional so the graph still compiles for tests that don't supply
- * the upstream stores/clients (the stub then runs).
+ * `kickoffExtraction` (B.9), `documentEvidenceRetriever` (C.1), and
+ * `evidenceRetriever` (C.3) all have real implementations now — each
+ * deps slot is optional so the graph still compiles for tests that
+ * don't supply the upstream pipeline runner / store / clients (the
+ * matching A.7 stub then runs and returns control to the supervisor
+ * with no state changes).
  *
  * `retrieveChart` is the deterministic seed of chart context (call
  * count 0 → full fan-out per §A.4) and a supervisor-pickable handoff
@@ -215,12 +227,19 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     const evidenceRetrieverNode = deps.evidenceRetriever !== undefined
         ? createEvidenceRetriever(deps.evidenceRetriever)
         : evidenceRetrieverStub;
+    // §B.9: real `kickoffExtraction` when deps are wired (production
+    // path A — panel upload during a conversation); the A.7 stub keeps
+    // running otherwise so legacy tests that don't construct a
+    // `PipelineRunner` don't have to.
+    const kickoffExtractionNode = deps.kickoffExtraction !== undefined
+        ? createKickoffExtraction(deps.kickoffExtraction)
+        : kickoffExtractionStub;
 
     const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: w1FallbackDecide };
     const builder = new StateGraph(BriefingStateAnnotation)
         .addNode('retrieveChart', createRetrieveChart(deps.retrieveChart))
         .addNode('supervisor', createSupervisor(supervisorDeps))
-        .addNode('kickoffExtraction', kickoffExtractionStub)
+        .addNode('kickoffExtraction', kickoffExtractionNode)
         .addNode('documentEvidenceRetriever', documentEvidenceRetrieverNode)
         .addNode('evidenceRetriever', evidenceRetrieverNode)
         .addNode('prescriptionChangeBranch', prescriptionChangeNode)

@@ -111,7 +111,7 @@ export const baseState = (overrides: Partial<BriefingState> = {}): BriefingState
     evidenceRetrieverOutput: null,
     supervisorIterations: 1,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
     ...overrides,
 });
 

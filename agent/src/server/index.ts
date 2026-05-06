@@ -784,41 +784,15 @@ export const start = async (port: number): Promise<void> => {
     const extractionArtifactStore = createPgExtractionArtifactStore({ connectionString: databaseUrl });
 
     const counters = createInMemoryCounters();
-    const briefingRunner = await buildProductionBriefingRunner({
-        openEmrBaseUrl,
-        unverifiedClaimsLog,
-        conversationStore,
-        conversationMessages,
-        conversationSuggestions,
-        checkpointer,
-        counters,
-        extractionArtifactStore,
-    });
-    // §6.1: log the rolling cost-projection snapshot once a minute so the
-    // numbers are searchable in the agent's stdout without needing a
-    // metrics scrape. PHI keys (raw clinician/patient ids) stay in-process;
-    // only counts and totals reach the log line.
-    setInterval(() => {
-        const snap = counters.snapshot();
-        logger.info(
-            {
-                totalBriefings: snap.totalBriefings,
-                clinicians: Object.keys(snap.briefingsByClinician).length,
-                patients: Object.keys(snap.briefingsByPatient).length,
-                toolCalls: snap.toolCalls,
-                modelUsage: snap.modelUsage,
-                verification: snap.verification,
-            },
-            'agent counters snapshot',
-        );
-    }, 60_000).unref();
 
-    // §B.8 ingestion pipeline. The route is path A only (panel
-    // upload during a conversation). The rasterizer + vision invoker
-    // are constructed once at boot — both are stateless and the per-
-    // call values (token, canonicalExt, conversationId) thread through
-    // `PipelineCallContext` so the production runner builds a fresh
-    // `PipelineDeps` per `stream()`.
+    // §B.8 ingestion pipeline. Path A (panel upload during a
+    // conversation) is the §B.9 supervisor-driven trigger — the
+    // pipeline runner needs to be in scope before the briefing runner
+    // is built so the same instance feeds both consumers. The
+    // rasterizer + vision invoker are constructed once at boot — both
+    // are stateless and the per-call values (token, canonicalExt,
+    // conversationId) thread through `PipelineCallContext` so the
+    // production runner builds a fresh `PipelineDeps` per `stream()`.
     const spacesEnv = parseSpacesEnv();
     const openemrSpaces = createOpenEmrSpacesClient(spacesEnv);
     const agentSpaces = createAgentSpacesClient(spacesEnv);
@@ -863,6 +837,36 @@ export const start = async (port: number): Promise<void> => {
         artifactIdGenerator: () => randomUUID(),
         logger,
     });
+
+    const briefingRunner = await buildProductionBriefingRunner({
+        openEmrBaseUrl,
+        unverifiedClaimsLog,
+        conversationStore,
+        conversationMessages,
+        conversationSuggestions,
+        checkpointer,
+        counters,
+        extractionArtifactStore,
+        pipeline: pipelineRunner,
+    });
+    // §6.1: log the rolling cost-projection snapshot once a minute so the
+    // numbers are searchable in the agent's stdout without needing a
+    // metrics scrape. PHI keys (raw clinician/patient ids) stay in-process;
+    // only counts and totals reach the log line.
+    setInterval(() => {
+        const snap = counters.snapshot();
+        logger.info(
+            {
+                totalBriefings: snap.totalBriefings,
+                clinicians: Object.keys(snap.briefingsByClinician).length,
+                patients: Object.keys(snap.briefingsByPatient).length,
+                toolCalls: snap.toolCalls,
+                modelUsage: snap.modelUsage,
+                verification: snap.verification,
+            },
+            'agent counters snapshot',
+        );
+    }, 60_000).unref();
 
     const app = createApp({
         auth: { verify },
