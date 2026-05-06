@@ -9,15 +9,16 @@
  * route, and pipes the SSE response back to the browser.
  *
  * This entry point uses the **proxy** pattern (session-based auth,
- * outbound JWT mint), not the bearer-token pattern that other
- * `snapshot/*.php` endpoints use. The latter is for agent-inbound
- * traffic (the agent calling back to OpenEMR). The trigger goes the
- * other direction — browser → OpenEMR → agent — so it shares
- * `AgentProxyController` with `agent.php`.
+ * outbound JWT mint) and lives next to `agent.php`. The bearer-token
+ * pattern that `snapshot/*.php` endpoints use is for agent-inbound
+ * traffic (the agent calling back to OpenEMR with a JWT it already
+ * holds); the trigger goes the other direction — browser → OpenEMR →
+ * agent — so it belongs alongside the other browser-inbound entry,
+ * not under `snapshot/`.
  *
  * Request shape:
  *   POST /interface/modules/custom_modules/oe-module-clinical-copilot/
- *     public/snapshot/extract.php
+ *     public/extract.php
  *   Body (JSON): {pid, document_uuid, doc_type, trigger_source,
  *                 canonical_ext?, conversation_id?}
  *
@@ -34,7 +35,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../../../../globals.php';
+require_once __DIR__ . '/../../../../globals.php';
 
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Core\OEGlobalsBag;
