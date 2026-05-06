@@ -58,13 +58,13 @@
 - `db/Migrations/Version<...>.php` (new — Doctrine migration).
 
 **Checklist.**
-- [ ] Generate a new Doctrine migration via the existing OpenEMR pattern.
-- [ ] Add nullable `source_document_uuid VARCHAR(36) DEFAULT NULL` column to: `lists`, `family_history`, `procedure_report`.
-- [ ] Migration is idempotent (checks for existing column before adding).
-- [ ] Down-migration drops the columns.
-- [ ] Tests: run migration up + down on a fresh dev-easy DB; verify schema.
+- [x] Generate a new Doctrine migration via the existing OpenEMR pattern. (`db/Migrations/Version20260506000001.php`, namespace `OpenEMR\Core\Migrations`, mirrors the W2 migration pattern set by `Version20260430000001`/`Version20260502000001`.)
+- [x] Add nullable `source_document_uuid VARCHAR(36) DEFAULT NULL` column to: `lists`, `family_history`, `procedure_report`. (Stock OpenEMR has no `family_history` table — family history records live in `lists` with `type='family_history'`. Single column on `lists` therefore covers allergies + medical_problem + family_history Tier-3 writes; spec correction flagged in MR for follow-up to `W2_ARCHITECTURE.md` lines 47/495/505.)
+- [x] Migration is idempotent (checks for existing column before adding). (Each ALTER is gated by an INFORMATION_SCHEMA-driven `IF` prepared statement; portable across MySQL + MariaDB, unlike `ADD COLUMN IF NOT EXISTS`.)
+- [x] Down-migration drops the columns. (Same INFORMATION_SCHEMA gate, so re-running down on an already-dropped column is a no-op.)
+- [x] Tests: run migration up + down on a fresh dev-easy DB; verify schema. (Verified end-to-end against the dev-easy DB: up → both columns present as `varchar(36) NULL DEFAULT NULL`; down → both removed; repeat-up SQL → no-op via the gate; up final state retained.)
 
-**Definition of done.** `docker compose exec openemr /root/devtools migrate` runs the migration cleanly. `DESCRIBE lists;` shows the new column.
+**Definition of done.** `docker compose exec openemr /root/devtools migrate` runs the migration cleanly. `DESCRIBE lists;` shows the new column. (Met. Verified via `php cli migrations:migrate` inside the dev-easy `openemr` container; Doctrine's `migrations:migrate` is what the deploy path uses too — see `infra/deploy.sh` line 175.)
 
 ---
 
