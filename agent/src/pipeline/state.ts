@@ -60,6 +60,29 @@ export interface PageImage {
 }
 
 /**
+ * Per-pipeline confidence signal produced by the `patientMatch` node
+ * (B.6) and read downstream by `persist` (B.7) so the artifact row
+ * carries the same disposition the verifier's hard-stops will check.
+ *
+ * `patientMatchScore` is the average of the per-axis scores
+ * (`matchName` + `matchDob`), each in `{0, 0.5, 0.6, 1.0}`. A confident
+ * mismatch (either axis at 0.0) routes through `failed/patient_mismatch`
+ * and the signal is *not* recorded — the artifact's `failed` status is
+ * the load-bearing signal in that path. A partial match (any non-1.0
+ * axis with no axis at 0.0) records the signal with
+ * `patientMatchPartial = true`.
+ *
+ * `demographicsWarnings` carries stable, non-PHI tokens
+ * (`'name_partial_match'`, `'dob_off_by_one_day'`) that the verifier
+ * and the Tier-2 row both consume — never the actual name/DOB strings.
+ */
+export interface ConfidenceSignal {
+    readonly patientMatchScore: number;
+    readonly patientMatchPartial: boolean;
+    readonly demographicsWarnings: readonly string[];
+}
+
+/**
  * Complete pipeline state. The shape is the union of every field any
  * of the six nodes can write; nodes return `Partial<PipelineState>` and
  * LangGraph merges via the channel reducers configured on the graph.
@@ -79,6 +102,8 @@ export interface PipelineState {
     readonly schema: unknown;
     /** Set by `persist` after the Tier-2 row is inserted (or cached id returned). */
     readonly artifactId: string | null;
+    /** Set by `patientMatch` on confident-or-partial match; null on refuse or before the node runs. */
+    readonly confidenceSignal: ConfidenceSignal | null;
     readonly status: PipelineStatus;
     readonly errors: readonly PipelineError[];
 }
@@ -96,6 +121,7 @@ export const initialPipelineState = (input: {
     pages: [],
     schema: null,
     artifactId: null,
+    confidenceSignal: null,
     status: 'pending',
     errors: [],
 });

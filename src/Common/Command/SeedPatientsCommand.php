@@ -29,6 +29,7 @@ use Faker\Generator as Faker;
 use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Common\Session\SessionUtil;
 use OpenEMR\Common\Uuid\UuidRegistry;
+use OpenEMR\Seed\FixturePatient;
 use OpenEMR\Seed\Generators\AllergyGenerator;
 use OpenEMR\Seed\Generators\EncounterGenerator;
 use OpenEMR\Seed\Generators\EncounterNoteGenerator;
@@ -138,11 +139,9 @@ class SeedPatientsCommand extends Command
         $prescriptionService = new PrescriptionService();
         $vitalsService = new VitalsService();
 
-        $io->section("Generating {$count} patient(s)");
-        $io->progressStart($count);
-
         $stats = [
             'patients' => 0,
+            'fixture_patients' => 0,
             'encounters' => 0,
             'problems' => 0,
             'medications' => 0,
@@ -159,6 +158,49 @@ class SeedPatientsCommand extends Command
         $archetypeCounts = [];
         $start = microtime(true);
 
+        // Fixture patients first (deterministic, independent of --count) so
+        // every run wires the docs/example-documents/ test fixtures to
+        // recognisable charts. Skipped when one with the same lname+DOB
+        // already exists so re-running the seed without baseline restore
+        // is idempotent.
+        $io->section('Pinning fixture patients (' . count(FixturePatient::cases()) . ')');
+        foreach (FixturePatient::cases() as $fixture) {
+            if ($this->fixturePatientExists($fixture)) {
+                continue;
+            }
+            $archetype = $fixture->archetype();
+            $patientData = $fixture->toPatientData($defaultPcpId);
+            $insert = $this->insertPatientRecord($patientService, $patientData, $defaultPcpId, $stats, $io);
+            if ($insert === null) {
+                continue;
+            }
+            $stats['fixture_patients']++;
+            $archetypeCounts[$archetype->value] = ($archetypeCounts[$archetype->value] ?? 0) + 1;
+            $this->scaffoldClinicalRecord(
+                $insert['pid'],
+                $insert['puuid'],
+                $defaultPcpId,
+                $archetype,
+                $faker,
+                $stats,
+                $encounterGen,
+                $problemGen,
+                $medGen,
+                $allergyGen,
+                $vitalsGen,
+                $labGen,
+                $noteGen,
+                $extEncGen,
+                $encounterService,
+                $listService,
+                $prescriptionService,
+                $vitalsService,
+            );
+        }
+
+        $io->section("Generating {$count} patient(s)");
+        $io->progressStart($count);
+
         for ($i = 0; $i < $count; $i++) {
             $archetype = $this->pickArchetype($faker);
             $archetypeCounts[$archetype->value] = ($archetypeCounts[$archetype->value] ?? 0) + 1;
@@ -168,212 +210,31 @@ class SeedPatientsCommand extends Command
                 : $providerIds[array_rand($providerIds)];
 
             $patientData = $patientGen->generate($archetype, $pcpId);
-            $result = $patientService->insert($patientData);
-            if (!$result->isValid() || $result->hasInternalErrors()) {
-                $io->writeln('');
-                $io->warning('Patient insert failed: ' . $this->describeProcessingResult($result));
-                $stats['failed_patients']++;
+            $insert = $this->insertPatientRecord($patientService, $patientData, $pcpId, $stats, $io);
+            if ($insert === null) {
                 $io->progressAdvance();
                 continue;
             }
-            $resultData = $result->getData();
-            if (!is_array($resultData) || !isset($resultData[0]) || !is_array($resultData[0])) {
-                $stats['failed_patients']++;
-                $io->progressAdvance();
-                continue;
-            }
-            $insertRow = $resultData[0];
-            $pid = isset($insertRow['pid']) && is_numeric($insertRow['pid']) ? (int) $insertRow['pid'] : 0;
-            $puuid = isset($insertRow['uuid']) && is_string($insertRow['uuid']) ? $insertRow['uuid'] : '';
-            if ($pid === 0 || $puuid === '') {
-                $stats['failed_patients']++;
-                $io->progressAdvance();
-                continue;
-            }
-            $stats['patients']++;
-
-            // PatientService::insert filters providerID out of its allowlist,
-            // so set the PCP directly. This is what makes UC1's partner-coverage
-            // vs. own-panel distinction work.
-            QueryUtils::sqlStatementThrowException(
-                'UPDATE patient_data SET providerID = ? WHERE pid = ?',
-                [$pcpId, $pid]
+            $this->scaffoldClinicalRecord(
+                $insert['pid'],
+                $insert['puuid'],
+                $pcpId,
+                $archetype,
+                $faker,
+                $stats,
+                $encounterGen,
+                $problemGen,
+                $medGen,
+                $allergyGen,
+                $vitalsGen,
+                $labGen,
+                $noteGen,
+                $extEncGen,
+                $encounterService,
+                $listService,
+                $prescriptionService,
+                $vitalsService,
             );
-
-            // Required problems first, then a few random extras.
-            foreach ($archetype->requiredProblems() as $required) {
-                $listService->insert($problemGen->generateRequired($pid, $required['code'], $required['title']));
-                $stats['problems']++;
-            }
-            [$pMin, $pMax] = $archetype->extraProblemRange();
-            $extraProblems = $faker->numberBetween($pMin, $pMax);
-            for ($p = 0; $p < $extraProblems; $p++) {
-                $listService->insert($problemGen->generateRandom($pid));
-                $stats['problems']++;
-            }
-
-            // Required medications: each one gets a synthesised
-            // "prescribing encounter" 4-8 weeks ago whose SOAP note
-            // explicitly names the drug + indication. That encounter's
-            // date becomes the prescription's start_date so UC3's
-            // "when/why was lisinopril started" drill-down can cite a
-            // concrete, navigable visit.
-            $stableHeight = (float) $faker->numberBetween(60, 74);
-            $baselineWeight = $this->baselineWeightFor($archetype, $stableHeight, $faker);
-            foreach ($archetype->requiredMedicationRxcuis() as $rxcui) {
-                $indication = $archetype->indicationForRxcui($rxcui) ?? 'chronic condition';
-                $weeksAgo = $faker->numberBetween(4, 8);
-                $encDate = (new \DateTimeImmutable("-{$weeksAgo} weeks"))->format('Y-m-d H:i:s');
-
-                $encId = $this->insertPrescribingEncounter(
-                    $puuid,
-                    $pcpId,
-                    $encDate,
-                    $indication,
-                    $encounterService,
-                );
-                if ($encId === 0) {
-                    continue;
-                }
-                $stats['encounters']++;
-                $stats['prescribing_encounters']++;
-
-                // Vitals on the prescribing visit.
-                try {
-                    $vitalsService->save($vitalsGen->generate(
-                        $pid, $encId, $encDate, $archetype, $stableHeight, $baselineWeight,
-                    ));
-                    $stats['vitals']++;
-                } catch (\RuntimeException | \InvalidArgumentException) {
-                }
-
-                // Build the prescription with start_date pinned to the encounter.
-                $rxRow = $medGen->generateByRxcui(
-                    $pid,
-                    $pcpId,
-                    $rxcui,
-                    substr($encDate, 0, 10),
-                    $indication,
-                );
-                $rxResult = $prescriptionService->insert($rxRow);
-                if (!$rxResult->hasInternalErrors() && $rxResult->isValid()) {
-                    $stats['medications']++;
-                }
-
-                // SOAP note that names the drug and indication.
-                $drugName = isset($rxRow['drug']) && is_string($rxRow['drug']) ? $rxRow['drug'] : 'medication';
-                $soap = $noteGen->generatePrescribingNote(
-                    $drugName,
-                    $indication,
-                    $this->bareNoteContext($archetype, $stableHeight, $baselineWeight, $faker),
-                );
-                if ($this->insertSoapForm($pid, $encId, $encDate, $pcpId, $soap)) {
-                    $stats['soap_notes']++;
-                }
-            }
-            [$mMin, $mMax] = $archetype->extraMedicationRange();
-            $extraMeds = $faker->numberBetween($mMin, $mMax);
-            for ($m = 0; $m < $extraMeds; $m++) {
-                $row = $medGen->generateRandom($pid, $pcpId);
-                $isStopped = $faker->numberBetween(1, 100) <= self::STOPPED_MED_FRACTION;
-                if ($isStopped) {
-                    $row = $medGen->markStopped($row);
-                }
-                $rxResult = $prescriptionService->insert($row);
-                if (!$rxResult->hasInternalErrors() && $rxResult->isValid()) {
-                    $stats['medications']++;
-                    if ($isStopped) {
-                        $stats['stopped_meds']++;
-                    }
-                }
-            }
-
-            // Allergy: ~35% of patients get one. ListService::insert only
-            // writes 6 columns, so patch reaction/severity_al in afterward.
-            if ($faker->numberBetween(1, 100) <= self::ALLERGY_FRACTION) {
-                $allergyData = $allergyGen->generate($pid);
-                $listId = $listService->insert($allergyData);
-                if (is_numeric($listId) && (int) $listId > 0) {
-                    QueryUtils::sqlStatementThrowException(
-                        'UPDATE lists SET reaction = ?, severity_al = ? WHERE id = ?',
-                        [$allergyData['reaction'], $allergyData['severity_al'], (int) $listId]
-                    );
-                }
-                $stats['allergies']++;
-            }
-
-            // Lab series — generated up-front so the encounter notes
-            // below can reference the most recent A1c/abnormal value.
-            $series = $labGen->generateForArchetype($archetype);
-            $opportunistic = $labGen->generateOpportunisticAbnormal();
-            if ($opportunistic !== null) {
-                $series[] = $opportunistic;
-            }
-            foreach ($series as $panel) {
-                foreach ($panel->draws as $draw) {
-                    $resultsCount = $this->insertLabDraw($pid, $pcpId, $panel, $draw);
-                    $stats['lab_orders']++;
-                    $stats['lab_results'] += $resultsCount;
-                }
-            }
-            $noteCtx = $this->buildNoteContext($archetype, $stableHeight, $baselineWeight, $series, $faker);
-
-            // External encounters (UC4): ED visits + outside consults
-            // imported from other facilities.
-            foreach ($extEncGen->generate($pid, $archetype) as $extRow) {
-                QueryUtils::sqlStatementThrowException(
-                    'INSERT INTO external_encounters (ee_pid, ee_date, ee_facility_id, ee_encounter_diagnosis, ee_external_id)
-                     VALUES (?, ?, ?, ?, ?)',
-                    [$pid, $extRow['ee_date'], $extRow['ee_facility_id'], $extRow['ee_encounter_diagnosis'], $extRow['ee_external_id']]
-                );
-                $stats['external_encounters']++;
-            }
-
-            // Regular encounters with vitals + SOAP notes attached.
-            [$eMin, $eMax] = $archetype->encounterCountRange();
-            $encounterCount = $faker->numberBetween($eMin, $eMax);
-            for ($encIdx = 0; $encIdx < $encounterCount; $encIdx++) {
-                $encounterData = $encounterGen->generate($pcpId, $archetype);
-                $encResult = $encounterService->insertEncounter($puuid, $encounterData);
-                if (!$encResult->isValid() || $encResult->hasInternalErrors()) {
-                    continue;
-                }
-                $stats['encounters']++;
-
-                $encRow = $encResult->getData();
-                if (!is_array($encRow) || !isset($encRow[0]) || !is_array($encRow[0])) {
-                    continue;
-                }
-                $eid = isset($encRow[0]['encounter']) && is_numeric($encRow[0]['encounter'])
-                    ? (int) $encRow[0]['encounter'] : 0;
-                $eDate = isset($encRow[0]['date']) && is_string($encRow[0]['date'])
-                    ? $encRow[0]['date'] : ($encounterData['date'] ?? date('Y-m-d H:i:s'));
-                if ($eid === 0) {
-                    continue;
-                }
-
-                try {
-                    $vitalsService->save($vitalsGen->generate(
-                        $pid,
-                        $eid,
-                        (string) $eDate,
-                        $archetype,
-                        $stableHeight,
-                        $baselineWeight,
-                    ));
-                    $stats['vitals']++;
-                } catch (\RuntimeException | \InvalidArgumentException) {
-                    // VitalsService throws InvalidArgumentException on shape issues,
-                    // RuntimeException on save failures. Don't abort the patient.
-                }
-
-                $reason = isset($encounterData['reason']) && is_string($encounterData['reason'])
-                    ? $encounterData['reason'] : 'Follow-up visit';
-                $soap = $noteGen->generate($reason, $noteCtx);
-                if ($this->insertSoapForm($pid, $eid, (string) $eDate, $pcpId, $soap)) {
-                    $stats['soap_notes']++;
-                }
-            }
 
             $io->progressAdvance();
         }
@@ -396,6 +257,7 @@ class SeedPatientsCommand extends Command
                 ['SOAP notes', $stats['soap_notes']],
                 ['prescribing encounters', $stats['prescribing_encounters']],
                 ['external encounters', $stats['external_encounters']],
+                ['fixture patients', $stats['fixture_patients']],
                 ['failed patients', $stats['failed_patients']],
             ]
         );
@@ -422,6 +284,276 @@ class SeedPatientsCommand extends Command
             }
         }
         return PatientArchetype::HealthyAdult;
+    }
+
+    /**
+     * Insert one patient_data row via PatientService and post-patch the
+     * provider link. Returns null on any insert / shape failure (caller
+     * has already incremented the failed_patients counter).
+     *
+     * @param array<string, string|int> $patientData
+     * @param array<string, int> $stats
+     * @return array{pid: int, puuid: string}|null
+     */
+    private function insertPatientRecord(
+        PatientService $patientService,
+        array $patientData,
+        int $pcpId,
+        array &$stats,
+        SymfonyStyle $io,
+    ): ?array {
+        $result = $patientService->insert($patientData);
+        if (!$result->isValid() || $result->hasInternalErrors()) {
+            $io->writeln('');
+            $io->warning('Patient insert failed: ' . $this->describeProcessingResult($result));
+            $stats['failed_patients']++;
+            return null;
+        }
+        $resultData = $result->getData();
+        if (!is_array($resultData) || !isset($resultData[0]) || !is_array($resultData[0])) {
+            $stats['failed_patients']++;
+            return null;
+        }
+        $insertRow = $resultData[0];
+        $pid = isset($insertRow['pid']) && is_numeric($insertRow['pid']) ? (int) $insertRow['pid'] : 0;
+        $puuid = isset($insertRow['uuid']) && is_string($insertRow['uuid']) ? $insertRow['uuid'] : '';
+        if ($pid === 0 || $puuid === '') {
+            $stats['failed_patients']++;
+            return null;
+        }
+        $stats['patients']++;
+
+        // PatientService::insert filters providerID out of its allowlist,
+        // so set the PCP directly. This is what makes UC1's partner-coverage
+        // vs. own-panel distinction work.
+        QueryUtils::sqlStatementThrowException(
+            'UPDATE patient_data SET providerID = ? WHERE pid = ?',
+            [$pcpId, $pid]
+        );
+
+        return ['pid' => $pid, 'puuid' => $puuid];
+    }
+
+    /**
+     * Lookup helper for the fixture pre-loop. A fixture patient is
+     * considered "already present" if any patient_data row matches both
+     * lname and DOB — re-running the seed without restoring baseline is
+     * idempotent for the four pinned fixtures, so demos can layer
+     * additional Faker patients on top without duplicating Chen et al.
+     */
+    private function fixturePatientExists(FixturePatient $fixture): bool
+    {
+        $row = QueryUtils::fetchSingleValue(
+            'SELECT pid FROM patient_data WHERE lname = ? AND DOB = ? LIMIT 1',
+            'pid',
+            [$fixture->lastName(), $fixture->dateOfBirth()]
+        );
+        return is_numeric($row) && (int) $row > 0;
+    }
+
+    /**
+     * Run the per-patient clinical-scaffolding pipeline (problems →
+     * meds → prescribing encounters → allergy → labs → external
+     * encounters → regular encounters with vitals + SOAP). Extracted so
+     * both the fixture-patient pre-loop and the random-patient loop run
+     * the exact same sequence — only the patient identity differs.
+     *
+     * @param array<string, int> $stats
+     */
+    private function scaffoldClinicalRecord(
+        int $pid,
+        string $puuid,
+        int $pcpId,
+        PatientArchetype $archetype,
+        Faker $faker,
+        array &$stats,
+        EncounterGenerator $encounterGen,
+        ProblemListGenerator $problemGen,
+        MedListGenerator $medGen,
+        AllergyGenerator $allergyGen,
+        VitalsGenerator $vitalsGen,
+        LabResultGenerator $labGen,
+        EncounterNoteGenerator $noteGen,
+        ExternalEncounterGenerator $extEncGen,
+        EncounterService $encounterService,
+        ListService $listService,
+        PrescriptionService $prescriptionService,
+        VitalsService $vitalsService,
+    ): void {
+        // Required problems first, then a few random extras.
+        foreach ($archetype->requiredProblems() as $required) {
+            $listService->insert($problemGen->generateRequired($pid, $required['code'], $required['title']));
+            $stats['problems']++;
+        }
+        [$pMin, $pMax] = $archetype->extraProblemRange();
+        $extraProblems = $faker->numberBetween($pMin, $pMax);
+        for ($p = 0; $p < $extraProblems; $p++) {
+            $listService->insert($problemGen->generateRandom($pid));
+            $stats['problems']++;
+        }
+
+        // Required medications: each one gets a synthesised
+        // "prescribing encounter" 4-8 weeks ago whose SOAP note
+        // explicitly names the drug + indication. That encounter's
+        // date becomes the prescription's start_date so UC3's
+        // "when/why was lisinopril started" drill-down can cite a
+        // concrete, navigable visit.
+        $stableHeight = (float) $faker->numberBetween(60, 74);
+        $baselineWeight = $this->baselineWeightFor($archetype, $stableHeight, $faker);
+        foreach ($archetype->requiredMedicationRxcuis() as $rxcui) {
+            $indication = $archetype->indicationForRxcui($rxcui) ?? 'chronic condition';
+            $weeksAgo = $faker->numberBetween(4, 8);
+            $encDate = (new \DateTimeImmutable("-{$weeksAgo} weeks"))->format('Y-m-d H:i:s');
+
+            $encId = $this->insertPrescribingEncounter(
+                $puuid,
+                $pcpId,
+                $encDate,
+                $indication,
+                $encounterService,
+            );
+            if ($encId === 0) {
+                continue;
+            }
+            $stats['encounters']++;
+            $stats['prescribing_encounters']++;
+
+            // Vitals on the prescribing visit.
+            try {
+                $vitalsService->save($vitalsGen->generate(
+                    $pid, $encId, $encDate, $archetype, $stableHeight, $baselineWeight,
+                ));
+                $stats['vitals']++;
+            } catch (\RuntimeException | \InvalidArgumentException) {
+            }
+
+            // Build the prescription with start_date pinned to the encounter.
+            $rxRow = $medGen->generateByRxcui(
+                $pid,
+                $pcpId,
+                $rxcui,
+                substr($encDate, 0, 10),
+                $indication,
+            );
+            $rxResult = $prescriptionService->insert($rxRow);
+            if (!$rxResult->hasInternalErrors() && $rxResult->isValid()) {
+                $stats['medications']++;
+            }
+
+            // SOAP note that names the drug and indication.
+            $drugName = isset($rxRow['drug']) && is_string($rxRow['drug']) ? $rxRow['drug'] : 'medication';
+            $soap = $noteGen->generatePrescribingNote(
+                $drugName,
+                $indication,
+                $this->bareNoteContext($archetype, $stableHeight, $baselineWeight, $faker),
+            );
+            if ($this->insertSoapForm($pid, $encId, $encDate, $pcpId, $soap)) {
+                $stats['soap_notes']++;
+            }
+        }
+        [$mMin, $mMax] = $archetype->extraMedicationRange();
+        $extraMeds = $faker->numberBetween($mMin, $mMax);
+        for ($m = 0; $m < $extraMeds; $m++) {
+            $row = $medGen->generateRandom($pid, $pcpId);
+            $isStopped = $faker->numberBetween(1, 100) <= self::STOPPED_MED_FRACTION;
+            if ($isStopped) {
+                $row = $medGen->markStopped($row);
+            }
+            $rxResult = $prescriptionService->insert($row);
+            if (!$rxResult->hasInternalErrors() && $rxResult->isValid()) {
+                $stats['medications']++;
+                if ($isStopped) {
+                    $stats['stopped_meds']++;
+                }
+            }
+        }
+
+        // Allergy: ~35% of patients get one. ListService::insert only
+        // writes 6 columns, so patch reaction/severity_al in afterward.
+        if ($faker->numberBetween(1, 100) <= self::ALLERGY_FRACTION) {
+            $allergyData = $allergyGen->generate($pid);
+            $listId = $listService->insert($allergyData);
+            if (is_numeric($listId) && (int) $listId > 0) {
+                QueryUtils::sqlStatementThrowException(
+                    'UPDATE lists SET reaction = ?, severity_al = ? WHERE id = ?',
+                    [$allergyData['reaction'], $allergyData['severity_al'], (int) $listId]
+                );
+            }
+            $stats['allergies']++;
+        }
+
+        // Lab series — generated up-front so the encounter notes
+        // below can reference the most recent A1c/abnormal value.
+        $series = $labGen->generateForArchetype($archetype);
+        $opportunistic = $labGen->generateOpportunisticAbnormal();
+        if ($opportunistic !== null) {
+            $series[] = $opportunistic;
+        }
+        foreach ($series as $panel) {
+            foreach ($panel->draws as $draw) {
+                $resultsCount = $this->insertLabDraw($pid, $pcpId, $panel, $draw);
+                $stats['lab_orders']++;
+                $stats['lab_results'] += $resultsCount;
+            }
+        }
+        $noteCtx = $this->buildNoteContext($archetype, $stableHeight, $baselineWeight, $series, $faker);
+
+        // External encounters (UC4): ED visits + outside consults
+        // imported from other facilities.
+        foreach ($extEncGen->generate($pid, $archetype) as $extRow) {
+            QueryUtils::sqlStatementThrowException(
+                'INSERT INTO external_encounters (ee_pid, ee_date, ee_facility_id, ee_encounter_diagnosis, ee_external_id)
+                 VALUES (?, ?, ?, ?, ?)',
+                [$pid, $extRow['ee_date'], $extRow['ee_facility_id'], $extRow['ee_encounter_diagnosis'], $extRow['ee_external_id']]
+            );
+            $stats['external_encounters']++;
+        }
+
+        // Regular encounters with vitals + SOAP notes attached.
+        [$eMin, $eMax] = $archetype->encounterCountRange();
+        $encounterCount = $faker->numberBetween($eMin, $eMax);
+        for ($encIdx = 0; $encIdx < $encounterCount; $encIdx++) {
+            $encounterData = $encounterGen->generate($pcpId, $archetype);
+            $encResult = $encounterService->insertEncounter($puuid, $encounterData);
+            if (!$encResult->isValid() || $encResult->hasInternalErrors()) {
+                continue;
+            }
+            $stats['encounters']++;
+
+            $encRow = $encResult->getData();
+            if (!is_array($encRow) || !isset($encRow[0]) || !is_array($encRow[0])) {
+                continue;
+            }
+            $eid = isset($encRow[0]['encounter']) && is_numeric($encRow[0]['encounter'])
+                ? (int) $encRow[0]['encounter'] : 0;
+            $eDate = isset($encRow[0]['date']) && is_string($encRow[0]['date'])
+                ? $encRow[0]['date'] : ($encounterData['date'] ?? date('Y-m-d H:i:s'));
+            if ($eid === 0) {
+                continue;
+            }
+
+            try {
+                $vitalsService->save($vitalsGen->generate(
+                    $pid,
+                    $eid,
+                    (string) $eDate,
+                    $archetype,
+                    $stableHeight,
+                    $baselineWeight,
+                ));
+                $stats['vitals']++;
+            } catch (\RuntimeException | \InvalidArgumentException) {
+                // VitalsService throws InvalidArgumentException on shape issues,
+                // RuntimeException on save failures. Don't abort the patient.
+            }
+
+            $reason = isset($encounterData['reason']) && is_string($encounterData['reason'])
+                ? $encounterData['reason'] : 'Follow-up visit';
+            $soap = $noteGen->generate($reason, $noteCtx);
+            if ($this->insertSoapForm($pid, $eid, (string) $eDate, $pcpId, $soap)) {
+                $stats['soap_notes']++;
+            }
+        }
     }
 
     /**

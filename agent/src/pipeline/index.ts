@@ -1,23 +1,25 @@
 /**
- * §B.3 / §B.4 / §B.5 Pipeline graph wiring.
+ * §B.3 / §B.4 / §B.5 / §B.6 Pipeline graph wiring.
  *
  * The ingestion pipeline is a separate compiled LangGraph app
  * (W2_ARCHITECTURE.md §"Pipeline as a compiled LangGraph app"). It is
  * built once at agent boot and invoked synchronously per extraction.
  *
  * Currently wired: `rasterize` (B.3) → `vision` (B.4) →
- * `schemaValidate` (B.5). Subsequent subphases (B.6 `patientMatch`,
- * B.7 `persist` + `emitDeltas`) extend the same graph factory.
+ * `schemaValidate` (B.5) → `patientMatch` (B.6). Subsequent subphase
+ * (B.7 `persist` + `emitDeltas`) extends the same graph factory.
  */
 
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { LastValue } from '@langchain/langgraph/channels';
 
+import { patientMatch, type PatientMatchDeps } from './nodes/patientMatch.js';
 import { rasterize, type RasterizeDeps } from './nodes/rasterize.js';
 import { schemaValidate, type SchemaValidateDeps } from './nodes/schemaValidate.js';
 import { vision, type VisionDeps } from './nodes/vision.js';
 import { type DocumentType } from '../state/extractionArtifacts.js';
 import {
+    type ConfidenceSignal,
     type PageImage,
     type PipelineError,
     type PipelineState,
@@ -44,6 +46,7 @@ export const PipelineStateAnnotation = Annotation.Root({
     pages: lastValueChannel<readonly PageImage[]>(() => []),
     schema: lastValueChannel<unknown>(() => null),
     artifactId: lastValueChannel<string | null>(() => null),
+    confidenceSignal: lastValueChannel<ConfidenceSignal | null>(() => null),
     status: lastValueChannel<PipelineStatus>(() => 'pending'),
     errors: lastValueChannel<readonly PipelineError[]>(() => []),
 });
@@ -52,6 +55,7 @@ export interface PipelineDeps {
     readonly rasterize: RasterizeDeps;
     readonly vision: VisionDeps;
     readonly schemaValidate: SchemaValidateDeps;
+    readonly patientMatch: PatientMatchDeps;
 }
 
 /**
@@ -70,6 +74,7 @@ export const createPipelineGraph = (deps: PipelineDeps) => {
         .addNode('rasterize', (state: PipelineState) => rasterize(state, deps.rasterize))
         .addNode('vision', (state: PipelineState) => vision(state, deps.vision))
         .addNode('schemaValidate', (state: PipelineState) => schemaValidate(state, deps.schemaValidate))
+        .addNode('patientMatch', (state: PipelineState) => patientMatch(state, deps.patientMatch))
         .addEdge(START, 'rasterize')
         .addConditionalEdges('rasterize', routeOrFail('vision'), {
             vision: 'vision',
@@ -79,6 +84,10 @@ export const createPipelineGraph = (deps: PipelineDeps) => {
             schemaValidate: 'schemaValidate',
             [END]: END,
         })
-        .addEdge('schemaValidate', END);
+        .addConditionalEdges('schemaValidate', routeOrFail('patientMatch'), {
+            patientMatch: 'patientMatch',
+            [END]: END,
+        })
+        .addEdge('patientMatch', END);
     return builder.compile();
 };
