@@ -15,7 +15,7 @@ import type { AssistantMessage, RequestEnvelope, SuggestedFollowUpParams } from 
 import { createInMemoryCounters } from '../observability/counters.js';
 import { createLogger } from '../observability/logger.js';
 import { createCheckpointer } from '../state/checkpointer.js';
-import { createPgExtractionArtifactStore } from '../state/extractionArtifacts.js';
+import { runMigrations } from '../state/migrations.js';
 import {
     createPgConversationMessagesStore,
     type ConversationMessagesStore,
@@ -719,41 +719,31 @@ export const start = async (port: number): Promise<void> => {
         logger.error('OPENEMR_BASE_URL is not set; agent cannot reach the snapshot endpoint');
         throw new Error('OPENEMR_BASE_URL is required');
     }
+    // Apply schema migrations *before* any state-store factory wires up
+    // a pool. A pending migration that fails throws — the agent refuses
+    // to serve briefings against a half-applied schema. Keeps the
+    // application code free of CREATE TABLE IF NOT EXISTS noise; every
+    // schema change is a numbered file under `agent/migrations/`.
+    await runMigrations({ databaseUrl });
+
     const verify = buildVerifier();
+    // LangGraph's `PostgresSaver` owns its own `checkpoint*` tables and
+    // its own `setup()`. We don't migrate those — the third-party
+    // module manages its own schema lifecycle.
     const checkpointer = createCheckpointer(databaseUrl);
     await checkpointer.setup();
     logger.info('LangGraph Postgres checkpointer ready');
 
     const unverifiedClaimsLog = createPgUnverifiedClaimsLog({ connectionString: databaseUrl });
-    await unverifiedClaimsLog.setup();
-    logger.info('unverified-claims log table ready');
-
     const conversationStore = createPgConversationStore({ connectionString: databaseUrl });
-    await conversationStore.setup();
-    logger.info('conversations table ready');
-
     const conversationMessages = createPgConversationMessagesStore({ connectionString: databaseUrl });
-    await conversationMessages.setup();
-    logger.info('conversation_messages table ready');
-
     const conversationSuggestions = createPgConversationSuggestionStore({ connectionString: databaseUrl });
-    await conversationSuggestions.setup();
-    logger.info('conversation_suggestion_chips table ready');
-
     const scheduleBriefingsLog = createPgScheduleBriefingsLog({ connectionString: databaseUrl });
-    await scheduleBriefingsLog.setup();
-    logger.info('schedule_briefings table ready');
-
-    // §B.1 Tier-2 extraction-artifact store. The pipeline writes here
-    // after vision + schemaValidate + patientMatch succeed; the
-    // documentEvidenceRetriever (C.1) reads from it. A boot-time
-    // setup() failure is a hard boot failure — we'd rather the agent
-    // refuse to start than serve briefings against a missing table.
-    const extractionArtifactStore = createPgExtractionArtifactStore({
-        connectionString: databaseUrl,
-    });
-    await extractionArtifactStore.setup();
-    logger.info('extraction_artifacts table ready');
+    // §B.1 `extractionArtifactStore` is constructed at C.1's wiring point
+    // (when the conversational graph's documentEvidenceRetriever takes it
+    // as a dep). The schema is provisioned at boot by `runMigrations`
+    // above, so we don't need to construct the store here just to ensure
+    // the table exists.
 
     const counters = createInMemoryCounters();
     const briefingRunner = buildProductionBriefingRunner({

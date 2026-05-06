@@ -71,7 +71,6 @@ const buildFakeLog = (
 ): { log: ScheduleBriefingsLog; state: FakeLogState } => {
     const state: FakeLogState = { recorded: [], forceFlags: [], existsCalls: [] };
     const log: ScheduleBriefingsLog = {
-        setup: () => Promise.resolve(),
         existsForToday: (key, today) => {
             state.existsCalls.push({ ...key, today });
             return Promise.resolve(behavior.existsForToday);

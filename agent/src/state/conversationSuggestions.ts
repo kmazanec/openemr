@@ -40,7 +40,6 @@ export interface SuggestionSetWrite {
 }
 
 export interface ConversationSuggestionStore {
-    readonly setup: () => Promise<void>;
     /**
      * Record the chip IDs offered on a default_briefing turn. No-op when
      * `chipIds` is empty (a turn that produced no suggestions has nothing
@@ -55,17 +54,7 @@ export interface ConversationSuggestionStore {
     readonly hasChip: (conversationId: string, chipId: string) => Promise<boolean>;
 }
 
-const SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS conversation_suggestion_chips (
-        id UUID PRIMARY KEY,
-        conversation_id UUID NOT NULL REFERENCES conversations(id),
-        request_id TEXT NOT NULL,
-        chip_id TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    CREATE INDEX IF NOT EXISTS conversation_suggestion_chips_lookup_idx
-        ON conversation_suggestion_chips (conversation_id, chip_id);
-`;
+// Schema lives in `agent/migrations/1700000004000_baseline_conversation_suggestion_chips.sql`.
 
 const INSERT_SQL = `
     INSERT INTO conversation_suggestion_chips
@@ -91,9 +80,6 @@ export const createPgConversationSuggestionStore = (
         throw new Error('Postgres connection string is required for suggestion store');
     }
     const pool = new pg.Pool({ connectionString: options.connectionString });
-    const setup = async (): Promise<void> => {
-        await pool.query(SCHEMA_SQL);
-    };
     const record = async (input: SuggestionSetWrite): Promise<void> => {
         if (input.chipIds.length === 0) return;
         // One INSERT per chip; the suggestion set is always small (≤5 by
@@ -112,12 +98,11 @@ export const createPgConversationSuggestionStore = (
         const result = await pool.query(HAS_CHIP_SQL, [conversationId, chipId]);
         return result.rowCount !== null && result.rowCount > 0;
     };
-    return { setup, record, hasChip };
+    return { record, hasChip };
 };
 
 export const createInMemoryConversationSuggestionStore = (): ConversationSuggestionStore => {
     const rows: { conversationId: string; chipId: string }[] = [];
-    const setup = (): Promise<void> => Promise.resolve();
     const record = (input: SuggestionSetWrite): Promise<void> => {
         for (const chipId of input.chipIds) {
             rows.push({ conversationId: input.conversationId, chipId });
@@ -126,5 +111,5 @@ export const createInMemoryConversationSuggestionStore = (): ConversationSuggest
     };
     const hasChip = (conversationId: string, chipId: string): Promise<boolean> =>
         Promise.resolve(rows.some((r) => r.conversationId === conversationId && r.chipId === chipId));
-    return { setup, record, hasChip };
+    return { record, hasChip };
 };

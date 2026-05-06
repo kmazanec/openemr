@@ -71,7 +71,6 @@ export interface ConversationListOptions {
 }
 
 export interface ConversationStore {
-    readonly setup: () => Promise<void>;
     /**
      * Mint a fresh row. Always inserts; the caller is responsible for
      * deciding whether to mint or to resume an existing conversation.
@@ -134,26 +133,9 @@ export interface ConversationStore {
  *     resume lookup; no unique constraints because we deliberately allow
  *     multiple historical rows per (user, patient).
  *
- * `setup()` runs every boot and is responsible for migrating older
- * deployments that still carry the §3.5 unique indexes — drop them
- * unconditionally and add the new index. Postgres treats the DROPs as
- * no-ops if the indexes are absent.
+ * Schema lives in `agent/migrations/` — see
+ * `1700000002000_baseline_conversations.sql`.
  */
-const SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS conversations (
-        id UUID PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        patient_pid INTEGER NOT NULL,
-        appointment_id TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    ALTER TABLE conversations
-        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
-    DROP INDEX IF EXISTS conversations_lookup_idx_with_appt;
-    DROP INDEX IF EXISTS conversations_lookup_idx_no_appt;
-    CREATE INDEX IF NOT EXISTS conversations_resume_idx
-        ON conversations (user_id, patient_pid, updated_at DESC);
-`;
 
 const INSERT_SQL = `
     INSERT INTO conversations (id, user_id, patient_pid, appointment_id)
@@ -292,10 +274,6 @@ export const createPgConversationStore = (
     const pool = new pg.Pool({ connectionString: options.connectionString });
     const logger = createLogger('conversationStore');
 
-    const setup = async (): Promise<void> => {
-        await pool.query(SCHEMA_SQL);
-    };
-
     const create = async (key: ConversationKey): Promise<ConversationRecord> => {
         const result = await pool.query<ConversationRow>(INSERT_SQL, [
             randomUUID(),
@@ -378,7 +356,7 @@ export const createPgConversationStore = (
         }));
     };
 
-    return { setup, create, findResumable, touch, findOwnedById, listForUserAndPatient };
+    return { create, findResumable, touch, findOwnedById, listForUserAndPatient };
 };
 
 interface InMemoryRow {
@@ -438,7 +416,6 @@ export const createInMemoryConversationStore = (
 ): ConversationStore => {
     const rows: InMemoryRow[] = [];
     let nextSeq = 0;
-    const setup = (): Promise<void> => Promise.resolve();
     const create = (key: ConversationKey): Promise<ConversationRecord> => {
         const now = new Date();
         const seq = nextSeq++;
@@ -575,7 +552,6 @@ export const createInMemoryConversationStore = (
         return items;
     };
     return {
-        setup,
         create,
         findResumable,
         touch,

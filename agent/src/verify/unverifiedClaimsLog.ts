@@ -29,28 +29,8 @@ export interface UnverifiedClaimRecord {
 }
 
 export interface UnverifiedClaimsLog {
-    readonly setup: () => Promise<void>;
     readonly record: (entries: readonly UnverifiedClaimRecord[]) => Promise<void>;
 }
-
-const SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS unverified_claims (
-        id BIGSERIAL PRIMARY KEY,
-        request_id TEXT NOT NULL,
-        conversation_id TEXT NOT NULL,
-        claim_id TEXT NOT NULL,
-        claim_text TEXT NOT NULL,
-        claim_category TEXT NOT NULL,
-        source_references JSONB NOT NULL,
-        rejection_reason TEXT NOT NULL,
-        safety_critical BOOLEAN NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    CREATE INDEX IF NOT EXISTS unverified_claims_request_idx
-        ON unverified_claims (request_id);
-    CREATE INDEX IF NOT EXISTS unverified_claims_created_at_idx
-        ON unverified_claims (created_at);
-`;
 
 const INSERT_SQL = `
     INSERT INTO unverified_claims (
@@ -77,10 +57,6 @@ export const createPgUnverifiedClaimsLog = (
     }
     const pool = new pg.Pool({ connectionString: options.connectionString });
     const logger = createLogger('unverifiedClaimsLog');
-
-    const setup = async (): Promise<void> => {
-        await pool.query(SCHEMA_SQL);
-    };
 
     const record = async (entries: readonly UnverifiedClaimRecord[]): Promise<void> => {
         if (entries.length === 0) return;
@@ -114,7 +90,7 @@ export const createPgUnverifiedClaimsLog = (
         }
     };
 
-    return { setup, record };
+    return { record };
 };
 
 /**
@@ -122,6 +98,5 @@ export const createPgUnverifiedClaimsLog = (
  * without the unverified-claims store (e.g. the in-memory CI run).
  */
 export const createNullUnverifiedClaimsLog = (): UnverifiedClaimsLog => ({
-    setup: () => Promise.resolve(),
     record: () => Promise.resolve(),
 });
