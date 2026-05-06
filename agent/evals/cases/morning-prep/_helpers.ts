@@ -100,6 +100,7 @@ const buildAssistantEvent = (slot: Uc5LoadedSlot): BriefingStreamEvent => {
         // `flags[]` content, which is `gaps.map(reason) ++
         // archetypeFlags`. An empty segment list is fine for the gate.
         segments: [],
+        claimGroups: {},
         gaps: [],
         suggestedFollowUps: [],
         archetypeFlags: slot.expectedArchetypeFlags,

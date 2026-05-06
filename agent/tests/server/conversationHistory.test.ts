@@ -13,6 +13,7 @@ import {
 
 const ASSISTANT: AssistantMessage = {
     segments: [{ text: 'briefing.', claims: [], redacted: false }],
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],

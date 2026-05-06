@@ -34,6 +34,7 @@ const ASSISTANT: AssistantMessage = {
             redacted: false,
         },
     ],
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],

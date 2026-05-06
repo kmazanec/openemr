@@ -48,6 +48,7 @@ const buildMessage = (overrides: Partial<AssistantMessage> = {}): AssistantMessa
     segments: [
         { text: 'She has type 2 diabetes (E11.9).', claims: [dxClaim], redacted: false },
     ],
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],

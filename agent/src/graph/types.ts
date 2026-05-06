@@ -547,8 +547,70 @@ export interface AssistantMessageSegment {
     readonly redacted: boolean;
 }
 
+/**
+ * §C.6 chart sub-section: one W1 category-bucket inside the panel UI's
+ * "What's in the chart" section. The synthesizer's claims arrive flat;
+ * the format node groups them by `Claim.category` so the renderer keeps
+ * the W1 sub-card structure (diagnoses, meds, labs, …) without
+ * re-walking the snapshot.
+ */
+export interface ChartGroupSubsection {
+    readonly category: ClaimCategory;
+    readonly claims: readonly Claim[];
+}
+
+export interface ChartClaimGroup {
+    readonly subsections: readonly ChartGroupSubsection[];
+}
+
+/**
+ * §C.6 extracted-document card: one source document, one card. Multiple
+ * claims citing the same `meta.document_uuid` collapse into a single
+ * card so the panel UI renders one sub-card per uploaded document with
+ * its facts listed under it. `documentUuid: null` is the "primary
+ * extracted_document ref carried no document_uuid" path — the verifier
+ * resolves on bbox/page/source_id, so a missing meta is allowable; the
+ * panel groups all such claims under a single null-keyed card.
+ */
+export interface DocumentClaimCard {
+    readonly documentUuid: string | null;
+    readonly claims: readonly Claim[];
+}
+
+export interface DocumentClaimGroup {
+    readonly cards: readonly DocumentClaimCard[];
+}
+
+export interface GuidelineClaimGroup {
+    readonly claims: readonly Claim[];
+}
+
+/**
+ * §C.6 panel-side projection of accepted claims, bucketed by primary
+ * `SourceReference.source_type`. Empty buckets are absent (Partial
+ * keys) so the renderer omits the section header naturally —
+ * `f.claimGroups.guideline === undefined` reads as "no Evidence section
+ * this turn".
+ *
+ * The chat bubble (`segments[]`) is unchanged: prose flow stays
+ * chronological. `claimGroups` is an additive projection over the same
+ * accepted claims for the side panel.
+ */
+export interface ClaimGroups {
+    readonly chart?: ChartClaimGroup;
+    readonly extractedDocument?: DocumentClaimGroup;
+    readonly guideline?: GuidelineClaimGroup;
+}
+
 export interface AssistantMessage {
     readonly segments: readonly AssistantMessageSegment[];
+    /**
+     * §C.6 panel-UI projection of accepted claims grouped by
+     * `claim.sourceReferences[0].source_type`. Empty sections are
+     * omitted. Hard-stop-suppressed claims are filtered out before
+     * grouping so the panel stays in sync with the bubble's redactions.
+     */
+    readonly claimGroups: ClaimGroups;
     /**
      * Safety hard stops surfaced once at message level rather than per
      * section. UI renders as a yellow-bar warning at the top of the

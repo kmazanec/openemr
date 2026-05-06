@@ -10,6 +10,7 @@ import type { AssistantMessage } from '../../src/graph/types.js';
 
 const summary: AssistantMessage = {
     segments: [],
+    claimGroups: {},
     gaps: [],
     suggestedFollowUps: [],
     archetypeFlags: [],
