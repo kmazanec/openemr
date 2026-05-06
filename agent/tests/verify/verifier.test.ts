@@ -1446,3 +1446,168 @@ describe('verifyLedger — confidence hard-stops (§C.5)', () => {
         expect(out.rejected[0]?.reason).toBe('low-confidence-extraction');
     });
 });
+
+describe('verifyLedger — tolerant content matcher (regression)', () => {
+    // Production incident May 2026: the strict substring rule rejected
+    // valid claims for trivial wording differences. The tolerant
+    // matcher accepts plural-form drift and comma-swapped LOINC analyte
+    // names while still rejecting omissions and substitutions.
+
+    it('accepts an allergy claim that drops the trailing s (NSAID vs NSAIDs)', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                allergies: [
+                    {
+                        substance: 'NSAIDs',
+                        reaction: null,
+                        severity: 'moderate',
+                        source: sourceRef('AllergyIntolerance', 'a-nsaid'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'allergy',
+                    text: 'NSAID allergy, moderate severity',
+                    sourceReferences: [sourceRef('AllergyIntolerance', 'a-nsaid')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.passed).toBe(true);
+    });
+
+    it('accepts a lab claim where the LOINC analyte is comma-swapped', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                labs: [
+                    {
+                        analyte: 'Glucose, Fasting',
+                        value: '93',
+                        unit: 'mg/dL',
+                        referenceRange: null,
+                        abnormalFlag: null,
+                        observedAt: '2026-04-30',
+                        source: sourceRef('Observation', 'lab-fbg'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Fasting glucose 93 mg/dL on 2026-04-30 (normal)',
+                    sourceReferences: [sourceRef('Observation', 'lab-fbg')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('still rejects an allergy claim that names the wrong substance entirely', () => {
+        // The tolerant matcher must not become so loose that "Sulfa
+        // allergy" matches an "NSAIDs" record. Tokens are required to
+        // appear, not just any of them.
+        const out = verifyLedger(
+            baseSnapshot({
+                allergies: [
+                    {
+                        substance: 'NSAIDs',
+                        reaction: null,
+                        severity: 'moderate',
+                        source: sourceRef('AllergyIntolerance', 'a-nsaid'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'allergy',
+                    text: 'Sulfa allergy on file',
+                    sourceReferences: [sourceRef('AllergyIntolerance', 'a-nsaid')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('still rejects a lab claim that fabricates a value against a real analyte', () => {
+        // The value branch stays strict — fabricated numbers are
+        // exactly the failure mode the lab rule exists to catch.
+        const out = verifyLedger(
+            baseSnapshot({
+                labs: [
+                    {
+                        analyte: 'Glucose, Fasting',
+                        value: '93',
+                        unit: 'mg/dL',
+                        referenceRange: null,
+                        abnormalFlag: null,
+                        observedAt: '2026-04-30',
+                        source: sourceRef('Observation', 'lab-fbg'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Fasting glucose 250 mg/dL (severely elevated)',
+                    sourceReferences: [sourceRef('Observation', 'lab-fbg')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('still rejects an NSAIDs-record claim that says "no allergies on file"', () => {
+        // The "drop trailing s" rule must not flip a positive record
+        // into a negation acceptable. The token bag would reduce
+        // "NSAIDs" to {nsaid}, and "no allergies on file" doesn't
+        // contain it, so the rejection still fires.
+        const out = verifyLedger(
+            baseSnapshot({
+                allergies: [
+                    {
+                        substance: 'NSAIDs',
+                        reaction: null,
+                        severity: 'moderate',
+                        source: sourceRef('AllergyIntolerance', 'a-nsaid'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'allergy',
+                    text: 'No known drug allergies on file',
+                    sourceReferences: [sourceRef('AllergyIntolerance', 'a-nsaid')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('accepts a diagnosis claim where the label is reordered', () => {
+        const out = verifyLedger(
+            baseSnapshot({
+                diagnoses: [
+                    {
+                        code: 'I10',
+                        codeSystem: 'ICD-10',
+                        label: 'Hypertension, essential',
+                        onsetDate: null,
+                        source: sourceRef('Condition', 'c-htn'),
+                    },
+                ],
+            }),
+            single(
+                claim({
+                    category: 'diagnosis',
+                    text: 'Essential hypertension, controlled on lisinopril',
+                    sourceReferences: [sourceRef('Condition', 'c-htn')],
+                }),
+            ),
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+});
