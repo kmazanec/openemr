@@ -392,6 +392,22 @@ export function extractFromHtml(
     }
 }
 
+// Match the repo's pretty-format-json pre-commit hook output, which
+// runs Python's json.dumps with the default ensure_ascii=True and
+// escapes every code point ≥ U+0080 to \uXXXX. JSON.stringify by
+// default emits the raw UTF-8, so the hook would auto-fix the file
+// on every commit — and on PRs touching index.json that drift surfaces
+// as a cycle of "stage → hook rewrites → conflict on apply." Pre-encode
+// here so the file we write is byte-identical to the hook's expected
+// output and the hook is a no-op.
+function stringifyAsciiJson(value: unknown): string {
+    const raw = JSON.stringify(value, null, 2);
+    return raw.replace(/[-￿]/g, (c) => {
+        const code = c.charCodeAt(0).toString(16).padStart(4, '0');
+        return `\\u${code}`;
+    });
+}
+
 function frontmatterToYaml(fm: ChunkFrontmatter): string {
     const escape = (s: string): string => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     return [
@@ -544,7 +560,7 @@ async function main(): Promise<void> {
         chunk_count: indexEntries.length,
         chunks: indexEntries,
     };
-    await writeFile(INDEX_PATH, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+    await writeFile(INDEX_PATH, `${stringifyAsciiJson(index)}\n`, 'utf8');
 
     console.log(
         `[extract] done: ${pages} pages processed, ${written} chunks written, ${removed} stale chunks removed, ${pagesWithWarnings} pages with warnings`,
