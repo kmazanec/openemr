@@ -248,7 +248,24 @@ export const createDocumentEvidenceRetriever = (
             );
         }
 
-        return { documentEvidenceSnippets: ranked };
+        // §C.5: surface each retrieved artifact's `confidence_signal`
+        // JSONB row to the verifier so it can resolve the combined
+        // hard-stop (self-reported × schema-warning × patient-match)
+        // without re-fetching artifacts. Keyed by `artifactId`; only
+        // artifacts whose snippets actually made the top-`top_k` need
+        // to be in the map (a fact rejected by the keyword/recency
+        // ranker can't be cited downstream).
+        const returnedArtifactIds = new Set(ranked.map((s) => s.artifactId));
+        const confidenceMap = new Map<string, unknown>();
+        for (const artifact of artifacts) {
+            if (!returnedArtifactIds.has(artifact.artifactId)) continue;
+            confidenceMap.set(artifact.artifactId, artifact.confidenceSignal);
+        }
+
+        return {
+            documentEvidenceSnippets: ranked,
+            documentEvidenceArtifactConfidence: confidenceMap,
+        };
     };
     return traceable(impl, { name: 'documentEvidenceRetriever', run_type: 'chain' });
 };

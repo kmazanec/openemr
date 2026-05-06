@@ -111,7 +111,7 @@ const stateFor = (envelope: RequestEnvelope): BriefingState => ({
     formatted: null,
     persisted: null,
     retrieveChartCallCount: 0,
-    retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null,    evidenceRetrieverArgs: null,    evidenceRetrieverOutput: null,
+    retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,    evidenceRetrieverArgs: null,    evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
     capHit: false,
