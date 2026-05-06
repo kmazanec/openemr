@@ -824,6 +824,28 @@ export const start = async (port: number): Promise<void> => {
     const extractionArtifactStore = createPgExtractionArtifactStore({ connectionString: databaseUrl });
     const documentReferenceClient = createOpenEmrDocumentReferenceClient({ baseUrl: openEmrBaseUrl });
     const snapshotClient = createSnapshotClient({ baseUrl: openEmrBaseUrl });
+    // Both pipeline-side fetch boundaries hit the same snapshot
+    // endpoint with the same category set; the demographics fetcher
+    // just projects `.patient` off the result. Sharing the fetch
+    // keeps a single source of truth for the category list.
+    const fetchSnapshotForCtx = (ctx: { openemrToken: string; openemrSiteId: string }) =>
+        async (pid: number) =>
+            decodeChartSnapshot(
+                await snapshotClient.fetchSnapshot({
+                    pid,
+                    categories: [
+                        'diagnosis',
+                        'allergy',
+                        'lab',
+                        'encounter',
+                        'reminder',
+                        'medication_statement',
+                        'prescription',
+                    ],
+                    token: ctx.openemrToken,
+                    siteId: ctx.openemrSiteId,
+                }),
+            );
     const pipelineRunner: PipelineRunner = buildProductionPipelineRunner({
         artifactStore: extractionArtifactStore,
         openemrSpaces,
@@ -831,24 +853,11 @@ export const start = async (port: number): Promise<void> => {
         rasterizer: createPdfImgConvertRasterizer(),
         visionInvoker: createAnthropicVisionInvocation(),
         documentReferenceClient,
-        buildFetchChartDemographics: (ctx) => async (pid) => {
-            const raw = await snapshotClient.fetchSnapshot({
-                pid,
-                categories: ['diagnosis', 'allergy', 'lab', 'encounter', 'reminder', 'medication_statement', 'prescription'],
-                token: ctx.openemrToken,
-                siteId: ctx.openemrSiteId,
-            });
-            return decodeChartSnapshot(raw).patient;
+        buildFetchChartDemographics: (ctx) => {
+            const fetch = fetchSnapshotForCtx(ctx);
+            return async (pid) => (await fetch(pid)).patient;
         },
-        buildFetchChartSnapshot: (ctx) => async (pid) => {
-            const raw = await snapshotClient.fetchSnapshot({
-                pid,
-                categories: ['diagnosis', 'allergy', 'lab', 'encounter', 'reminder', 'medication_statement', 'prescription'],
-                token: ctx.openemrToken,
-                siteId: ctx.openemrSiteId,
-            });
-            return decodeChartSnapshot(raw);
-        },
+        buildFetchChartSnapshot: (ctx) => fetchSnapshotForCtx(ctx),
         transientPrefix: spacesEnv.transientPrefix,
         bucketName: spacesEnv.bucket,
         artifactIdGenerator: () => randomUUID(),

@@ -22,10 +22,7 @@ import { z } from 'zod';
 
 import { getPrincipal, getRawToken } from '../../auth/middleware.js';
 import { createLogger } from '../../observability/logger.js';
-import {
-    buildIdentityTags,
-    setRunMetadata,
-} from '../../observability/traceMetadata.js';
+import { buildIdentityTags } from '../../observability/traceMetadata.js';
 import { initialPipelineState, type PipelineState } from '../../pipeline/state.js';
 import {
     encodePipelineEvent,
@@ -159,19 +156,6 @@ export const createExtractHandler = (deps: ExtractRouteDeps) => {
             const tags = buildIdentityTags({
                 clinicianId: principal.sub,
                 patientId: String(pid),
-            });
-            // Per-pipeline trace metadata. The vision node already
-            // records token / cost / confidence-distribution metadata
-            // (§B.4); this is the request-shaped metadata the panel-
-            // path needs (trigger_source, doc_type, page_count later
-            // overwritten by rasterize). Emitting from the route
-            // means a CLI invoker sets a different `trigger_source`
-            // without this route running.
-            setRunMetadata({
-                site_id: principal.siteId,
-                trigger_source: triggerSource,
-                doc_type: docType,
-                document_uuid: documentUuid,
             });
 
             await writeEvent({
