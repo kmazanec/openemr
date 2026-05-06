@@ -12,12 +12,10 @@ import {
 } from './narrowResponseDecoders.js';
 
 /**
- * Provenance for a single patient-reported medication. Backs
- * §4.6.6's medication-statement-detail drill-down: the graph's
- * `medicationStatementBranch` calls this with the listId from the
- * suggested follow-up's typed params, then builds a deterministic
- * claim from the dose instructions, usage category, and information
- * source.
+ * Provenance for a single patient-reported medication. The
+ * deterministic medication-statement branch that used to consume this
+ * is gone — the tool stays on disk as a supervisor-pickable handoff
+ * candidate for future "what did the patient say about X?" routing.
  *
  * **Behavioral contract (pinned by tests):**
  * - 404 → `{ kind: 'ok', provenance: null }` for the deterministic

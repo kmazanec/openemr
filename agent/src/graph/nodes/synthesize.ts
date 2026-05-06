@@ -46,11 +46,11 @@ const claimSchema = z.object({
     text: z.string().min(1),
     category: z.enum([
         'prescription',
-        // Defensive: the deterministic §4.3 prescriptionChangeBranch
-        // builds claims with this category; the synthesizer never emits
-        // it. Keeping the literal in the structured-output enum
-        // prevents a parse retry-loop if a future model regression
-        // learned to mimic the shape.
+        // The verifier still indexes `prescription_change` as a separate
+        // category for claim-text-vs-source rules (documented prescriber
+        // / indication match). Kept in the structured-output enum so a
+        // synthesizer that produces such a claim doesn't trigger a
+        // structured-output retry loop on the model side.
         'prescription_change',
         'lab',
         'allergy',

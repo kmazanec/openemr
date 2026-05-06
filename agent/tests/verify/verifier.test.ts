@@ -423,11 +423,11 @@ describe('verifyLedger — deterministic checks per category', () => {
     });
 });
 
-// §4.3: prescription_change requires the claim to surface the documented
+// prescription_change requires the claim to surface the documented
 // prescriber + indication (when those fields are non-null in the source
-// row). The deterministic prescriptionChangeBranch builds these claims; the rule
-// is the gate that prevents a model regression from fabricating either.
-describe('verifyLedger — prescription_change category (§4.3 UC3)', () => {
+// row). The rule prevents a model regression from fabricating either,
+// regardless of what authored the claim.
+describe('verifyLedger — prescription_change category', () => {
     const provSnapshot = (med: { prescriber: string | null; indication: string | null }) =>
         baseSnapshot({
             prescriptions: [

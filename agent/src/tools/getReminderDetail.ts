@@ -12,11 +12,10 @@ import {
 } from './narrowResponseDecoders.js';
 
 /**
- * Detail for a single clinical reminder. Backs §4.6.5's
- * reminder-detail drill-down: the graph's `reminderBranch` calls
- * this with the reminder id from the suggested follow-up's typed
- * params, then builds a deterministic claim from the rule
- * description and resolved titles.
+ * Detail for a single clinical reminder. The deterministic
+ * reminder-detail branch that used to consume this is gone — the tool
+ * stays on disk as a supervisor-pickable handoff candidate for future
+ * "when is X due?" routing.
  *
  * **Behavioral contract (pinned by tests, not just docs):**
  * - 404 from the endpoint is a *deterministic* "no record found" —

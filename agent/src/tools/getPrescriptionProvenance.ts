@@ -12,11 +12,10 @@ import {
 } from './narrowResponseDecoders.js';
 
 /**
- * Provenance for a single prescription. Backs §4.3 UC3's
- * prescription-change drill-down: the graph's
- * `prescriptionChangeBranch` calls this with the prescription id from
- * the suggested follow-up's typed params, then builds a deterministic
- * claim from the documented fields the response carries.
+ * Provenance for a single prescription. The deterministic
+ * prescription-change branch that used to consume this is gone — the
+ * tool stays on disk as a supervisor-pickable handoff candidate for
+ * future "why was X prescribed?" routing.
  *
  * **Behavioral contract (pinned by tests, not just docs):**
  * - 404 from the endpoint is a *deterministic* "no record found" — the
