@@ -124,31 +124,76 @@
 
 ---
 
-## F.4 PDF.js bundle + side-by-side panel layout + bbox overlay
+## F.4 Document viewer + side-by-side panel layout + bbox overlay (PDF + raster images)
 
-**Goal.** Click an `extracted_document` chip → side-by-side PDF.js pane opens to the right of the chat thread; the PDF loads pre-scrolled to the cited page; the cited bbox renders as a translucent overlay rectangle. PDF.js bundle is lazy-loaded (dynamic import on first click).
+**Goal.** Click an `extracted_document` chip → side-by-side viewer pane opens to the right of the chat thread; the document loads pre-scrolled to the cited page; the cited bbox renders as a translucent overlay rectangle. Viewer dispatches on the response `Content-Type` of the fetched document bytes: `application/pdf` → lazy-loaded PDF.js render; `image/png` / `image/jpeg` → `<img>` mount. Both branches share the same bbox-overlay primitive. `image/tiff` is **out of scope here** — until F.4b lands, a TIFF chip click shows a "TIFF preview not yet supported" affordance with a download link. The PDF.js bundle is lazy-loaded (dynamic import on first PDF chip click); the image branch needs no third-party JS dependency.
+
+**Why generalize beyond PDF.** The pipeline (`agent/src/pipeline/nodes/rasterize.ts`) and the document-extraction eval suite already accept `application/pdf`, `image/png`, `image/jpeg`, `image/tiff`. The architecture's MIME enforcement (`W2_ARCHITECTURE.md` §"Security and Compliance") names exactly these four. A PDF-only viewer would leave PNG-typed labs (`lab-results/p03-reyes-hba1c.png`) and PNG-typed intakes (`p03-reyes-intake.png`, `p04-kowalski-intake.png`) without any click-to-source surface. PDF + browser-native raster images covers the majority of the eval corpus with one rendering pipeline; TIFF (which browsers can't render natively) is its own follow-up.
 
 **Blocked by:** Phase E merged.
-**Unblocks:** F.5 (the click-to-source surface needs the PDF viewer to mount the accept/reject controls).
+**Unblocks:** F.5 (the click-to-source surface needs the viewer to mount the accept/reject controls). F.4b is unblocked once the shared bbox-overlay primitive lands here.
 
-**Refs.** `W2_ARCHITECTURE.md` §"Layer 1 — bbox overlay for extracted-document chips"; `WEEK2-PRESEARCH.md` §W2-16b (Q17 — click-to-source UI).
+**Refs.** `W2_ARCHITECTURE.md` §"Layer 1 — bbox overlay for extracted-document chips", §"Security and Compliance" (MIME enforcement list); `WEEK2-PRESEARCH.md` §W2-16b (Q17 — click-to-source UI); `agent/src/pipeline/nodes/rasterize.ts` (canonical input MIME set).
 
 **Files touched.**
-- `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/pdfViewer.js` (new) — lazy-loaded PDF.js wrapper.
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/documentViewer.js` (new) — lazy-loaded viewer wrapper. Dispatches on response `Content-Type` to PDF.js path or `<img>` path; both call the same `renderBboxOverlay(pageEl, bbox)` primitive.
 - `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js` — chip click → open viewer.
-- `interface/modules/custom_modules/oe-module-clinical-copilot/public/css/panel.css` — side-by-side layout + responsive fallback.
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/css/panel.css` — side-by-side layout + responsive fallback + bbox-overlay style (shared across PDF and image branches).
 - `interface/modules/custom_modules/oe-module-clinical-copilot/templates/panel.html.twig` — viewer mount point.
 
 **Checklist.**
-- [ ] Add PDF.js as a CDN-loaded dependency (lazy import on first chip click). Pin a specific version. Document the choice in a top-of-file comment.
-- [ ] **Side-by-side layout:** above 1200px width, the panel is a 50/50 split with chat on the left and PDF viewer on the right. Below 1200px, the viewer falls back to a stacked layout (PDF below chat) — `@media (max-width: 1199px)` CSS rule.
-- [ ] **Bbox overlay:** when a chip is clicked, fetch the document's bytes from OpenEMR's existing document-download endpoint (W1 carry-forward; authorized by existing OpenEMR session). Pre-scroll to the cited page. Render the bbox as a translucent `<div>` overlay positioned absolutely on top of the PDF.js page canvas.
-- [ ] **Chip swap behavior:** clicking another extracted-document chip swaps the document/page/bbox in place (no reload). Clicking a non-extracted chip closes the pane.
-- [ ] **First-paint latency:** the lazy import means the W1 panel's first-paint latency is unchanged. Measure with a render test (or DevTools).
-- [ ] Tests: render test for the viewer mount point; JS unit test for the chip-click → viewer-mount flow (mock PDF.js); responsive test for the stacked-layout breakpoint.
+- [ ] Add PDF.js as a CDN-loaded dependency (lazy import on first PDF chip click). Pin a specific version. Document the choice in a top-of-file comment of `documentViewer.js`, including the rationale for picking the PDF.js variant (legacy `legacy/build/pdf.mjs` vs modern build) and which Mozilla CDN URL is the source of truth.
+- [ ] **Branch-on-MIME viewer:** `documentViewer.js` exposes `openDocument({ documentUuid, page, bbox, mime })`. Internally, fetch document bytes from OpenEMR's existing document-download endpoint and dispatch on the response `Content-Type` (or pre-known `mime`):
+  - `application/pdf` → lazy-import PDF.js; render the cited page to a `<canvas>`; pre-scroll the viewer container to that page.
+  - `image/png` / `image/jpeg` → mount an `<img>` for the document; the artifact's `pageCount` is `1` for image MIMEs, so "page" is a no-op in the image branch.
+  - `image/tiff` → render a "TIFF preview not yet supported" placeholder card with a download link to the same document-download endpoint. (F.4b replaces this branch with a real preview.)
+  - Any other MIME → log a structured warning and show the "preview not supported" placeholder. (Defense-in-depth; the upload endpoint enforces the MIME list, but the viewer must not crash on unexpected bytes.)
+- [ ] **Side-by-side layout:** above 1200px width, the panel is a 50/50 split with chat on the left and viewer on the right. Below 1200px, the viewer falls back to a stacked layout (viewer below chat) — `@media (max-width: 1199px)` CSS rule. Same layout regardless of the document's MIME — the layout owns the pane, the viewer owns what's inside it.
+- [ ] **Bbox overlay (shared primitive):** when a chip is clicked, fetch the document's bytes from OpenEMR's existing document-download endpoint (W1 carry-forward; authorized by existing OpenEMR session). Render the bbox as a translucent `<div>` overlay positioned absolutely on top of the page element. The page element is a PDF.js `<canvas>` for PDFs and an `<img>` for raster images — the same `renderBboxOverlay(pageEl, bbox)` helper handles both, since both establish a containing-block coordinate system the absolute-positioned overlay can use. Bbox coordinates from the extraction artifact are in the same `[x, y, w, h]` shape regardless of MIME (set by the rasterizer / vision pipeline).
+- [ ] **Chip swap behavior:** clicking another extracted-document chip swaps the document/page/bbox in place (no reload). When the swap crosses MIME boundaries (e.g. PDF chip → PNG chip), the viewer tears down the previous branch's DOM and mounts the new one inside the same pane. Clicking a non-extracted chip closes the pane.
+- [ ] **First-paint latency:** the lazy import means the W1 panel's first-paint latency is unchanged for users who never click a PDF chip. The image branch loads no JS dependency at all. Measure with a render test (or DevTools) — assert that no PDF.js script tag is present until the first PDF chip click.
+- [ ] Tests:
+  - Render test for the viewer mount point in `panel.html.twig`.
+  - JS unit tests for the chip-click → viewer-mount flow, one per branch: (a) PDF chip mounts PDF.js path (mocked); (b) PNG chip mounts `<img>` element; (c) JPEG chip mounts `<img>` element; (d) TIFF chip mounts placeholder + download link (asserts no PDF.js import fires).
+  - Bbox-overlay test: assert overlay element renders with the correct positioning on both a PDF page canvas and an image element (use the shared primitive).
+  - Responsive test for the stacked-layout breakpoint at 1199px.
+  - Lazy-import test: PDF.js bundle is not loaded until the first `application/pdf` chip click.
 - [ ] `composer update-twig-fixtures` and review.
 
-**Definition of done.** Click an extracted-document chip on a live response → PDF opens side-by-side, scrolled to page, bbox highlighted. Clicking another chip swaps the doc/page. Below 1200px, layout stacks.
+**Definition of done.** Click an extracted-document chip on a live response → viewer opens side-by-side. PDF MIME → PDF.js renders, scrolled to page, bbox highlighted. PNG / JPEG MIME → image renders, bbox highlighted. TIFF MIME → placeholder + download link (until F.4b). Clicking another chip swaps the doc/page (including across MIME boundaries). Below 1200px, layout stacks.
+
+---
+
+## F.4b TIFF preview support — server-side decode reusing the rasterizer
+
+**Goal.** A TIFF-MIME extracted-document chip click renders the document inside the side-by-side viewer with the same bbox-overlay primitive as F.4's PDF and image branches. Decode happens server-side: a thin signed-URL endpoint reuses the rasterizer's existing TIFF→PNG conversion code path (the same path the vision pipeline already uses for fax-packet TIFFs) and returns the decoded PNG bytes for the requested page. The client treats the response as a normal `image/png` — F.4's image branch handles the rest with no new client-side logic.
+
+**Why server-side decode (option (a)).** The rasterizer (`agent/src/pipeline/nodes/rasterize.ts`) already does TIFF→PNG conversion for vision; we get that code reuse for free, no new dependency on the JS bundle, and one decode happens per-document instead of per-viewer-instance. The alternative — client-side UTIF.js — would add ~50 KB of JS that loads only for TIFF chips and would re-decode on every open. The server-side path keeps the client surface small and the decoded bytes are easy to cache (Spaces transient prefix, signed URL, ≤5-min TTL — same posture as the rasterizer's existing transient PNGs).
+
+**Blocked by:** F.4 (the shared bbox-overlay primitive and image-branch wiring must exist; F.4b only adds a new MIME → already-shipped image branch shortcut).
+**Unblocks:** Nothing on the F-track critical path — F.4b is a TIFF enrichment, not a blocker for F.5+.
+
+**Refs.** `W2_ARCHITECTURE.md` §"Security and Compliance" (MIME enforcement list, signed-URL minting endpoint posture); `agent/src/pipeline/nodes/rasterize.ts` (the TIFF→PNG passthrough we're reusing); `agent/evals/fixtures/document-extraction/source/tiffs/` (the eval fixtures this unblocks for click-to-source).
+
+**Files touched.**
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/RenderTiffController.php` (new — receives a document UUID + page; verifies access via the same ACL check as the snapshot endpoints; mints a signed URL or streams the rasterized PNG bytes back).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot/render-tiff.php` (new — the public endpoint, behind `AgentEndpointAuth` matching F.2's pattern).
+- `agent/src/pipeline/nodes/rasterize.ts` or a sibling `agent/src/pipeline/tiffDecode.ts` — extract the existing TIFF→PNG step into a callable function so the controller can invoke it without re-running the whole pipeline. (Decision: prefer extracting into a sibling module and having both rasterize.ts and the new endpoint import it; do not duplicate.)
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/documentViewer.js` — replace the F.4 TIFF placeholder branch with a fetch against the new endpoint that returns `image/png` bytes; route the result through the existing image branch.
+
+**Checklist.**
+- [ ] **Extract TIFF→PNG into a reusable function.** Find the rasterizer's existing TIFF passthrough (`agent/src/pipeline/nodes/rasterize.ts`) and split the decode step into a callable function or sibling module. The pipeline node continues to call it; the new endpoint also calls it. No duplicated decoding logic.
+- [ ] **`RenderTiffController` (PHP).** Accepts `{ documentUuid: UUID, page: int }`. Performs the same ACL check as `AgentSnapshotController` (`AclMain::aclCheckCore`). Returns the decoded PNG bytes for the requested page (or 404 / 403 on access failure). Per-document caching strategy uses Spaces transient prefix with a 24h lifecycle (same posture as the rasterizer's existing transient PNGs) — first request pays the decode cost, subsequent requests hit the cache.
+- [ ] **`/snapshot/render-tiff.php` endpoint.** Mirrors the F.2 `promote.php` pattern: behind `AgentEndpointAuth`, dispatches to `RenderTiffController`, returns either signed-URL JSON or the PNG bytes (decision in the file's top-of-file comment — recommend signed-URL JSON for parity with the existing document-download flow).
+- [ ] **Wire the client.** In `documentViewer.js`, replace the F.4 TIFF placeholder branch with: fetch the new endpoint → on `image/png` response, route through the F.4 image branch's existing mount logic. The shared bbox-overlay primitive Just Works because the page element is already an `<img>`.
+- [ ] **Bbox coordinate verification.** Confirm the bbox coordinates recorded by the vision pipeline for TIFF inputs map onto the *decoded* PNG pixel space (since the rasterizer is the producer of both the bbox-bearing extraction and the decoded PNG, this should hold by construction — but assert it explicitly with a fixture-driven test against `tiffs/p01-chen-fax-packet.tiff` so a future rasterizer change can't silently break overlay alignment).
+- [ ] Tests:
+  - PHPUnit isolated test for `RenderTiffController`: ACL refusal path, happy-path bytes round-trip, 404 on missing document.
+  - JS unit test: TIFF chip click → fetch fires against `/snapshot/render-tiff.php` → response routed through image branch → bbox overlay renders.
+  - Integration eval-leaning test: pick a TIFF fixture from `agent/evals/fixtures/document-extraction/source/tiffs/`, run the existing extraction artifact's bbox through the new endpoint, assert the overlay's pixel coordinates land within the decoded PNG's bounds.
+- [ ] No new top-level JS dependency added (the whole point of option (a) over UTIF.js).
+
+**Definition of done.** Click a TIFF-MIME extracted-document chip on a live response → viewer opens side-by-side, decoded PNG renders, bbox highlighted using the same primitive as the PDF/PNG/JPEG branches. The eval suite's TIFF fixtures (`tiffs/*.tiff`) all have working click-to-source. No client-side JS dependency was added.
 
 ---
 
