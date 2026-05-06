@@ -62,6 +62,10 @@ ENV NODE_ENV=production \
 COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
+# node-pg-migrate reads SQL files from disk at boot. The resolver in
+# src/state/migrations.ts walks `dist/state/ → ../../migrations`, so
+# migrations/ must land at /app/migrations.
+COPY --chown=node:node migrations ./migrations
 
 USER node
 
