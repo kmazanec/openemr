@@ -47,6 +47,7 @@ docker/development-easy-redis/docker-compose.override.yml
 /.claude/*
 !/.claude/commands/
 /skills-lock.json
+/.obsidian
 
 # Local cache for the guideline-corpus fetcher (raw HTML from publishers).
 # Committed corpus chunks live in agent/data/corpus/<source>/; the cache is
