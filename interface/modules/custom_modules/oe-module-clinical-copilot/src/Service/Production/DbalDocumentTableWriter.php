@@ -57,9 +57,20 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
         \DateTimeImmutable $createdAt,
         int $categoryId,
     ): int {
+        // OpenEMR's `documents.id` is `int NOT NULL DEFAULT 0` — same
+        // non-AUTO_INCREMENT pattern as `categories.id`. Mint the id
+        // from the `sequences` helper table (the canonical OpenEMR
+        // pattern) before the INSERT so we don't depend on
+        // `lastInsertId()` returning anything meaningful afterwards.
+        // Sequence minting is outside the transaction because it's
+        // already atomic on its own (LAST_INSERT_ID(id+1)) and a
+        // rollback wouldn't reclaim the id anyway.
+        $documentRowId = $this->generateSequenceId();
+
         $this->connection->beginTransaction();
         try {
             $this->connection->insert('documents', [
+                'id' => $documentRowId,
                 'uuid' => $uuidBinary,
                 'type' => 'web_url',
                 'url' => $url,
@@ -77,11 +88,6 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
                 'imported' => 0,
                 'audit_master_approval_status' => 1,
             ]);
-            $documentRowIdRaw = $this->connection->lastInsertId();
-            if (!is_numeric($documentRowIdRaw)) {
-                throw new \RuntimeException('documents insert did not return an autoincrement id');
-            }
-            $documentRowId = (int) $documentRowIdRaw;
 
             $this->connection->insert('categories_to_documents', [
                 'category_id' => $categoryId,
