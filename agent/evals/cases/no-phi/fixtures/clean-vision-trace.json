@@ -1,0 +1,28 @@
+{
+  "name": "pipeline.vision.invoke",
+  "run_type": "llm",
+  "start_time": "2026-05-04T12:00:00Z",
+  "end_time": "2026-05-04T12:00:08Z",
+  "inputs": {
+    "_redacted": "[INPUTS HIDDEN BY LANGSMITH_HIDE_INPUTS=true]"
+  },
+  "outputs": {
+    "_redacted": "[OUTPUTS HIDDEN BY LANGSMITH_HIDE_OUTPUTS=true]"
+  },
+  "metadata": {
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 12450,
+    "output_tokens": 612,
+    "cost_usd": 0.0573,
+    "vision_image_count": 2,
+    "doc_type": "lab_pdf",
+    "schema_warning_count": 0,
+    "patient_match": "full"
+  },
+  "tags": [
+    "pipeline:vision",
+    "doc_type:lab_pdf",
+    "document_uuid:a3c1d92e0f7b41a89fcd62b0",
+    "extractor_version:v1.0.0"
+  ]
+}

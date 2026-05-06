@@ -129,8 +129,11 @@ describe('briefingGraphSuite', () => {
 });
 
 describe('conversationalGraphSuite', () => {
-    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
-        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v1')).toBe(true);
+    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // Bumped to -v2 when the case-group enum widened to add
+        // multi-retriever and cap-hit. Bump again when the input/
+        // output shape changes so old experiments stay comparable.
+        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v2')).toBe(true);
     });
 });
 

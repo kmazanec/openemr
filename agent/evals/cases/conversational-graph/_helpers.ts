@@ -2,19 +2,23 @@
  * Conversational-graph eval helpers.
  *
  * The cases in this directory are deterministic Vitest gates over the
- * document-evidence retriever, the guidelines retriever, and the
- * verifier. Each one exercises a specific structural invariant the
- * per-MR test:agent job must hold — patient-scope cannot widen,
- * fabricated bboxes reject, retriever gaps surface as unresolved
- * citations, low-confidence allergies fail the safety category
- * closed.
+ * structural invariants the conversational graph must hold across a
+ * turn: the document-evidence retriever, the guidelines retriever,
+ * the verifier, the supervisor's multi-retriever sequencing, and the
+ * iteration-cap backstop. Each case pins one invariant the per-MR
+ * `test:agent` job must hold — patient-scope cannot widen, fabricated
+ * bboxes reject, retriever gaps surface as unresolved citations,
+ * low-confidence allergies fail the safety category closed, the
+ * supervisor pulls both retrievers in a turn that needs both, and
+ * the iteration cap binds when the supervisor would otherwise loop.
  *
  * The cases stub the retriever's external dependencies (Postgres for
- * extraction artifacts, Pinecone + Cohere for guidelines) rather than
- * standing them up — this layer protects against structural
- * regressions, not model quality. Real-vendor coverage of the same
- * invariants lives in the nightly LangSmith experiment per
- * `W2_ARCHITECTURE.md` §"Eval Architecture".
+ * extraction artifacts, Pinecone + Cohere for guidelines) and the
+ * LLM seam (`SupervisorDecide`, `Synthesizer`) rather than standing
+ * them up — this layer protects against structural regressions, not
+ * model quality. Real-vendor coverage of the same invariants lives
+ * in the nightly LangSmith experiment per `W2_ARCHITECTURE.md`
+ * §"Eval Architecture".
  */
 
 import type { BriefingState } from '../../../src/graph/state.js';
