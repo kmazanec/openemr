@@ -8,7 +8,8 @@ import {
     DATASET_NAME as ARCHETYPES_DATASET_NAME,
     uploadDataset as uploadArchetypesDataset,
 } from './archetypesSuite.js';
-import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './documentExtractionSuite.js';
+import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './conversationalGraphSuite.js';
+import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from './documentExtractionSuite.js';
 import { DATASET_NAME as LAB_TRENDS_DATASET_NAME } from './labTrendsSuite.js';
 import {
     DATASET_NAME as MORNING_PREP_DATASET_NAME,
@@ -157,11 +158,20 @@ describe('labTrendsSuite', () => {
     });
 });
 
-describe('documentExtractionSuite', () => {
+describe('conversationalGraphSuite', () => {
     it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
         // First version of the conversational-graph dataset; bump to
         // -v2 when the input/output shape changes so old experiments
         // stay comparable.
         expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v1')).toBe(true);
+    });
+});
+
+describe('documentExtractionSuite', () => {
+    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // First version of the §B.10 pipeline-extraction dataset.
+        // Bump the suffix when the input/output shape changes so old
+        // experiments stay comparable.
+        expect(DOCUMENT_EXTRACTION_DATASET_NAME.endsWith('-v1')).toBe(true);
     });
 });
