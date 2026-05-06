@@ -78,6 +78,23 @@ For agent-only iteration without the full stack, see [`agent/README.md`](agent/R
 
 ---
 
+# Week 2 — Multimodal Evidence Agent
+
+Week 2 extends the Week 1 chart-grounded co-pilot with a **multimodal evidence layer**: clinicians attach lab PDFs and intake forms during the conversation, the agent runs them through a vision-LLM extraction pipeline, and the synthesizer cites three source types in one answer — chart records (W1), extracted-document facts (W2), and published-guideline snippets (W2). Every claim still passes through the W1 verification gate; uncited claims are still dropped at the seam.
+
+The W1 baseline above is unchanged — UC1–UC5 evals remain the regression gate. The "Project documents" table covers W1; the W2-specific docs live separately:
+
+| W2 document | What it covers |
+| --- | --- |
+| [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) | W2 system design — three invokers / one pipeline, conversational supervisor extensions, tiered persistence, click-to-source UI |
+| [`agent/README.md`](agent/README.md) | Agent service: routes, env-vars (`PINECONE_*`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `SPACES_*`), corpus-fetch + reindex scripts |
+| [`docs/week2plans/`](docs/week2plans/) | Phase-by-phase implementation plan (A → G) with subphase checklists |
+| [`docs/WEEK2-PRESEARCH.md`](docs/WEEK2-PRESEARCH.md) | Pre-build research and locked decisions |
+
+**Demo deployment.** The W2 thin slice runs on the same host as the W1 demo: [https://emr.biograph.dev](https://emr.biograph.dev). The full setup procedure (env-vars, container roll, one-shot Pinecone reindex) is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md); agent-service local-iteration steps are in [`agent/README.md`](agent/README.md).
+
+---
+
 # OpenEMR
 
 [OpenEMR](https://open-emr.org) is a Free and Open Source electronic health records and medical practice management application. It features fully integrated electronic health records, practice management, scheduling, electronic billing, internationalization, free support, a vibrant community, and a whole lot more. It runs on Windows, Linux, Mac OS X, and many other platforms.
