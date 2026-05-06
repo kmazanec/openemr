@@ -90,7 +90,7 @@ In addition, the service requires:
 
 | Variable                                        | Purpose                                                                                                                                                                                                                                                                                                |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `DATABASE_URL`                                  | Postgres conn string for the LangGraph checkpointer (required).                                                                                                                                                                                                                                        |
+| `DATABASE_URL`                                  | Postgres conn string for the agent's state store, the LangGraph checkpointer, and the migrations runner (required).                                                                                                                                                                                    |
 | `AGENT_JWT_ISSUER`                              | Expected `iss` claim — OpenEMR's oauth2 base URL, e.g. `https://emr.biograph.dev/oauth2/default` (required).                                                                                                                                                                                           |
 | `AGENT_JWT_AUDIENCE`                            | Expected `aud` claim. Default `openemr-clinical-copilot-agent` — matches `AgentTokenMinter::AGENT_CLIENT_ID`.                                                                                                                                                                                          |
 | `OPENEMR_JWKS_URL` _or_ `AGENT_JWT_PUBLIC_KEY`  | Where to fetch the verification key. Set `OPENEMR_JWKS_URL` to OpenEMR's public JWKS endpoint (e.g. `http://openemr/oauth2/default/jwk`) for the standard SMART/FHIR pattern; the agent caches keys in-process and refetches on cache miss. Or set `AGENT_JWT_PUBLIC_KEY` to a single JWK as JSON for offline/test deployments. Exactly one is required. |
@@ -324,50 +324,79 @@ when phase 1.2 wires it in.
 Agent state lives in a sibling `agent-postgres` container declared in
 [`docker/development-easy/docker-compose.yml`](../docker/development-easy/docker-compose.yml)
 and [`docker/digitalocean/docker-compose.yml`](../docker/digitalocean/docker-compose.yml).
-The Postgres image starts empty; LangGraph's first-party Postgres
-checkpointer (`@langchain/langgraph-checkpoint-postgres`) creates and
-migrates its own tables.
+The Postgres image starts empty.
+
+Two schemas share that database:
+
+- **LangGraph's checkpointer schema** (`checkpoints`, `checkpoint_blobs`,
+  `checkpoint_writes`, `checkpoint_migrations`) is owned by
+  `@langchain/langgraph-checkpoint-postgres`. We don't migrate those —
+  the third-party module manages its own lifecycle via
+  `PostgresSaver.setup()`.
+- **Agent application schema** (`unverified_claims`, `conversations`,
+  `conversation_messages`, `conversation_suggestion_chips`,
+  `schedule_briefings`, `extraction_artifacts`,
+  `extracted_fact_dispositions`) is owned by us and managed via
+  [`node-pg-migrate`](https://github.com/salsita/node-pg-migrate).
+  Migrations live in [`agent/migrations/`](migrations/) as
+  `<unix-ms>_<name>.sql` files with `-- Up` and `-- Down` blocks; each
+  one runs exactly once per database, tracked in the `pgmigrations`
+  table.
 
 Bring-up flow on every boot of the agent service:
 
 1. `start()` in [`src/server/index.ts`](src/server/index.ts) reads
    `DATABASE_URL` and aborts with a non-zero exit if it isn't set.
-2. [`createCheckpointer()`](src/state/checkpointer.ts) constructs a
-   `PostgresSaver` from the conn string.
-3. `await checkpointer.setup()` runs the LangGraph migrations. This is
-   idempotent — first boot creates the `checkpoints`, `checkpoint_blobs`,
-   `checkpoint_writes`, and `checkpoint_migrations` tables; subsequent
-   boots are no-ops once `checkpoint_migrations` is at the latest
-   version.
-4. The HTTP listener starts only after `setup()` resolves, so a broken
-   migration shows up as a failed boot, not a half-up service.
+2. `await runMigrations({ databaseUrl })` applies any pending
+   application-schema migrations. A pending migration that fails
+   throws — the agent refuses to serve briefings against a
+   half-applied schema. Re-running on an up-to-date database is a
+   no-op (logs `no migrations to apply`).
+3. [`createCheckpointer()`](src/state/checkpointer.ts) constructs a
+   `PostgresSaver` and calls its own `setup()` for the LangGraph
+   tables. Idempotent the same way.
+4. State-store factories wire up against the now-provisioned schema.
+5. The HTTP listener starts only after every step above resolves, so a
+   broken migration shows up as a failed boot, not a half-up service.
 
-Because LangGraph owns the schema, there are no hand-written migrations
-in this repo for agent state. To inspect the schema in dev:
+To inspect the schema in dev:
 
 ```sh
 psql 'postgresql://agent:agent@127.0.0.1:8330/agent' -c '\dt'
 ```
 
-### Unverified-claims log (§3.3)
+### Running migrations manually
 
-Phase 3.3 adds an `unverified_claims` table on the same agent Postgres.
-Every claim the verification gate drops — missing source reference,
-unresolved record ID, content mismatch, safety hard stop — is recorded
-in full so a future contributor can replay why the verifier rejected
-it.
+Boot applies migrations automatically; the npm scripts are for ops who
+want to migrate before swapping container versions, or for spinning up
+a fresh database without booting the service.
 
-The schema is created idempotently by
-[`createPgUnverifiedClaimsLog().setup()`](src/verify/unverifiedClaimsLog.ts)
-on first call. The table mirrors the LangGraph saver pattern: the
-agent owns it and runs `CREATE TABLE IF NOT EXISTS` itself rather
-than shipping a migration file.
+```sh
+DATABASE_URL=... npm run migrate:up                    # apply pending migrations
+DATABASE_URL=... npm run migrate:down                  # roll back the most recent
+DATABASE_URL=... npm run migrate -- redo               # down + up the most recent
+DATABASE_URL=... npm run migrate:create my_migration   # scaffold a new file
+```
 
-Retention is **TBD**. The §6.3 production-readiness checklist will
-pin the retention policy alongside the OpenEMR-side disclosure-audit
-retention.
+See [`migrations/README.md`](migrations/README.md) for the migration
+file format, conventions for new migrations, and how to handle the
+rare rename-an-applied-migration case.
 
-Direct dependency `pg` is added at this phase to support the
-`unverified_claims` writer; LangGraph already pulls it transitively
-for the checkpointer, but the verifier needs it directly so we make
-the dependency explicit.
+### First boot against an existing populated database
+
+Production was schema-managed by inline `CREATE TABLE IF NOT EXISTS`
+boot DDL in each `*Store.ts` before this MR. On the first boot of the
+new code, `pgmigrations` doesn't exist yet, so node-pg-migrate creates
+it and treats every baseline migration as pending. Each baseline
+migration uses `IF [NOT] EXISTS` everywhere, so the up-blocks are
+no-ops against the already-populated tables; node-pg-migrate just
+records the names in `pgmigrations`. No data is touched. From the
+second boot forward, the runner is at parity with the filesystem and
+new migrations layer on normally.
+
+### `pg` dependency
+
+`pg` is a direct dependency of this package, used by the state-store
+factories and `node-pg-migrate`. LangGraph also pulls it transitively
+for the checkpointer; we make the dependency explicit so direct uses
+don't depend on a transitive pin.
