@@ -64,8 +64,11 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
 # node-pg-migrate reads SQL files from disk at boot. The resolver in
 # src/state/migrations.ts walks `dist/state/ → ../../migrations`, so
-# migrations/ must land at /app/migrations.
-COPY --chown=node:node migrations ./migrations
+# migrations/ must land at /app/migrations. Glob limits the copy to
+# `.sql` files — the directory's `README.md` would otherwise be picked
+# up by the runner's loader (it iterates everything in the dir) and
+# fail with `ERR_UNKNOWN_FILE_EXTENSION`.
+COPY --chown=node:node migrations/*.sql ./migrations/
 
 USER node
 
