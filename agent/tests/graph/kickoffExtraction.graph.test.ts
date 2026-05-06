@@ -90,12 +90,14 @@ const buildScriptedSupervisor = (kickoffArgs: Record<string, unknown>): Supervis
             return Promise.resolve({
                 handoff: 'kickoffExtraction',
                 reason: 'unprocessed document_uuid in this turn',
+                narration: 'test narration',
                 args: kickoffArgs,
             });
         }
         return Promise.resolve({
             handoff: 'synthesize',
             reason: 'artifact landed; ready to answer',
+            narration: 'test narration',
         });
     };
 };
@@ -186,6 +188,7 @@ describe('§B.9 kickoffExtraction routes through the briefing graph', () => {
             Promise.resolve({
                 handoff: 'synthesize',
                 reason: 'no kickoff deps wired; route directly to synthesize',
+                narration: 'test narration',
             });
         const graph = createBriefingGraph({
             retrieveChart: {

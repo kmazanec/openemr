@@ -56,6 +56,8 @@ This phase integrates B + C, ships a tiny upload UI, deploys to `emr.biograph.de
 
 **Definition of done.** From the panel, drag-and-drop a fixture lab PDF; observe "Extracting document…" → progress → final response with cited extracted-document facts. (B.8's `extract.php` SSE bridge has landed on master; D.1 wires the panel side end-to-end against it. The full path is gate-tested by 18 PHP isolated cases + 27 Jest cases + 10 PanelTemplateTest cases. Live in-browser smoke test rolls into D.3's deploy and D.4's eval cases.)
 
+**Post-D.1 addendum — supervisor-driven panel uploads.** The panel-side flow has since been reshaped: `panel.js` no longer calls `extract.php` after a successful `document_upload.php` round-trip. Instead, the upload result feeds straight into a `briefing` request whose envelope carries `pendingUploads: [{documentUuid, docType}]`. The supervisor's first iteration sees that array, picks `kickoffExtraction` for each unprocessed entry, then iterates over the results — pulling priors via `retrieveChart`, querying the guideline corpus via `evidenceRetriever`, retrieving extracted-document snippets via `documentEvidenceRetriever` — before synthesizing. `extract.php` stays in place for the autosweep / CLI / debug invokers but is dead code on the conversational path. The shift is documented in `W2_ARCHITECTURE.md` §"Three invokers, one pipeline" and unlocks the dynamic narration line (next-step descriptions like "Pulling prior lipid panels to compare." flow as `supervisorNarration` SSE events rather than fixed pipeline-stage labels).
+
 ---
 
 ## D.2 Panel rendering: three source-type groupings + source chips with tooltips

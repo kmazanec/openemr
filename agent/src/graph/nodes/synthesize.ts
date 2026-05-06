@@ -7,9 +7,11 @@ import { createNoopCounters } from '../../observability/counters.js';
 import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import {
+    EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT,
     FOLLOW_UP_SYSTEM_PROMPT,
     LAB_TREND_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
+    buildExtractionFollowUpUserMessage,
     buildFollowUpUserMessage,
     buildLabTrendUserMessage,
     buildUserMessage,
@@ -20,6 +22,7 @@ import type {
     DraftBriefing,
     EvidenceRetrieverOutput,
     ExtractedFactSnippet,
+    KickoffExtractionResult,
     PriorTurnContext,
     RequestEnvelope,
 } from '../types.js';
@@ -135,6 +138,14 @@ export type Synthesizer = (input: {
      * citation against the artifact + field-path pair recorded here.
      */
     documentEvidenceSnippets?: readonly ExtractedFactSnippet[] | null;
+    /**
+     * `kickoffExtraction` results appended on this turn. Empty array
+     * means no document was processed in the current turn (the dominant
+     * path); non-empty means the supervisor ran the ingestion pipeline
+     * and we should open the message with a brief acknowledgment of
+     * what was just analyzed before getting to the substantive answer.
+     */
+    kickoffExtractionResults?: readonly KickoffExtractionResult[];
 }) => Promise<SynthesizerResult>;
 
 export interface SynthesizeDeps {
@@ -161,6 +172,7 @@ export const createSynthesize = (
             priorTurnContext: state.priorTurnContext,
             evidenceRetrieverOutput: state.evidenceRetrieverOutput,
             documentEvidenceSnippets: state.documentEvidenceSnippets,
+            kickoffExtractionResults: state.kickoffExtractionResults,
         });
         if (usage !== undefined) {
             const costUsd = costForUsage(usage);
@@ -255,16 +267,18 @@ export const createAnthropicSynthesizer = (options?: {
         priorTurnContext,
         evidenceRetrieverOutput,
         documentEvidenceSnippets,
+        kickoffExtractionResults,
     }) => {
-        // Per-task routing. Three paths:
+        // Per-task routing. Four paths, evaluated in order:
         //
         //   - `lab_trend` typed follow-up (§4.2): UC2 prompt, follow-up
-        //     model. The envelope carries `followUp.type === 'lab_trend'`
-        //     and an analyte; Retrieve has populated
-        //     `snapshot.labHistory` for that analyte.
+        //     model.
+        //   - extraction follow-up: the supervisor ran kickoffExtraction
+        //     on this turn (kickoffExtractionResults non-empty). Same
+        //     model as free-text follow-up; tailored prompt that opens
+        //     with "I analyzed the document you attached".
         //   - free-text follow-up (§4.5): follow-up prompt, follow-up
-        //     model. The envelope carries `task: 'follow_up'` and a
-        //     non-empty `question`.
+        //     model.
         //   - default briefing (everything else): briefing prompt,
         //     briefing model.
         const labTrendAnalyte =
@@ -273,8 +287,13 @@ export const createAnthropicSynthesizer = (options?: {
                 ? envelope.followUp.analyte
                 : null;
         const isLabTrend = labTrendAnalyte !== null;
+        const isExtractionFollowUp =
+            !isLabTrend
+            && kickoffExtractionResults !== undefined
+            && kickoffExtractionResults.length > 0;
         const question =
             !isLabTrend
+            && !isExtractionFollowUp
             && envelope.task === 'follow_up'
             && typeof envelope.question === 'string'
             && envelope.question.length > 0
@@ -284,9 +303,11 @@ export const createAnthropicSynthesizer = (options?: {
 
         const systemPrompt = isLabTrend
             ? LAB_TREND_SYSTEM_PROMPT
-            : isFollowUp
-                ? FOLLOW_UP_SYSTEM_PROMPT
-                : SYSTEM_PROMPT;
+            : isExtractionFollowUp
+                ? EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT
+                : isFollowUp
+                    ? FOLLOW_UP_SYSTEM_PROMPT
+                    : SYSTEM_PROMPT;
         const evidence = {
             ...(evidenceRetrieverOutput !== null && evidenceRetrieverOutput !== undefined
                 ? { evidenceRetrieverOutput }
@@ -297,10 +318,17 @@ export const createAnthropicSynthesizer = (options?: {
         };
         const userMessage = isLabTrend
             ? buildLabTrendUserMessage(snapshot, labTrendAnalyte)
-            : isFollowUp
-                ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
-                : buildUserMessage(snapshot, priorTurnContext, evidence);
-        const useFollowUpModel = isLabTrend || isFollowUp;
+            : isExtractionFollowUp
+                ? buildExtractionFollowUpUserMessage(
+                    snapshot,
+                    kickoffExtractionResults,
+                    priorTurnContext,
+                    evidence,
+                )
+                : isFollowUp
+                    ? buildFollowUpUserMessage(snapshot, question, priorTurnContext, evidence)
+                    : buildUserMessage(snapshot, priorTurnContext, evidence);
+        const useFollowUpModel = isLabTrend || isExtractionFollowUp || isFollowUp;
         const structured = useFollowUpModel ? followUpClient : briefingClient;
         const model = useFollowUpModel ? followUpModel : briefingModel;
         const result = await structured.invoke([

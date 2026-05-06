@@ -44,6 +44,22 @@ export type BriefingStreamEvent =
           readonly status: 'started' | 'completed';
       }
     | {
+          /**
+           * Model-decided one-sentence description of the supervisor's
+           * next action, written for the clinician (e.g. "Pulling
+           * prior lipid panels to compare."). Emitted once per
+           * non-terminal supervisor decision so the panel's progress
+           * line tracks the agent's intent dynamically rather than the
+           * fixed retrieve→synthesize→verify→format stages. Carrying
+           * `handoff` lets the renderer style narration differently
+           * for the document-extraction handoff (which also emits
+           * `pipelineEvent` chips) versus the others.
+           */
+          readonly type: 'supervisorNarration';
+          readonly handoff: string;
+          readonly text: string;
+      }
+    | {
           readonly type: 'assistantMessage';
           readonly message: AssistantMessage;
       }

@@ -871,6 +871,17 @@ const __copilotPanel = (function () {
             case 'progress':
                 handleProgressEvent(data);
                 break;
+            case 'supervisorNarration':
+                // Model-decided one-sentence description of what the
+                // supervisor is about to do (e.g. "Pulling prior lipid
+                // panels to compare."). Replaces the fixed stage label
+                // for the duration of the next handoff. The status
+                // line is the right surface — short-lived, not a chat
+                // bubble.
+                if (typeof data.text === 'string' && data.text.length > 0) {
+                    setStatus(data.text, 'streaming');
+                }
+                break;
             case 'assistantMessage':
                 handleAssistantMessage(data);
                 activeRequestId = null;
@@ -881,6 +892,18 @@ const __copilotPanel = (function () {
                 break;
             case 'error':
                 renderFatalError(data.code);
+                break;
+            case 'pipelineEvent':
+                // Agent-side wrapping introduced when the supervisor
+                // owns the upload flow: the briefing runner forwards
+                // pipeline events through `{type:'pipelineEvent',
+                // event:{...}}` so the wire vocabulary doesn't collide
+                // with conversation-level events. Unwrap and re-dispatch
+                // through the same switch — the legacy pipeline.* cases
+                // still match.
+                if (data.event && typeof data.event === 'object') {
+                    handleEvent(data.event);
+                }
                 break;
             case 'pipeline.start':
             case 'pipeline.rasterize.complete':
@@ -1551,6 +1574,28 @@ const __copilotPanel = (function () {
      *      seam — the supervisor sees the persisted DocumentReference
      *      via the normal chart fetch and can cite it.)
      */
+    /**
+     * Upload-then-briefing flow.
+     *
+     *   1. Client-side gate (size + MIME). Failures render a toast and
+     *      no network call is made.
+     *   2. POST multipart to `document_upload.php`. On 4xx/5xx render
+     *      the typed-error toast.
+     *   3. On 200, POST a follow-up briefing carrying `pendingUploads`
+     *      so the supervisor sees there is an unprocessed document. The
+     *      supervisor decides — on its first iteration — whether to
+     *      pick `kickoffExtraction`, what to do with the results
+     *      (trend prior labs, query the guideline knowledge base,
+     *      retrieve document evidence), and how to frame the response.
+     *      Pipeline events stream back through the existing
+     *      `pipelineEvent` SSE wrapper while the supervisor's next-step
+     *      narration arrives via `supervisorNarration`.
+     *
+     * The legacy `extract.php` proxy still exists for non-conversational
+     * uploads (autosweep / cron / CLI replay), but the panel does not
+     * call it: the supervisor is the single point of authority for
+     * turning "user attached a doc" into a briefing.
+     */
     const submitUpload = async (file) => {
         if (composerBusy) return;
         clearUploadToast();
@@ -1573,31 +1618,6 @@ const __copilotPanel = (function () {
             return;
         }
 
-        const extractResult = await streamExtract({
-            fetchFn: fetch,
-            url: extractEndpointUrl(),
-            body: {
-                pid,
-                document_uuid: uploadResult.documentUuid,
-                doc_type: uploadResult.docType,
-                trigger_source: 'panel',
-                canonical_ext: uploadResult.canonicalExt,
-                conversation_id: conversationId,
-            },
-        });
-
-        if (!extractResult.ok) {
-            // `pipeline.error` frames already rendered the typed toast
-            // via handleEvent; we just need to leave the status line
-            // in an error-shaped state and unwind. No briefing
-            // follow-up — the artifact is `failed` per
-            // W2_ARCHITECTURE.md §"Failure isolation"; the supervisor
-            // would route around it on the next user turn anyway.
-            setStatus('Extraction failed.', 'error');
-            composerBusy = false;
-            return;
-        }
-
         setStatus('Drafting briefing…', 'streaming');
         try {
             await streamTurn({
@@ -1607,8 +1627,12 @@ const __copilotPanel = (function () {
                     siteId,
                     patient: { pid, uuid: '' },
                     task: 'follow_up',
-                    document_uuid: uploadResult.documentUuid,
-                    doc_type: uploadResult.docType,
+                    pendingUploads: [
+                        {
+                            documentUuid: uploadResult.documentUuid,
+                            docType: uploadResult.docType,
+                        },
+                    ],
                 },
                 errorTag: 'upload-followup',
             });

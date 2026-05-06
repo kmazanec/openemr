@@ -127,6 +127,19 @@ const followUpParamsSchema = z.discriminatedUnion('type', [
     }),
 ]);
 
+/**
+ * Per-upload reference the panel attaches to a briefing request when the
+ * doctor has just attached one or more documents. The supervisor reads
+ * the resulting `pendingUploads` slot, decides whether to run
+ * `kickoffExtraction` per entry, and then iterates over results before
+ * synthesizing. Multi-doc by design — the envelope carries an array even
+ * though today's panel only sends one entry per turn.
+ */
+const pendingUploadSchema = z.object({
+    documentUuid: z.string().min(1).max(200),
+    docType: z.union([z.literal('lab_pdf'), z.literal('intake_form')]),
+});
+
 const briefingRequestSchema = z
     .object({
         conversationId: z.string().min(1),
@@ -148,6 +161,12 @@ const briefingRequestSchema = z
         // with `question` — the boundary parses one or the other into the
         // envelope, never both.
         followUp: followUpParamsSchema.optional(),
+        // Documents the user just attached this turn. The supervisor's
+        // first-iteration prompt receives this list and chooses whether to
+        // pick `kickoffExtraction` for each. Bounded to keep the prompt
+        // and the per-turn pipeline cost predictable; multi-doc panels
+        // can still queue across turns.
+        pendingUploads: z.array(pendingUploadSchema).max(8).optional(),
         // §5.3 morning-prep precompute. When `true` the request is
         // routed through the schedule-briefings cache instead of the
         // interactive conversation store; `appointmentId` becomes
@@ -435,6 +454,9 @@ export const createApp = ({
                 task: parsed.data.task,
                 ...(bridgedQuestion !== undefined ? { question: bridgedQuestion } : {}),
                 ...(parsed.data.followUp !== undefined ? { followUp: parsed.data.followUp } : {}),
+                ...(parsed.data.pendingUploads !== undefined && parsed.data.pendingUploads.length > 0
+                    ? { pendingUploads: parsed.data.pendingUploads }
+                    : {}),
             };
 
             try {

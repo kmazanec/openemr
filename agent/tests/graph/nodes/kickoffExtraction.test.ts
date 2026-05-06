@@ -68,6 +68,7 @@ const snapshot: BriefingSnapshot = {
 const decision = (args: Record<string, unknown> | undefined): SupervisorDecision => ({
     handoff: 'kickoffExtraction',
     reason: 'panel uploaded a lab PDF for this patient',
+    narration: 'test narration',
     ...(args !== undefined ? { args } : {}),
 });
 
