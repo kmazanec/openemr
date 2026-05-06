@@ -119,7 +119,9 @@ No conversational-graph extension lands here — extracting and persisting facts
 
 **Definition of done.** A fixture 3-page PDF runs through `rasterize`, three PNGs land in Spaces transient prefix, the resulting `PageImage[]` carries valid signed URLs (verified by HTTP GET in the integration test).
 
-**New deps.** `pdf-img-convert@2.0.0` (transitively `canvas`, `pdfjs-dist@4.6.82`); `pdfjs-dist@4.10.38` pinned directly so the page-count probe path is independent of the rasterizer's transitive version.
+**New deps.** `pdf-img-convert@2.0.0` (transitively `canvas@2.11.2`, `pdfjs-dist@^4.6.82`); `pdfjs-dist@4.6.82` pinned directly to match the version `pdf-img-convert@2.0.0` is tested against — pinning a newer pdfjs (e.g. `4.10.38`) hoists past `pdf-img-convert`'s transitive resolution and breaks the canvas-bridge render path with `TypeError: Image or Canvas expected`.
+
+**System dependencies (Alpine).** `canvas@2.11.2` has no published prebuilt `linux-musl-x64` binary for node-v127, so `npm ci` builds it from source. CI (`.gitlab-ci.yml` `test:agent` and `test:agent-evals-nightly`) and `agent/Dockerfile` (`deps`, `prod-deps`, `runtime` stages) install: `build-base g++ make python3 pkgconf cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev` (build/dev); `cairo pango jpeg giflib libjpeg-turbo pixman` (runtime only).
 
 ---
 
