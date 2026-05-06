@@ -44,6 +44,16 @@ import {
 } from './briefingRunner.js';
 import { classifyBriefingError } from './errorClassifier.js';
 import { createExtractHandler, type PipelineRunner } from './routes/extract.js';
+import { randomUUID } from 'node:crypto';
+import { parseSpacesEnv } from '../config/spacesEnv.js';
+import { buildProductionPipelineRunner } from '../pipeline/production.js';
+import { createPdfImgConvertRasterizer } from '../pipeline/rasterizer.js';
+import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
+import { createAgentSpacesClient, createOpenEmrSpacesClient } from '../storage/spaces.js';
+import { createOpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
+import { createPgExtractionArtifactStore } from '../state/extractionArtifacts.js';
+import { decodeChartSnapshot } from '../snapshot/decode.js';
+import { createSnapshotClient } from '../tools/snapshotClient.js';
 
 const DEFAULT_AUDIENCE = 'openemr-clinical-copilot-agent';
 
@@ -802,6 +812,49 @@ export const start = async (port: number): Promise<void> => {
         );
     }, 60_000).unref();
 
+    // §B.8 ingestion pipeline. The route is path A only (panel
+    // upload during a conversation). The rasterizer + vision invoker
+    // are constructed once at boot — both are stateless and the per-
+    // call values (token, canonicalExt, conversationId) thread through
+    // `PipelineCallContext` so the production runner builds a fresh
+    // `PipelineDeps` per `stream()`.
+    const spacesEnv = parseSpacesEnv();
+    const openemrSpaces = createOpenEmrSpacesClient(spacesEnv);
+    const agentSpaces = createAgentSpacesClient(spacesEnv);
+    const extractionArtifactStore = createPgExtractionArtifactStore({ connectionString: databaseUrl });
+    const documentReferenceClient = createOpenEmrDocumentReferenceClient({ baseUrl: openEmrBaseUrl });
+    const snapshotClient = createSnapshotClient({ baseUrl: openEmrBaseUrl });
+    const pipelineRunner: PipelineRunner = buildProductionPipelineRunner({
+        artifactStore: extractionArtifactStore,
+        openemrSpaces,
+        agentSpaces,
+        rasterizer: createPdfImgConvertRasterizer(),
+        visionInvoker: createAnthropicVisionInvocation(),
+        documentReferenceClient,
+        buildFetchChartDemographics: (ctx) => async (pid) => {
+            const raw = await snapshotClient.fetchSnapshot({
+                pid,
+                categories: ['diagnosis', 'allergy', 'lab', 'encounter', 'reminder', 'medication_statement', 'prescription'],
+                token: ctx.openemrToken,
+                siteId: ctx.openemrSiteId,
+            });
+            return decodeChartSnapshot(raw).patient;
+        },
+        buildFetchChartSnapshot: (ctx) => async (pid) => {
+            const raw = await snapshotClient.fetchSnapshot({
+                pid,
+                categories: ['diagnosis', 'allergy', 'lab', 'encounter', 'reminder', 'medication_statement', 'prescription'],
+                token: ctx.openemrToken,
+                siteId: ctx.openemrSiteId,
+            });
+            return decodeChartSnapshot(raw);
+        },
+        transientPrefix: spacesEnv.transientPrefix,
+        bucketName: spacesEnv.bucket,
+        artifactIdGenerator: () => randomUUID(),
+        logger,
+    });
+
     const app = createApp({
         auth: { verify },
         briefingRunner,
@@ -812,6 +865,7 @@ export const start = async (port: number): Promise<void> => {
         },
         conversationSuggestions,
         scheduleBriefingsLog,
+        pipeline: pipelineRunner,
     });
     serve({ fetch: app.fetch, port });
     logger.info({ port }, 'agent service listening');

@@ -1,0 +1,113 @@
+/**
+ * §B.8 Production wiring for the ingestion pipeline.
+ *
+ * The compiled `pipelineGraph` from `index.ts` is built from per-node
+ * `*Deps` interfaces. A few of those deps are per-invocation values
+ * (the OpenEMR JWT the persist node uses for the Tier-1 callback, the
+ * canonical-extension the rasterize and persist nodes key off, the
+ * conversation id for the Tier-1 disclosure event), so production
+ * cannot bake the deps once and reuse them. Instead, this factory
+ * takes the boot-time pieces (Spaces clients, rasterizer, vision
+ * invoker, artifact store, document-reference client, chart-fetch
+ * boundaries, bucket name) and returns a `PipelineRunner` whose
+ * `stream()` builds a fresh graph per call.
+ *
+ * Boot wires this once in `start()`; the `/v1/agent/extract` route is
+ * the only consumer today.
+ */
+
+import type { Logger } from 'pino';
+
+import type { PipelineRunner, PipelineCallContext } from '../server/routes/extract.js';
+import type { ExtractionArtifactStore } from '../state/extractionArtifacts.js';
+import type { Demographics, ChartSnapshot } from '../snapshot/types.js';
+import type { SpacesClient } from '../storage/spaces.js';
+import type { OpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
+import type { Rasterizer } from './rasterizer.js';
+import type { VisionInvocation } from './nodes/vision.js';
+
+import { createPipelineGraph, type PipelineDeps } from './index.js';
+import type { PipelineState } from './state.js';
+
+export interface ProductionPipelineDeps {
+    readonly artifactStore: ExtractionArtifactStore;
+    readonly openemrSpaces: SpacesClient;
+    readonly agentSpaces: SpacesClient;
+    readonly rasterizer: Rasterizer;
+    readonly visionInvoker: VisionInvocation;
+    readonly documentReferenceClient: OpenEmrDocumentReferenceClient;
+    /**
+     * Boundary the `patientMatch` node calls; production wires the
+     * snapshot client per invocation (the per-call OpenEMR token comes
+     * from the bearer the route received). The factory takes a
+     * builder rather than a fetcher so it can compose the per-call
+     * token at `stream()` time without touching the deps shape.
+     */
+    readonly buildFetchChartDemographics: (
+        ctx: PipelineCallContext,
+    ) => (pid: number) => Promise<Demographics>;
+    readonly buildFetchChartSnapshot: (
+        ctx: PipelineCallContext,
+    ) => (pid: number) => Promise<ChartSnapshot>;
+    readonly transientPrefix: string;
+    readonly bucketName: string;
+    readonly artifactIdGenerator: () => string;
+    readonly logger: Logger;
+}
+
+/**
+ * Build a production `PipelineRunner`. Each `stream()` call composes a
+ * fresh `PipelineDeps` (cheap — just object literals, no I/O), compiles
+ * the graph, and returns the LangGraph multi-mode stream. The route's
+ * `for await` consumes it; nothing here outlives a single invocation.
+ */
+export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): PipelineRunner => {
+    return {
+        stream: async (input: PipelineState, ctx: PipelineCallContext, config) => {
+            const persistDeps: PipelineDeps['persist'] = {
+                artifactStore: deps.artifactStore,
+                openemrSpaces: deps.openemrSpaces,
+                documentReferenceClient: deps.documentReferenceClient,
+                logger: deps.logger,
+                artifactIdGenerator: deps.artifactIdGenerator,
+                canonicalExt: ctx.canonicalExt,
+                bucketName: deps.bucketName,
+                openemrToken: ctx.openemrToken,
+                openemrSiteId: ctx.openemrSiteId,
+                ...(ctx.conversationId !== undefined ? { conversationId: ctx.conversationId } : {}),
+            };
+            const pipelineDeps: PipelineDeps = {
+                rasterize: {
+                    openemrSpaces: deps.openemrSpaces,
+                    agentSpaces: deps.agentSpaces,
+                    rasterizer: deps.rasterizer,
+                    transientPrefix: deps.transientPrefix,
+                    logger: deps.logger,
+                    canonicalExt: ctx.canonicalExt,
+                },
+                vision: {
+                    invoker: deps.visionInvoker,
+                    logger: deps.logger,
+                },
+                schemaValidate: { logger: deps.logger },
+                patientMatch: {
+                    logger: deps.logger,
+                    fetchChartDemographics: deps.buildFetchChartDemographics(ctx),
+                },
+                persist: persistDeps,
+                emitDeltas: {
+                    artifactStore: deps.artifactStore,
+                    logger: deps.logger,
+                    fetchChartSnapshot: deps.buildFetchChartSnapshot(ctx),
+                },
+                cleanup: {
+                    openemrSpaces: deps.openemrSpaces,
+                    transientPrefix: deps.transientPrefix,
+                    logger: deps.logger,
+                },
+            };
+            const graph = createPipelineGraph(pipelineDeps);
+            return graph.stream(input, config);
+        },
+    };
+};
