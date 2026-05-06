@@ -239,9 +239,27 @@ async function loadExistingManifest(): Promise<Manifest | null> {
     }
 }
 
+// Smoke-test that the fetched page looks like a real PMC article rather
+// than a bot-protection interstitial. PMC has been observed to return a
+// reCAPTCHA challenge page (~20 KB, contains `recaptcha`) on bursty
+// fetches; saving that to the cache poisons the next extract run with
+// a missing-article-body warning. We refuse to commit a non-article
+// response to the cache and re-throw so the per-target try/catch in
+// main() logs the failure.
+function looksLikePmcArticle(html: string): boolean {
+    if (html.length < 50_000) return false;
+    if (/recaptcha|captcha-delivery|cf-browser-verification/i.test(html)) return false;
+    return html.includes('main-article-body');
+}
+
 async function fetchOne(target: FetchTarget): Promise<ManifestEntry> {
     const url = pmcUrl(target.pmc_id);
     const html = await fetchText(url);
+    if (!looksLikePmcArticle(html)) {
+        throw new Error(
+            `fetch ${url} → response did not look like a PMC article (${html.length} bytes); refusing to cache`,
+        );
+    }
     const sha = sha256(html);
     const cachePath = join(CACHE_DIR, `${target.slug}.html`);
     await writeFile(cachePath, html, 'utf8');
