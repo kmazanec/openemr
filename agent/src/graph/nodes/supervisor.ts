@@ -64,6 +64,22 @@ export interface SupervisorStateObservation {
      * `followUp` envelopes whose params don't carry free text.
      */
     readonly question: string | null;
+    /**
+     * Default question the supervisor should treat as the turn's
+     * intent when the envelope carries pendingUploads but no
+     * clinician-typed `question`. Without this projection an
+     * upload-only follow-up turn presents to the supervisor as
+     * "task=follow_up, question=null", which the model commonly
+     * routes as "summarize the doc" — going straight from
+     * kickoffExtraction to synthesize and skipping the
+     * evidenceRetriever / retrieveChart fan-out the doctor would
+     * actually want for an abnormal lab. Filling in a deterministic
+     * "what should I do about this" question reframes the turn so the
+     * existing guideline-shaped routing logic in the prompt fires.
+     * `null` when the envelope already carries a question, or when
+     * there are no pending uploads.
+     */
+    readonly implicitQuestion: string | null;
     readonly chartCategoriesPresent: readonly string[];
     readonly retrieveChartCallCount: number;
     readonly retrieversInvokedThisTurn: readonly string[];
@@ -230,6 +246,31 @@ const presentCategoryFlags = (state: BriefingState): readonly string[] => {
     return flags;
 };
 
+/**
+ * Build the deterministic implicit question for an upload-only turn.
+ * The phrasing is intentionally clinical and prevention-shaped — it
+ * mirrors what a doctor actually wants to know after attaching a doc
+ * ("did anything change", "what should I consider doing"), which is
+ * exactly the kind of question the supervisor's evidenceRetriever
+ * routing rule fires on. We pick the doc type from the FIRST pending
+ * entry; multi-doc turns get a generic phrasing.
+ */
+const buildImplicitQuestion = (
+    pendingUploads: readonly { readonly docType: 'lab_pdf' | 'intake_form' }[],
+): string | null => {
+    if (pendingUploads.length === 0) return null;
+    if (pendingUploads.length > 1) {
+        return 'What do these documents tell us about the patient, and what should I consider doing about it given the chart and applicable guidelines?';
+    }
+    const first = pendingUploads[0];
+    if (first === undefined) return null;
+    if (first.docType === 'lab_pdf') {
+        return 'What does this lab tell us about the patient, how does it compare to prior results, and what should I consider doing about it given applicable guidelines?';
+    }
+    // intake_form
+    return 'What does this intake form tell us about the patient, and what should I consider doing given the chart and applicable guidelines?';
+};
+
 const observeState = (state: BriefingState): SupervisorStateObservation => {
     const history = state.supervisorDecisionHistory;
     const pendingUploads = (state.envelope.pendingUploads ?? []).map((p) => ({
@@ -240,12 +281,20 @@ const observeState = (state: BriefingState): SupervisorStateObservation => {
         documentUuid: r.documentUuid,
         status: r.status,
     }));
+    const explicitQuestion =
+        typeof state.envelope.question === 'string' && state.envelope.question.length > 0
+            ? state.envelope.question
+            : null;
+    // Implicit question fires only when the envelope has uploads AND
+    // no typed question — a turn with both should treat the typed
+    // text as authoritative.
+    const implicitQuestion =
+        explicitQuestion === null ? buildImplicitQuestion(pendingUploads) : null;
     return {
         iteration: state.supervisorIterations + 1,
         task: state.envelope.task,
-        question: typeof state.envelope.question === 'string' && state.envelope.question.length > 0
-            ? state.envelope.question
-            : null,
+        question: explicitQuestion,
+        implicitQuestion,
         chartCategoriesPresent: presentCategoryFlags(state),
         retrieveChartCallCount: state.retrieveChartCallCount,
         retrieversInvokedThisTurn: history.map((d) => d.handoff),
@@ -538,6 +587,7 @@ Rules:
 - Provide a non-empty reason — you are accountable for every routing decision.
 - Provide a one-sentence narration (≤120 chars), written for the clinician watching the panel: a clear, concrete description of what you're about to do, in present continuous tense. Examples: "Pulling prior lipid panels to compare." / "Checking the USPSTF on statin primary prevention." / "Analyzing the lipid panel you just attached." / "Drafting your briefing." It will be shown verbatim as the panel's progress line for this step. Avoid jargon, internal handoff names, and technical detail.
 - When the envelope carries pendingUploads (documents the clinician just attached) and any entry has not yet been processed this turn (its documentUuid is absent from observation.kickoffExtractionResultsThisTurn), your FIRST action MUST be kickoffExtraction for one of those entries. Copy { document_uuid, doc_type } from the pending entry verbatim into args. Until every pending entry has been processed (or has produced a 'failed' result you can route around), do not pick synthesize. After kickoffExtraction completes, decide on the next iteration what additional context the extracted document warrants — for a lab, prior trending via retrieveChart('lab') is often valuable; for a question the document raises, evidenceRetriever may add guideline backing; for grounding a citation in the extracted facts, documentEvidenceRetriever surfaces the structured snippets.
+- When observation.implicitQuestion is set (the envelope carried documents but no typed question), treat it as if the clinician asked it explicitly. The same routing rules below — guideline-shaped routing to evidenceRetriever, chart-only lookups direct to synthesize, etc. — apply unchanged. Concretely: an implicit "what should I consider doing about this lab" against a chart with abnormal results almost always benefits from evidenceRetriever before synthesize. Do not skip evidenceRetriever just because the question is implicit.
 - When you pick retrieveChart on a turn that has already retrieved chart data once, you must include args.categories naming which categories to re-fetch.
 - Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question. The synthesizer is forbidden from citing clinical knowledge from its own training data — its only valid sources are this turn's chart records and any retriever output already in state.
 - Decide before each handoff: would the answer benefit from authoritative guideline backing? If yes, pick evidenceRetriever first. The synthesizer is forbidden from naming named guidelines (USPSTF, ADA, AHA, JNC, etc.) unless they appear as snippets in state — so routing directly to synthesize for a guideline-shaped question yields a chart-only answer the clinician will read as "you didn't actually look it up." Triggers include but are not limited to: prevention guidance ("should X be on aspirin"), screening intervals ("when is the next mammogram due"), treatment thresholds ("at what BP do we start medication"), dosing rules, risk-stratification, and any question that would normally be answered by reaching for a clinical guideline rather than the chart alone. ONLY skip evidenceRetriever when the question is purely a chart-data lookup ("when was her last visit", "what's her current Rx list").

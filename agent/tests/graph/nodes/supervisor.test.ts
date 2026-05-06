@@ -386,6 +386,83 @@ describe('createSupervisor (§A.7)', () => {
         ]);
     });
 
+    it('observation projects an implicitQuestion when uploads arrive without a typed question', async () => {
+        const observed: unknown[] = [];
+        const llm: SupervisorDecide = vi.fn<SupervisorDecide>((input) => {
+            observed.push(input.observation);
+            return Promise.resolve({
+                handoff: 'kickoffExtraction',
+                reason: 'pending upload',
+                narration: 'Analyzing the lab.',
+                args: { document_uuid: 'doc-1', doc_type: 'lab_pdf' },
+            } as SupervisorDecision);
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await supervisor(baseState({
+            envelope: {
+                ...envelope,
+                task: 'follow_up',
+                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf', canonicalExt: 'pdf' }],
+                // No `question` field — upload-only turn.
+            },
+        }));
+
+        const obs = observed[0] as { question: string | null; implicitQuestion: string | null };
+        expect(obs.question).toBeNull();
+        expect(obs.implicitQuestion).not.toBeNull();
+        // The implicit question is keyed off the doc type — lab uploads
+        // get a "what does this tell us, what should I consider doing"
+        // phrasing that triggers the supervisor's existing
+        // guideline-routing rule.
+        expect(obs.implicitQuestion).toContain('lab');
+        expect(obs.implicitQuestion?.toLowerCase()).toContain('guideline');
+    });
+
+    it('observation prefers explicit question over implicit when both could apply', async () => {
+        const observed: unknown[] = [];
+        const llm: SupervisorDecide = vi.fn<SupervisorDecide>((input) => {
+            observed.push(input.observation);
+            return Promise.resolve({
+                handoff: 'synthesize',
+                reason: 'explicit question wins',
+                narration: 'Answering your question.',
+            } as SupervisorDecision);
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await supervisor(baseState({
+            envelope: {
+                ...envelope,
+                task: 'follow_up',
+                question: 'Should we increase metformin?',
+                pendingUploads: [{ documentUuid: 'doc-1', docType: 'lab_pdf', canonicalExt: 'pdf' }],
+            },
+        }));
+
+        const obs = observed[0] as { question: string | null; implicitQuestion: string | null };
+        expect(obs.question).toBe('Should we increase metformin?');
+        expect(obs.implicitQuestion).toBeNull();
+    });
+
+    it('observation has null implicitQuestion when there are no pending uploads', async () => {
+        const observed: unknown[] = [];
+        const llm: SupervisorDecide = vi.fn<SupervisorDecide>((input) => {
+            observed.push(input.observation);
+            return Promise.resolve({
+                handoff: 'synthesize',
+                reason: 'no uploads, no question',
+                narration: 'Drafting your briefing.',
+            } as SupervisorDecision);
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await supervisor(baseState());
+
+        const obs = observed[0] as { implicitQuestion: string | null };
+        expect(obs.implicitQuestion).toBeNull();
+    });
+
     it('records narration on each appended decision so the runner can forward it as an SSE event', async () => {
         const llm = decide({
             handoff: 'evidenceRetriever',
