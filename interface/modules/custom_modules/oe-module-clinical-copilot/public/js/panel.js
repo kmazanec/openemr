@@ -706,16 +706,28 @@ const __copilotPanel = (function () {
                             </li>`,
                 )
                 .join('');
+            const narration = entry.narration
+                ? `<p class="copilot-narration" data-role="narration">${escapeText(entry.narration)}</p>`
+                : '';
             return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--progress"
                              data-role="bubble" data-state="progress">
+                ${narration}
                 <ol class="copilot-progress" role="status" aria-live="polite">${stages}</ol>
             </article>`;
         }
         if (entry.role === 'assistant' && entry.thinking) {
+            // The supervisor's narration ("Pulling prior lipid panels
+            // to compare.") replaces the static "Thinking" caption
+            // when present so the doctor sees the agent's actual
+            // intent for this step. The animated dots stay regardless
+            // — they're the "still working" affordance.
+            const label = entry.narration
+                ? escapeText(entry.narration)
+                : 'Thinking';
             return `<article class="copilot-bubble copilot-bubble--assistant copilot-bubble--thinking"
                              data-role="bubble" data-state="thinking">
                 <span class="copilot-thinking" role="status" aria-live="polite">
-                    <span class="copilot-thinking__label">Thinking</span>
+                    <span class="copilot-thinking__label">${label}</span>
                     <span class="copilot-thinking__dots" aria-hidden="true">
                         <span class="copilot-thinking__dot"></span>
                         <span class="copilot-thinking__dot"></span>
@@ -874,11 +886,23 @@ const __copilotPanel = (function () {
             case 'supervisorNarration':
                 // Model-decided one-sentence description of what the
                 // supervisor is about to do (e.g. "Pulling prior lipid
-                // panels to compare."). Replaces the fixed stage label
-                // for the duration of the next handoff. The status
-                // line is the right surface — short-lived, not a chat
-                // bubble.
+                // panels to compare."). Two surfaces:
+                //   1. The in-flight bubble's caption — the doctor's
+                //      actual line of sight during a turn — so the
+                //      static "Thinking" placeholder is replaced with
+                //      the agent's real next step. We patch the
+                //      bubble for the active request and re-render.
+                //   2. The panel header's status subtitle, as a
+                //      secondary affordance for screen-readers /
+                //      moments when the bubble has scrolled.
                 if (typeof data.text === 'string' && data.text.length > 0) {
+                    if (activeRequestId !== null) {
+                        const idx = findInflightIndex(activeRequestId);
+                        if (idx >= 0) {
+                            thread[idx] = { ...thread[idx], narration: data.text };
+                            renderThread();
+                        }
+                    }
                     setStatus(data.text, 'streaming');
                 }
                 break;
@@ -899,10 +923,13 @@ const __copilotPanel = (function () {
                 // pipeline events through `{type:'pipelineEvent',
                 // event:{...}}` so the wire vocabulary doesn't collide
                 // with conversation-level events. Unwrap and re-dispatch
-                // through the same switch — the legacy pipeline.* cases
-                // still match.
+                // through the same switch — but mark `wrappedBySupervisor`
+                // on the inner event so handlers know the supervisor is
+                // in the loop and will narrate the failure inside the
+                // chat bubble. That avoids duplicating a `pipeline.error`
+                // into both a toast AND the assistant turn's narration.
                 if (data.event && typeof data.event === 'object') {
-                    handleEvent(data.event);
+                    handleEvent({ ...data.event, wrappedBySupervisor: true });
                 }
                 break;
             case 'pipeline.start':
@@ -918,7 +945,16 @@ const __copilotPanel = (function () {
                 // existing `progress` / `done` frames take over.
                 break;
             case 'pipeline.error':
-                showUploadToast(messageForPipelineCode(data.code));
+                // On the legacy autosweep / extract.php path the toast
+                // is the only failure surface. On the supervisor-driven
+                // panel path the supervisor synthesizes a narrated
+                // assistant turn that names the failure mode honestly,
+                // so the toast becomes a confusing duplicate. Suppress
+                // it when the event was unwrapped from a `pipelineEvent`
+                // frame.
+                if (!data.wrappedBySupervisor) {
+                    showUploadToast(messageForPipelineCode(data.code));
+                }
                 break;
         }
     };
