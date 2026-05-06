@@ -6,12 +6,13 @@
  * UUID-keyed proxy in front of OpenEMR's existing `Document::get_data()`
  * machinery. The panel's `documentViewer.js` fetches this endpoint when
  * an extracted-document chip is clicked; the response carries the raw
- * document bytes with the document's recorded MIME so the viewer can
- * branch (PDF.js / `<img>` / TIFF placeholder).
+ * document bytes (PDF/PNG/JPEG) with the document's recorded MIME, or —
+ * for `image/tiff` inputs — decoded `image/png` bytes via
+ * {@see DocumentViewResponder} (F.4b).
  *
  * Routing:
  *   GET /interface/modules/custom_modules/oe-module-clinical-copilot/
- *     public/document_view.php?document_uuid=<UUID>[&page=<N>]
+ *     public/document_view.php?document_uuid=<UUID>
  *
  * Auth: the existing OpenEMR session — the panel runs in the same chrome
  * as the rest of the chart, no new auth surface. ACL check is the same
@@ -20,9 +21,11 @@
  * access to chart A can't fetch a document attached to chart B by
  * URL-mangling.
  *
- * `page` is accepted for forward compatibility (future multi-page TIFF
- * decode in F.4b will key on it) but ignored here — the bytes returned
- * are the full document; the viewer takes care of page-level rendering.
+ * Architecture: HTTP concerns (globals, ACL, headers, body emission)
+ * stay in this shim. The branch logic — null document, mismatched pid,
+ * empty bytes, TIFF decode — is delegated to
+ * {@see DocumentViewResponder} so it's unit-testable without a session
+ * or `\Imagick` on the host.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -37,6 +40,9 @@ require_once __DIR__ . '/../../../../globals.php';
 
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Session\SessionWrapperFactory;
+use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentView\DocumentViewResponder;
+use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentView\ImagickTiffDecoder;
+use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentView\ResolvedDocument;
 use Symfony\Component\HttpFoundation\Request;
 
 $request = Request::createFromGlobals();
@@ -57,62 +63,47 @@ if (!is_string($documentUuid) || $documentUuid === '') {
     return;
 }
 
+$resolved = null;
 $document = Document::getDocumentForUuid($documentUuid);
 // Document::getDocumentForUuid returns Document|null per its source; the
 // declared return type is `mixed` for legacy reasons. Narrow with
 // `instanceof` so the rest of the file is type-safe without a cast.
-if (!$document instanceof Document) {
-    http_response_code(404);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'document_not_found']);
-    return;
+if ($document instanceof Document) {
+    $foreignIdRaw = $document->get_foreign_id();
+    $documentPid = is_scalar($foreignIdRaw) ? (int) $foreignIdRaw : 0;
+    $mimeRaw = $document->get_mimetype();
+    $mimeType = is_string($mimeRaw) ? $mimeRaw : '';
+    // Document::get_data throws BadMethodCallException for expired/deleted
+    // documents (see library/classes/Document.class.php). Treat that as a
+    // resolved-but-unavailable document — same shape as bytes-empty so
+    // the responder returns a 404 envelope, not a 500.
+    try {
+        $bytes = $document->get_data();
+    } catch (BadMethodCallException) {
+        $bytes = '';
+    }
+    $resolved = new ResolvedDocument(
+        foreignId: $documentPid,
+        mimeType: $mimeType,
+        bytes: is_string($bytes) ? $bytes : '',
+    );
 }
 
-// Cross-chart lookup defense: confirm the document's patient (foreign_id)
-// matches the active session pid. Documents not attached to a patient
-// (foreign_id 0) are not in scope for this endpoint — the panel only
-// renders chart-attached documents.
-$foreignIdRaw = $document->get_foreign_id();
-$documentPid = is_scalar($foreignIdRaw) ? (int) $foreignIdRaw : 0;
 $sessionPidRaw = $session->get('pid');
 $sessionPid = is_scalar($sessionPidRaw) ? (int) $sessionPidRaw : 0;
-if ($documentPid <= 0 || $documentPid !== $sessionPid) {
-    http_response_code(403);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'patient_scope_mismatch']);
-    return;
-}
 
-$mimeRaw = $document->get_mimetype();
-$mimeType = (is_string($mimeRaw) && $mimeRaw !== '') ? $mimeRaw : 'application/octet-stream';
+$responder = new DocumentViewResponder(new ImagickTiffDecoder());
+$response = $responder->respond($resolved, $sessionPid);
 
-// Document::get_data throws BadMethodCallException for expired/deleted
-// documents (see library/classes/Document.class.php). Narrow the catch
-// to that — filesystem/decryption RuntimeExceptions and unexpected
-// Errors propagate to the global handler, which is the right behavior
-// for a 500-class failure path the panel can't recover from anyway.
-try {
-    $data = $document->get_data();
-} catch (BadMethodCallException) {
-    http_response_code(404);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'document_unavailable']);
-    return;
-}
-
-if (!is_string($data) || $data === '') {
-    http_response_code(404);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'document_empty']);
-    return;
-}
-
-header('Content-Type: ' . $mimeType);
-header('Content-Length: ' . strlen($data));
+http_response_code($response->statusCode);
+header('Content-Type: ' . $response->contentType);
+header('Content-Length: ' . strlen((string) $response->body));
 header('X-Content-Type-Options: nosniff');
-// 5-min cache so a chip swap that re-clicks an already-rendered chip
-// doesn't re-download the full PDF. The session-scoped ACL gate above
-// makes this safe; the document's bytes can't be served to a clinician
-// who isn't already authorized to see them.
-header('Cache-Control: private, max-age=300');
-echo $data;
+if ($response->statusCode === 200) {
+    // 5-min cache so a chip swap that re-clicks an already-rendered chip
+    // doesn't re-download the document. Session-scoped ACL above makes
+    // this safe; the document's bytes can't be served to a clinician
+    // who isn't already authorized to see them.
+    header('Cache-Control: private, max-age=300');
+}
+echo $response->body;
