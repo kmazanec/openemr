@@ -197,7 +197,6 @@ interface CaseFixture {
     readonly snapshot: BriefingSnapshot;
     readonly envelope: RequestEnvelope;
     readonly artifacts: readonly ExtractionArtifact[];
-    readonly needsEvidenceRetriever: boolean;
 }
 
 const fixtureFor = (group: ConversationalGraphCaseId): CaseFixture => {
@@ -218,7 +217,6 @@ const fixtureFor = (group: ConversationalGraphCaseId): CaseFixture => {
                     question: 'What does her recent HbA1c lab show?',
                 },
                 artifacts: [labArtifact],
-                needsEvidenceRetriever: false,
             };
         case 'guidelines':
             return {
@@ -237,7 +235,6 @@ const fixtureFor = (group: ConversationalGraphCaseId): CaseFixture => {
                         'When is colorectal cancer screening recommended for adults — what does USPSTF say?',
                 },
                 artifacts: [],
-                needsEvidenceRetriever: true,
             };
         case 'verification':
             return {
@@ -256,7 +253,6 @@ const fixtureFor = (group: ConversationalGraphCaseId): CaseFixture => {
                         'Does the new intake form list any allergies, and is the metformin still appropriate?',
                 },
                 artifacts: [lowConfidenceAllergyArtifact],
-                needsEvidenceRetriever: false,
             };
     }
 };
@@ -327,10 +323,14 @@ export const runConversationalGraphCase = async (
         store: buildArtifactStore(fixture.artifacts),
     };
 
+    // Wire evidenceRetriever whenever Pinecone+Cohere deps are
+    // available — the supervisor decides whether to call it. The
+    // per-fixture flag was a premature optimization that left the
+    // graph with the §A.7 stub on rows where the model legitimately
+    // routed to evidenceRetriever, surfacing as `phase-A stub
+    // invoked` warnings in the experiment logs.
     const evidenceRetrieverDeps =
-        fixture.needsEvidenceRetriever && deps.evidenceRetriever !== undefined
-            ? { evidenceRetriever: deps.evidenceRetriever }
-            : {};
+        deps.evidenceRetriever !== undefined ? { evidenceRetriever: deps.evidenceRetriever } : {};
 
     const graphDeps = {
         retrieveChart: {
