@@ -30,6 +30,8 @@ import { evaluate } from 'langsmith/evaluation';
 
 import type { EvidenceRetrieverDeps } from '../../src/graph/nodes/evidenceRetriever.js';
 
+import { RUBRICS } from '../rubrics/evaluators.js';
+
 import {
     runConversationalGraphCase,
     type ConversationalGraphCaseId,
@@ -118,9 +120,7 @@ const runExperiment = async (options: {
     readonly anthropicApiKey: string;
     readonly gitSha: string;
 }): Promise<ExperimentRunResult> => {
-    const evidenceRetriever = await buildEvidenceRetrieverDepsFromEnv(
-        'conversationalGraphSuite',
-    );
+    const evidenceRetriever = await buildEvidenceRetrieverDepsFromEnv('conversationalGraphSuite');
 
     const target = async (
         input: ConversationalGraphInputs,
@@ -137,6 +137,7 @@ const runExperiment = async (options: {
 
     const results = await evaluate(target, {
         data: DATASET_NAME,
+        evaluators: [...RUBRICS],
         experimentPrefix: `conversational-graph-${options.gitSha.slice(0, 7)}`,
         metadata: { git_sha: options.gitSha, suite: 'conversational-graph' },
     });

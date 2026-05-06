@@ -41,6 +41,8 @@ import type {
     SearchArtifactsFilters,
 } from '../../src/state/extractionArtifacts.js';
 
+import type { AgentRubricInput, RubricClaim } from '../rubrics/types.js';
+
 import { buildDatasetSnapshotClient } from './shared.js';
 
 export type ConversationalGraphCaseId = 'document-evidence' | 'guidelines' | 'verification';
@@ -59,6 +61,7 @@ export interface ConversationalGraphCaseRunResult {
     readonly rejectedClaimCount: number;
     readonly hardStops: readonly string[];
     readonly supervisorIterations: number;
+    readonly rubricInput: AgentRubricInput;
 }
 
 const PID = 4201;
@@ -265,18 +268,22 @@ const reduceVerdict = (
         readonly rejectedCount: number;
         readonly hardStops: readonly string[];
         readonly iterations: number;
-        readonly accepted: readonly { source_type: string }[];
+        readonly accepted: readonly RubricClaim[];
     },
 ): ConversationalGraphCaseRunResult => {
     let verdict: ConversationalGraphVerdict;
     if (args.hardStops.includes(HARD_STOP_ALLERGIES_UNAVAILABLE)) {
         verdict = 'hard-stop';
     } else if (group === 'document-evidence') {
-        verdict = args.accepted.some((c) => c.source_type === 'extracted_document')
+        verdict = args.accepted.some((c) =>
+            c.sourceReferences.some((s) => s.source_type === 'extracted_document'),
+        )
             ? 'verifier-accepted'
             : 'verifier-rejected';
     } else if (group === 'guidelines') {
-        verdict = args.accepted.some((c) => c.source_type === 'guideline')
+        verdict = args.accepted.some((c) =>
+            c.sourceReferences.some((s) => s.source_type === 'guideline'),
+        )
             ? 'verifier-accepted'
             : args.rejectedCount > 0
               ? 'verifier-rejected'
@@ -289,6 +296,16 @@ const reduceVerdict = (
         // the LangSmith UI flags the regression.
         verdict = args.verifierPassed ? 'verifier-accepted' : 'verifier-rejected';
     }
+    const rubricInput: AgentRubricInput = {
+        kind: 'conversational',
+        acceptedClaims: args.accepted,
+        rejectedClaimCount: args.rejectedCount,
+        verifierPassed: args.verifierPassed,
+        hardStops: args.hardStops,
+        schemaValid: null,
+        refusalPhraseMatch: null,
+        scannedText: args.accepted.map((c) => c.text),
+    };
     return {
         group,
         verdict,
@@ -297,6 +314,7 @@ const reduceVerdict = (
         rejectedClaimCount: args.rejectedCount,
         hardStops: args.hardStops,
         supervisorIterations: args.iterations,
+        rubricInput,
     };
 };
 
@@ -349,14 +367,21 @@ export const runConversationalGraphCase = async (
     const out = await graph.invoke({ envelope: fixture.envelope });
     const verified = out.verified;
 
+    const accepted: readonly RubricClaim[] = (verified?.accepted ?? []).map((c) => ({
+        text: c.text,
+        category: c.category,
+        sourceReferences: c.sourceReferences.map((sr) => ({
+            source_type: sr.source_type ?? 'unknown',
+            source_id: sr.source_id ?? '',
+        })),
+    }));
+
     return reduceVerdict(group, {
         verifierPassed: verified?.passed === true,
         acceptedCount: verified?.accepted.length ?? 0,
         rejectedCount: verified?.rejected.length ?? 0,
         hardStops: verified?.safetyHardStops ?? [],
         iterations: out.supervisorIterations ?? 0,
-        accepted: (verified?.accepted ?? []).map((c) => ({
-            source_type: c.sourceReferences[0]?.source_type ?? '',
-        })),
+        accepted,
     });
 };
