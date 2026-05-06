@@ -626,6 +626,54 @@ const __copilotPanel = (function () {
         BRIEFING_ERROR_MESSAGES[code] || BRIEFING_ERROR_MESSAGES.briefing_failed;
 
     /**
+     * §D.1 typed messages for `pipeline.error` SSE frames. Keys mirror
+     * the `PipelineErrorCode` union in `agent/src/pipeline/state.ts` plus
+     * the failure modes in the D.1 plan checkbox. Anything unrecognized
+     * falls through to a generic "extraction failed" so an unknown code
+     * never leaks raw to the user.
+     */
+    const PIPELINE_ERROR_MESSAGES = {
+        'cost-cap-exceeded':
+            'Document too large for automatic extraction.',
+        patient_mismatch:
+            'This document does not appear to belong to this patient.',
+        schema_invalid:
+            'Could not extract structured data from this document.',
+        rasterize_failed:
+            'Could not read the document. Please try a different file.',
+        'storage-unreachable':
+            'Document storage is temporarily unavailable. Please try again in a moment.',
+        'rate-limited':
+            'The extraction service is busy right now. Please try again in a moment.',
+        persist_failed:
+            'Document was extracted but could not be saved. Please try again.',
+        pipeline_failed:
+            'Document extraction failed. Please try again, and ask an administrator to check the agent service if the problem persists.',
+    };
+
+    const messageForPipelineCode = (code) =>
+        PIPELINE_ERROR_MESSAGES[code] || PIPELINE_ERROR_MESSAGES.pipeline_failed;
+
+    /**
+     * §D.1 typed messages for browser-side upload failures (the network
+     * round-trip to `document_upload.php`, before the pipeline ever
+     * runs). Keyed off the JSON `error` body the controller emits in
+     * `DocumentUploadController.php`.
+     */
+    const UPLOAD_ERROR_MESSAGES = {
+        file_too_large: 'File is too large. Please choose a file under 10 MB.',
+        unsupported_media_type: 'Unsupported file type. Use PDF, PNG, JPEG, or TIFF.',
+        missing_pid: 'No active patient. Please reload the chart and try again.',
+        missing_file: 'No file was selected.',
+        upload_unavailable:
+            'Could not upload the file. Please try again, and ask an administrator to check the agent service if the problem persists.',
+        acl_denied: 'You do not have permission to upload documents.',
+    };
+
+    const messageForUploadCode = (code) =>
+        UPLOAD_ERROR_MESSAGES[code] || UPLOAD_ERROR_MESSAGES.upload_unavailable;
+
+    /**
      * §4.1 suggested follow-ups. Chips render below the assistant bubble
      * the message belongs to. Click handler POSTs the typed `followUp`
      * params back through the briefing endpoint (no `question` field).
@@ -809,6 +857,20 @@ const __copilotPanel = (function () {
         return `${days}d ago`;
     };
 
+    /**
+     * §D.1 status-line text for pipeline progress frames. The
+     * `pipeline.*` events are emitted by the B.8 agent route; the
+     * panel's job is to keep the doctor oriented while the extraction
+     * runs. Map keys deliberately match the dotted SSE `type` from
+     * the plan so a future stage rename is one entry, not a search.
+     */
+    const PIPELINE_STATUS_TEXT = {
+        'pipeline.start': 'Extracting document…',
+        'pipeline.rasterize.complete': 'Reading the document…',
+        'pipeline.vision.complete': 'Document evidence available, drafting briefing…',
+        'pipeline.persist.complete': 'Document evidence available, drafting briefing…',
+    };
+
     const handleEvent = (data) => {
         if (!data || typeof data !== 'object' || !data.type) return;
         switch (data.type) {
@@ -835,6 +897,21 @@ const __copilotPanel = (function () {
                 break;
             case 'error':
                 renderFatalError(data.code);
+                break;
+            case 'pipeline.start':
+            case 'pipeline.rasterize.complete':
+            case 'pipeline.vision.complete':
+            case 'pipeline.persist.complete':
+                setStatus(PIPELINE_STATUS_TEXT[data.type], 'streaming');
+                break;
+            case 'pipeline.exit':
+                // The pipeline finished; the supervisor's next step
+                // (drafting the briefing) keeps the conversation
+                // streaming, so we don't clear the status here — the
+                // existing `progress` / `done` frames take over.
+                break;
+            case 'pipeline.error':
+                showUploadToast(messageForPipelineCode(data.code));
                 break;
         }
     };
@@ -1268,6 +1345,317 @@ const __copilotPanel = (function () {
         });
     };
 
+    /**
+     * §D.1 upload toast.
+     *
+     * One reusable element, populated in place — both the upload-side
+     * failure paths (controller 4xx/5xx, transport errors) and the
+     * pipeline-side `pipeline.error` SSE frames render here. Keeping a
+     * single toast region (rather than mint-on-error) means the doctor
+     * never sees a stack of stale messages and the JS doesn't have to
+     * race a fade-out animation against a fast follow-up failure.
+     */
+    const toastEl = root ? root.querySelector('[data-role="upload-toast"]') : null;
+
+    const showUploadToast = (message) => {
+        if (!toastEl) return;
+        toastEl.textContent = message;
+        toastEl.hidden = false;
+    };
+
+    const clearUploadToast = () => {
+        if (!toastEl) return;
+        toastEl.hidden = true;
+        toastEl.textContent = '';
+    };
+
+    /**
+     * §D.1 client-side upload-shape gate. Mirrors the server-side
+     * controller's allowlist + 10 MB cap so the doctor learns about a
+     * bad attachment immediately rather than after a wasted round-trip.
+     * The browser still respects the `accept` attribute as a hint, but
+     * a determined picker can ignore it; this is the behavioral check.
+     */
+    const ALLOWED_UPLOAD_MIMES = new Set([
+        'application/pdf',
+        'image/png',
+        'image/jpeg',
+        'image/tiff',
+    ]);
+    const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+    const validateUploadShape = (file) => {
+        if (!file) return 'missing_file';
+        if (file.size > MAX_UPLOAD_BYTES) return 'file_too_large';
+        if (!ALLOWED_UPLOAD_MIMES.has(file.type)) return 'unsupported_media_type';
+        return null;
+    };
+
+    /**
+     * §D.1 build URLs for the panel's two browser-inbound endpoints
+     * relative to the proxy URL. The proxy lives at
+     * `<webroot>/.../public/agent.php`; both `document_upload.php` and
+     * `extract.php` live alongside it. (Browser-inbound entries live
+     * directly under `public/`; the `snapshot/` prefix is reserved for
+     * agent-callback bearer-token endpoints.)
+     */
+    const siblingProxyUrl = (filename, fallback) => {
+        if (typeof proxyUrl !== 'string' || proxyUrl.length === 0) {
+            return fallback;
+        }
+        const lastSlash = proxyUrl.lastIndexOf('/');
+        const baseDir = lastSlash >= 0 ? proxyUrl.slice(0, lastSlash) : proxyUrl;
+        return `${baseDir}/${filename}`;
+    };
+
+    const documentUploadUrl = () => siblingProxyUrl('document_upload.php', '/document_upload.php');
+    const extractEndpointUrl = () => siblingProxyUrl('extract.php', '/extract.php');
+
+    /**
+     * §D.1 pure upload round-trip. Posts the file as multipart to the
+     * `document_upload.php` endpoint and parses the typed JSON
+     * response. Returns a discriminated-union result so the caller
+     * never has to introspect HTTP status + body shape twice.
+     *
+     * Pure-function shape (caller injects `fetch` + `url`) so the
+     * Jest test can drive the request/response cycle without jsdom.
+     */
+    const runUpload = async ({ fetchFn, url, file }) => {
+        let response;
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            response = await fetchFn(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: form,
+            });
+        } catch (err) {
+            console.error('copilot: upload transport failed', err);
+            return { ok: false, code: 'upload_unavailable' };
+        }
+        let body = null;
+        try {
+            body = await response.json();
+        } catch {
+            // Body parsing failed; treat as opaque server failure.
+        }
+        if (!response.ok) {
+            const code = body && typeof body.error === 'string' ? body.error : 'upload_unavailable';
+            return { ok: false, code };
+        }
+        if (
+            !body
+            || typeof body.document_uuid !== 'string'
+            || typeof body.doc_type_guess !== 'string'
+            || typeof body.canonical_ext !== 'string'
+        ) {
+            return { ok: false, code: 'upload_unavailable' };
+        }
+        return {
+            ok: true,
+            documentUuid: body.document_uuid,
+            docType: body.doc_type_guess,
+            canonicalExt: body.canonical_ext,
+        };
+    };
+
+    /**
+     * §D.1 stream the pipeline-trigger SSE response from `extract.php`.
+     *
+     * Returns a result discriminated by the terminal state:
+     *   - `{ok: true, artifactId}` — pipeline finished with `pipeline.exit`
+     *     `status: 'persisted'`. The panel can now kick off a follow-up
+     *     briefing turn so the supervisor synthesizes against the
+     *     newly-persisted artifact.
+     *   - `{ok: false, code}` — the pipeline emitted `pipeline.error`,
+     *     transport failed, OpenEMR refused at the boundary, or
+     *     `pipeline.exit` reported `status: 'failed'`. Error toasts
+     *     have already rendered through `handleEvent` along the way;
+     *     `code` is the terminal failure for status-line purposes.
+     *
+     * Reuses the existing event vocabulary (`handleEvent` dispatches
+     * `pipeline.*` already), so the per-stage status-text and toast
+     * rendering stays in one place.
+     */
+    const streamExtract = async ({ fetchFn, url, body }) => {
+        let response;
+        try {
+            response = await fetchFn(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'text/event-stream',
+                },
+                body: JSON.stringify(body),
+            });
+        } catch (err) {
+            console.error('copilot: extract transport failed', err);
+            return { ok: false, code: 'pipeline_failed' };
+        }
+        if (!response.ok) {
+            // OpenEMR-side rejection (400 invalid_body, 401 unauthorized,
+            // 502 agent unreachable, etc.). Surface as the generic code
+            // so the doctor-facing message stays high-signal; the
+            // structured error body is logged at the controller.
+            return { ok: false, code: 'pipeline_failed' };
+        }
+
+        let terminal = { ok: false, code: 'pipeline_failed' };
+        let sawExit = false;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const rawEvent = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+                const dataLine = rawEvent
+                    .split('\n')
+                    .find((line) => line.startsWith('data: '));
+                if (!dataLine) continue;
+                let payload;
+                try {
+                    payload = JSON.parse(dataLine.slice('data: '.length));
+                } catch (err) {
+                    console.error('copilot: failed to parse pipeline SSE payload', err);
+                    continue;
+                }
+                handleEvent(payload);
+                if (payload && payload.type === 'pipeline.exit') {
+                    sawExit = true;
+                    terminal = payload.status === 'persisted'
+                        ? { ok: true, artifactId: payload.artifactId }
+                        : { ok: false, code: 'pipeline_failed' };
+                } else if (payload && payload.type === 'pipeline.error') {
+                    terminal = { ok: false, code: payload.code };
+                }
+            }
+        }
+
+        // The agent always closes the stream with a `pipeline.exit`
+        // event (see `agent/src/server/routes/extract.ts`); a stream
+        // that ends without one is a transport drop, not a clean
+        // failure mode.
+        if (!sawExit && terminal.ok === false && terminal.code === 'pipeline_failed') {
+            return terminal;
+        }
+        return terminal;
+    };
+
+    /**
+     * §D.1 upload + extract + briefing flow.
+     *
+     *   1. Client-side gate (size + MIME). Failures render a toast and
+     *      no network call is made.
+     *   2. POST multipart to `document_upload.php`. On 4xx/5xx render
+     *      the typed-error toast.
+     *   3. On 200, POST the trigger envelope to `extract.php` (B.8 path
+     *      A). The agent's pipeline runs synchronously; pipeline.* SSE
+     *      events drive the panel's status line and error toasts.
+     *   4. On `pipeline.exit{status: 'persisted'}`, kick off a
+     *      follow-up briefing turn so the supervisor synthesizes
+     *      against the newly-persisted artifact. (B.9 will replace the
+     *      `kickoffExtraction` stub with a path that consumes the
+     *      extraction directly; until then, the briefing turn is the
+     *      seam — the supervisor sees the persisted DocumentReference
+     *      via the normal chart fetch and can cite it.)
+     */
+    const submitUpload = async (file) => {
+        if (composerBusy) return;
+        clearUploadToast();
+        const shapeError = validateUploadShape(file);
+        if (shapeError !== null) {
+            showUploadToast(messageForUploadCode(shapeError));
+            return;
+        }
+
+        composerBusy = true;
+        setStatus('Uploading document…', 'streaming');
+        thread.push({ role: 'user', text: `📎 ${file.name}` });
+        renderThread();
+
+        const uploadResult = await runUpload({ fetchFn: fetch, url: documentUploadUrl(), file });
+        if (!uploadResult.ok) {
+            showUploadToast(messageForUploadCode(uploadResult.code));
+            setStatus('Upload failed.', 'error');
+            composerBusy = false;
+            return;
+        }
+
+        const extractResult = await streamExtract({
+            fetchFn: fetch,
+            url: extractEndpointUrl(),
+            body: {
+                pid,
+                document_uuid: uploadResult.documentUuid,
+                doc_type: uploadResult.docType,
+                trigger_source: 'panel',
+                canonical_ext: uploadResult.canonicalExt,
+                conversation_id: conversationId,
+            },
+        });
+
+        if (!extractResult.ok) {
+            // `pipeline.error` frames already rendered the typed toast
+            // via handleEvent; we just need to leave the status line
+            // in an error-shaped state and unwind. No briefing
+            // follow-up — the artifact is `failed` per
+            // W2_ARCHITECTURE.md §"Failure isolation"; the supervisor
+            // would route around it on the next user turn anyway.
+            setStatus('Extraction failed.', 'error');
+            composerBusy = false;
+            return;
+        }
+
+        setStatus('Drafting briefing…', 'streaming');
+        try {
+            await streamTurn({
+                envelope: {
+                    conversationId,
+                    requestId: `req-${pid}-${Date.now()}`,
+                    siteId,
+                    patient: { pid, uuid: '' },
+                    task: 'follow_up',
+                    document_uuid: uploadResult.documentUuid,
+                    doc_type: uploadResult.docType,
+                },
+                errorTag: 'upload-followup',
+            });
+        } finally {
+            composerBusy = false;
+        }
+    };
+
+    const wireFilePicker = () => {
+        if (!root) return;
+        const attach = root.querySelector('[data-role="attach"]');
+        const fileInput = root.querySelector('[data-role="file"]');
+        if (!attach || !fileInput) return;
+        attach.addEventListener('click', (e) => {
+            e.preventDefault();
+            fileInput.click();
+        });
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            // Reset the input value so picking the same file twice
+            // still fires `change` — without the reset, a second pick
+            // of the same filename is silent.
+            const captured = file;
+            fileInput.value = '';
+            submitUpload(captured).catch((err) => {
+                console.error('copilot: submitUpload errored', err);
+            });
+        });
+    };
+
     const wireComposer = () => {
         const form = root.querySelector('[data-role="composer"]');
         if (!form) return;
@@ -1547,6 +1935,7 @@ const __copilotPanel = (function () {
 
     const start = async () => {
         wireComposer();
+        wireFilePicker();
         wireHistoryInfiniteScroll();
         wireSuggestionsClicks();
         wireSourceChipClicks();
@@ -1589,6 +1978,17 @@ const __copilotPanel = (function () {
         chipTooltipText,
         claimGroupsToSections,
         recordTypeForChartField,
+        // §D.1 upload + pipeline-event helpers, exposed for
+        // `tests/js/copilot-panel-upload.test.js`.
+        validateUploadShape,
+        documentUploadUrl,
+        extractEndpointUrl,
+        runUpload,
+        messageForUploadCode,
+        messageForPipelineCode,
+        PIPELINE_STATUS_TEXT,
+        MAX_UPLOAD_BYTES,
+        ALLOWED_UPLOAD_MIMES,
     };
 })();
 

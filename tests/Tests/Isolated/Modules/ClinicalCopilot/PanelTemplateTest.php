@@ -174,4 +174,32 @@ final class PanelTemplateTest extends TestCase
 
         self::assertStringNotContainsString('onclick="alert(1)"', $html);
     }
+
+    #[Test]
+    public function rendersTheD1FilePickerMountPointsTheJsBindsAgainst(): void
+    {
+        // §D.1: panel.js wires `data-role="attach"` (the visible
+        // paperclip button) and `data-role="file"` (the hidden native
+        // input) plus `data-role="upload-toast"` (the typed-error
+        // region). Drift in any of these drops the upload UI silently;
+        // pin them as the JS contract.
+        $twig = self::buildTwig();
+        $html = $twig->render('panel.html.twig', self::defaultParams());
+
+        self::assertStringContainsString('data-role="attach"', $html);
+        self::assertStringContainsString('data-role="file"', $html);
+        self::assertStringContainsString('data-role="upload-toast"', $html);
+        // The hidden file input must declare the MIME allowlist as a
+        // hint to the browser picker; the server still content-sniffs.
+        self::assertMatchesRegularExpression(
+            '/<input[^>]*data-role="file"[^>]*accept="application\/pdf,image\/png,image\/jpeg,image\/tiff"/',
+            $html,
+        );
+        // The toast renders hidden by default so an empty <div> doesn't
+        // show a stripe of unused chrome below the composer.
+        self::assertMatchesRegularExpression(
+            '/data-role="upload-toast"[^>]*hidden|hidden[^>]*data-role="upload-toast"/',
+            $html,
+        );
+    }
 }

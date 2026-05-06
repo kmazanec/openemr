@@ -41,6 +41,18 @@
 
             <div class="copilot-suggestions" data-role="suggestions" hidden></div>
 
+            {# §D.1 typed-error toast region. The renderer fills this on a
+               `pipeline.error` SSE frame, keyed off the error code; the
+               element stays in the DOM (with empty body + hidden) when no
+               error is active so the JS doesn't have to mint a new node
+               under each failure path. role="alert" lets screen readers
+               announce the typed message without yanking focus. #}
+            <div class="copilot-toast"
+                 data-role="upload-toast"
+                 role="alert"
+                 aria-live="assertive"
+                 hidden></div>
+
             <form class="copilot-composer" data-role="composer">
                 <textarea class="copilot-composer__input"
                           data-role="input"
@@ -48,6 +60,22 @@
                           rows="2"
                           maxlength="2000"
                           placeholder="{{ 'Ask a follow-up question about this patient… (Shift+Enter for newline)'|xlt }}"></textarea>
+                {# §D.1 file picker. The visible button labels itself with
+                   a paperclip glyph; the actual <input type="file"> is
+                   visually hidden but kept in the accessibility tree so
+                   keyboard + screen-reader users hit the same control.
+                   `accept` mirrors the controller's MIME allowlist; the
+                   browser respects it as a *hint*, the server still
+                   content-sniffs in DocumentUploadController. #}
+                <button class="copilot-composer__attach"
+                        type="button"
+                        data-role="attach"
+                        aria-label="{{ 'Attach a document'|xlt }}"
+                        title="{{ 'Attach a document'|xlt }}">📎</button>
+                <input class="copilot-composer__file"
+                       type="file"
+                       data-role="file"
+                       accept="application/pdf,image/png,image/jpeg,image/tiff" />
                 <button class="copilot-composer__submit"
                         type="submit"
                         data-role="submit">{{ 'Ask'|xlt }}</button>
