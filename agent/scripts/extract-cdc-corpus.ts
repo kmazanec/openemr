@@ -324,36 +324,13 @@ export function extractAcipNotes($: cheerio.CheerioAPI, slug: string): ExtractRe
     // child-adolescent-notes pages: adult puts each note's heading and
     // accordions in their own `cdc-textblock`, while child wraps all 19
     // vaccine notes in a single shared `cdc-textblock` with anchors and
-    // accordion-items intermixed. Closest-textblock-as-boundary doesn't
-    // work for the child-page shape. Instead, walk every `note-*` anchor
-    // and every `accordion-item` in document order: each accordion-item
-    // belongs to the most recently seen note anchor.
-    const anchors = main.find('a[id^="note-"]').toArray();
-    const items = main.find('div.accordion-item').toArray();
-
-    interface Event {
-        readonly kind: 'anchor' | 'item';
-        readonly node: AnyNode;
-    }
-    // We need an order on AnyNode. cheerio gives us this via the
-    // dom-serializer position fields, but the simplest cross-version
-    // approach is to re-derive order by walking `main` once and
-    // assigning indices.
-    const order = new Map<AnyNode, number>();
-    let counter = 0;
-    const indexAll = (node: AnyNode): void => {
-        order.set(node, counter);
-        counter += 1;
-        const children = (node as { children?: AnyNode[] }).children ?? [];
-        for (const c of children) indexAll(c);
-    };
-    indexAll(main.get(0)!);
-
-    const events: Event[] = [
-        ...anchors.map<Event>((node) => ({ kind: 'anchor' as const, node })),
-        ...items.map<Event>((node) => ({ kind: 'item' as const, node })),
-    ].sort((a, b) => (order.get(a.node) ?? 0) - (order.get(b.node) ?? 0));
-
+    // accordion-items intermixed as siblings. Closest-textblock-as-
+    // boundary doesn't work for the child shape. Instead, walk every
+    // `note-*` anchor and every `accordion-item` in document order: each
+    // accordion-item belongs to the most recently seen note anchor.
+    //
+    // `main.find('a[id^="note-"], div.accordion-item').each(...)` returns
+    // hits in document order natively — no need for position bookkeeping.
     interface NoteState {
         readonly id: string;
         readonly heading: string;
@@ -362,31 +339,38 @@ export function extractAcipNotes($: cheerio.CheerioAPI, slug: string): ExtractRe
     const notes = new Map<string, NoteState>();
     const noteOrder: string[] = [];
     let currentId: string | null = null;
-    for (const ev of events) {
-        if (ev.kind === 'anchor') {
-            const id = $(ev.node).attr('id');
-            if (!id || seen.has(id)) {
-                currentId = id ?? null;
-                continue;
-            }
-            seen.add(id);
-            // Heading is the closest h3 containing this anchor (or the anchor's
-            // parent h3, since the publisher puts <a id="note-*"> inside <h3>).
-            const heading = normalizeWhitespace($(ev.node).closest('h3').first().text());
-            if (!heading) {
-                warnings.push(`missing-heading:${id}`);
-                currentId = null;
-                continue;
-            }
-            notes.set(id, { id, heading, accordionItems: [] });
-            noteOrder.push(id);
-            currentId = id;
-        } else {
-            if (!currentId) continue;
+    main.find('a[id^="note-"], div.accordion-item').each((_i, node) => {
+        const $node = $(node);
+        if ($node.is('div.accordion-item')) {
+            if (!currentId) return;
             const state = notes.get(currentId);
-            if (state) state.accordionItems.push(ev.node);
+            if (state) state.accordionItems.push(node);
+            return;
         }
-    }
+        // Anchor.
+        const id = $node.attr('id');
+        if (!id) {
+            currentId = null;
+            return;
+        }
+        if (seen.has(id)) {
+            // Already-bound anchor — skip but keep current state pointing
+            // to it so any stray accordion-items keep aggregating to the
+            // right note.
+            currentId = id;
+            return;
+        }
+        seen.add(id);
+        const heading = normalizeWhitespace($node.closest('h3').first().text());
+        if (!heading) {
+            warnings.push(`missing-heading:${id}`);
+            currentId = null;
+            return;
+        }
+        notes.set(id, { id, heading, accordionItems: [] });
+        noteOrder.push(id);
+        currentId = id;
+    });
 
     // Emit chunks per note. Notes with accordion-items get one chunk per
     // accordion section (each titled "<vaccine> — <sub-label>"); notes

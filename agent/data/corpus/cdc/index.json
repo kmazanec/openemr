@@ -2,7 +2,7 @@
   "source": "cdc",
   "publication": "CDC",
   "license_tier": "public_domain",
-  "chunk_count": 65,
+  "chunk_count": 140,
   "chunks": [
     {
       "file": "acip-adult-age--how-to-use.md",
@@ -27,9 +27,9 @@
       "content_sha256": "39bec3cacc7c4d697aa923c4be85f8d96da3d2df5304963cf247f8ab8db6a87a"
     },
     {
-      "file": "acip-adult-notes--note-covid-19.md",
+      "file": "acip-adult-notes--note-covid-19--contraindications-and-precautions.md",
       "slug": "acip-adult-notes",
-      "section": "note-covid-19",
+      "section": "note-covid-19--contraindications-and-precautions",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -38,9 +38,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-flu.md",
+      "file": "acip-adult-notes--note-covid-19--routine-vaccination.md",
       "slug": "acip-adult-notes",
-      "section": "note-flu",
+      "section": "note-covid-19--routine-vaccination",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -49,9 +49,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-hepa.md",
+      "file": "acip-adult-notes--note-covid-19--special-situations.md",
       "slug": "acip-adult-notes",
-      "section": "note-hepa",
+      "section": "note-covid-19--special-situations",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -60,9 +60,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-hepb.md",
+      "file": "acip-adult-notes--note-flu--contraindications-and-precautions.md",
       "slug": "acip-adult-notes",
-      "section": "note-hepb",
+      "section": "note-flu--contraindications-and-precautions",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -71,9 +71,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-hib.md",
+      "file": "acip-adult-notes--note-flu--routine-vaccination.md",
       "slug": "acip-adult-notes",
-      "section": "note-hib",
+      "section": "note-flu--routine-vaccination",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -82,9 +82,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-hpv.md",
+      "file": "acip-adult-notes--note-flu--special-situations.md",
       "slug": "acip-adult-notes",
-      "section": "note-hpv",
+      "section": "note-flu--special-situations",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -93,9 +93,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-mening.md",
+      "file": "acip-adult-notes--note-hepa--contraindications-and-precautions.md",
       "slug": "acip-adult-notes",
-      "section": "note-mening",
+      "section": "note-hepa--contraindications-and-precautions",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -104,9 +104,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-mmr.md",
+      "file": "acip-adult-notes--note-hepa--routine-vaccination.md",
       "slug": "acip-adult-notes",
-      "section": "note-mmr",
+      "section": "note-hepa--routine-vaccination",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -115,9 +115,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-mpox.md",
+      "file": "acip-adult-notes--note-hepa--special-situations.md",
       "slug": "acip-adult-notes",
-      "section": "note-mpox",
+      "section": "note-hepa--special-situations",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -126,9 +126,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-pneumo.md",
+      "file": "acip-adult-notes--note-hepb--contraindications-and-precautions.md",
       "slug": "acip-adult-notes",
-      "section": "note-pneumo",
+      "section": "note-hepb--contraindications-and-precautions",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -137,9 +137,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-polio.md",
+      "file": "acip-adult-notes--note-hepb--routine-vaccination.md",
       "slug": "acip-adult-notes",
-      "section": "note-polio",
+      "section": "note-hepb--routine-vaccination",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -148,9 +148,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-rsv.md",
+      "file": "acip-adult-notes--note-hepb--special-situations.md",
       "slug": "acip-adult-notes",
-      "section": "note-rsv",
+      "section": "note-hepb--special-situations",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -159,9 +159,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-tdap.md",
+      "file": "acip-adult-notes--note-hib--contraindications-and-precautions.md",
       "slug": "acip-adult-notes",
-      "section": "note-tdap",
+      "section": "note-hib--contraindications-and-precautions",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -170,9 +170,9 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-varicella.md",
+      "file": "acip-adult-notes--note-hib--special-situations.md",
       "slug": "acip-adult-notes",
-      "section": "note-varicella",
+      "section": "note-hib--special-situations",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -181,9 +181,339 @@
       "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
     },
     {
-      "file": "acip-adult-notes--note-zoster.md",
+      "file": "acip-adult-notes--note-hpv--contraindications-and-precautions.md",
       "slug": "acip-adult-notes",
-      "section": "note-zoster",
+      "section": "note-hpv--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-hpv--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-hpv--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-hpv--shared-clinical-decision-making.md",
+      "slug": "acip-adult-notes",
+      "section": "note-hpv--shared-clinical-decision-making",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-hpv--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-hpv--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mening--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mening--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mening--shared-clinical-decision-making-for-menb.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mening--shared-clinical-decision-making-for-menb",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mening--special-situations-for-menacwy.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mening--special-situations-for-menacwy",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mening--special-situations-for-menb.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mening--special-situations-for-menb",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mmr--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mmr--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mmr--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mmr--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mmr--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mmr--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mpox--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mpox--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-mpox--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-mpox--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-pneumo--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-pneumo--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-pneumo--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-pneumo--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-pneumo--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-pneumo--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-polio--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-polio--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-polio--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-polio--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-polio--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-polio--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-rsv--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-rsv--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-rsv--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-rsv--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-rsv--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-rsv--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-tdap--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-tdap--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-tdap--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-tdap--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-tdap--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-tdap--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-varicella--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-varicella--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-varicella--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-varicella--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-varicella--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-varicella--special-situations",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-zoster--contraindications-and-precautions.md",
+      "slug": "acip-adult-notes",
+      "section": "note-zoster--contraindications-and-precautions",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-zoster--routine-vaccination.md",
+      "slug": "acip-adult-notes",
+      "section": "note-zoster--routine-vaccination",
+      "title": "Adult Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:39.641Z",
+      "content_sha256": "31afb29bd0170e80a0accc45f7607734bb791d0abd42a952f67b3fc747f90738"
+    },
+    {
+      "file": "acip-adult-notes--note-zoster--special-situations.md",
+      "slug": "acip-adult-notes",
+      "section": "note-zoster--special-situations",
       "title": "Adult Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/adult-notes.html",
@@ -214,9 +544,9 @@
       "content_sha256": "b59d34f46f4c4c03800a136b3d8f856e45cdeae68005f98d6c53a586a45a2962"
     },
     {
-      "file": "acip-child-adolescent-notes--note-covid-19.md",
+      "file": "acip-child-adolescent-notes--note-covid-19--contraindications-and-precautions.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-covid-19",
+      "section": "note-covid-19--contraindications-and-precautions",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -225,9 +555,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-dengue.md",
+      "file": "acip-child-adolescent-notes--note-covid-19--routine-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-dengue",
+      "section": "note-covid-19--routine-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -236,9 +566,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-dtap.md",
+      "file": "acip-child-adolescent-notes--note-covid-19--shared-clinical-decision-making.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-dtap",
+      "section": "note-covid-19--shared-clinical-decision-making",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -247,9 +577,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-flu.md",
+      "file": "acip-child-adolescent-notes--note-covid-19--special-situations.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-flu",
+      "section": "note-covid-19--special-situations",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -258,9 +588,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-hepa.md",
+      "file": "acip-child-adolescent-notes--note-dengue--contraindications-and-precautions.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-hepa",
+      "section": "note-dengue--contraindications-and-precautions",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -269,9 +599,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-hepb.md",
+      "file": "acip-child-adolescent-notes--note-dengue--routine-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-hepb",
+      "section": "note-dengue--routine-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -280,9 +610,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-hib.md",
+      "file": "acip-child-adolescent-notes--note-dtap--catch-up-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-hib",
+      "section": "note-dtap--catch-up-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -291,9 +621,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-hpv.md",
+      "file": "acip-child-adolescent-notes--note-dtap--contraindications-and-precautions.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-hpv",
+      "section": "note-dtap--contraindications-and-precautions",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -302,9 +632,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-mening-b.md",
+      "file": "acip-child-adolescent-notes--note-dtap--routine-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-mening-b",
+      "section": "note-dtap--routine-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -313,9 +643,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-mening.md",
+      "file": "acip-child-adolescent-notes--note-dtap--special-situations.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-mening",
+      "section": "note-dtap--special-situations",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -324,9 +654,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-mmr.md",
+      "file": "acip-child-adolescent-notes--note-flu--contraindications-and-precautions.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-mmr",
+      "section": "note-flu--contraindications-and-precautions",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -335,9 +665,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-mpox.md",
+      "file": "acip-child-adolescent-notes--note-flu--routine-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-mpox",
+      "section": "note-flu--routine-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -346,9 +676,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-pneumo.md",
+      "file": "acip-child-adolescent-notes--note-flu--special-situations.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-pneumo",
+      "section": "note-flu--special-situations",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -357,9 +687,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-polio.md",
+      "file": "acip-child-adolescent-notes--note-hepa--catch-up-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-polio",
+      "section": "note-hepa--catch-up-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -368,9 +698,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-rotavirus.md",
+      "file": "acip-child-adolescent-notes--note-hepa--contraindications-and-precautions.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-rotavirus",
+      "section": "note-hepa--contraindications-and-precautions",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -379,9 +709,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-rsv-abrysvo.md",
+      "file": "acip-child-adolescent-notes--note-hepa--international-travel.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-rsv-abrysvo",
+      "section": "note-hepa--international-travel",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -390,9 +720,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-rsv-nirsevimab.md",
+      "file": "acip-child-adolescent-notes--note-hepa--routine-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-rsv-nirsevimab",
+      "section": "note-hepa--routine-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -401,9 +731,9 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-tdap.md",
+      "file": "acip-child-adolescent-notes--note-hepb--catch-up-vaccination.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-tdap",
+      "section": "note-hepb--catch-up-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
@@ -412,9 +742,504 @@
       "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
     },
     {
-      "file": "acip-child-adolescent-notes--note-varicella.md",
+      "file": "acip-child-adolescent-notes--note-hepb--contraindications-and-precautions.md",
       "slug": "acip-child-adolescent-notes",
-      "section": "note-varicella",
+      "section": "note-hepb--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hepb--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hepb--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hepb--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hepb--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hib--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hib--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hib--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hib--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hib--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hib--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hib--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hib--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hpv--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hpv--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hpv--routine-and-catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hpv--routine-and-catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-hpv--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-hpv--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening-b--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening-b--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening-b--shared-clinical-decision-making.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening-b--shared-clinical-decision-making",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mening-b--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mening-b--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mmr--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mmr--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mmr--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mmr--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mmr--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mmr--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mmr--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mmr--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mpox--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mpox--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-mpox--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-mpox--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-pneumo--catch-up-vaccination-with-pcv.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-pneumo--catch-up-vaccination-with-pcv",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-pneumo--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-pneumo--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-pneumo--routine-vaccination-with-pcv.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-pneumo--routine-vaccination-with-pcv",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-pneumo--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-pneumo--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-polio--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-polio--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-polio--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-polio--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-polio--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-polio--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-polio--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-polio--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rotavirus--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rotavirus--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rotavirus--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rotavirus--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rotavirus--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rotavirus--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rsv-abrysvo--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rsv-abrysvo--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rsv-abrysvo--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rsv-abrysvo--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rsv-nirsevimab--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rsv-nirsevimab--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rsv-nirsevimab--routine-immunization.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rsv-nirsevimab--routine-immunization",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-rsv-nirsevimab--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-rsv-nirsevimab--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-tdap--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-tdap--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-tdap--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-tdap--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-tdap--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-tdap--routine-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-tdap--special-situations.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-tdap--special-situations",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-varicella--catch-up-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-varicella--catch-up-vaccination",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-varicella--contraindications-and-precautions.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-varicella--contraindications-and-precautions",
+      "title": "Child Immunization Schedule Notes",
+      "year": 2025,
+      "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
+      "surface": "acip-notes",
+      "fetched_at": "2026-05-06T19:16:43.717Z",
+      "content_sha256": "9fe0dd51bdaa79ec0044842cd6f33bec0fccd7e676da9341b602e50a6992892a"
+    },
+    {
+      "file": "acip-child-adolescent-notes--note-varicella--routine-vaccination.md",
+      "slug": "acip-child-adolescent-notes",
+      "section": "note-varicella--routine-vaccination",
       "title": "Child Immunization Schedule Notes",
       "year": 2025,
       "url": "https://www.cdc.gov/vaccines/hcp/imz-schedules/child-adolescent-notes.html",
