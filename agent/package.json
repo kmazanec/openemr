@@ -25,6 +25,8 @@
     "corpus:extract:uspstf": "tsx scripts/extract-uspstf-corpus.ts",
     "corpus:fetch:cdc": "tsx scripts/fetch-cdc-corpus.ts",
     "corpus:extract:cdc": "tsx scripts/extract-cdc-corpus.ts",
+    "corpus:fetch:ada": "tsx scripts/fetch-ada-corpus.ts",
+    "corpus:extract:ada": "tsx scripts/extract-ada-corpus.ts",
     "evals:reindex-corpus": "tsx --env-file-if-exists=.env scripts/reindex-corpus.ts",
     "probe:evidence-retriever": "tsx --env-file-if-exists=.env scripts/probe-evidence-retriever.ts",
     "migrate": "node-pg-migrate --envPath .env --migrations-dir migrations --database-url-var DATABASE_URL",

@@ -81,6 +81,8 @@ Poppler installed will see the suite as skipped rather than failed.
 | `npm run corpus:extract:uspstf` | Parse cached HTML into committed chunk files under `agent/data/corpus/uspstf/`; refreshes `fetch-manifest.json` and `index.json`.                     |
 | `npm run corpus:fetch:cdc`      | Download CDC clinical-guidance pages (ACIP schedules + notes, opioid prescribing, STI clinical guidance) to `agent/.corpus-cache/cdc/`. Idempotent on `content_sha256`. |
 | `npm run corpus:extract:cdc`    | Parse cached CDC HTML into committed chunk files under `agent/data/corpus/cdc/`; refreshes `fetch-manifest.json` and `index.json`.                                       |
+| `npm run corpus:fetch:ada`      | Download the ADA Standards of Care in Diabetes—2026 (Introduction + 17 numbered sections) from the open-access PMC mirror to `agent/.corpus-cache/ada/`. Idempotent on `content_sha256`. |
+| `npm run corpus:extract:ada`    | Parse cached PMC HTML into committed chunk files under `agent/data/corpus/ada/`; refreshes `fetch-manifest.json` and `index.json`.                                                       |
 | `npm run evals:reindex-corpus`  | Embed every chunk under `agent/data/corpus/<source>/` and upsert to Pinecone (namespace `guidelines-v1`). No-ops with a warning when corpus env vars are missing.        |
 
 ## Environment variables
@@ -257,6 +259,13 @@ the namespace already holds the corpus before retrieval-eval cases run.
 | ------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
 | USPSTF  | `public_domain`   | All published preventive-services recommendations (recommendation summary + clinical considerations + practice notes) |
 | CDC     | `public_domain`   | ACIP adult + child/adolescent immunization schedules and notes; 2022 opioid prescribing guideline at-a-glance; STI clinical-guidance sub-pages |
+| ADA     | `fair_use_cds` ¹  | Standards of Care in Diabetes—2026: Introduction & Methodology + sections 1–17 (Improving Care, Diagnosis, Prevention, Comprehensive Evaluation, Health Behaviors, Glycemic Goals, Technology, Obesity, Pharmacology, Cardiovascular, CKD, Retinopathy/Neuropathy/Foot, Older Adults, Children, Pregnancy, Hospital, Advocacy) |
+
+¹ The ADA Standards of Care are copyrighted by the American Diabetes
+Association, freely accessible for clinical-decision-support research,
+and **require an explicit ADA license for production deployment**. The
+synthetic-data demo posture is unaffected; production replacement is
+expected before any patient-facing use.
 
 CDC is added via the same fetch + extract + reindex flow:
 
@@ -266,8 +275,23 @@ npm run corpus:extract:cdc     # emit chunks under agent/data/corpus/cdc/
 npm run evals:reindex-corpus   # picks up every source under data/corpus/* automatically
 ```
 
+ADA follows the same shape, with one fetch-time choice: the publisher's
+direct site (`diabetesjournals.org`) returns a Cloudflare JS-challenge
+to scripted fetches, so the fetcher targets the open-access PMC mirror
+(`pmc.ncbi.nlm.nih.gov/articles/PMC<id>/`) where every Standards-of-Care
+section is published as a separate article. Each chunk's frontmatter
+records both `url` (the PMC article — what was fetched) and
+`publisher_url` (the canonical `https://doi.org/10.2337/dc26-S<NN>`
+link — what citation popovers should display to users).
+
+```sh
+npm run corpus:fetch:ada       # cache HTML under agent/.corpus-cache/ada/
+npm run corpus:extract:ada     # emit chunks under agent/data/corpus/ada/
+npm run evals:reindex-corpus   # picks up every source under data/corpus/* automatically
+```
+
 The fetch + extract pipeline is source-agnostic by convention: future
-publishers (ADA, ACC/AHA, etc.) plug in by adding a new
+publishers (ACC/AHA, AGS Beers, etc.) plug in by adding a new
 `agent/scripts/fetch-<source>-corpus.ts` + `extract-<source>-corpus.ts`
 pair plus a new `agent/data/corpus/<source>/` directory. The reindex
 script iterates `agent/data/corpus/*/index.json` automatically.
