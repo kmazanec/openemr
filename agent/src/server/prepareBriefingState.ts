@@ -9,6 +9,7 @@ import type {
     EvidenceArgs,
     EvidenceRetrieverOutput,
     ExtractedFactSnippet,
+    KickoffExtractionResult,
     PersistedRecord,
     PriorTurnContext,
     RequestEnvelope,
@@ -73,6 +74,7 @@ export interface PreparedBriefingState {
     readonly supervisorIterations: number;
     readonly supervisorDecisionHistory: readonly SupervisorDecision[];
     readonly capHit: boolean;
+    readonly kickoffExtractionResults: readonly KickoffExtractionResult[];
 }
 
 export interface PrepareBriefingStateInput {
@@ -98,6 +100,16 @@ const buildPerTurnReset = (): Omit<PreparedBriefingState, 'envelope' | 'priorTur
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
     capHit: false,
+    // `kickoffExtractionResults` is a per-turn cursor (the supervisor
+    // uses its membership to detect "already extracted this uuid this
+    // turn"). The annotation defaults to `[]` but the LangGraph
+    // checkpointer hydrates the prior turn's value across turns
+    // because state is keyed by `thread_id` (= conversation id).
+    // Without an explicit reset here the array accumulates across the
+    // whole conversation and the synthesizer's extraction-follow-up
+    // prompt sees "two failed" then "three failed" even when only
+    // one new doc was attached.
+    kickoffExtractionResults: [],
 });
 
 export const prepareBriefingState = async (
