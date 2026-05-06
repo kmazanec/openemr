@@ -10,6 +10,7 @@ import type {
     EvidenceArgs,
     EvidenceRetrieverOutput,
     ExtractedFactSnippet,
+    KickoffExtractionResult,
     PersistedRecord,
     PriorTurnContext,
     RequestEnvelope,
@@ -138,6 +139,17 @@ export const BriefingStateAnnotation = Annotation.Root({
      * pin this in the cap-hit regression scenario.
      */
     capHit: lastValueChannel<boolean>(() => false),
+    /**
+     * §B.9 kickoffExtraction summary projections. Each pipeline run the
+     * supervisor triggers in this turn appends one entry — terminal
+     * status (`persisted` or `failed`) plus, on success, the artifact id
+     * the C.1 `documentEvidenceRetriever` will resolve. The supervisor's
+     * next iteration reads the array length to detect "we've already
+     * extracted this turn"; on `failed` the supervisor routes around the
+     * artifact (per `W2_ARCHITECTURE.md` §"Failure isolation") instead
+     * of looping. Append-only across one turn.
+     */
+    kickoffExtractionResults: lastValueChannel<readonly KickoffExtractionResult[]>(() => []),
 });
 
 export type BriefingState = typeof BriefingStateAnnotation.State;

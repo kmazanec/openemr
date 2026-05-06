@@ -58,7 +58,7 @@ const state: BriefingState = {
     retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,    evidenceRetrieverArgs: null,    evidenceRetrieverOutput: null,
     supervisorIterations: 1,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
 };
 
 describe('phase-A retriever stubs (§A.7)', () => {

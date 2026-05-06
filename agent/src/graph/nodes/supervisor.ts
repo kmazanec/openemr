@@ -59,6 +59,13 @@ export interface SupervisorStateObservation {
     readonly priorTurnPairsLoaded: number;
     readonly priorCitationsCount: number;
     readonly previousDecision: SupervisorDecision | null;
+    /**
+     * §B.9 count of `kickoffExtraction` results already appended this
+     * turn (any status — `persisted` or `failed`). The supervisor uses
+     * this to avoid re-extracting a document the same turn already
+     * processed; the manifest entry steers it explicitly.
+     */
+    readonly kickoffExtractionResultsCount: number;
 }
 
 export interface SupervisorDecideInput {
@@ -130,7 +137,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'kickoffExtraction',
         description:
-            "Triggers synchronous extraction of an unprocessed document already uploaded to this conversation. Args: { document_uuid: string, doc_type: 'lab_pdf'|'intake_form' }. Awaits the pipeline; appends the resulting artifact to state. Use only when envelope carries a document_uuid with no existing artifact.",
+            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on an unprocessed document already uploaded for this patient. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' }. Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick this only when prior-turn context or chart state surfaces a pending document_uuid that this turn has not yet processed (state.kickoffExtractionResults does not already contain it). The patient pid is taken from the envelope, not the args.",
     },
     {
         handoff: 'retrieveChart',
@@ -206,6 +213,7 @@ const observeState = (state: BriefingState): SupervisorStateObservation => {
             0,
         ),
         previousDecision: history.at(-1) ?? null,
+        kickoffExtractionResultsCount: state.kickoffExtractionResults.length,
     };
 };
 

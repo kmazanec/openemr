@@ -12,6 +12,8 @@ import { buildIdentityTags } from '../observability/traceMetadata.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
 import type { ConversationSuggestionStore } from '../state/conversationSuggestions.js';
+import type { PipelineStreamEvent } from './pipelineStream.js';
+import type { PipelineRunner } from './routes/extract.js';
 import { createAgentHttpClient } from '../tools/agentHttp.js';
 import type { AgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
@@ -127,6 +129,19 @@ export interface BriefingRunnerDeps {
      * always wires this and pairs it with the route-level validation.
      */
     readonly conversationSuggestions?: ConversationSuggestionStore;
+    /**
+     * §B.9 ingestion pipeline runner. When set, the briefing graph's
+     * `kickoffExtraction` handoff calls into this runner synchronously
+     * for path A (panel upload during a conversation). Optional —
+     * tests omit it and the A.7 stub continues to run, so the
+     * conversational graph compiles end-to-end without a full
+     * pipeline boot.
+     *
+     * Production wires the same `PipelineRunner` instance into both
+     * the `/v1/agent/extract` route and this slot so the two callers
+     * share one factory.
+     */
+    readonly pipeline?: PipelineRunner;
 }
 
 /**
@@ -269,6 +284,25 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
                         siteId: envelope.siteId,
                         openEmrBaseUrl: deps.openEmrBaseUrl,
                         ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+                    },
+                }
+                : {}),
+            // §B.9: when a pipeline runner is wired, the supervisor's
+            // `kickoffExtraction` handoff invokes the production
+            // pipeline synchronously. Pipeline events forward through
+            // `onPipelineEvent` so the panel sees the same
+            // `pipeline.*.complete` chips it would on the
+            // `/v1/agent/extract` path.
+            ...(deps.pipeline !== undefined
+                ? {
+                    kickoffExtraction: {
+                        pipeline: deps.pipeline,
+                        openemrToken: token,
+                        openemrSiteId: envelope.siteId,
+                        conversationId,
+                        onPipelineEvent: async (event: PipelineStreamEvent) => {
+                            await emit({ type: 'pipelineEvent', event });
+                        },
                     },
                 }
                 : {}),
@@ -456,6 +490,16 @@ export interface ProductionRunnerOptions {
     readonly conversationSuggestions: ConversationSuggestionStore;
     readonly checkpointer: BaseCheckpointSaver;
     readonly counters: Counters;
+    /**
+     * §B.9 ingestion pipeline runner — same instance the
+     * `/v1/agent/extract` route consumes. When set, the supervisor's
+     * `kickoffExtraction` handoff fires the real pipeline; when
+     * omitted, the §A.7 stub continues to no-op so the briefing
+     * runner is still constructible in environments where the
+     * pipeline boot prerequisites aren't met (e.g. the precompute
+     * route running without `SPACES_*` env vars).
+     */
+    readonly pipeline?: PipelineRunner;
 }
 
 /**
@@ -487,5 +531,6 @@ export const buildProductionBriefingRunner = (options: ProductionRunnerOptions):
         checkpointer: options.checkpointer,
         counters: options.counters,
         fetchLabHistory,
+        ...(options.pipeline !== undefined ? { pipeline: options.pipeline } : {}),
     });
 };

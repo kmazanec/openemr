@@ -64,7 +64,7 @@ const baseState = (overrides: Partial<BriefingState> = {}): BriefingState => ({
     retrieveChartArgs: null,    documentEvidenceArgs: null,    documentEvidenceSnippets: null, documentEvidenceArtifactConfidence: null,    evidenceRetrieverArgs: null,    evidenceRetrieverOutput: null,
     supervisorIterations: 0,
     supervisorDecisionHistory: [],
-    capHit: false,
+    capHit: false, kickoffExtractionResults: [],
     ...overrides,
 });
 
