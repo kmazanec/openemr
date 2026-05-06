@@ -137,7 +137,7 @@ describe('chipTooltipText — variant per source_type', () => {
     });
 });
 
-describe('claimGroupsToSections — three sections, empty omitted', () => {
+describe('claimGroupsToSections — documents + evidence; chart bucket dropped', () => {
     const claim = (id) => ({
         id,
         text: `claim ${id}`,
@@ -146,28 +146,29 @@ describe('claimGroupsToSections — three sections, empty omitted', () => {
         safetyCritical: false,
     });
 
-    test('all three populated → three sections in order chart, documents, evidence', () => {
+    test('all three populated → only documents and evidence sections render', () => {
+        // The chart bucket still ships on the wire (the verifier and
+        // any future consumer keep reading it), but the renderer
+        // deliberately drops it: the inline-prose chart citations
+        // already cover that ground, and the dedicated bottom section
+        // duplicates it noisily.
         const sections = claimGroupsToSections({
             chart: { subsections: [{ category: 'diagnosis', claims: [claim('a')] }] },
             extractedDocument: { cards: [{ documentUuid: 'doc-1', claims: [claim('b')] }] },
             guideline: { claims: [claim('c')] },
         });
-        expect(sections.map((s) => s.kind)).toEqual(['chart', 'extractedDocument', 'guideline']);
-        expect(sections.map((s) => s.heading)).toEqual([
-            "What's in the chart",
-            'From documents',
-            'Evidence',
-        ]);
+        expect(sections.map((s) => s.kind)).toEqual(['extractedDocument', 'guideline']);
+        expect(sections.map((s) => s.heading)).toEqual(['From documents', 'Evidence']);
     });
 
-    test('chart-only → only chart section is returned (empty omitted)', () => {
+    test('chart-only payload → no sections rendered', () => {
         const sections = claimGroupsToSections({
             chart: { subsections: [{ category: 'diagnosis', claims: [claim('a')] }] },
         });
-        expect(sections.map((s) => s.kind)).toEqual(['chart']);
+        expect(sections).toEqual([]);
     });
 
-    test('documents + guideline → chart section omitted', () => {
+    test('documents + guideline → both render in order', () => {
         const sections = claimGroupsToSections({
             extractedDocument: { cards: [{ documentUuid: 'doc-1', claims: [claim('b')] }] },
             guideline: { claims: [claim('c')] },
@@ -182,20 +183,6 @@ describe('claimGroupsToSections — three sections, empty omitted', () => {
     test('null/undefined → no sections', () => {
         expect(claimGroupsToSections(null)).toEqual([]);
         expect(claimGroupsToSections(undefined)).toEqual([]);
-    });
-
-    test('chart section preserves subsection ordering and claims', () => {
-        const sections = claimGroupsToSections({
-            chart: {
-                subsections: [
-                    { category: 'diagnosis', claims: [claim('a')] },
-                    { category: 'prescription', claims: [claim('b'), claim('c')] },
-                ],
-            },
-        });
-        expect(sections[0].subsections).toHaveLength(2);
-        expect(sections[0].subsections[0].category).toBe('diagnosis');
-        expect(sections[0].subsections[1].claims).toHaveLength(2);
     });
 
     test('extractedDocument cards preserve documentUuid', () => {

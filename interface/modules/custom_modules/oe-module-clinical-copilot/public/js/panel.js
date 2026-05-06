@@ -466,17 +466,20 @@ const __copilotPanel = (function () {
      * (per format.ts), so omitting empty sections is a natural
      * consequence of "iterate over what's there".
      *
-     * The section order is fixed: chart → documents → evidence. That
-     * matches the W2 architecture's Format-node spec
-     * (`W2_ARCHITECTURE.md` §"Format") which orders the panel as
-     * "What's in the chart" / "From documents" / "Evidence".
+     * The section order is fixed: documents → evidence. The
+     * "What's in the chart" section the format node also emits is
+     * deliberately *not* projected into the renderer — it duplicates
+     * facts the doctor already gets from the inline-prose chart
+     * citations and adds visual noise. The bucket still ships on the
+     * wire (so the verifier and any future consumer keep working);
+     * we just don't paint it. Inline chart `[source]` chips that link
+     * to the OpenEMR record page (W1 carry-forward) are unchanged.
      *
      * Pure function — exported via the CommonJS guard at the bottom of
      * this file so the Jest tests in `tests/js/copilot-panel-claim-groups.test.js`
      * can pin its behavior without spinning up a DOM.
      */
     const SECTION_HEADINGS = {
-        chart: "What's in the chart",
         extractedDocument: 'From documents',
         guideline: 'Evidence',
     };
@@ -484,13 +487,6 @@ const __copilotPanel = (function () {
     const claimGroupsToSections = (claimGroups) => {
         if (!claimGroups || typeof claimGroups !== 'object') return [];
         const sections = [];
-        if (claimGroups.chart && Array.isArray(claimGroups.chart.subsections)) {
-            sections.push({
-                kind: 'chart',
-                heading: SECTION_HEADINGS.chart,
-                subsections: claimGroups.chart.subsections,
-            });
-        }
         if (claimGroups.extractedDocument && Array.isArray(claimGroups.extractedDocument.cards)) {
             sections.push({
                 kind: 'extractedDocument',
@@ -547,16 +543,6 @@ const __copilotPanel = (function () {
         return `<li class="copilot-claim-groups__claim">${text}${chips ? ' ' + chips : ''}</li>`;
     };
 
-    const renderChartSubsection = (subsection) => {
-        const heading = escapeText(titleCaseCategory(subsection.category));
-        const claims = (subsection.claims || []).map(renderClaimWithChips).join('');
-        return `<section class="copilot-claim-groups__chart-subsection"
-                         data-category="${escapeText(subsection.category)}">
-            <h4 class="copilot-claim-groups__subheading">${heading}</h4>
-            <ul class="copilot-claim-groups__list">${claims}</ul>
-        </section>`;
-    };
-
     const renderDocumentCard = (card) => {
         const uuidLabel = typeof card.documentUuid === 'string' && card.documentUuid.length > 0
             ? `Document ${escapeText(card.documentUuid.slice(0, 8))}`
@@ -582,9 +568,7 @@ const __copilotPanel = (function () {
         const sectionHtml = sections.map((section) => {
             const heading = escapeText(section.heading);
             let body = '';
-            if (section.kind === 'chart') {
-                body = section.subsections.map(renderChartSubsection).join('');
-            } else if (section.kind === 'extractedDocument') {
+            if (section.kind === 'extractedDocument') {
                 body = section.cards.map(renderDocumentCard).join('');
             } else if (section.kind === 'guideline') {
                 const claims = section.claims.map(renderClaimWithChips).join('');
