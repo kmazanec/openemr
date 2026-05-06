@@ -80,6 +80,14 @@ final readonly class MedListGenerator
      * sets active=0 and end_date in the recent past so UC1's
      * "deltas since last visit" briefing slot has stops to surface.
      *
+     * `date_modified` is set alongside `end_date` so the row mirrors
+     * what the legacy OpenEMR write path produces on a real stop event:
+     * `PrescriptionService::update()` bumps `date_modified` whenever it
+     * touches a row, but a raw seed-time INSERT bypasses that service.
+     * The agent's snapshot DAO also coalesces `date_modified` to
+     * `date_added`, but seeded data should still match what production
+     * inserts look like.
+     *
      * @param array<string, string|int> $row
      * @return array<string, string|int>
      */
@@ -88,6 +96,7 @@ final readonly class MedListGenerator
         $endDate = $this->faker->dateTimeBetween('-90 days', '-15 days')->format('Y-m-d');
         $row['active'] = 0;
         $row['end_date'] = $endDate;
+        $row['date_modified'] = $endDate . ' 00:00:00';
         return $row;
     }
 
