@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "datasetName": "clinical-copilot-document-extraction-v1",
+  "description": "Per-case baseline for the \u00a7B.10 pipeline-extraction eval suite. Phase B ships the boolean per case (does the per-MR Vitest gate pass for this case?); Phase E extends this with real-model rubric scores for the LangSmith experiment. The CI gate compares the experiment run's verdict-per-case against the booleans here; a regression in any case fails the build.",
+  "cases": [
+    {
+      "id": "lab-chen-lipid-panel",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-whitaker-cbc",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-kowalski-cmp",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-reyes-hba1c-image",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-chen-fax-packet",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-whitaker-fax-packet",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-kowalski-fax-packet",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "lab-reyes-fax-packet",
+      "category": "lab-pdf",
+      "passing": true
+    },
+    {
+      "id": "intake-chen-typed",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-whitaker",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-reyes-image",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-kowalski-image",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-chen-demographics-delta",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-nguyen-fax-packet",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-patel-fax-packet",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "intake-johnson-fax-packet",
+      "category": "intake-form",
+      "passing": true
+    },
+    {
+      "id": "degraded-smudged",
+      "category": "degraded",
+      "passing": true
+    },
+    {
+      "id": "degraded-rotated",
+      "category": "degraded",
+      "passing": true
+    },
+    {
+      "id": "degraded-blank",
+      "category": "degraded",
+      "passing": true
+    },
+    {
+      "id": "degraded-unrelated",
+      "category": "degraded",
+      "passing": true
+    },
+    {
+      "id": "degraded-partial-intake",
+      "category": "degraded",
+      "passing": true
+    },
+    {
+      "id": "degraded-ocr-bad",
+      "category": "degraded",
+      "passing": true
+    },
+    {
+      "id": "adversarial-wrong-patient",
+      "category": "adversarial",
+      "passing": true
+    },
+    {
+      "id": "adversarial-prompt-injection",
+      "category": "adversarial",
+      "passing": true
+    },
+    {
+      "id": "adversarial-oversized",
+      "category": "adversarial",
+      "passing": true
+    },
+    {
+      "id": "adversarial-corrupted",
+      "category": "adversarial",
+      "passing": true
+    }
+  ]
+}
