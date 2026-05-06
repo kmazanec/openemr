@@ -6,6 +6,7 @@
  */
 
 import { archetypesSuite } from './archetypesSuite.js';
+import { documentExtractionSuite } from './documentExtractionSuite.js';
 import { labTrendsSuite } from './labTrendsSuite.js';
 import { morningPrepSuite } from './morningPrepSuite.js';
 
@@ -15,4 +16,5 @@ export const SUITES: readonly EvalSuite[] = [
     archetypesSuite,
     labTrendsSuite,
     morningPrepSuite,
+    documentExtractionSuite,
 ];

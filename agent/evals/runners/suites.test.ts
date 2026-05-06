@@ -8,6 +8,7 @@ import {
     DATASET_NAME as ARCHETYPES_DATASET_NAME,
     uploadDataset as uploadArchetypesDataset,
 } from './archetypesSuite.js';
+import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './documentExtractionSuite.js';
 import { DATASET_NAME as LAB_TRENDS_DATASET_NAME } from './labTrendsSuite.js';
 import {
     DATASET_NAME as MORNING_PREP_DATASET_NAME,
@@ -153,5 +154,14 @@ describe('labTrendsSuite', () => {
         // here so the schema-bump contract is enforced for every suite.
         // Bumped to -v2 with the W2 unified `SourceReference` shape.
         expect(LAB_TRENDS_DATASET_NAME.endsWith('-v2')).toBe(true);
+    });
+});
+
+describe('documentExtractionSuite', () => {
+    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // First version of the conversational-graph dataset; bump to
+        // -v2 when the input/output shape changes so old experiments
+        // stay comparable.
+        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v1')).toBe(true);
     });
 });
