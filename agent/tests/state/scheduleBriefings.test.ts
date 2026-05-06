@@ -81,9 +81,8 @@ const buildFakePool = (
 };
 
 describe('createNullScheduleBriefingsLog', () => {
-    it('setup resolves and existsForToday always returns false', async () => {
+    it('existsForToday always returns false', async () => {
         const log = createNullScheduleBriefingsLog();
-        await expect(log.setup()).resolves.toBeUndefined();
         await expect(
             log.existsForToday({ practitionerUuid: 'u', appointmentId: 'a' }, '2026-05-02'),
         ).resolves.toBe(false);
@@ -105,16 +104,6 @@ describe('createNullScheduleBriefingsLog', () => {
 });
 
 describe('createScheduleBriefingsLogFromPool', () => {
-    it('setup runs the schema DDL on the pool', async () => {
-        const pool = buildFakePool([{ rowCount: 0 }]);
-        const log = createScheduleBriefingsLogFromPool(pool);
-        await log.setup();
-        expect(pool.calls.length).toBe(1);
-        const ddl = pool.calls[0]?.sql ?? '';
-        expect(ddl).toContain('CREATE TABLE IF NOT EXISTS schedule_briefings');
-        expect(ddl).toContain('UNIQUE INDEX IF NOT EXISTS schedule_briefings_unique');
-    });
-
     it('existsForToday issues the indexed lookup with the date param', async () => {
         const pool = buildFakePool([{ rowCount: 1, rows: [{ '?column?': 1 }] }]);
         const log = createScheduleBriefingsLogFromPool(pool);

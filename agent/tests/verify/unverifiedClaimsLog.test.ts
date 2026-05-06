@@ -32,9 +32,8 @@ const claim: Claim = {
 };
 
 describe('createNullUnverifiedClaimsLog', () => {
-    it('setup and record both resolve without touching any database', async () => {
+    it('record resolves without touching any database', async () => {
         const log = createNullUnverifiedClaimsLog();
-        await expect(log.setup()).resolves.toBeUndefined();
         await expect(
             log.record([
                 {

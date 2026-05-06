@@ -520,7 +520,6 @@ describe('createBriefingRunner — §4.6 conversation persistence and resume', (
         );
 
         const explodingSuggestions = {
-            setup: () => Promise.resolve(),
             record: () => Promise.reject(new Error('db down')),
             hasChip: () => Promise.resolve(false),
         };

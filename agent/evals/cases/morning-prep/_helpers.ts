@@ -66,7 +66,6 @@ export const buildFakeLog = (
     };
     const recordOutcome: RecordOutcome = { written: true, outcome: 'inserted' };
     const log: ScheduleBriefingsLog = {
-        setup: () => Promise.resolve(),
         existsForToday: (key) => {
             state.existsCalls.push({
                 practitionerUuid: key.practitionerUuid,

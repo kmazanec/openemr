@@ -108,7 +108,6 @@ const buildLog = (): UnverifiedClaimsLog & {
     const recorded: UnverifiedClaimRecord[] = [];
     return {
         recorded,
-        setup: () => Promise.resolve(),
         record: (entries) => {
             recorded.push(...entries);
             return Promise.resolve();
@@ -224,7 +223,6 @@ describe('createVerify', () => {
     it('does not throw when the recorder fails — instrumentation must not block the response', async () => {
         const failingRecord = vi.fn(() => Promise.reject(new Error('db down')));
         const failingLog: UnverifiedClaimsLog = {
-            setup: () => Promise.resolve(),
             record: failingRecord,
         };
         const node = createVerify({ unverifiedClaimsLog: failingLog });

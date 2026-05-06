@@ -37,22 +37,11 @@ export interface AppendAssistantMessage {
 export type AppendInput = AppendUserMessage | AppendAssistantMessage;
 
 export interface ConversationMessagesStore {
-    readonly setup: () => Promise<void>;
     readonly append: (input: AppendInput) => Promise<void>;
     readonly listForConversation: (conversationId: string) => Promise<readonly ConversationMessage[]>;
 }
 
-const SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS conversation_messages (
-        id UUID PRIMARY KEY,
-        conversation_id UUID NOT NULL REFERENCES conversations(id),
-        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-        payload JSONB NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    CREATE INDEX IF NOT EXISTS conversation_messages_thread_idx
-        ON conversation_messages (conversation_id, created_at);
-`;
+// Schema lives in `agent/migrations/1700000003000_baseline_conversation_messages.sql`.
 
 const INSERT_SQL = `
     INSERT INTO conversation_messages (id, conversation_id, role, payload)
@@ -98,9 +87,6 @@ export const createPgConversationMessagesStore = (
         throw new Error('Postgres connection string is required for conversation messages store');
     }
     const pool = new pg.Pool({ connectionString: options.connectionString });
-    const setup = async (): Promise<void> => {
-        await pool.query(SCHEMA_SQL);
-    };
     const append = async (input: AppendInput): Promise<void> => {
         await pool.query(INSERT_SQL, [
             randomUUID(),
@@ -115,7 +101,7 @@ export const createPgConversationMessagesStore = (
         const result = await pool.query<MessageRow>(LIST_SQL, [conversationId]);
         return result.rows.map(rowToMessage);
     };
-    return { setup, append, listForConversation };
+    return { append, listForConversation };
 };
 
 interface InMemoryMessageRow {
@@ -141,7 +127,6 @@ export interface InMemoryConversationMessagesStore extends ConversationMessagesS
 export const createInMemoryConversationMessagesStore = (): InMemoryConversationMessagesStore => {
     const rows: InMemoryMessageRow[] = [];
     let nextSeq = 0;
-    const setup = (): Promise<void> => Promise.resolve();
     const append = (input: AppendInput): Promise<void> => {
         rows.push({
             conversationId: input.conversationId,
@@ -180,5 +165,5 @@ export const createInMemoryConversationMessagesStore = (): InMemoryConversationM
         Promise.resolve(
             filteredRows(conversationId).map((r) => ({ role: r.role, payload: r.payload })),
         );
-    return { setup, append, listForConversation, listMessagesForListing };
+    return { append, listForConversation, listMessagesForListing };
 };
