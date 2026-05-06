@@ -5,8 +5,25 @@ runtime: orchestration, LLM calls, claim ledger, verification, response
 formatting, agent state, observability. Sits behind OpenEMR's proxy
 controller — the browser never talks to it directly.
 
-Architecture: [`/ARCHITECTURE.md`](../ARCHITECTURE.md). Build plan and
-status: [`/docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md).
+**W1 surface (unchanged):** chart-grounded conversational graph; supervisor
++ retriever + synthesize + verify + format pipeline; SSE briefing stream;
+PHI-redacting logger; Postgres-backed checkpointer + state stores.
+
+**W2 surface (added):** a separate ingestion pipeline (rasterize → vision
+extract → schema-validate → patient-match → persist) reachable from three
+invokers — supervisor handoff (`kickoffExtraction`), OpenEMR upload event
+(`/v1/agent/extract`), and a CLI for the autosweep cron. Two new
+retrievers (`evidenceRetriever` over a Pinecone-indexed guideline corpus,
+`documentEvidenceRetriever` over extracted-document chunks) extend the
+supervisor's tool set so a single answer can cite chart records,
+extracted-document facts, and published guidelines together. The W1
+verification gate runs unchanged at the seam — uncited claims still get
+dropped.
+
+W1 architecture: [`/ARCHITECTURE.md`](../ARCHITECTURE.md). W1 build plan
+and status: [`/docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md).
+W2 architecture: [`/W2_ARCHITECTURE.md`](../W2_ARCHITECTURE.md). W2 build
+plan: [`/docs/week2plans/`](../docs/week2plans/).
 
 ## Quickstart
 
@@ -39,6 +56,7 @@ Poppler installed will see the suite as skipped rather than failed.
 | ------ | --------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/health`                         | Open      | Docker healthcheck. Returns `{ status: 'ok' }`.                                                                                                                                                                                    |
 | POST   | `/v1/agent/briefing`              | JWT       | §3.4 default-briefing entry. Runs the LangGraph briefing graph and emits the `briefingStream.ts` SSE sequence (`metadata` → `chip-id` → `section/*` → `done` / `error`). Envelope may carry `pendingUploads: [{documentUuid, docType}]`; the supervisor sees that list and picks `kickoffExtraction` per entry before iterating. Each non-terminal supervisor decision emits a `supervisorNarration` SSE frame ("Pulling prior lipid panels to compare.") so the panel's progress line tracks the model's intent. `precompute=true` branch backs §5.3 morning-prep cron. |
+| POST   | `/v1/agent/extract`               | JWT       | W2 ingestion-pipeline trigger. Runs rasterize → vision extract → schema-validate → patient-match → persist on a single uploaded document and emits the `pipelineStream.ts` SSE sequence (`pipeline.start` → `pipeline.<stage>.complete` → `pipeline.exit` / `pipeline.error`). One of three pipeline invokers; the conversational panel currently goes through `kickoffExtraction` from the supervisor instead (see [`W2_ARCHITECTURE.md`](../W2_ARCHITECTURE.md) §"Three invokers, one pipeline"), so this route is reserved for the autosweep / CLI / debug paths. Returns 503 `pipeline_unavailable` when the agent boots without pipeline deps wired. |
 | GET    | `/v1/agent/latest_conversation`   | JWT       | §3.5 conversation resume. Returns the most recent conversation for `(principal.sub, pid)`, or a specific one when `?conversation=<uuid>` is supplied. Owner-and-patient scoping enforced server-side.                              |
 | GET    | `/v1/agent/conversation_history`  | JWT       | §3.5 conversation list. Cursor-paginated by `(updated_at, id)`; scoped to `(principal.sub, pid)`.                                                                                                                                  |
 | GET    | `/v1/agent/schedule_briefings`    | JWT       | §5.4 schedule-view annotations. Returns the cached briefings the §5.3 precompute job wrote, keyed by `(practitioner_uuid, date)`. Self-only — `principal.sub` must equal `practitioner_uuid`.                                      |
@@ -101,6 +119,26 @@ Required for the guideline-corpus path (`evals:reindex-corpus`,
 - `COHERE_API_KEY` — `rerank-v3.5` reranker over Pinecone's top-20.
 - `COHERE_RERANK_MODEL` — optional override for the Cohere rerank
   model id; defaults to `rerank-v3.5`.
+
+Required for the W2 ingestion pipeline (panel uploads, vision
+extraction, document persistence — see `src/config/spacesEnv.ts`). All
+six are required at boot when the pipeline is wired; a partial config
+fails closed at parse time. Two IAM identities flow through:
+`SPACES_OPENEMR_*` is read+write across the bucket prefix (used by
+OpenEMR for canonical-byte uploads on the panel-upload path);
+`SPACES_AGENT_*` is read-only on the transient prefix (used by the
+pipeline to mint signed URLs for the vision LLM).
+
+- `SPACES_BUCKET` — DigitalOcean Spaces bucket name.
+- `SPACES_REGION` — Spaces region (e.g. `nyc3`); the endpoint is
+  computed as `https://<region>.digitaloceanspaces.com`.
+- `SPACES_OPENEMR_KEY`, `SPACES_OPENEMR_SECRET` — IAM credentials with
+  read+write across the bucket prefix.
+- `SPACES_AGENT_KEY`, `SPACES_AGENT_SECRET` — IAM credentials with
+  read-only access on the transient prefix.
+- `SPACES_TRANSIENT_PREFIX` — optional, defaults to `transient`. Path
+  prefix for short-lived signed-URL artifacts. Must not contain `/`;
+  key helpers add the separator.
 
 In addition, the service requires:
 
