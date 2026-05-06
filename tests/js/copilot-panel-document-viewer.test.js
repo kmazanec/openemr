@@ -321,23 +321,57 @@ describe('openDocument — branch dispatch by Content-Type', () => {
         expect(importer).toHaveBeenCalledTimes(1);
     });
 
-    test('TIFF MIME mounts a "preview not supported" placeholder + download link without firing PDF.js import', async () => {
+    test('TIFF hint + image/png response routes through the image branch (F.4b server decode)', async () => {
+        // F.4b: `document_view.php` decodes `image/tiff` server-side via
+        // `\Imagick` and serves `image/png` — the client never sees an
+        // `image/tiff` response and the hint-only "TIFF placeholder"
+        // branch from F.4 is gone. The fetch fires; the response's
+        // `image/png` Content-Type drives dispatch to the existing
+        // image-mount path; the bbox-overlay primitive Just Works.
         const mount = fakeMount();
-        const fetcher = jest.fn(); // should not be called for TIFF — placeholder is rendered without fetching bytes
+        const fetcher = jest.fn().mockResolvedValue(okResponse('image/png'));
         const importer = jest.fn();
         const result = await openDocument(
             mount,
             { documentUuid: 'doc-tiff', page: 1, bbox: [0, 0, 10, 10], mime: 'image/tiff', urlBase: '/svc/x' },
             { fetcher, pdfjsImporter: importer },
         );
-        expect(result.branch).toBe('tiff');
+        expect(result.branch).toBe('image');
         expect(importer).not.toHaveBeenCalled();
-        expect(fetcher).not.toHaveBeenCalled();
-        const card = mount.children[0];
-        expect(card.dataset.role).toBe('viewer-placeholder');
-        const link = card.children.find((c) => c.dataset.role === 'viewer-placeholder-download');
-        expect(link).toBeDefined();
-        expect(link.href).toBe('/svc/x?document_uuid=doc-tiff&page=1');
+        expect(fetcher).toHaveBeenCalledWith(
+            '/svc/x?document_uuid=doc-tiff&page=1',
+            { credentials: 'same-origin' },
+        );
+        const wrapper = mount.children[0];
+        expect(wrapper.dataset.role).toBe('viewer-page');
+        const img = wrapper.children.find((c) => c.dataset.role === 'viewer-image');
+        const overlay = wrapper.children.find((c) => c.dataset.role === 'bbox-overlay');
+        expect(img).toBeDefined();
+        expect(overlay).toBeDefined();
+    });
+
+    test('TIFF hint + missing response Content-Type falls through to unsupported (defense in depth)', async () => {
+        // If the server responds without a Content-Type header the
+        // viewer falls back to the caller's `mime` hint. After F.4b
+        // the server is supposed to *always* set Content-Type to
+        // image/png for TIFF inputs, so a missing header on a TIFF-
+        // hint request is a malformed response. Mount the unsupported
+        // placeholder rather than try to render raw TIFF bytes (which
+        // browsers cannot natively render).
+        const mount = fakeMount();
+        const fetcher = jest.fn().mockResolvedValue({
+            ok: true,
+            headers: { get: () => null },
+            blob: async () => blobLike('image/tiff'),
+        });
+        const importer = jest.fn();
+        const result = await openDocument(
+            mount,
+            { documentUuid: 'doc-tiff', page: 1, bbox: [0, 0, 10, 10], mime: 'image/tiff', urlBase: '/svc/x' },
+            { fetcher, pdfjsImporter: importer },
+        );
+        expect(result.branch).toBe('unsupported');
+        expect(mount.children[0].dataset.role).toBe('viewer-placeholder');
     });
 
     test('Server response Content-Type wins over caller hint', async () => {

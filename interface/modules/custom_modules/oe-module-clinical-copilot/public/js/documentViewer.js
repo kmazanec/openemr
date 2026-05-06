@@ -246,17 +246,6 @@ const __copilotDocumentViewer = (function () {
         if (url === null) {
             return { branch: 'unsupported', mountedEl: renderPlaceholder(mountEl, 'Document URL could not be constructed.') };
         }
-        const branchHint = classifyMime(mime);
-        if (branchHint === 'tiff') {
-            return {
-                branch: 'tiff',
-                mountedEl: renderPlaceholder(
-                    mountEl,
-                    'TIFF preview is not yet supported in the panel.',
-                    url,
-                ),
-            };
-        }
         let response;
         try {
             response = await fetcher(url, { credentials: 'same-origin' });
@@ -271,18 +260,15 @@ const __copilotDocumentViewer = (function () {
             : null;
         // Trust the response Content-Type ahead of the caller-provided
         // hint — the server is the authoritative source for what's on
-        // the wire. Fall through to the hint when the server omits it.
+        // the wire. F.4b: TIFF inputs are decoded server-side via
+        // `\Imagick` in `document_view.php` and served as `image/png`,
+        // so the client never sees an `image/tiff` response. The
+        // `'tiff'` value classifyMime can return is therefore only
+        // reachable from the caller's `mime` hint when the server
+        // omitted Content-Type — in which case we fall through to the
+        // unsupported-MIME placeholder, matching the defense-in-depth
+        // posture of the upload-MIME enforcement.
         const branch = classifyMime(responseMime || mime);
-        if (branch === 'tiff') {
-            return {
-                branch: 'tiff',
-                mountedEl: renderPlaceholder(
-                    mountEl,
-                    'TIFF preview is not yet supported in the panel.',
-                    url,
-                ),
-            };
-        }
         const blob = await response.blob();
         if (branch === 'pdf') {
             const mountedEl = await renderPdf(mountEl, blob, page, bbox, deps.pdfjsImporter);
