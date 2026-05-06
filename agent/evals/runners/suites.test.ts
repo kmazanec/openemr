@@ -10,6 +10,7 @@ import {
 } from './archetypesSuite.js';
 import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './conversationalGraphSuite.js';
 import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from './documentExtractionSuite.js';
+import { DATASET_NAME as END_TO_END_DATASET_NAME, buildExamples as buildEndToEndExamples } from './endToEndSuite.js';
 import { DATASET_NAME as LAB_TRENDS_DATASET_NAME } from './labTrendsSuite.js';
 import {
     DATASET_NAME as MORNING_PREP_DATASET_NAME,
@@ -173,5 +174,32 @@ describe('documentExtractionSuite', () => {
         // Bump the suffix when the input/output shape changes so old
         // experiments stay comparable.
         expect(DOCUMENT_EXTRACTION_DATASET_NAME.endsWith('-v1')).toBe(true);
+    });
+});
+
+describe('endToEndSuite', () => {
+    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // First version of the §D.4 end-to-end MVP dataset. Bump
+        // the suffix when the input/output shape changes so old
+        // experiments stay comparable.
+        expect(END_TO_END_DATASET_NAME.endsWith('-v1')).toBe(true);
+    });
+
+    it('ships exactly six examples (3 Patel + 3 refusal) — Phase D MVP gate count', () => {
+        // The Phase D plan pins six end-to-end cases. Pinning the
+        // count here means a future change that re-balances the suite
+        // is forced to re-read the plan rather than silently grow or
+        // shrink the dataset.
+        const examples = buildEndToEndExamples();
+        expect(examples).toHaveLength(6);
+        const groups = examples.map((e) => e.metadata.group).sort();
+        expect(groups).toEqual([
+            'patel-scenario',
+            'patel-scenario',
+            'patel-scenario',
+            'refusal',
+            'refusal',
+            'refusal',
+        ]);
     });
 });
