@@ -1,19 +1,27 @@
 /**
- * §B.3 / §B.4 / §B.5 / §B.6 Pipeline graph wiring.
+ * §B.3 / §B.4 / §B.5 / §B.6 / §B.7 Pipeline graph wiring.
  *
  * The ingestion pipeline is a separate compiled LangGraph app
  * (W2_ARCHITECTURE.md §"Pipeline as a compiled LangGraph app"). It is
  * built once at agent boot and invoked synchronously per extraction.
  *
- * Currently wired: `rasterize` (B.3) → `vision` (B.4) →
- * `schemaValidate` (B.5) → `patientMatch` (B.6). Subsequent subphase
- * (B.7 `persist` + `emitDeltas`) extends the same graph factory.
+ * Wired: `rasterize` (B.3) → `vision` (B.4) → `schemaValidate` (B.5) →
+ * `patientMatch` (B.6) → `persist` (B.7) → `emitDeltas` (B.7) →
+ * `cleanup` (B.7) → END.
+ *
+ * The `cleanup` node also runs on every short-circuit failure path so
+ * a doc that gets refused (cost cap, schema invalid, patient mismatch,
+ * persist failure) still wipes its transient PNGs from Spaces; the
+ * 24h lifecycle policy is the fallback.
  */
 
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { LastValue } from '@langchain/langgraph/channels';
 
+import { cleanup, type CleanupDeps } from './nodes/cleanup.js';
+import { emitDeltas, type EmitDeltasDeps } from './nodes/emitDeltas.js';
 import { patientMatch, type PatientMatchDeps } from './nodes/patientMatch.js';
+import { persist, type PersistDeps } from './nodes/persist.js';
 import { rasterize, type RasterizeDeps } from './nodes/rasterize.js';
 import { schemaValidate, type SchemaValidateDeps } from './nodes/schemaValidate.js';
 import { vision, type VisionDeps } from './nodes/vision.js';
@@ -56,18 +64,22 @@ export interface PipelineDeps {
     readonly vision: VisionDeps;
     readonly schemaValidate: SchemaValidateDeps;
     readonly patientMatch: PatientMatchDeps;
+    readonly persist: PersistDeps;
+    readonly emitDeltas: EmitDeltasDeps;
+    readonly cleanup: CleanupDeps;
 }
 
 /**
- * Failure-isolation router used between every consecutive node pair:
- * if the upstream node set `status='failed'`, short-circuit to END so
- * downstream nodes don't run on poisoned state. The successor name is
- * passed in so each edge keeps its own (failed → END, ok → next) shape.
+ * Failure-isolation router: if the upstream node set
+ * `status='failed'`, short-circuit straight to `cleanup` so transient
+ * PNGs are still wiped before EXIT. The cleanup node preserves the
+ * upstream status so the EXIT-edge state still represents the real
+ * outcome.
  */
-const routeOrFail =
+const routeOrCleanup =
     (next: string) =>
     (state: PipelineState): string =>
-        state.status === 'failed' ? END : next;
+        state.status === 'failed' ? 'cleanup' : next;
 
 export const createPipelineGraph = (deps: PipelineDeps) => {
     const builder = new StateGraph(PipelineStateAnnotation)
@@ -75,19 +87,31 @@ export const createPipelineGraph = (deps: PipelineDeps) => {
         .addNode('vision', (state: PipelineState) => vision(state, deps.vision))
         .addNode('schemaValidate', (state: PipelineState) => schemaValidate(state, deps.schemaValidate))
         .addNode('patientMatch', (state: PipelineState) => patientMatch(state, deps.patientMatch))
+        .addNode('persist', (state: PipelineState) => persist(state, deps.persist))
+        .addNode('emitDeltas', (state: PipelineState) => emitDeltas(state, deps.emitDeltas))
+        .addNode('cleanup', (state: PipelineState) => cleanup(state, deps.cleanup))
         .addEdge(START, 'rasterize')
-        .addConditionalEdges('rasterize', routeOrFail('vision'), {
+        .addConditionalEdges('rasterize', routeOrCleanup('vision'), {
             vision: 'vision',
-            [END]: END,
+            cleanup: 'cleanup',
         })
-        .addConditionalEdges('vision', routeOrFail('schemaValidate'), {
+        .addConditionalEdges('vision', routeOrCleanup('schemaValidate'), {
             schemaValidate: 'schemaValidate',
-            [END]: END,
+            cleanup: 'cleanup',
         })
-        .addConditionalEdges('schemaValidate', routeOrFail('patientMatch'), {
+        .addConditionalEdges('schemaValidate', routeOrCleanup('patientMatch'), {
             patientMatch: 'patientMatch',
-            [END]: END,
+            cleanup: 'cleanup',
         })
-        .addEdge('patientMatch', END);
+        .addConditionalEdges('patientMatch', routeOrCleanup('persist'), {
+            persist: 'persist',
+            cleanup: 'cleanup',
+        })
+        .addConditionalEdges('persist', routeOrCleanup('emitDeltas'), {
+            emitDeltas: 'emitDeltas',
+            cleanup: 'cleanup',
+        })
+        .addEdge('emitDeltas', 'cleanup')
+        .addEdge('cleanup', END);
     return builder.compile();
 };
