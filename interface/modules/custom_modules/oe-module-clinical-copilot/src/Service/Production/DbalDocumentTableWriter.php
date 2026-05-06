@@ -106,7 +106,16 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
             return (int) $existing;
         }
 
+        // OpenEMR's `categories.id` is `int NOT NULL DEFAULT 0` — NOT
+        // auto-increment. The application convention is to mint a fresh
+        // id via the `sequences` helper table (which IS auto-increment)
+        // and write it explicitly. Doctrine's `lastInsertId()` returns
+        // 0 against a non-AUTO_INCREMENT primary key, so the second
+        // INSERT would collide on `id=0` if we relied on it.
+        $newId = $this->generateSequenceId();
+
         $this->connection->insert('categories', [
+            'id' => $newId,
             'name' => $name,
             'value' => '',
             'parent' => $parentId,
@@ -115,10 +124,22 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
             'aco_spec' => 'patients|docs',
             'codes' => '',
         ]);
-        $newIdRaw = $this->connection->lastInsertId();
-        if (!is_numeric($newIdRaw)) {
-            throw new \RuntimeException("category insert did not return an id for '{$name}'");
+        return $newId;
+    }
+
+    /**
+     * Mint a fresh integer id from the OpenEMR `sequences` table — same
+     * pattern as `QueryUtils::generateId()` but expressed through the
+     * DBAL connection this writer already holds (avoids a cross-DB
+     * dependency on ADOdb).
+     */
+    private function generateSequenceId(): int
+    {
+        $this->connection->executeStatement('INSERT INTO sequences VALUES (NULL)');
+        $idRaw = $this->connection->lastInsertId();
+        if (!is_numeric($idRaw) || (int) $idRaw <= 0) {
+            throw new \RuntimeException('sequences insert did not return an autoincrement id');
         }
-        return (int) $newIdRaw;
+        return (int) $idRaw;
     }
 }
