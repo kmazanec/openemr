@@ -5,19 +5,15 @@
  * here.
  */
 
-import { archetypesSuite } from './archetypesSuite.js';
+import { briefingGraphSuite } from './briefingGraphSuite.js';
 import { conversationalGraphSuite } from './conversationalGraphSuite.js';
 import { documentExtractionSuite } from './documentExtractionSuite.js';
 import { endToEndSuite } from './endToEndSuite.js';
-import { labTrendsSuite } from './labTrendsSuite.js';
-import { morningPrepSuite } from './morningPrepSuite.js';
 
 import type { EvalSuite } from './shared.js';
 
 export const SUITES: readonly EvalSuite[] = [
-    archetypesSuite,
-    labTrendsSuite,
-    morningPrepSuite,
+    briefingGraphSuite,
     conversationalGraphSuite,
     documentExtractionSuite,
     endToEndSuite,
