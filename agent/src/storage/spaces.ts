@@ -184,6 +184,19 @@ const buildS3Client = (env: SpacesEnv, role: 'openemr' | 'agent'): S3Client => {
             accessKeyId: creds.accessKey,
             secretAccessKey: creds.secretKey,
         },
+        // AWS SDK v3 ≥3.729 enables "default integrity protections"
+        // that inject `x-amz-checksum-mode=ENABLED` and related flags
+        // into every request, including presigned URLs. DigitalOcean
+        // Spaces is S3-API-compatible only up through the older
+        // request shape — the extra signed parameters cause Spaces to
+        // return an error response (the vision model then sees a
+        // non-image body and returns "<UNKNOWN>" for every field).
+        // Falling back to "WHEN_REQUIRED" mirrors the pre-3.729
+        // behavior: the SDK only emits checksum headers for operations
+        // where S3 itself requires them, and presigned GETs stay
+        // clean. See aws/aws-sdk-js-v3#6810.
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
     });
 };
 

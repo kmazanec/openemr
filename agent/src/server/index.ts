@@ -47,7 +47,7 @@ import { createExtractHandler, type PipelineRunner } from './routes/extract.js';
 import { randomUUID } from 'node:crypto';
 import { tryParseSpacesEnv } from '../config/spacesEnv.js';
 import { buildProductionPipelineRunner } from '../pipeline/production.js';
-import { createPdfImgConvertRasterizer } from '../pipeline/rasterizer.js';
+import { createPopplerRasterizer } from '../pipeline/rasterizer.js';
 import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
 import { createAgentSpacesClient, createOpenEmrSpacesClient } from '../storage/spaces.js';
 import { createOpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
@@ -739,14 +739,25 @@ const buildVerifier = (): AgentJwtVerifier => {
 
 export const start = async (port: number): Promise<void> => {
     const logger = createLogger('server');
-    // §6.1: belt-and-braces PHI suppression for LangSmith. We default
-    // these to "true" if the operator did not set them — uploading a
-    // briefing prompt that contains the chart in the clear would defeat
-    // the rest of the trust boundary. An operator who knows what they
-    // are doing can override (`...HIDE_INPUTS=false`) for ad-hoc
-    // debugging in a non-PHI environment.
-    process.env['LANGSMITH_HIDE_INPUTS'] = process.env['LANGSMITH_HIDE_INPUTS'] ?? 'true';
-    process.env['LANGSMITH_HIDE_OUTPUTS'] = process.env['LANGSMITH_HIDE_OUTPUTS'] ?? 'true';
+    // §6.1: belt-and-braces PHI suppression for LangSmith. In production
+    // we default these to "true" — uploading a briefing prompt that
+    // contains the chart in the clear would defeat the rest of the
+    // trust boundary. In development (`NODE_ENV !== 'production'`) we
+    // default to "false" so traces show the vision inputs/outputs that
+    // are otherwise impossible to inspect (the pipeline doesn't persist
+    // failed extractions, and the pino logger redacts the payload).
+    // An operator can always pin either default explicitly via env.
+    const langsmithHideDefault = process.env['NODE_ENV'] === 'production' ? 'true' : 'false';
+    process.env['LANGSMITH_HIDE_INPUTS'] = process.env['LANGSMITH_HIDE_INPUTS'] ?? langsmithHideDefault;
+    process.env['LANGSMITH_HIDE_OUTPUTS'] = process.env['LANGSMITH_HIDE_OUTPUTS'] ?? langsmithHideDefault;
+    logger.info(
+        {
+            nodeEnv: process.env['NODE_ENV'] ?? 'unset',
+            langsmithHideInputs: process.env['LANGSMITH_HIDE_INPUTS'],
+            langsmithHideOutputs: process.env['LANGSMITH_HIDE_OUTPUTS'],
+        },
+        'server: LangSmith PHI suppression resolved',
+    );
     const databaseUrl = process.env['DATABASE_URL'] ?? '';
     if (databaseUrl.length === 0) {
         logger.error('DATABASE_URL is not set; cannot boot agent state store');
@@ -844,7 +855,7 @@ export const start = async (port: number): Promise<void> => {
             artifactStore: extractionArtifactStore,
             openemrSpaces,
             agentSpaces,
-            rasterizer: createPdfImgConvertRasterizer(),
+            rasterizer: createPopplerRasterizer(),
             visionInvoker: createAnthropicVisionInvocation(),
             documentReferenceClient,
             buildFetchChartDemographics: (ctx) => {

@@ -17,6 +17,22 @@ npm run dev      # tsx watch — http://localhost:8080
 curl http://localhost:8080/health
 ```
 
+### Host system dependency: Poppler
+
+The §B.3 rasterizer shells out to `pdftoppm` and `pdfinfo` from the
+[Poppler](https://poppler.freedesktop.org/) toolkit to convert PDFs to
+page PNGs for the vision call. The Docker image installs this
+automatically (`apk add poppler-utils` in `Dockerfile`); host-side
+tests need it on `PATH`:
+
+- macOS: `brew install poppler`
+- Debian/Ubuntu: `apt install poppler-utils`
+- Alpine: `apk add poppler-utils`
+
+The rasterizer test suite (`tests/pipeline/rasterizer.test.ts`) skips
+itself when `pdftoppm`/`pdfinfo` are absent, so contributors without
+Poppler installed will see the suite as skipped rather than failed.
+
 ## Routes
 
 | Method | Path                              | Auth      | Purpose                                                                                                                                                                                                                            |

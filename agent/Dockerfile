@@ -8,16 +8,8 @@ ARG NODE_IMAGE=node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647b
 # ── Stage: deps ──────────────────────────────────────────────────────────────
 # Install full dependency tree (incl. dev) for the build stage. Cached on
 # package*.json so source-only changes don't invalidate the install layer.
-#
-# `canvas` (transitive of `pdf-img-convert`, the §B.3 rasterizer) has no
-# prebuilt linux-musl-x64 binary for node-v127 (Node 22 on Alpine), so
-# npm falls back to a source build. The build needs python3, make, g++
-# and the Cairo/Pango/JPEG/GIF/Pixman dev headers.
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
-RUN apk add --no-cache \
-    build-base g++ make python3 pkgconf \
-    cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --include=dev
@@ -34,14 +26,8 @@ RUN npx tsc -p tsconfig.json
 # ── Stage: prod-deps ─────────────────────────────────────────────────────────
 # Production-only dependency tree for the runtime image. Separate from `deps`
 # so dev-only packages don't ship in the final layer.
-#
-# Same canvas-source-build deps as the `deps` stage — production still
-# needs to compile `canvas` because no prebuilt musl binary exists.
 FROM ${NODE_IMAGE} AS prod-deps
 WORKDIR /app
-RUN apk add --no-cache \
-    build-base g++ make python3 pkgconf \
-    cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev
@@ -50,11 +36,15 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 
-# `canvas.node` (compiled in `prod-deps`) loads these shared libraries at
-# runtime. We install only the runtime packages here — the dev headers
-# and toolchain stayed in `prod-deps` and don't ship to the final image.
-RUN apk add --no-cache \
-    cairo pango jpeg giflib libjpeg-turbo pixman
+# `poppler-utils` provides `pdftoppm` (PDF rasterization) and `pdfinfo`
+# (page-count probe), which the §B.3 rasterizer shells out to. Replaces
+# the previous pdfjs + node-canvas stack — that combination silently
+# rendered some clinical PDFs as a solid-color wash with only fragments
+# of text visible, producing useless inputs for the vision model.
+# Poppler is the reference Linux PDF renderer and handles the modern
+# PDF features (transparency groups, blend modes, gradients) that
+# pdfjs-on-Node-canvas struggled with.
+RUN apk add --no-cache poppler-utils
 
 ENV NODE_ENV=production \
     PORT=8080
