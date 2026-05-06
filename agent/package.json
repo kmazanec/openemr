@@ -24,7 +24,11 @@
     "corpus:fetch:uspstf": "tsx scripts/fetch-uspstf-corpus.ts",
     "corpus:extract:uspstf": "tsx scripts/extract-uspstf-corpus.ts",
     "evals:reindex-corpus": "tsx --env-file-if-exists=.env scripts/reindex-corpus.ts",
-    "probe:evidence-retriever": "tsx --env-file-if-exists=.env scripts/probe-evidence-retriever.ts"
+    "probe:evidence-retriever": "tsx --env-file-if-exists=.env scripts/probe-evidence-retriever.ts",
+    "migrate": "node-pg-migrate --envPath .env --migrations-dir migrations --database-url-var DATABASE_URL",
+    "migrate:up": "npm run migrate -- up",
+    "migrate:down": "npm run migrate -- down",
+    "migrate:create": "npm run migrate -- create"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1043.0",
@@ -41,6 +45,7 @@
     "jose": "5.10.0",
     "langsmith": "0.5.26",
     "natural": "8.1.1",
+    "node-pg-migrate": "8.0.4",
     "openai": "6.36.0",
     "pdf-img-convert": "2.0.0",
     "pdfjs-dist": "4.6.82",
