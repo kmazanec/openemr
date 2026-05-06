@@ -31,24 +31,30 @@
  *     to diff against.
  */
 
+import { spawn } from 'node:child_process';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { ChatAnthropic } from '@langchain/anthropic';
+import { type ContentBlock, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { pino } from 'pino';
 
-import {
-    createPipelineGraph,
-    type PipelineDeps,
-} from '../../src/pipeline/index.js';
+import { createPipelineGraph, type PipelineDeps } from '../../src/pipeline/index.js';
 import { initialPipelineState } from '../../src/pipeline/state.js';
 import {
-    createAnthropicVisionInvocation,
+    DEFAULT_VISION_MODEL,
+    TransientVisionError,
+    userInstruction,
+    VISION_SYSTEM_PROMPT,
+    VisionSchemaError,
     type VisionInvocation,
     type VisionInvokeInput,
-    VisionSchemaError,
 } from '../../src/pipeline/nodes/vision.js';
+import { intakeFormSchema } from '../../src/pipeline/schemas/intakeForm.js';
+import { labPdfSchema } from '../../src/pipeline/schemas/labPdf.js';
 import { type Rasterizer } from '../../src/pipeline/rasterizer.js';
-import {
-    keyForCanonical,
-    type SpacesClient,
-} from '../../src/storage/spaces.js';
+import { keyForCanonical, type SpacesClient } from '../../src/storage/spaces.js';
 import {
     type ArtifactStatus,
     type DocumentLockHandle,
@@ -56,15 +62,9 @@ import {
     type ExtractionArtifactStore,
     type NewExtractionArtifact,
 } from '../../src/state/extractionArtifacts.js';
-import type {
-    ChartSnapshot,
-    Demographics,
-} from '../../src/snapshot/types.js';
+import type { ChartSnapshot, Demographics } from '../../src/snapshot/types.js';
 
-import {
-    type CaseKind,
-    type ManifestEntry,
-} from '../fixtures/regenerate-document-extraction.js';
+import { type CaseKind, type ManifestEntry } from '../fixtures/regenerate-document-extraction.js';
 import {
     demographicsForArchetype,
     loadFixtureBytes,
@@ -203,7 +203,7 @@ const buildOversizedRasterizer = (): Rasterizer => ({
 });
 
 const buildCorruptedRasterizer = (): Rasterizer => ({
-    pageCount: () => Promise.reject(new Error('pdfinfo: Couldn\'t find trailer dictionary')),
+    pageCount: () => Promise.reject(new Error("pdfinfo: Couldn't find trailer dictionary")),
     rasterize: () => Promise.reject(new Error('pdftoppm: failed to parse')),
 });
 
@@ -458,8 +458,8 @@ export const runDocumentExtractionCase = async (
         entry.caseKind === 'adversarial-oversized'
             ? buildOversizedRasterizer()
             : entry.caseKind === 'adversarial-corrupted'
-            ? buildCorruptedRasterizer()
-            : buildDeterministicRasterizer(entry.pageCount);
+              ? buildCorruptedRasterizer()
+              : buildDeterministicRasterizer(entry.pageCount);
 
     const visionInvoker: VisionInvocation =
         options.visionInvoker ??
@@ -609,11 +609,229 @@ const shouldForceSchemaInvalid = (kind: CaseKind): boolean => {
     );
 };
 
+/** ---- Inline-base64 vision invoker (LangSmith experiment) -------------- */
+
 /**
- * Production vision invoker for the LangSmith experiment runner.
- * Lazy-imports `createAnthropicVisionInvocation` so the per-MR
- * Vitest path never accidentally pulls a real Anthropic client.
+ * The eval harness wires the pipeline against `buildFakeSpaces`, which
+ * mints `https://fake.signed/...` URLs for every page. Real Anthropic
+ * cannot fetch those, so the production `createAnthropicVisionInvocation`
+ * (which sends `{type: 'image', url: page.signedUrl, ...}`) returns
+ * 400 "Unable to download the file" on every case.
+ *
+ * This invoker bypasses the URL flow entirely: it ignores the
+ * `pages[].signedUrl` field, reads the source bytes from the closed-
+ * over `entry`, renders/converts them to PNG locally, and sends the
+ * page images inline as base64. The system prompt + user instruction
+ * + delimiters all match the production invoker exactly so the
+ * model's input shape is the same.
+ *
+ * Trade-offs:
+ *   - Skips the signed-URL leg entirely; that leg is covered by
+ *     `tests/storage/spaces.test.ts` and the production code path.
+ *   - Re-rasterizes inside the invoker so the eval doesn't depend on
+ *     whatever placeholder bytes the harness's stub rasterizer
+ *     produced. The dollar-cap pre-flight in the rasterize node still
+ *     fires off the manifest's stub `pageCount` — the real-vendor
+ *     cost-cap test uses adversarial-oversized which never reaches
+ *     vision.
  */
-export const buildExperimentVisionInvoker = (apiKey: string): VisionInvocation => {
-    return createAnthropicVisionInvocation({ apiKey });
+
+const runChild = async (cmd: string, args: readonly string[]): Promise<void> => {
+    await new Promise<void>((resolve, reject) => {
+        const child = spawn(cmd, [...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = '';
+        child.stderr.on('data', (chunk: Buffer) => {
+            stderr += chunk.toString();
+        });
+        child.on('error', (err: Error) => reject(err));
+        child.on('close', (code: number | null) => {
+            if (code === 0) resolve();
+            else reject(new Error(`${cmd} exited with ${String(code)}; stderr=${stderr}`));
+        });
+    });
 };
+
+/**
+ * Render the entry's source bytes into one PNG per page. PDFs go
+ * through Poppler's `pdftoppm`; PNGs pass through unchanged; TIFFs
+ * are converted via ImageMagick `convert`. Each call uses a fresh
+ * temp directory so concurrent cases don't collide.
+ */
+const renderPagesToPng = async (entry: ManifestEntry): Promise<readonly Buffer[]> => {
+    const sourceBytes = await loadFixtureBytes(entry);
+    const tmp = await mkdtemp(join(tmpdir(), `eval-vision-${entry.id}-`));
+    try {
+        const ext = entry.path.toLowerCase().split('.').pop() ?? '';
+        if (ext === 'png') {
+            return [sourceBytes];
+        }
+        if (ext === 'jpg' || ext === 'jpeg') {
+            // Anthropic accepts JPEG natively; no re-encode needed but
+            // we still return as a single page.
+            return [sourceBytes];
+        }
+        if (ext === 'tif' || ext === 'tiff') {
+            const inPath = join(tmp, 'in.tiff');
+            const outBase = join(tmp, 'page');
+            await writeFile(inPath, sourceBytes);
+            // ImageMagick: `convert in.tiff page-%d.png`. For
+            // multi-page TIFFs this produces page-0.png, page-1.png,
+            // ...; for single-page TIFFs (the common case in our
+            // fixtures) it produces page.png with no suffix.
+            await runChild('convert', [inPath, `${outBase}.png`]);
+            const files = (await readdir(tmp))
+                .filter((f) => f.startsWith('page') && f.endsWith('.png'))
+                .sort();
+            const buffers: Buffer[] = [];
+            for (const f of files) buffers.push(await readFile(join(tmp, f)));
+            if (buffers.length === 0) {
+                throw new Error(`TIFF conversion produced no PNGs for ${entry.id}`);
+            }
+            return buffers;
+        }
+        if (ext === 'pdf') {
+            const inPath = join(tmp, 'in.pdf');
+            const outBase = join(tmp, 'page');
+            await writeFile(inPath, sourceBytes);
+            // Poppler: `pdftoppm -png -r 150 in.pdf page` produces
+            // page-1.png, page-2.png, ... 150 DPI matches the
+            // production rasterizer's output resolution.
+            await runChild('pdftoppm', ['-png', '-r', '150', inPath, outBase]);
+            const files = (await readdir(tmp))
+                .filter((f) => f.startsWith('page-') && f.endsWith('.png'))
+                .sort((a, b) => {
+                    // Sort numerically by page index, not lexically:
+                    // page-10.png must follow page-9.png.
+                    const pageRe = /page-(\d+)\.png$/;
+                    const idx = (s: string): number => {
+                        const m = pageRe.exec(s);
+                        return m === null ? 0 : Number.parseInt(m[1] ?? '0', 10);
+                    };
+                    return idx(a) - idx(b);
+                });
+            const buffers: Buffer[] = [];
+            for (const f of files) buffers.push(await readFile(join(tmp, f)));
+            if (buffers.length === 0) {
+                throw new Error(`pdftoppm produced no PNGs for ${entry.id}`);
+            }
+            return buffers;
+        }
+        throw new Error(`renderPagesToPng: unsupported extension '${ext}' for ${entry.id}`);
+    } finally {
+        await rm(tmp, { recursive: true, force: true });
+    }
+};
+
+const buildInlinePageBlocks = (
+    pageCount: number,
+    pngBuffers: readonly Buffer[],
+): ContentBlock.Standard[] => {
+    const blocks: ContentBlock.Standard[] = [];
+    for (let i = 0; i < pageCount; i += 1) {
+        const buf = pngBuffers[i];
+        if (buf === undefined) {
+            throw new Error(`buildInlinePageBlocks: missing buffer for page ${String(i + 1)}`);
+        }
+        blocks.push({ type: 'text', text: `<DOCUMENT_PAGE_${String(i + 1)}>` });
+        blocks.push({
+            type: 'image',
+            mimeType: 'image/png',
+            data: buf.toString('base64'),
+        });
+        blocks.push({ type: 'text', text: `</DOCUMENT_PAGE_${String(i + 1)}>` });
+    }
+    return blocks;
+};
+
+/**
+ * Vision invoker that sends real page bytes inline (base64) instead
+ * of relying on a signed-URL fetch. Use for the LangSmith experiment
+ * only — the per-MR Vitest gate uses `createStubVisionInvoker` and
+ * production uses `createAnthropicVisionInvocation`.
+ */
+export const createInlineImageVisionInvocation = (options: {
+    readonly apiKey: string;
+    readonly entry: ManifestEntry;
+    readonly model?: string;
+}): VisionInvocation => {
+    const model = options.model ?? process.env['ANTHROPIC_MODEL_VISION'] ?? DEFAULT_VISION_MODEL;
+    const labPdfClient = new ChatAnthropic({
+        model,
+        apiKey: options.apiKey,
+        temperature: 0,
+    }).withStructuredOutput(labPdfSchema, { name: 'lab_pdf_extraction', includeRaw: true });
+    const intakeFormClient = new ChatAnthropic({
+        model,
+        apiKey: options.apiKey,
+        temperature: 0,
+    }).withStructuredOutput(intakeFormSchema, { name: 'intake_form_extraction', includeRaw: true });
+
+    return {
+        invoke: async ({ docType, pages }: VisionInvokeInput) => {
+            const pngBuffers = await renderPagesToPng(options.entry);
+            const client = docType === 'lab_pdf' ? labPdfClient : intakeFormClient;
+            const userMessage = new HumanMessage({
+                content: [
+                    { type: 'text', text: userInstruction(docType) },
+                    ...buildInlinePageBlocks(pages.length, pngBuffers),
+                ],
+            });
+            let result;
+            try {
+                result = await client.invoke([
+                    new SystemMessage(VISION_SYSTEM_PROMPT),
+                    userMessage,
+                ]);
+            } catch (err) {
+                throw classifyExperimentVisionError(err);
+            }
+            const usageMeta = (
+                result.raw as {
+                    usage_metadata?: { input_tokens?: number; output_tokens?: number };
+                }
+            ).usage_metadata;
+            const usage =
+                usageMeta !== undefined
+                    ? {
+                          model,
+                          inputTokens: usageMeta.input_tokens ?? 0,
+                          outputTokens: usageMeta.output_tokens ?? 0,
+                      }
+                    : undefined;
+            return {
+                extraction: result.parsed,
+                ...(usage !== undefined ? { usage } : {}),
+            };
+        },
+    };
+};
+
+const classifyExperimentVisionError = (err: unknown): Error => {
+    if (err instanceof Error) {
+        const status = (err as { status?: number }).status;
+        if (status === 429 || (typeof status === 'number' && status >= 500 && status < 600)) {
+            return new TransientVisionError(err.message, { cause: err });
+        }
+        const lower = err.message.toLowerCase();
+        if (
+            lower.includes('failed to parse') ||
+            lower.includes('zod') ||
+            lower.includes('schema')
+        ) {
+            return new VisionSchemaError(err.message, [err.message]);
+        }
+    }
+    return err instanceof Error ? err : new Error(String(err));
+};
+
+/**
+ * Public factory used by `documentExtractionSuite.runExperiment`.
+ * Returns a fresh invoker per case so each run renders the right
+ * fixture. The previous signature took only an apiKey and lazy-built
+ * a single shared invoker that pointed at fake URLs; that path was
+ * structurally broken against the real model and is gone.
+ */
+export const buildExperimentVisionInvoker = (
+    apiKey: string,
+    entry: ManifestEntry,
+): VisionInvocation => createInlineImageVisionInvocation({ apiKey, entry });

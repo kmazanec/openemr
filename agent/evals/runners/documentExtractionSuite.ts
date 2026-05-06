@@ -26,12 +26,10 @@
 import type { Client } from 'langsmith';
 import { evaluate } from 'langsmith/evaluation';
 
-import {
-    type ManifestEntry,
-} from '../fixtures/regenerate-document-extraction.js';
-import {
-    loadEntries,
-} from './documentExtractionFixtures.js';
+import { type ManifestEntry } from '../fixtures/regenerate-document-extraction.js';
+import { RUBRICS } from '../rubrics/evaluators.js';
+import type { AgentRubricInput } from '../rubrics/types.js';
+import { loadEntries } from './documentExtractionFixtures.js';
 import {
     buildExperimentVisionInvoker,
     runDocumentExtractionCase,
@@ -122,23 +120,36 @@ export const uploadDataset = async (
     });
 };
 
-const runExperiment = async (
-    options: { readonly anthropicApiKey: string; readonly gitSha: string },
-): Promise<ExperimentRunResult> => {
-    const visionInvoker = buildExperimentVisionInvoker(options.anthropicApiKey);
+const runExperiment = async (options: {
+    readonly anthropicApiKey: string;
+    readonly gitSha: string;
+}): Promise<ExperimentRunResult> => {
     const entriesByCaseId = new Map<string, ManifestEntry>();
     for (const e of await loadEntries()) entriesByCaseId.set(e.id, e);
 
-    const target = async (input: DocumentExtractionInputs): Promise<{
+    const target = async (
+        input: DocumentExtractionInputs,
+    ): Promise<{
         readonly status: CaseRunResult['status'];
         readonly errorCode: string | null;
         readonly resultRowCount: number;
         readonly minConfidence: number;
         readonly hasCitations: boolean;
         readonly demographicsChanges: readonly string[];
+        readonly rubricInput: AgentRubricInput;
     }> => {
         const entry = entriesByCaseId.get(input.caseId);
         if (entry === undefined) {
+            const rubricInput: AgentRubricInput = {
+                kind: 'pipeline',
+                acceptedClaims: [],
+                rejectedClaimCount: 0,
+                verifierPassed: false,
+                hardStops: [],
+                schemaValid: false,
+                refusalPhraseMatch: null,
+                scannedText: [],
+            };
             return {
                 status: 'failed',
                 errorCode: 'unknown-case-id',
@@ -146,9 +157,22 @@ const runExperiment = async (
                 minConfidence: 0,
                 hasCitations: false,
                 demographicsChanges: [],
+                rubricInput,
             };
         }
+        const visionInvoker = buildExperimentVisionInvoker(options.anthropicApiKey, entry);
         const verdict = await runDocumentExtractionCase(entry, { visionInvoker });
+        const schemaValid = verdict.status === 'persisted';
+        const rubricInput: AgentRubricInput = {
+            kind: 'pipeline',
+            acceptedClaims: [],
+            rejectedClaimCount: 0,
+            verifierPassed: schemaValid,
+            hardStops: [],
+            schemaValid,
+            refusalPhraseMatch: null,
+            scannedText: verdict.demographicsChanges,
+        };
         return {
             status: verdict.status,
             errorCode: verdict.errorCode,
@@ -156,11 +180,13 @@ const runExperiment = async (
             minConfidence: verdict.minConfidence,
             hasCitations: verdict.hasCitations,
             demographicsChanges: verdict.demographicsChanges,
+            rubricInput,
         };
     };
 
     const results = await evaluate(target, {
         data: DATASET_NAME,
+        evaluators: [...RUBRICS],
         experimentPrefix: `document-extraction-${options.gitSha.slice(0, 7)}`,
         metadata: { git_sha: options.gitSha, suite: 'document-extraction' },
     });

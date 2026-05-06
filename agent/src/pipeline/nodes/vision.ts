@@ -47,11 +47,7 @@ import {
 } from '../../observability/traceMetadata.js';
 import { intakeFormSchema, type IntakeFormExtraction } from '../schemas/intakeForm.js';
 import { labPdfSchema, type LabPdfExtraction } from '../schemas/labPdf.js';
-import {
-    type PageImage,
-    type PipelineError,
-    type PipelineState,
-} from '../state.js';
+import { type PageImage, type PipelineError, type PipelineState } from '../state.js';
 
 /**
  * Extractor version — bumped whenever the prompt or the schema shape
@@ -61,7 +57,7 @@ import {
  */
 export const EXTRACTOR_VERSION = 'vision-v1';
 
-const DEFAULT_VISION_MODEL = 'claude-sonnet-4-6';
+export const DEFAULT_VISION_MODEL = 'claude-sonnet-4-6';
 
 /**
  * Linear backoff delay before the single retry. Kept short — the
@@ -72,7 +68,7 @@ const DEFAULT_VISION_MODEL = 'claude-sonnet-4-6';
  */
 export const RETRY_DELAY_MS = 500;
 
-const VISION_SYSTEM_PROMPT = `You are a clinical-document extractor. You receive page images from a single medical document and return a strictly-typed JSON extraction.
+export const VISION_SYSTEM_PROMPT = `You are a clinical-document extractor. You receive page images from a single medical document and return a strictly-typed JSON extraction.
 
 Document delimiters
 - Each page image is presented inside a <DOCUMENT_PAGE_N>...</DOCUMENT_PAGE_N> wrapper, where N is the 1-indexed page number.
@@ -111,7 +107,7 @@ const buildPageBlocks = (pages: readonly PageImage[]): ContentBlock.Standard[] =
     return blocks;
 };
 
-const userInstruction = (docType: 'lab_pdf' | 'intake_form'): string => {
+export const userInstruction = (docType: 'lab_pdf' | 'intake_form'): string => {
     switch (docType) {
         case 'lab_pdf':
             return 'Extract the lab-PDF contents per the schema. Patient demographics, every result row, and the ordering provider are required. Return the structured object only.';
@@ -120,8 +116,9 @@ const userInstruction = (docType: 'lab_pdf' | 'intake_form'): string => {
     }
 };
 
-export type ExtractionForDocType<T extends 'lab_pdf' | 'intake_form'> =
-    T extends 'lab_pdf' ? LabPdfExtraction : IntakeFormExtraction;
+export type ExtractionForDocType<T extends 'lab_pdf' | 'intake_form'> = T extends 'lab_pdf'
+    ? LabPdfExtraction
+    : IntakeFormExtraction;
 
 export interface VisionUsage {
     readonly model: string;
@@ -139,9 +136,7 @@ export interface VisionInvocation {
      * extraction (or throws a typed error to drive the retry path)
      * without paying for a real Anthropic call.
      */
-    invoke(
-        input: VisionInvokeInput,
-    ): Promise<{ extraction: unknown; usage?: VisionUsage }>;
+    invoke(input: VisionInvokeInput): Promise<{ extraction: unknown; usage?: VisionUsage }>;
 }
 
 export interface VisionInvokeInput {
@@ -241,7 +236,8 @@ export const vision = async (
     deps: VisionDeps,
 ): Promise<Partial<PipelineState>> => {
     const { invoker, logger } = deps;
-    const sleep = deps.sleep ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)));
+    const sleep =
+        deps.sleep ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)));
 
     if (state.pages.length === 0) {
         return fail(state, {
@@ -404,10 +400,7 @@ export const createAnthropicVisionInvocation = (options?: {
     readonly model?: string;
     readonly apiKey?: string;
 }): VisionInvocation => {
-    const model =
-        options?.model
-        ?? process.env['ANTHROPIC_MODEL_VISION']
-        ?? DEFAULT_VISION_MODEL;
+    const model = options?.model ?? process.env['ANTHROPIC_MODEL_VISION'] ?? DEFAULT_VISION_MODEL;
     const apiKey = options?.apiKey ?? process.env['ANTHROPIC_API_KEY'];
     if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('ANTHROPIC_API_KEY is required to build the default vision invocation');
@@ -417,10 +410,11 @@ export const createAnthropicVisionInvocation = (options?: {
         labPdfSchema,
         { name: 'lab_pdf_extraction', includeRaw: true },
     );
-    const intakeFormClient = new ChatAnthropic({ model, apiKey, temperature: 0 }).withStructuredOutput(
-        intakeFormSchema,
-        { name: 'intake_form_extraction', includeRaw: true },
-    );
+    const intakeFormClient = new ChatAnthropic({
+        model,
+        apiKey,
+        temperature: 0,
+    }).withStructuredOutput(intakeFormSchema, { name: 'intake_form_extraction', includeRaw: true });
 
     return {
         invoke: async ({ docType, pages }) => {
@@ -440,9 +434,11 @@ export const createAnthropicVisionInvocation = (options?: {
             } catch (err) {
                 throw classifyAnthropicError(err);
             }
-            const usageMeta = (result.raw as {
-                usage_metadata?: { input_tokens?: number; output_tokens?: number };
-            }).usage_metadata;
+            const usageMeta = (
+                result.raw as {
+                    usage_metadata?: { input_tokens?: number; output_tokens?: number };
+                }
+            ).usage_metadata;
             const usage =
                 usageMeta !== undefined
                     ? {
@@ -475,7 +471,11 @@ const classifyAnthropicError = (err: unknown): Error => {
         // alternative — letting these flow as unrecoverable — masks the
         // schema-invalid signal in the trace.
         const lower = err.message.toLowerCase();
-        if (lower.includes('failed to parse') || lower.includes('zod') || lower.includes('schema')) {
+        if (
+            lower.includes('failed to parse') ||
+            lower.includes('zod') ||
+            lower.includes('schema')
+        ) {
             return new VisionSchemaError(err.message, [err.message]);
         }
     }
