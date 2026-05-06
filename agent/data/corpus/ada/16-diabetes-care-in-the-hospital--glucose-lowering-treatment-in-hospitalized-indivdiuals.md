@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S016"
 license_tier: fair_use_cds
 slug: 16-diabetes-care-in-the-hospital
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:23.244Z"
-content_sha256: "cce1d7a87482d8240f706307c7ae9ea2c813b55b348c7510c539b27d3b60e475"
+fetched_at: "2026-05-06T23:51:53.879Z"
+content_sha256: "5381145e344338d98876a4e98c16ff9990d427a4c5a36e0aab6f4e0edf3aaa4d"
 ---
 An individualized approach for glycemic management is encouraged throughout the hospital stay and should take into consideration several predictive factors for achieving glycemic goals, such as prior home use and doses of insulin or noninsulin therapy, expected level of insulin resistance, prior A1C, current glucose levels, nutritional intake, duration of diabetes, glucose altering medications, and the goal of treatment for primary disease.
 Insulin Therapy

@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S009"
 license_tier: fair_use_cds
 slug: 09-pharmacologic-approaches
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:01.241Z"
-content_sha256: "14cc1dc5f6a253c9199a574735fbc9260435e56901cd181781bee34b7fb01bc5"
+fetched_at: "2026-05-06T23:45:42.670Z"
+content_sha256: "c786db1d05a001c1fd9647dde0d4c9ac168a03824e2bfdc330936b03a2abc84a"
 ---
 Recommendations
 

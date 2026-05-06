@@ -1,0 +1,22 @@
+---
+publication: ADA
+title: "11. Chronic Kidney Disease and Risk Management: Standards of Care in Diabetes—2026"
+section: interventions--combination-therapy-considerations-to-optimize-kidney-and-cardiovascular-risk-reduction
+section_label: "Interventions — Combination Therapy Considerations to Optimize Kidney and Cardiovascular Risk Reduction"
+year: 2025
+url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690176/"
+publisher_url: "https://doi.org/10.2337/dc26-S011"
+license_tier: fair_use_cds
+slug: 11-chronic-kidney-disease
+surface: pmc-section
+fetched_at: "2026-05-06T23:45:48.966Z"
+content_sha256: "6a6eb29afbe3c40e0531fcfb36c27d6ecc7d888cf8ae90d98916a338577d45ad"
+---
+Interventions — Combination Therapy Considerations to Optimize Kidney and Cardiovascular Risk Reduction
+
+Recommendation
+11.9 Simultaneous initiation of an SGLT2 inhibitor and a nonsteroidal MRA (finerenone) can be considered in adults with type 2 diabetes and UACR ≥100 mg/g with eGFR 30–90 mL/min/1.73 m2 on a renin-angiotensin system inhibitor due to evidence of safety and beneficial effects on albuminuria. B
+All of the recent kidney and cardiovascular outcomes studies for individuals with diabetes and CKD were completed in the setting of maximally tolerated RAS blockade. Thus, all individuals should have their treatment for RAS blockade adjusted to the maximally tolerated dose, even when considering combination therapy with other treatments. Although there have been no studies directly comparing SGLT2 inhibitors, GLP-1 RAs, or MRAs, the mechanisms of action of these medications are different and independent from glucose lowering. Therefore, it has been proposed and there is increasing evidence that combination therapy is likely to be beneficial for both cardiovascular and kidney outcomes.
+A population-based cohort study compared individuals on either a GLP-1 RA or SGLT2 inhibitor with those who added a treatment from the other class (SGLT2 inhibitor added to GLP-1 RA or vice versa). The addition of a GLP-1 RA on top of SGLT2 inhibitor treatment was associated with a 30% lower risk of major adverse cardiovascular events and 57% lower risk of serious kidney events compared with GLP-1 RA therapy alone after a median follow-up of 9 months. The addition of an SGLT2 inhibitor on top of GLP-1 RA was associated with a 29% lower risk of major adverse cardiovascular events compared with SGLT2 inhibitor alone. When stratified based on history of kidney disease, the use of combination treatment by individuals with a history of kidney disease was associated with a lower risk of major adverse cardiovascular events compared with those without kidney disease (146). Concomitant use of SGLT2 inhibitor with GLP-1 RA did not affect the overall benefits of semaglutide on kidney and cardiovascular outcomes in participants with type 2 diabetes and CKD in a prespecified analysis of the FLOW trial; however, the limited use of SGLT2 inhibitors at baseline may have affected these results (147).
+The recent CONFIDENCE (Combination Effect of Finerenone and Empagliflozin in Participants With Chronic Kidney Disease and Type 2 Diabetes Using a Urinary Albumin-to-Creatinine Ratio End Point) trial is the first published combination trial. There were three randomized arms: finerenone alone, empagliflozin alone, or the combination of the two therapies. Participants had CKD (eGFR >30 and <90 mL/min per 1.73 m2) with albuminuria (UACR >100 and <5,000 mg/g) and type 2 diabetes. Simultaneous initiation of finerenone and empagliflozin led to a reduction in the UACR at 180 days of 52% with combination therapy, which was 32% greater than that with empagliflozin alone and 29% greater than that with finerenone alone (148). This trial provides support for initial combination therapy in the setting of type 2 diabetes and CKD to slow kidney disease progression.
+Health care professionals should use their best judgement, considering the individuals’ comorbidities and preferences, as to which medication to prescribe initially (SGLT2 inhibitor or GLP-1 RA) and whether combination therapy is warranted. As noted, all of these studies included participants taking either an ACE inhibitor or an ARB, often at maximally tolerated doses. In addition, while current evidence of kidney benefit is limited to CKD in type 2 diabetes, multiple studies are in progress to determine if these therapies also improve kidney outcomes in people with type 1 diabetes (149,150).

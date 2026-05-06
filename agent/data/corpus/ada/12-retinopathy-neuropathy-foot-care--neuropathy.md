@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S012"
 license_tier: fair_use_cds
 slug: 12-retinopathy-neuropathy-foot-care
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:10.716Z"
-content_sha256: "2dd341c262f686a89834a72b6e7c9c471419909f9f39beb78fa0cc53545b4fcc"
+fetched_at: "2026-05-06T23:45:52.108Z"
+content_sha256: "45a6b1560541c0f1c3eff1210dee35704ac3d9d794e3e312cfbd4c221612e51d"
 ---
 Diabetic neuropathies are a heterogeneous group of disorders with diverse clinical manifestations (4). The early recognition and appropriate management of neuropathy in people with diabetes is important (62). Points to be aware of include the following:
 

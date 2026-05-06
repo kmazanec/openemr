@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-SINT"
 license_tier: fair_use_cds
 slug: introduction-and-methodology
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:32.914Z"
-content_sha256: "0286ac48049bbb4db7e23ea1afa3046654d617a4c91388f0db384df468414cde"
+fetched_at: "2026-05-06T23:45:14.474Z"
+content_sha256: "851f25eefd9979eda49730ac5b46849b2b829f4ce035a4f70e2ec6f03ea0a3e3"
 ---
 Diabetes is a complex, chronic condition requiring continuous care with comprehensive risk-reduction strategies beyond glycemic management. Ongoing diabetes self-management education and support are critical to empowering people, preventing acute complications, and reducing the risk of long-term complications. Significant evidence exists that supports a range of interventions to improve diabetes outcomes.
 The American Diabetes Association (ADA) “Standards of Care in Diabetes,” referred to here as the Standards of Care, serves as a comprehensive resource to clinicians, researchers, policymakers, and other stakeholders. It outlines key elements of diabetes care, sets treatment goals, and provides tools to assess care quality, all directed at improving diabetes care and outcomes across diverse populations.

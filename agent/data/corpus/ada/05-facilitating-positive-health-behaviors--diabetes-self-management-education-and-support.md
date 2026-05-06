@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S005"
 license_tier: fair_use_cds
 slug: 05-facilitating-positive-health-behaviors
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:48.717Z"
-content_sha256: "9f84b161513bbe6297568313ea5b1547ecb60b97c8f374474f1f82483fe097b4"
+fetched_at: "2026-05-06T23:45:30.173Z"
+content_sha256: "b50ee5aa5ba84d190c16dfbbbfb07383c16245dfb8f412b6f1c2e5ecbec0cd16"
 ---
 Recommendations
 

@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S017"
 license_tier: fair_use_cds
 slug: 17-diabetes-advocacy
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:26.378Z"
-content_sha256: "1b20f5fccac9b92305d25a3a570ed7e3daf1ad4e33d91439856d0999acdba3e9"
+fetched_at: "2026-05-06T23:46:07.708Z"
+content_sha256: "c993b69ee5d64b8b8738343231992db2bc84d4bf33a3b50a83636a9ce72d90aa"
 ---
 The following is a partial list of advocacy statements ordered by publication date, with the most recent statement appearing first. A comprehensive list of advocacy statements is available at professional.diabetes.org/content/key-statements-and-reports.
 Diabetes Care in the School Setting

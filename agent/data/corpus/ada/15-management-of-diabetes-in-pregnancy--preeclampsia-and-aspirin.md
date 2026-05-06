@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S015"
 license_tier: fair_use_cds
 slug: 15-management-of-diabetes-in-pregnancy
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:20.156Z"
-content_sha256: "944de3df622f1743320e8b3a49447793e659453bbd6118c60fc244329e7af203"
+fetched_at: "2026-05-06T23:46:01.480Z"
+content_sha256: "63657d1860bd23913416928f463d88fcb0dccb99c3c0f46914f377bd66c18909"
 ---
 Recommendation
 15.23 Pregnant individuals with type 1 or type 2 diabetes should be prescribed low-dose aspirin 100–150 mg/day starting at 12–16 weeks of gestation to lower the risk of preeclampsia. E A dosage of 162 mg/day may be acceptable; E currently, in the U.S., low-dose aspirin is available in 81-mg tablets.

@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S011"
 license_tier: fair_use_cds
 slug: 11-chronic-kidney-disease
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:07.560Z"
-content_sha256: "420c7770a6105d3a313c8cb6f45c891fd0152a9d5b3319dd8a1553b2e41ea4ea"
+fetched_at: "2026-05-06T23:45:48.966Z"
+content_sha256: "6a6eb29afbe3c40e0531fcfb36c27d6ecc7d888cf8ae90d98916a338577d45ad"
 ---
 Recommendation
 11.2 Aim to reduce urinary albumin by ≥30% in people with CKD and albuminuria ≥300 mg/g to slow CKD progression. B

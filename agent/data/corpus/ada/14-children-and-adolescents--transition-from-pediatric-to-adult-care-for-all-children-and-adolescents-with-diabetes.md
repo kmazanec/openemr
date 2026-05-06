@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S014"
 license_tier: fair_use_cds
 slug: 14-children-and-adolescents
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:17.009Z"
-content_sha256: "fb934b6588c200ec1c201995e45d601008e30ff0309565556e46533a253b3db4"
+fetched_at: "2026-05-06T23:45:58.389Z"
+content_sha256: "8c1d4af4aa000ad494bace075c256292ea848323c0f8471c64faeb221a7e3e8d"
 ---
 Recommendations
 

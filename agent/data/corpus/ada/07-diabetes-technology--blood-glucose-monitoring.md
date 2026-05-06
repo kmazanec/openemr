@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S007"
 license_tier: fair_use_cds
 slug: 07-diabetes-technology
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:54.984Z"
-content_sha256: "f224b785ddf6bb23df406be00d550ec57f04779a534299214744a17f001da2cf"
+fetched_at: "2026-05-06T23:45:36.450Z"
+content_sha256: "ea3c745777df4823f9ba34ff9f1d71fdeb11f799d46eda0235fa715614cbd710"
 ---
 Recommendations
 

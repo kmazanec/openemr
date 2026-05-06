@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S002"
 license_tier: fair_use_cds
 slug: 02-diagnosis-and-classification
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:39.202Z"
-content_sha256: "f9940ad87f8254e64faf7e1bea234c31afd1f2709f1e5019b0a9d39f91ab3eee"
+fetched_at: "2026-05-06T23:45:20.753Z"
+content_sha256: "d4af43ae4a38c9018d1f7334c18f85daf4b22ce22618b994984bc525a6666205"
 ---
 Recommendations
 2.19 People starting cancer treatment with immune checkpoint inhibitors (ICIs), including anti-PD-1 or anti-PDL-1 therapy (e.g., nivolumab, pembrolizumab, avelumab), phosphoinositidylinositol 3-kinase α (PI3Kα) inhibitors (e.g., alpelisib, inavolisib), or mammalian target of rapamycin (mTOR) inhibitors (e.g., everolimus), should be educated regarding risks, symptoms, and signs of hyperglycemia and hyperglycemic crises. E

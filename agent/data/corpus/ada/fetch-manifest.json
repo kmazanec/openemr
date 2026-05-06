@@ -2,7 +2,7 @@
   "source": "ada",
   "fetcher_version": "1",
   "first_run_at": "2026-05-06T23:17:29.378Z",
-  "last_run_at": "2026-05-06T23:17:54.754Z",
+  "last_run_at": "2026-05-06T23:51:56.881Z",
   "entries": [
     {
       "slug": "01-improving-care-and-promoting-health",
@@ -10,8 +10,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690171/",
       "publisher_url": "https://doi.org/10.2337/dc26-S001",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:36.086Z",
-      "content_sha256": "5f94bf761d1cb247b8bca16259ea053d7f35e6ccc1f430266ced20a9e93a8e8b"
+      "fetched_at": "2026-05-06T23:45:17.643Z",
+      "content_sha256": "873aa0bbf056b6abf095bfa923952e9bda5c058b97071ad5ef09a9fd92bbe015"
     },
     {
       "slug": "02-diagnosis-and-classification",
@@ -19,8 +19,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690183/",
       "publisher_url": "https://doi.org/10.2337/dc26-S002",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:39.202Z",
-      "content_sha256": "f9940ad87f8254e64faf7e1bea234c31afd1f2709f1e5019b0a9d39f91ab3eee"
+      "fetched_at": "2026-05-06T23:45:20.753Z",
+      "content_sha256": "d4af43ae4a38c9018d1f7334c18f85daf4b22ce22618b994984bc525a6666205"
     },
     {
       "slug": "03-prevention-or-delay",
@@ -28,8 +28,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690170/",
       "publisher_url": "https://doi.org/10.2337/dc26-S003",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:42.329Z",
-      "content_sha256": "a4cef91dc33b3f385fddaeeea1f1db8446ddc1602f627780653d752f0f9631be"
+      "fetched_at": "2026-05-06T23:45:23.886Z",
+      "content_sha256": "71a00e8e76d86d154edb3a9c3cc4d00b3b408c7bbf914c1a4377c20782f5d911"
     },
     {
       "slug": "04-comprehensive-medical-evaluation",
@@ -37,8 +37,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690184/",
       "publisher_url": "https://doi.org/10.2337/dc26-S004",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:45.507Z",
-      "content_sha256": "a72d6d99b1de1e5878ad3beeb1801e25f31a41b244b9d87ee9599ba496772566"
+      "fetched_at": "2026-05-06T23:45:27.059Z",
+      "content_sha256": "3863a9f99feea4d1f7d0dc3a32e5a1377fa7f45326064ebf177b1fea4662a631"
     },
     {
       "slug": "05-facilitating-positive-health-behaviors",
@@ -46,8 +46,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690188/",
       "publisher_url": "https://doi.org/10.2337/dc26-S005",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:48.717Z",
-      "content_sha256": "9f84b161513bbe6297568313ea5b1547ecb60b97c8f374474f1f82483fe097b4"
+      "fetched_at": "2026-05-06T23:45:30.173Z",
+      "content_sha256": "b50ee5aa5ba84d190c16dfbbbfb07383c16245dfb8f412b6f1c2e5ecbec0cd16"
     },
     {
       "slug": "06-glycemic-goals-hypoglycemia",
@@ -55,8 +55,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690178/",
       "publisher_url": "https://doi.org/10.2337/dc26-S006",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:51.893Z",
-      "content_sha256": "ca7f871cc3a533615fdf23ff5783e13438dd59ca39e00a1aa85fbe93c723f374"
+      "fetched_at": "2026-05-06T23:45:33.315Z",
+      "content_sha256": "52ff9d974871b250c0133abc993b3ac77ce69ab6a889d4750119a932c2c05021"
     },
     {
       "slug": "07-diabetes-technology",
@@ -64,8 +64,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690173/",
       "publisher_url": "https://doi.org/10.2337/dc26-S007",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:54.984Z",
-      "content_sha256": "f224b785ddf6bb23df406be00d550ec57f04779a534299214744a17f001da2cf"
+      "fetched_at": "2026-05-06T23:45:36.450Z",
+      "content_sha256": "ea3c745777df4823f9ba34ff9f1d71fdeb11f799d46eda0235fa715614cbd710"
     },
     {
       "slug": "08-obesity-and-weight-management",
@@ -73,8 +73,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690172/",
       "publisher_url": "https://doi.org/10.2337/dc26-S008",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:58.073Z",
-      "content_sha256": "5e963d9e7ec0e675782b36da6c512cad41e7cf1e9d0375361d4ed4ebc2eaeb14"
+      "fetched_at": "2026-05-06T23:45:39.572Z",
+      "content_sha256": "565fef7e3463ccfe48eb18b3d7455823c56b16dee388b739f037c321d55710b3"
     },
     {
       "slug": "09-pharmacologic-approaches",
@@ -82,8 +82,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690185/",
       "publisher_url": "https://doi.org/10.2337/dc26-S009",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:01.241Z",
-      "content_sha256": "14cc1dc5f6a253c9199a574735fbc9260435e56901cd181781bee34b7fb01bc5"
+      "fetched_at": "2026-05-06T23:45:42.670Z",
+      "content_sha256": "c786db1d05a001c1fd9647dde0d4c9ac168a03824e2bfdc330936b03a2abc84a"
     },
     {
       "slug": "10-cardiovascular-disease-and-risk-management",
@@ -91,8 +91,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690187/",
       "publisher_url": "https://doi.org/10.2337/dc26-S010",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:04.435Z",
-      "content_sha256": "400239a4e1906b3c178444dd0cd756540cd3fd5348d7cf635b3340f5887a5e59"
+      "fetched_at": "2026-05-06T23:45:45.817Z",
+      "content_sha256": "6c73f4c02d2398c3176ea23777371e115328ea93c15fab790d3da8512f3a9582"
     },
     {
       "slug": "11-chronic-kidney-disease",
@@ -100,8 +100,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690176/",
       "publisher_url": "https://doi.org/10.2337/dc26-S011",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:07.560Z",
-      "content_sha256": "420c7770a6105d3a313c8cb6f45c891fd0152a9d5b3319dd8a1553b2e41ea4ea"
+      "fetched_at": "2026-05-06T23:45:48.966Z",
+      "content_sha256": "6a6eb29afbe3c40e0531fcfb36c27d6ecc7d888cf8ae90d98916a338577d45ad"
     },
     {
       "slug": "12-retinopathy-neuropathy-foot-care",
@@ -109,8 +109,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690177/",
       "publisher_url": "https://doi.org/10.2337/dc26-S012",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:10.716Z",
-      "content_sha256": "2dd341c262f686a89834a72b6e7c9c471419909f9f39beb78fa0cc53545b4fcc"
+      "fetched_at": "2026-05-06T23:45:52.108Z",
+      "content_sha256": "45a6b1560541c0f1c3eff1210dee35704ac3d9d794e3e312cfbd4c221612e51d"
     },
     {
       "slug": "13-older-adults",
@@ -118,8 +118,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690186/",
       "publisher_url": "https://doi.org/10.2337/dc26-S013",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:13.861Z",
-      "content_sha256": "ba5639042b2dadb10260442de662b8b99b08f4faae947a1fe91d83a210bb36e9"
+      "fetched_at": "2026-05-06T23:45:55.241Z",
+      "content_sha256": "84410aa75bf4cc43205308001f6727a1952fa02dc46d57c47bf24440df1fbc04"
     },
     {
       "slug": "14-children-and-adolescents",
@@ -127,8 +127,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690182/",
       "publisher_url": "https://doi.org/10.2337/dc26-S014",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:17.009Z",
-      "content_sha256": "fb934b6588c200ec1c201995e45d601008e30ff0309565556e46533a253b3db4"
+      "fetched_at": "2026-05-06T23:45:58.389Z",
+      "content_sha256": "8c1d4af4aa000ad494bace075c256292ea848323c0f8471c64faeb221a7e3e8d"
     },
     {
       "slug": "15-management-of-diabetes-in-pregnancy",
@@ -136,8 +136,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690181/",
       "publisher_url": "https://doi.org/10.2337/dc26-S015",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:20.156Z",
-      "content_sha256": "944de3df622f1743320e8b3a49447793e659453bbd6118c60fc244329e7af203"
+      "fetched_at": "2026-05-06T23:46:01.480Z",
+      "content_sha256": "63657d1860bd23913416928f463d88fcb0dccb99c3c0f46914f377bd66c18909"
     },
     {
       "slug": "16-diabetes-care-in-the-hospital",
@@ -145,8 +145,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690180/",
       "publisher_url": "https://doi.org/10.2337/dc26-S016",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:23.244Z",
-      "content_sha256": "cce1d7a87482d8240f706307c7ae9ea2c813b55b348c7510c539b27d3b60e475"
+      "fetched_at": "2026-05-06T23:51:53.879Z",
+      "content_sha256": "5381145e344338d98876a4e98c16ff9990d427a4c5a36e0aab6f4e0edf3aaa4d"
     },
     {
       "slug": "17-diabetes-advocacy",
@@ -154,8 +154,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690165/",
       "publisher_url": "https://doi.org/10.2337/dc26-S017",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:17:26.378Z",
-      "content_sha256": "1b20f5fccac9b92305d25a3a570ed7e3daf1ad4e33d91439856d0999acdba3e9"
+      "fetched_at": "2026-05-06T23:46:07.708Z",
+      "content_sha256": "c993b69ee5d64b8b8738343231992db2bc84d4bf33a3b50a83636a9ce72d90aa"
     },
     {
       "slug": "introduction-and-methodology",
@@ -163,8 +163,8 @@
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690168/",
       "publisher_url": "https://doi.org/10.2337/dc26-SINT",
       "surface": "pmc-section",
-      "fetched_at": "2026-05-06T23:16:32.914Z",
-      "content_sha256": "0286ac48049bbb4db7e23ea1afa3046654d617a4c91388f0db384df468414cde"
+      "fetched_at": "2026-05-06T23:45:14.474Z",
+      "content_sha256": "851f25eefd9979eda49730ac5b46849b2b829f4ce035a4f70e2ec6f03ea0a3e3"
     }
   ]
 }

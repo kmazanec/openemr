@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-SINT"
 license_tier: fair_use_cds
 slug: introduction-and-methodology
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:32.914Z"
-content_sha256: "0286ac48049bbb4db7e23ea1afa3046654d617a4c91388f0db384df468414cde"
+fetched_at: "2026-05-06T23:45:14.474Z"
+content_sha256: "851f25eefd9979eda49730ac5b46849b2b829f4ce035a4f70e2ec6f03ea0a3e3"
 ---
 The Standards of Care includes discussion of evidence and clinical practice recommendations intended to optimize care for people with diabetes by assisting health care professionals and individuals in making shared decisions about diabetes care. These recommendations are based on a comprehensive evaluation of the available evidence, along with a careful assessment of the benefits and risks associated with different care strategies.
 Professional Practice Committee for Diabetes

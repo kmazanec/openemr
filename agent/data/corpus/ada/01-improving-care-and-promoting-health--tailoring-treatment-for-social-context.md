@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S001"
 license_tier: fair_use_cds
 slug: 01-improving-care-and-promoting-health
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:36.086Z"
-content_sha256: "5f94bf761d1cb247b8bca16259ea053d7f35e6ccc1f430266ced20a9e93a8e8b"
+fetched_at: "2026-05-06T23:45:17.643Z"
+content_sha256: "873aa0bbf056b6abf095bfa923952e9bda5c058b97071ad5ef09a9fd92bbe015"
 ---
 Recommendations
 

@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S008"
 license_tier: fair_use_cds
 slug: 08-obesity-and-weight-management
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:58.073Z"
-content_sha256: "5e963d9e7ec0e675782b36da6c512cad41e7cf1e9d0375361d4ed4ebc2eaeb14"
+fetched_at: "2026-05-06T23:45:39.572Z"
+content_sha256: "565fef7e3463ccfe48eb18b3d7455823c56b16dee388b739f037c321d55710b3"
 ---
 Recommendation
 8.29 Apply obesity management strategies used in the general adult population, including GLP-1 RA–based therapy B and metabolic surgery, C to adults with type 1 diabetes who have obesity (BMI ≥30.0 kg/m², or ≥27.5 kg/m² in Asian American individuals). Shared decision-making should inform individualized care.

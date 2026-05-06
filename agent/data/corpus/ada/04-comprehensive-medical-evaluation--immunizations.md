@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S004"
 license_tier: fair_use_cds
 slug: 04-comprehensive-medical-evaluation
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:45.507Z"
-content_sha256: "a72d6d99b1de1e5878ad3beeb1801e25f31a41b244b9d87ee9599ba496772566"
+fetched_at: "2026-05-06T23:45:27.059Z"
+content_sha256: "3863a9f99feea4d1f7d0dc3a32e5a1377fa7f45326064ebf177b1fea4662a631"
 ---
 Recommendation
 4.5 Provide routinely recommended vaccinations for children, adolescents, and adults with diabetes as indicated by age (see Table 4.3). A

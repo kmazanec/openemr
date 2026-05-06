@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S006"
 license_tier: fair_use_cds
 slug: 06-glycemic-goals-hypoglycemia
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:51.893Z"
-content_sha256: "ca7f871cc3a533615fdf23ff5783e13438dd59ca39e00a1aa85fbe93c723f374"
+fetched_at: "2026-05-06T23:45:33.315Z"
+content_sha256: "52ff9d974871b250c0133abc993b3ac77ce69ab6a889d4750119a932c2c05021"
 ---
 Glycemic status is assessed by A1C measurement, blood glucose monitoring (BGM) by capillary (finger-stick) devices, and different continuous glucose monitoring (CGM) metrics such as time in range (TIR), time below range (TBR), time above range (TAR), glucose management indicator (GMI), coefficient of variation, and mean glucose. Clinical trials of interventions that lower A1C have demonstrated the benefits of improved glycemia with respect to long-term diabetes complications. Glucose monitoring via CGM or BGM (discussed in detail in section 7, “Diabetes Technology”) is useful for diabetes self-management, can provide nuanced information on glucose responses to meals, physical activity, and medication changes, and is particularly useful for optimal medication management and safety in individuals taking insulin. CGM serves an increasingly important role in optimizing the effectiveness and safety of treatment in many people with type 1 diabetes, type 2 diabetes, diabetes in pregnancy, and other forms of diabetes (e.g., cystic fibrosis–related diabetes). Individuals on a variety of insulin treatment plans benefit from CGM with improved glucose levels, decreased hypoglycemia, and enhanced self-efficacy (section 7, “Diabetes Technology”) (1).
 Glycemic Assessment

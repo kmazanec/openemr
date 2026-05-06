@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S010"
 license_tier: fair_use_cds
 slug: 10-cardiovascular-disease-and-risk-management
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:04.435Z"
-content_sha256: "400239a4e1906b3c178444dd0cd756540cd3fd5348d7cf635b3340f5887a5e59"
+fetched_at: "2026-05-06T23:45:45.817Z"
+content_sha256: "6c73f4c02d2398c3176ea23777371e115328ea93c15fab790d3da8512f3a9582"
 ---
 Open in a new tab
 Multifactorial approach to reduction in risk of diabetes complications.

@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S015"
 license_tier: fair_use_cds
 slug: 15-management-of-diabetes-in-pregnancy
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:20.156Z"
-content_sha256: "944de3df622f1743320e8b3a49447793e659453bbd6118c60fc244329e7af203"
+fetched_at: "2026-05-06T23:46:01.480Z"
+content_sha256: "63657d1860bd23913416928f463d88fcb0dccb99c3c0f46914f377bd66c18909"
 ---
 The prevalence of diabetes in pregnancy has been increasing in the U.S. in parallel with the worldwide epidemic of obesity. Not only is the prevalence of type 1 diabetes and type 2 diabetes increasing in individuals of reproductive age but there is also a dramatic increase in the reported rates of gestational diabetes mellitus (GDM). Diabetes confers significantly greater maternal and fetal risk that is largely related to the degree of hyperglycemia but also is related to chronic complications and comorbidities of diabetes. In general, specific risks of diabetes in pregnancy include spontaneous abortion, fetal anomalies, preeclampsia, fetal demise, macrosomia, neonatal hypoglycemia, neonatal hyperbilirubinemia, and neonatal respiratory distress syndrome. In addition, exposure to hyperglycemia in utero increases the risks of obesity, hypertension, and type 2 diabetes in offspring later in life (1,2).
 Preconception Counseling

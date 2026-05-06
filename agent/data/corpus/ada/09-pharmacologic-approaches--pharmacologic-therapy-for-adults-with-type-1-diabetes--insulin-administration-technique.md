@@ -1,0 +1,19 @@
+---
+publication: ADA
+title: "9. Pharmacologic Approaches to Glycemic Treatment: Standards of Care in Diabetes—2026"
+section: pharmacologic-therapy-for-adults-with-type-1-diabetes--insulin-administration-technique
+section_label: "Pharmacologic Therapy for Adults With Type 1 Diabetes — Insulin Administration Technique"
+year: 2025
+url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690185/"
+publisher_url: "https://doi.org/10.2337/dc26-S009"
+license_tier: fair_use_cds
+slug: 09-pharmacologic-approaches
+surface: pmc-section
+fetched_at: "2026-05-06T23:45:42.670Z"
+content_sha256: "c786db1d05a001c1fd9647dde0d4c9ac168a03824e2bfdc330936b03a2abc84a"
+---
+Pharmacologic Therapy for Adults With Type 1 Diabetes — Insulin Administration Technique
+
+Ensuring that individuals and/or caregivers understand correct insulin administration technique is important to optimize glycemic management and insulin use safety. Advanced insulin injection technique and education with FITTER Forward expert recommendations have been published elsewhere outlining best practices for insulin administration (60). Proper insulin administration technique includes the following: injection, insertion of patch (for bolus patch or fixed-rate patch pump) or infusion set (for CSII or AID systems) into appropriate body areas, or oral inhalation (inhaled human insulin); injection or infusion site rotation; appropriate care of injection or infusion sites to avoid infection or other complications; avoidance of intramuscular (IM) insulin delivery; and filling of the reservoir (for bolus patch, CSII, or AID systems) or inhaler (for inhaled human insulin) depending on the method of administration. Selection of method of administration (vial and syringe, insulin pen, insulin patch, inhaled insulin, connected insulin pens/devices, or insulin pumps) will depend on a variety of individual-specific factors and needs, cost and coverage, and individual preferences. Reassessment of the appropriate administration technique should be completed during routine follow-up.
+Exogenously delivered insulin should be injected or infused into subcutaneous tissue, not intramuscularly. Recommended sites for insulin administration include the abdomen, thigh, buttock, and upper arm. Insulin absorption from IM sites differs from that in subcutaneous sites and is also influenced by the activity of the muscle. Inadvertent IM injection can lead to unpredictable insulin absorption and variable effects on glucose and is associated with frequent and unexplained hypoglycemia. Size 4-mm pen needles should be used to reduce inadvertent IM insulin delivery across ages and body types. IM risk is higher in younger, leaner individuals, with injections into limbs rather than truncal sites (abdomen, buttocks), and with longer needles. Short needles (e.g., 4-mm) are effective and well tolerated compared with longer needles, including in adults with obesity (61).
+Injection or infusion site rotation is necessary to avoid lipohypertrophy, an accumulation of subcutaneous fat in response to the adipogenic actions of insulin at a site of multiple injections. Lipohypertrophy appears as soft, smooth raised areas several centimeters in breadth and can contribute to erratic insulin absorption, increased glycemic variability, and unexplained hypoglycemic episodes. People treated with insulin and/or caregivers should receive education about proper injection or infusion site rotation and how to recognize and avoid injecting in areas of lipohypertrophy (60). As noted in Table 4.1, examination of insulin administration sites for the presence of lipohypertrophy, as well as assessment of administration device use and injection technique, are key components of a comprehensive diabetes evaluation and treatment plan. Proper insulin injection, infusion, or inhalation technique may lead to more effective use of this therapy and, as such, holds the potential for improved clinical outcomes.

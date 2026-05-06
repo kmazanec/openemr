@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S003"
 license_tier: fair_use_cds
 slug: 03-prevention-or-delay
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:42.329Z"
-content_sha256: "a4cef91dc33b3f385fddaeeea1f1db8446ddc1602f627780653d752f0f9631be"
+fetched_at: "2026-05-06T23:45:23.886Z"
+content_sha256: "71a00e8e76d86d154edb3a9c3cc4d00b3b408c7bbf914c1a4377c20782f5d911"
 ---
 Recommendations
 

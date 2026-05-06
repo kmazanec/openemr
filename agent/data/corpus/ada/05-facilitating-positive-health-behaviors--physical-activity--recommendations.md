@@ -1,0 +1,26 @@
+---
+publication: ADA
+title: "5. Facilitating Positive Health Behaviors and Well-being to Improve Health Outcomes: Standards of Care in Diabetes—2026"
+section: physical-activity--recommendations
+section_label: "Physical Activity — Recommendations"
+year: 2025
+url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12690188/"
+publisher_url: "https://doi.org/10.2337/dc26-S005"
+license_tier: fair_use_cds
+slug: 05-facilitating-positive-health-behaviors
+surface: pmc-section
+fetched_at: "2026-05-06T23:45:30.173Z"
+content_sha256: "b50ee5aa5ba84d190c16dfbbbfb07383c16245dfb8f412b6f1c2e5ecbec0cd16"
+---
+Physical Activity — Recommendations
+
+5.34 Evaluate baseline physical activity and sedentary time for all people with diabetes and those at risk for diabetes. For people who do not meet activity guidelines, encourage an increase in physical activities above baseline with the goal of meeting activity guidelines. B Counsel that prolonged sitting should be interrupted at least every 30 min for blood glucose and other benefits. C
+5.35 Counsel children and adolescents with type 1 diabetes C or type 2 diabetes B to engage in 60 min/day or more of moderate- or vigorous-intensity aerobic activity, with muscle-strengthening and bone-strengthening activities at least 3 days/week, and to limit the amount of time being spent sedentary, including recreational screen time. C
+5.36 Counsel most adults with type 1 diabetes C and type 2 diabetes B to engage in 150 min or more of moderate- to vigorous-intensity aerobic activity per week, spread over at least 3 days/week, with no more than 2 consecutive days without activity. Shorter durations (minimum 75 min/week) of vigorous-intensity or interval training may be sufficient for more physically fit individuals.
+5.37 Counsel adults with type 1 diabetes C and type 2 diabetes B to engage in 2–3 sessions/week of resistance exercise on nonconsecutive days.
+5.38 Counsel most older adults with diabetes to engage in flexibility training and balance training 2–3 times/week. C
+5.39 Counsel all people with diabetes who are treated with obesity pharmacotherapy or metabolic surgery that meeting physical activity recommendations, in particular muscle-strengthening exercises, may be beneficial for maintaining lean body mass. C
+
+Physical activity includes all movement that increases energy use, and exercise is a more specific form of physical activity that is structured and designed to improve physical fitness. Both physical activity and exercise demonstrate numerous benefits for people with and at risk for diabetes and are important for the diabetes management plan. Higher levels of total and leisure-time physical activity are associated with a lower risk of cardiovascular and overall mortality in people with diabetes (241,242). Leisure-time activity may also help prevent type 2 diabetes (243) and reduce A1C in those with diabetes (244). Moreover, data from the DPPOS noted that self-reported habitual physical activity is positively associated with 6-min walking distance, which suggests long-term benefits of regular physical activity engagement (245). Exercise and physical activity have favorable effects on glycemia, cardiovascular risk factors, weight loss, body composition, mobility, mortality, psychosocial well-being, and physical function in people with diabetes (242,246–254).
+Given the benefits of physical activity and exercise for people with diabetes, they should be recommended and prescribed to all individuals who are at risk for or have diabetes as part of the diabetes care plan, unless otherwise contraindicated. Specific recommendations and precautions on the type of activity will vary by diabetes type, age, and presence of complications. Health care professionals should support people with diabetes to set stepwise goals toward meeting the recommended exercise volume. As individuals intensify their exercise program, medical monitoring may be indicated to ensure safety and evaluate the effects on glycemic management. Exercise and activity plans should be tailored to meet the specific needs of each individual (255), and different strategies can be used to increase engagement (256,257). Individuals with diabetes may experience obstacles to exercise, such as not having enough time or inadequate access to equipment or education for safe participation. The care team should help identify these obstacles and individualize approaches to improve long-term adoption of physical activity and exercise as a key part of the diabetes care plan.
+Furthermore, activity plans can be modified to best suit the fitness level of the individual, which may vary due to ability level or complications. The plan might also need to be modified over time due to changes in health status, goals, or preferences or if the therapeutic response reaches a plateau. For this reason, individuals with diabetes benefit from a team-based approach, including working with an exercise physiologist, physical therapist, or personal trainer, among others, where available and affordable (258). The ADA position statement “Physical Activity/Exercise and Diabetes” reviews the evidence for the benefits of exercise in people with type 1 and type 2 diabetes and offers more specific guidance (255).

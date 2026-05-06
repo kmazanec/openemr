@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S009"
 license_tier: fair_use_cds
 slug: 09-pharmacologic-approaches
 surface: pmc-section
-fetched_at: "2026-05-06T23:17:01.241Z"
-content_sha256: "14cc1dc5f6a253c9199a574735fbc9260435e56901cd181781bee34b7fb01bc5"
+fetched_at: "2026-05-06T23:45:42.670Z"
+content_sha256: "c786db1d05a001c1fd9647dde0d4c9ac168a03824e2bfdc330936b03a2abc84a"
 ---
 Pancreas and Islet Transplantation
 Successful pancreas and islet transplantation can normalize glucose levels and mitigate microvascular complications of type 1 diabetes. However, people receiving these treatments require lifelong immunosuppression to prevent graft rejection and/or recurrence of autoimmune islet destruction. Given the potential adverse effects of immunosuppressive therapy, pancreas transplantation should be reserved for people with type 1 diabetes undergoing simultaneous kidney transplantation, following kidney transplantation, or for those with recurrent ketoacidosis or severe hypoglycemia despite optimized glycemic management (87). In much of the world, allogenic islet transplantation is regulated as an organ transplant. However, in the U.S., allogenic islet transplantation is regulated as a cell therapy, and the first such allogeneic islet cell therapy, donislecel-jujn, was approved in 2023. Donislecel is indicated for the treatment of adults with type 1 diabetes who are unable to reach their A1C goals because of repeated episodes of severe hypoglycemia despite intensive diabetes management and education (88). Alternative islet sources are currently under active investigation.

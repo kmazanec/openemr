@@ -9,8 +9,8 @@ publisher_url: "https://doi.org/10.2337/dc26-S003"
 license_tier: fair_use_cds
 slug: 03-prevention-or-delay
 surface: pmc-section
-fetched_at: "2026-05-06T23:16:42.329Z"
-content_sha256: "a4cef91dc33b3f385fddaeeea1f1db8446ddc1602f627780653d752f0f9631be"
+fetched_at: "2026-05-06T23:45:23.886Z"
+content_sha256: "71a00e8e76d86d154edb3a9c3cc4d00b3b408c7bbf914c1a4377c20782f5d911"
 ---
 Lifestyle and Type 1 Diabetes Progression
 Observational studies have identified several factors that increase β-cell demand and risk of progression to clinical type 1 diabetes among individuals with islet autoantibodies, including lower levels of physical activity (138), higher glycemic index eating patterns (139), and total sugar intake (140). Similar associations have not been observed for the development of autoantibodies. In The Environmental Determinants of Diabetes in the Young (TEDDY) longitudinal study, daily minutes spent in moderate to vigorous physical activity were associated with a reduced risk of progression to type 1 diabetes in children 5–15 years of age with multiple islet autoantibodies (HR 0.92 [95% CI 0.86–0.99] per 10-min increase; P = 0.02) (138). In the Diabetes Autoimmunity Study in the Young (DAISY), also in children with islet autoantibodies, consumption of higher glycemic index foods (HR 2.20 [95% CI 1.17–4.15]) and total sugar intake (HR 1.75 [95% CI 1.07–2.85]) (139,140) were both associated with progression to type 1 diabetes. In nonobese diabetic mice, an animal model for the development of type 1 diabetes, sustained high-glucose drinking significantly aggravated islet inflammation and accelerated the onset of type 1 diabetes (141). However, efficacy of lifestyle interventions that modify these factors in individuals with stage 1 or stage 2 type 1 diabetes has not yet been reported.Pharmacologic Interventions to Delay Symptomatic Type 1 Diabetes
