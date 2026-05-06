@@ -51,6 +51,18 @@ final class ImagickTiffDecoderTest extends TestCase
         if (!extension_loaded('imagick')) {
             self::markTestSkipped('ext-imagick is required for ImagickTiffDecoder integration coverage');
         }
+        // ImageMagick is sometimes compiled without the TIFF delegate
+        // (CI's php-isolated image is one example: ext-imagick loads
+        // but `BlobToImage/481` fails with "no decode delegate for
+        // this image format TIFF"). Skip gracefully when the delegate
+        // is unavailable so the isolated suite stays portable.
+        // Production runs on an image that includes the TIFF delegate.
+        if (!in_array('TIFF', \Imagick::queryFormats('TIFF'), strict: true)) {
+            self::markTestSkipped(
+                'ImageMagick on this host has no TIFF decode delegate; '
+                . 'install ImageMagick with libtiff support to exercise this test',
+            );
+        }
         if (!is_readable(self::TIFF_FIXTURE)) {
             self::markTestSkipped('TIFF fixture is not readable on this host');
         }

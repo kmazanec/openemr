@@ -214,7 +214,18 @@ services:
       retries: 5
 
   openemr:
-    image: openemr/openemr:flex@sha256:e4562b0c7d3f222ec8f72122ce00d10ffa93f559c38c00ab12c1355394c35d1c
+    # Thin derived image on top of openemr/openemr:flex that bakes in
+    # the Alpine `tiff` package so ext-imagick has the TIFF decode
+    # delegate. F.4b's session-side document viewer decodes TIFF
+    # uploads to PNG via \Imagick before serving to the panel; the
+    # upstream flex image ships ext-imagick without the libtiff
+    # delegate. The Dockerfile is one FROM + one apk add.
+    #
+    # Bumping the upstream digest requires updating both this build
+    # context's FROM line and any historical `image:` reference, in
+    # lockstep — see docker/digitalocean/openemr/Dockerfile.
+    build:
+      context: ./openemr
     restart: unless-stopped
     mem_limit: 1g
     cpus: 1.5

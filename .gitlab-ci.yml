@@ -61,12 +61,22 @@ test:php-isolated:
       -e COMPOSER_HOME=/tmp/composer-home \
       openemr/openemr:flex \
       sh -c '
-        # pdo_sqlite is required by the clinical-copilot DBAL isolated tests
-        # (in-memory SQLite). The flex image ships pdo_mysql only. Install
-        # the matching version against whatever PHP the image happens to
-        # ship (currently 8.5; tracks upstream).
+        # Runtime apk additions:
+        #   - php${php_ver}-pdo_sqlite — the clinical-copilot DBAL
+        #     isolated tests use in-memory SQLite. The flex image ships
+        #     pdo_mysql only. Install the matching extension against
+        #     whatever PHP the image happens to ship (currently 8.5;
+        #     tracks upstream).
+        #   - tiff — provides the libtiff delegate so ext-imagick can
+        #     decode TIFF inputs. The flex image has ext-imagick loaded
+        #     but is built without the TIFF delegate; without this the
+        #     F.4b ImagickTiffDecoderTest skip-gate fires and the
+        #     decoder test silently doesn't run. Production also adds
+        #     this via docker/digitalocean/openemr/Dockerfile.
         php_ver=$(php --version | head -1 | awk "{print \$2}" | cut -d. -f1-2 | tr -d .) && \
-        apk add --no-cache "php${php_ver}-pdo_sqlite" && \
+        apk add --no-cache \
+          "php${php_ver}-pdo_sqlite" \
+          tiff && \
         composer install --no-interaction --no-progress --prefer-dist && \
         composer phpunit-isolated
       '
