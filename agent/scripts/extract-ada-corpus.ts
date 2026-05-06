@@ -32,7 +32,7 @@
  * invent content.
  */
 
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -47,6 +47,15 @@ const CACHE_DIR = resolve(AGENT_DIR, '.corpus-cache/ada');
 const OUT_DIR = resolve(AGENT_DIR, 'data/corpus/ada');
 const INDEX_PATH = join(OUT_DIR, 'index.json');
 const FETCH_MANIFEST_PATH = join(OUT_DIR, 'fetch-manifest.json');
+
+// Char-based proxy for the OpenAI embedding model's 8192-token input
+// limit. English text averages ~4 chars/token; we set the threshold at
+// ~6000 tokens to leave a safety margin for variable tokenization
+// (medical terminology, em-dashes, evidence-grade glyphs). Sections
+// over this size are split at <h3 class="pmc_sec_title"> boundaries —
+// the publisher's natural sub-topic boundary, mirroring I.1's CDC
+// accordion split.
+const DEFAULT_MAX_CHUNK_CHARS = 24_000;
 
 // Section labels we drop from any PMC article — bibliography,
 // disclosures, contributor lists. These carry no clinical guidance and
@@ -192,6 +201,12 @@ function getArticleBody($: cheerio.CheerioAPI): cheerio.Cheerio<AnyNode> | null 
     return body;
 }
 
+interface CollectedSection {
+    readonly label: string;
+    readonly body: string;
+    readonly enclosing: cheerio.Cheerio<AnyNode> | null;
+}
+
 /**
  * Walks every direct-or-nested h2 under the article body and groups
  * the body text by h2 boundary. Each h2 starts a new section; text
@@ -201,12 +216,16 @@ function getArticleBody($: cheerio.CheerioAPI): cheerio.Cheerio<AnyNode> | null 
  * walk h2s rather than sections so the abstract (which is often a
  * peer `<section class="abstract">` rather than a numbered `sN`)
  * groups correctly into one chunk by its leading h2.
+ *
+ * The enclosing element is returned alongside the body text so the
+ * caller can re-walk sub-headings (h3s) on oversize sections without
+ * re-parsing the document.
  */
 function collectBySectionH2(
     $: cheerio.CheerioAPI,
     body: cheerio.Cheerio<AnyNode>,
-): { label: string; body: string }[] {
-    const sections: { label: string; body: string }[] = [];
+): CollectedSection[] {
+    const sections: CollectedSection[] = [];
 
     // h2 elements in document order under the body, regardless of how
     // deeply they're nested.
@@ -223,7 +242,9 @@ function collectBySectionH2(
         // sibling until the next h2.
         const enclosing = $h2.parent();
         let bodyText: string;
+        let sectionEl: cheerio.Cheerio<AnyNode> | null = null;
         if (enclosing.is('section')) {
+            sectionEl = enclosing;
             // Take the enclosing section's text minus the h2's own text.
             const fullText = normalizeWhitespace(enclosing.text());
             // Remove the leading h2 label so the body reads cleanly.
@@ -244,17 +265,75 @@ function collectBySectionH2(
             }
             bodyText = normalizeWhitespace(parts.join('\n'));
         }
-        sections.push({ label, body: bodyText });
+        sections.push({ label, body: bodyText, enclosing: sectionEl });
     }
 
     return sections;
 }
 
-export function extractPmcSection($: cheerio.CheerioAPI, slug: string): ExtractResult {
+interface SubChunk {
+    readonly section: string;
+    readonly section_label: string;
+    readonly body: string;
+}
+
+/**
+ * Splits an oversize h2 section into one chunk per `<h3 class="pmc_sec_title">`
+ * sub-section. Returns the sub-chunks in document order, or null if
+ * the section has no h3s to split at (caller logs an oversize warning
+ * and skips — we never silently truncate).
+ *
+ * Each sub-chunk's section_label uses the convention `<h2-label> — <h3-label>`
+ * (em-dash separator, mirroring I.1's CDC accordion-split convention),
+ * and the body opens with the same labels so retrieval has clean topical
+ * framing even when chunks are surfaced in isolation.
+ */
+function splitAtH3Boundaries(
+    $: cheerio.CheerioAPI,
+    h2Label: string,
+    h2Slug: string,
+    enclosing: cheerio.Cheerio<AnyNode>,
+): SubChunk[] | null {
+    const h3s = enclosing.find('h3.pmc_sec_title').toArray();
+    if (h3s.length === 0) return null;
+
+    const sub: SubChunk[] = [];
+    for (const h3 of h3s) {
+        const $h3 = $(h3);
+        const subLabel = normalizeWhitespace($h3.text());
+        if (!subLabel) continue;
+        // Each h3 lives inside its own <section> wrapper on PMC pages;
+        // we use the h3's direct parent as the body container.
+        const subContainer = $h3.parent();
+        const fullText = normalizeWhitespace(subContainer.text());
+        const idx = fullText.indexOf(subLabel);
+        const subBodyText =
+            idx === 0 ? fullText.slice(subLabel.length).trimStart() : fullText;
+        if (!subBodyText) continue;
+        const subSlug = slugify(subLabel);
+        sub.push({
+            section: `${h2Slug}--${subSlug}`,
+            section_label: `${h2Label} — ${subLabel}`,
+            body: `${h2Label} — ${subLabel}\n\n${subBodyText}`,
+        });
+    }
+    return sub.length > 0 ? sub : null;
+}
+
+export interface ExtractOptions {
+    readonly maxChunkChars?: number;
+}
+
+export function extractPmcSection(
+    $: cheerio.CheerioAPI,
+    slug: string,
+    options: ExtractOptions = {},
+): ExtractResult {
     const warnings: string[] = [];
     const url = parseUrl($);
     const title = parseTitle($);
     const year = parseYear($);
+    const maxChunkChars = options.maxChunkChars ?? DEFAULT_MAX_CHUNK_CHARS;
 
     const body = getArticleBody($);
     if (!body) {
@@ -265,27 +344,51 @@ export function extractPmcSection($: cheerio.CheerioAPI, slug: string): ExtractR
 
     const sections = collectBySectionH2($, body);
     const chunks: RawChunk[] = [];
-    for (const { label, body: sectionBody } of sections) {
+    for (const { label, body: sectionBody, enclosing } of sections) {
         if (SKIP_SECTION_LABELS.has(label)) continue;
         if (sectionBody.length === 0) {
             warnings.push(`empty-section:${label}`);
             continue;
         }
-        chunks.push({
-            section: slugify(label),
-            section_label: label,
-            body: sectionBody,
-        });
+        const h2Slug = slugify(label);
+        if (sectionBody.length <= maxChunkChars) {
+            chunks.push({ section: h2Slug, section_label: label, body: sectionBody });
+            continue;
+        }
+        // Over the embedding-input limit. Try to split at the publisher's
+        // own h3 sub-topic boundary; if that fails, refuse to emit (a
+        // 24K+-char chunk is guaranteed to fail OpenAI's 8192-token
+        // input limit and we never silently truncate verbatim guideline
+        // text).
+        const sub = enclosing
+            ? splitAtH3Boundaries($, label, h2Slug, enclosing)
+            : null;
+        if (!sub) {
+            warnings.push(`oversize-no-h3-boundaries:${label}`);
+            continue;
+        }
+        for (const s of sub) {
+            chunks.push({
+                section: s.section,
+                section_label: s.section_label,
+                body: s.body,
+            });
+        }
     }
     if (chunks.length === 0 && sections.length > 0) warnings.push('no-content-sections');
     return { slug, chunks, title, year, url, warnings };
 }
 
-export function extractFromHtml(surface: AdaSurface, slug: string, html: string): ExtractResult {
+export function extractFromHtml(
+    surface: AdaSurface,
+    slug: string,
+    html: string,
+    options: ExtractOptions = {},
+): ExtractResult {
     const $ = cheerio.load(html);
     switch (surface) {
         case 'pmc-section':
-            return extractPmcSection($, slug);
+            return extractPmcSection($, slug, options);
     }
 }
 
@@ -417,6 +520,22 @@ async function main(): Promise<void> {
         );
     }
 
+    // Remove stale chunk files that are no longer produced by the
+    // current extraction (e.g. when an h2 starts splitting at h3
+    // boundaries, the unsplit `<slug>--<h2>.md` should disappear). Without
+    // this, the chunk dir accumulates ghost files across re-runs and the
+    // reindex script ends up upserting orphan vectors with no fresh
+    // provenance.
+    const expectedFiles = new Set(indexEntries.map((e) => e.file));
+    const existingFiles = (await readdir(OUT_DIR)).filter((f) => f.endsWith('.md'));
+    let removed = 0;
+    for (const f of existingFiles) {
+        if (!expectedFiles.has(f)) {
+            await unlink(join(OUT_DIR, f));
+            removed += 1;
+        }
+    }
+
     indexEntries.sort((a, b) => a.file.localeCompare(b.file));
     const index: CorpusIndex = {
         source: 'ada',
@@ -428,7 +547,7 @@ async function main(): Promise<void> {
     await writeFile(INDEX_PATH, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
 
     console.log(
-        `[extract] done: ${pages} pages processed, ${written} chunks written, ${pagesWithWarnings} pages with warnings`,
+        `[extract] done: ${pages} pages processed, ${written} chunks written, ${removed} stale chunks removed, ${pagesWithWarnings} pages with warnings`,
     );
 }
 
