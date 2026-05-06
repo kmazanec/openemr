@@ -130,7 +130,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'kickoffExtraction',
         description:
-            "Run the document ingestion pipeline when the envelope carries an unprocessed document_uuid. Stub in Phase A.",
+            "Triggers synchronous extraction of an unprocessed document already uploaded to this conversation. Args: { document_uuid: string, doc_type: 'lab_pdf'|'intake_form' }. Awaits the pipeline; appends the resulting artifact to state. Use only when envelope carries a document_uuid with no existing artifact.",
     },
     {
         handoff: 'retrieveChart',
@@ -142,12 +142,12 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'documentEvidenceRetriever',
         description:
-            "Retrieve extracted document facts for this patient. Args: { query, doc_types?, lookback_days?, top_k? }. Stub in Phase A.",
+            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. Use when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number, top_k?: number }.",
     },
     {
         handoff: 'evidenceRetriever',
         description:
-            "Retrieve clinical guideline chunks. Args: { query, top_k?, source_filter? }. Stub in Phase A.",
+            "Retrieves clinical-guideline chunks from the curated guideline corpus (USPSTF for MVP). Use when the question would benefit from authoritative guideline reference — screening recommendations, treatment thresholds, prevention guidance. Args: { query: string, top_k?: number, source_filter?: ('USPSTF')[] }.",
     },
     {
         handoff: 'prescriptionChangeBranch',
