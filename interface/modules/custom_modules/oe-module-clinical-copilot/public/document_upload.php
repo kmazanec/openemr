@@ -6,10 +6,18 @@
  * `document_uuid` so the panel can attach it to the next supervisor
  * turn.
  *
+ * This entry point uses the **proxy** pattern (session-based auth,
+ * server-side Spaces credential) and lives next to `agent.php` and
+ * `extract.php`. The bearer-token pattern that `snapshot/*.php`
+ * endpoints use is for agent-inbound traffic (the agent calling back
+ * to OpenEMR with a JWT it already holds); the upload goes the other
+ * direction — browser → OpenEMR → Spaces — so it belongs alongside
+ * the other browser-inbound entries, not under `snapshot/`.
+ *
  * Request shape:
  *   POST /interface/modules/custom_modules/oe-module-clinical-copilot/
- *     public/snapshot/document_upload.php
- *   Body: multipart/form-data with `file` and (optional) `pid`
+ *     public/document_upload.php
+ *   Body: multipart/form-data with `file`
  *   Headers: same OpenEMR session cookie as the panel page
  *   ACL: patients/med (mirrors panel.php)
  *
@@ -26,7 +34,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../../../../globals.php';
+require_once __DIR__ . '/../../../../globals.php';
 
 use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;

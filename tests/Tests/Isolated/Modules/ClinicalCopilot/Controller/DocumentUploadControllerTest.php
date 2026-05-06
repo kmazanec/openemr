@@ -3,10 +3,10 @@
 /**
  * Isolated tests for {@see DocumentUploadController} and the SigV4
  * Spaces upload service. The session+ACL gate that fronts the
- * controller in production lives in `public/snapshot/document_upload.php`
- * and is the boundary owner of those checks; the controller assumes
- * the caller is already authorized and focuses on shape validation,
- * MIME enforcement, and the Spaces hand-off.
+ * controller in production lives in `public/document_upload.php` and
+ * is the boundary owner of those checks; the controller assumes the
+ * caller is already authorized and focuses on shape validation, MIME
+ * enforcement, and the Spaces hand-off.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -71,6 +71,10 @@ final class DocumentUploadControllerTest extends TestCase
         $this->assertSame(self::FIXED_UUID, $body['document_uuid']);
         $this->assertSame(DocumentUploadController::DOC_TYPE_LAB_PDF, $body['doc_type_guess']);
         $this->assertSame('s3://test-bucket/4242/' . self::FIXED_UUID . '.pdf', $body['spaces_url']);
+        // canonical_ext is what the panel forwards to extract.php → the
+        // agent's /v1/agent/extract route validates it and threads it
+        // into the rasterize/persist nodes' Spaces key resolution.
+        $this->assertSame('pdf', $body['canonical_ext']);
         $this->assertCount(1, $upload->uploads);
         $this->assertSame(4242, $upload->uploads[0]['pid']);
         $this->assertSame(self::FIXED_UUID, $upload->uploads[0]['documentUuid']);
@@ -203,6 +207,7 @@ final class DocumentUploadControllerTest extends TestCase
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
         $this->assertSame('s3://test-bucket/4242/' . self::FIXED_UUID . '.jpg', $body['spaces_url']);
+        $this->assertSame('jpg', $body['canonical_ext']);
         $this->assertSame('jpg', $upload->uploads[0]['extension']);
     }
 
@@ -219,6 +224,7 @@ final class DocumentUploadControllerTest extends TestCase
 
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
+        $this->assertSame('tiff', $body['canonical_ext']);
         $this->assertSame('tiff', $upload->uploads[0]['extension']);
     }
 

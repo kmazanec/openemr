@@ -21,11 +21,13 @@ use Psr\Log\LoggerInterface;
  *
  * Trust direction: the **panel JS** posts a multipart upload while the
  * clinician is signed into OpenEMR. The session-bootstrapped `.php`
- * entry point ({@see ../../public/snapshot/document_upload.php})
- * applies the existing `patients/med` ACL gate, derives `pid` from the
- * session, and hands the validated file payload to this controller. No
- * JWT is involved — the OpenEMR session *is* the trust anchor on this
- * path (mirrors `panel.php`).
+ * entry point ({@see ../../public/document_upload.php}) applies the
+ * existing `patients/med` ACL gate, derives `pid` from the session,
+ * and hands the validated file payload to this controller. No JWT is
+ * involved — the OpenEMR session *is* the trust anchor on this path
+ * (mirrors `panel.php` and `extract.php`, the other browser-inbound
+ * entry points; `snapshot/*.php` is reserved for agent-callback
+ * bearer-token traffic).
  *
  * Per `W2_ARCHITECTURE.md` §"Three invokers, one pipeline" path A, the
  * upload writes canonical bytes to Spaces and mints a `document_uuid`,
@@ -135,10 +137,15 @@ final readonly class DocumentUploadController
             'docTypeGuess' => $docTypeGuess,
         ]);
 
+        // `canonical_ext` is the file extension the agent's pipeline
+        // route expects on the trigger envelope (see B.8's
+        // `extract.php` → `/v1/agent/extract`). Returning it explicitly
+        // saves the panel from parsing it back out of `spaces_url`.
         $this->respondJson(200, [
             'document_uuid' => $generated->canonical,
             'doc_type_guess' => $docTypeGuess,
             'spaces_url' => $spacesUrl,
+            'canonical_ext' => $extension,
         ]);
     }
 
