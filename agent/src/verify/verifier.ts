@@ -72,6 +72,57 @@ const containsCI = (haystack: string, needle: string): boolean =>
     needle.length > 0 && haystack.toLowerCase().includes(needle.toLowerCase());
 
 /**
+ * Tolerant content matcher. Falls back to a token-bag comparison when
+ * the cheap substring rule fails, so the verifier doesn't reject valid
+ * claims for trivial wording differences:
+ *
+ *   - trailing-s plurals: source "NSAIDs" vs claim "NSAID allergy"
+ *     (the model may legitimately drop the plural when binding the term
+ *     to the noun "allergy" — both refer to the same chart row).
+ *   - LOINC-style comma-swapped analyte names: source "Glucose, Fasting"
+ *     vs claim "Fasting glucose 93 mg/dL on 2026-04-30".
+ *
+ * The fallback splits the source field on whitespace and commas, drops
+ * empty tokens, and requires every source token to appear as a
+ * word-boundary substring of the claim. Stop-suffix 's' is dropped from
+ * tokens longer than 3 characters before matching; below that length it
+ * matters semantically (e.g. "as" vs "a"). The substring fast path
+ * still wins when it would — the fallback only fires after `containsCI`
+ * has already returned false.
+ *
+ * Stricter than a generic fuzzy-match: a claim that omits a token
+ * entirely (e.g. "no allergies on file" against an "NSAIDs" record)
+ * still rejects. Looser than a raw substring: word order, plurality,
+ * and comma-separation are tolerated.
+ */
+const tokenize = (s: string): readonly string[] =>
+    s
+        .toLowerCase()
+        .split(/[\s,]+/u)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+const stripPluralS = (token: string): string =>
+    token.length > 3 && token.endsWith('s') ? token.slice(0, -1) : token;
+
+const claimMentionsToken = (claimLower: string, token: string): boolean => {
+    if (token.length === 0) return false;
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Word boundaries on either side so "ase" doesn't match "lipase".
+    // Singular+optional-s on the right so "NSAID" matches "NSAIDs".
+    const re = new RegExp(`\\b${escaped}s?\\b`, 'u');
+    return re.test(claimLower);
+};
+
+const tolerantContentMatch = (claimText: string, sourceField: string): boolean => {
+    if (containsCI(claimText, sourceField)) return true;
+    const tokens = tokenize(sourceField).map(stripPluralS);
+    if (tokens.length === 0) return false;
+    const claimLower = claimText.toLowerCase();
+    return tokens.every((t) => claimMentionsToken(claimLower, t));
+};
+
+/**
  * §A.5 re-export. `loadPriorContext` resolves replayed citations
  * against the current turn's snapshot using the same indexer the
  * verifier uses, per `W2_ARCHITECTURE.md` §"Prior-turn context"
@@ -196,7 +247,7 @@ export const buildSnapshotIndex = (snapshot: BriefingSnapshot): SnapshotIndex =>
 const matchesPrescription = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const rx = idx.prescriptions.get(ref.source_id);
     if (rx === undefined) return false;
-    return containsCI(claim.text, rx.name);
+    return tolerantContentMatch(claim.text, rx.name);
 };
 
 /**
@@ -229,18 +280,22 @@ const matchesPrescriptionChange = (
 ): boolean => {
     const rx = idx.prescriptions.get(ref.source_id);
     if (rx === undefined) return false;
-    if (!containsCI(claim.text, rx.name)) return false;
+    if (!tolerantContentMatch(claim.text, rx.name)) return false;
     if (
         rx.indication !== null
         && rx.indication.length > 0
-        && !containsCI(claim.text, rx.indication)
+        && !tolerantContentMatch(claim.text, rx.indication)
     ) {
         return false;
     }
+    // Prescriber names ("Dr. Patel") shouldn't be plural-stripped, but
+    // word-order tolerance still helps when the model writes the name
+    // in last-first or first-last order. tolerantContentMatch's
+    // tokenizer handles that without changing the no-omissions rule.
     if (
         rx.prescriber !== null
         && rx.prescriber.length > 0
-        && !containsCI(claim.text, rx.prescriber)
+        && !tolerantContentMatch(claim.text, rx.prescriber)
     ) {
         return false;
     }
@@ -251,11 +306,17 @@ const matchesPrescriptionChange = (
 const matchesLab = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const lab = idx.labs.get(ref.source_id);
     if (lab === undefined) return false;
-    // Layer 1 (§3.3): the analyte AND value of the cited row both
-    // appear in the claim text. Refuses "A1c trending up" with no
-    // number; the §3.4 UI renders the claim as fact and the user
-    // can't spot a fabricated number otherwise.
-    if (!containsCI(claim.text, lab.analyte) || !containsCI(claim.text, lab.value)) {
+    // Layer 1: the analyte AND value of the cited row both appear in
+    // the claim text. Refuses "A1c trending up" with no number; the
+    // synthesizer renders the claim as fact and the user can't spot a
+    // fabricated number otherwise.
+    //
+    // The analyte uses the tolerant matcher because LOINC names often
+    // arrive comma-swapped ("Glucose, Fasting") while the synthesizer
+    // re-orders into natural English ("Fasting glucose"). The value
+    // stays on strict containsCI — fabricated numbers are exactly what
+    // this rule exists to catch, so loosening it is unsafe.
+    if (!tolerantContentMatch(claim.text, lab.analyte) || !containsCI(claim.text, lab.value)) {
         return false;
     }
 
@@ -335,13 +396,15 @@ const matchesAllergy = (claim: Claim, ref: SourceReference, idx: SnapshotIndex):
     if (allergy.substance.toUpperCase() === 'NKDA') {
         return NKDA_PATTERNS.some((p) => p.test(claim.text));
     }
-    return containsCI(claim.text, allergy.substance);
+    return tolerantContentMatch(claim.text, allergy.substance);
 };
 
 const matchesDiagnosis = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const dx = idx.diagnoses.get(ref.source_id);
     if (dx === undefined) return false;
-    return containsCI(claim.text, dx.code) || containsCI(claim.text, dx.label);
+    // Codes are exact identifiers (E11.9) — no fuzziness wanted.
+    // Labels are free text and benefit from the tolerant matcher.
+    return containsCI(claim.text, dx.code) || tolerantContentMatch(claim.text, dx.label);
 };
 
 const matchesEncounter = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
@@ -364,7 +427,9 @@ const matchesEncounter = (claim: Claim, ref: SourceReference, idx: SnapshotIndex
 const matchesReminder = (claim: Claim, ref: SourceReference, idx: SnapshotIndex): boolean => {
     const reminder = idx.reminders.get(ref.source_id);
     if (reminder === undefined) return false;
-    if (!containsCI(claim.text, reminder.itemTitle)) return false;
+    if (!tolerantContentMatch(claim.text, reminder.itemTitle)) return false;
+    // dueStatus is a closed enum ("due", "overdue", "soon") — keep the
+    // strict containsCI; loosening it would mush "due" into "soon".
     if (!containsCI(claim.text, reminder.dueStatus)) return false;
     return true;
 };
@@ -386,7 +451,7 @@ const matchesMedicationStatement = (
 ): boolean => {
     const stmt = idx.medications.get(ref.source_id);
     if (stmt === undefined) return false;
-    return containsCI(claim.text, stmt.name);
+    return tolerantContentMatch(claim.text, stmt.name);
 };
 
 interface CategoryCheck {
