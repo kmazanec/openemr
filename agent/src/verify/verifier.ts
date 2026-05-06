@@ -12,9 +12,17 @@ import type {
     BriefingSnapshot,
     Claim,
     ClaimLedger,
+    EvidenceRetrieverOutput,
+    EvidenceSnippet,
+    ExtractedFactSnippet,
     Gap,
     VerifiedLedger,
 } from '../graph/types.js';
+import {
+    isLowConfidence,
+    parseConfidenceSignal,
+    type ConfidenceSignal,
+} from './confidenceThresholds.js';
 
 /**
  * §3.3 verification gate. ARCHITECTURE.md §"Verification Architecture"
@@ -30,8 +38,17 @@ import type {
  *  - safety-critical categories (allergy, prescription) fail closed
  *    when the underlying snapshot data is unavailable.
  *
- * The verifier is a pure function over `(snapshot, ledger)` so the graph
- * node stays a thin async adapter and the deterministic logic is
+ * §C.5 extends the resolution dispatch to the unified `SourceReference`
+ * shape — `chart` is the W1 carry-forward, `extracted_document` resolves
+ * against this turn's `documentEvidenceRetriever` snippets (page + bbox
+ * must equal the recorded extraction; quote substring-matches the
+ * snippet's quote or value), `guideline` resolves against this turn's
+ * `evidenceRetriever` snippets (chunk id + section must match; quote
+ * substring-matches the chunk text). Confidence hard-stops fire after
+ * resolution succeeds and before category fail-closed checks.
+ *
+ * The verifier is a pure function over `(snapshot, ledger, ctx)` so the
+ * graph node stays a thin async adapter and the deterministic logic is
  * exhaustively unit-testable.
  */
 
@@ -39,26 +56,7 @@ const REJECT_NO_SOURCE = 'missing-source-references' as const;
 const REJECT_UNRESOLVED = 'source-record-not-in-snapshot' as const;
 const REJECT_CONTENT = 'claim-text-does-not-match-source-fields' as const;
 const REJECT_HARD_STOP = 'safety-critical-data-unavailable' as const;
-
-/**
- * §A.8: thrown when the verifier sees a citation whose `source_type`
- * has no resolution rule in this phase. Phase A only ships the
- * `chart` rule; Phase C adds `extracted_document` and `guideline`
- * rules. A non-`chart` citation reaching the verifier before Phase C
- * means a retriever shipped without its matching rule — failing loud
- * here surfaces the wiring gap the moment it's introduced rather
- * than letting the verifier silently reject every claim under the
- * unhandled type.
- */
-export class NotYetImplementedError extends Error {
-    public constructor(public readonly sourceType: string) {
-        super(
-            `verifier resolution rule for source_type='${sourceType}' is not yet implemented `
-            + '(Phase C adds extracted_document and guideline; only `chart` is wired in Phase A).',
-        );
-        this.name = 'NotYetImplementedError';
-    }
-}
+const REJECT_LOW_CONFIDENCE = 'low-confidence-extraction' as const;
 
 export const HARD_STOP_ALLERGIES_UNAVAILABLE = 'allergies-unavailable' as const;
 export const HARD_STOP_PRESCRIPTIONS_UNAVAILABLE = 'prescriptions-unavailable' as const;
@@ -492,12 +490,250 @@ export const isStoppedCategory = (
     return false;
 };
 
+/**
+ * §C.5 verifier context. Optional state slots the chart-only verifier
+ * doesn't need but the extracted_document and guideline rules do:
+ *
+ *  - `documentEvidenceSnippets`: this turn's `documentEvidenceRetriever`
+ *    output (state slot of the same name). The architecture text says
+ *    "this turn's `extraction_artifacts`" — that's the source-of-truth
+ *    table; the verifier resolves against the snippets the retriever
+ *    actually produced this turn (the supervisor's narrowed query
+ *    drives which artifacts get surfaced). A citation against an
+ *    artifact the retriever didn't return is a fabricated citation,
+ *    same as a chart citation against an unindexed record.
+ *  - `evidenceRetrieverOutput`: this turn's `evidenceRetriever` output.
+ *    `gap` indicates Pinecone outage — guideline citations under a
+ *    gap reject as unresolved (the supervisor should have routed
+ *    around).
+ *  - `artifactConfidence`: per-artifact `confidence_signal` JSONB
+ *    payload, keyed by `artifactId`. The verifier parses each entry
+ *    via `parseConfidenceSignal` so a missing or malformed signal
+ *    fails closed (low-confidence). When a snippet itself carries a
+ *    `confidence` number, that's mixed in as the `selfReported` field
+ *    if the per-artifact map didn't already supply one.
+ */
+export interface VerifyContext {
+    readonly documentEvidenceSnippets?: readonly ExtractedFactSnippet[] | null;
+    readonly evidenceRetrieverOutput?: EvidenceRetrieverOutput | null;
+    readonly artifactConfidence?: ReadonlyMap<string, unknown>;
+}
+
+interface ExtractedDocIndex {
+    /** Keyed by `${artifactId}::${fieldPath}`. */
+    readonly byKey: ReadonlyMap<string, ExtractedFactSnippet>;
+    readonly artifactIds: ReadonlySet<string>;
+}
+
+interface GuidelineIndex {
+    readonly bySection: ReadonlyMap<string, EvidenceSnippet>;
+    readonly available: boolean;
+}
+
+const buildExtractedDocIndex = (
+    snippets: readonly ExtractedFactSnippet[] | null | undefined,
+): ExtractedDocIndex => {
+    const byKey = new Map<string, ExtractedFactSnippet>();
+    const artifactIds = new Set<string>();
+    if (snippets !== undefined && snippets !== null) {
+        for (const s of snippets) {
+            byKey.set(`${s.artifactId}::${s.fieldPath}`, s);
+            artifactIds.add(s.artifactId);
+        }
+    }
+    return { byKey, artifactIds };
+};
+
+const buildGuidelineIndex = (
+    output: EvidenceRetrieverOutput | null | undefined,
+): GuidelineIndex => {
+    const bySection = new Map<string, EvidenceSnippet>();
+    if (output === undefined || output === null) {
+        return { bySection, available: false };
+    }
+    // A retriever output with a Gap indicates Pinecone outage. The
+    // supervisor's contract is to route around the gap; if a guideline
+    // citation reached us anyway, treat the index as unavailable so
+    // the citation rejects as unresolved (rather than silently
+    // accepting against an empty snippets array).
+    if (output.gap !== null) {
+        return { bySection, available: false };
+    }
+    for (const s of output.snippets) {
+        bySection.set(`${s.chunkId}::${s.section}`, s);
+    }
+    return { bySection, available: true };
+};
+
+const arraysEqual = (
+    a: readonly number[] | undefined,
+    b: readonly number[] | undefined,
+): boolean => {
+    if (a === undefined || b === undefined) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+};
+
+/**
+ * Resolve and content-match an `extracted_document` source reference.
+ * Returns the matched snippet on success or a typed rejection reason
+ * the caller pushes to the rejected list.
+ *
+ *  - source_id (= artifactId) + locator.field (= fieldPath) must
+ *    identify exactly one snippet from this turn's retriever output.
+ *  - locator.page must equal that snippet's page; locator.bbox must
+ *    deep-equal its bbox (no fabricated bboxes — the architecture's
+ *    explicit failure mode for this rule).
+ *  - The claim's quote at the ref must substring-match the snippet's
+ *    `quote` OR the stringified `value` at the same field path.
+ *    Allowing `value` covers the case where the snippet's free-text
+ *    OCR `quote` reads "A1c 9.4 % (H)" but the model paraphrases as
+ *    "9.4" (matching the structured value).
+ */
+const resolveExtractedDocument = (
+    ref: SourceReference,
+    claim: Claim,
+    idx: ExtractedDocIndex,
+): { ok: true; snippet: ExtractedFactSnippet } | { ok: false; reason: string } => {
+    if (!idx.artifactIds.has(ref.source_id)) {
+        return { ok: false, reason: REJECT_UNRESOLVED };
+    }
+    const fieldPath = ref.locator.field;
+    if (fieldPath === undefined) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    const snippet = idx.byKey.get(`${ref.source_id}::${fieldPath}`);
+    if (snippet === undefined) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    if (ref.locator.page !== snippet.page) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    if (!arraysEqual(ref.locator.bbox, snippet.bbox)) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    // Substring-match against either the OCR quote or the stringified
+    // structured value. The model is allowed to render numerically
+    // ("9.4") even when the OCR quote was "A1c 9.4 % (H)". The
+    // structured `value` is `unknown` because the extractor schema
+    // varies — we only stringify the primitive types where the result
+    // would be meaningful (objects/arrays would render as
+    // "[object Object]" and aren't useful as substring needles).
+    const valueStr =
+        typeof snippet.value === 'string' ? snippet.value
+            : typeof snippet.value === 'number' || typeof snippet.value === 'boolean'
+                ? String(snippet.value)
+                : '';
+    const quoteOk =
+        containsCI(snippet.quote, ref.quote)
+        || (valueStr.length > 0 && containsCI(valueStr, ref.quote))
+        || containsCI(claim.text, snippet.quote)
+        || (valueStr.length > 0 && containsCI(claim.text, valueStr));
+    if (!quoteOk) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    return { ok: true, snippet };
+};
+
+const resolveGuideline = (
+    ref: SourceReference,
+    claim: Claim,
+    idx: GuidelineIndex,
+): { ok: true; snippet: EvidenceSnippet } | { ok: false; reason: string } => {
+    if (!idx.available) {
+        return { ok: false, reason: REJECT_UNRESOLVED };
+    }
+    const section = ref.locator.section;
+    if (section === undefined) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    const snippet = idx.bySection.get(`${ref.source_id}::${section}`);
+    if (snippet === undefined) {
+        // Source_id present but in a different section is "wrong
+        // section" (REJECT_CONTENT); source_id absent entirely is
+        // "unresolved". Distinguishing these helps debugging.
+        const anyKey = Array.from(idx.bySection.keys()).find(
+            (k) => k.startsWith(`${ref.source_id}::`),
+        );
+        return { ok: false, reason: anyKey === undefined ? REJECT_UNRESOLVED : REJECT_CONTENT };
+    }
+    const quoteOk = containsCI(snippet.quote, ref.quote)
+        || containsCI(claim.text, snippet.quote);
+    if (!quoteOk) {
+        return { ok: false, reason: REJECT_CONTENT };
+    }
+    return { ok: true, snippet };
+};
+
+/**
+ * Compose the per-snippet confidence signal: parse the per-artifact
+ * `confidence_signal` row if present, fall back to the snippet's own
+ * `confidence` (the VLM's self-reported number the C.1 retriever
+ * already projected) for the `selfReported` field. Returns `null`
+ * when neither source carries any signal — the caller treats `null`
+ * as low-confidence (architecture's fail-closed default).
+ */
+const composeConfidenceSignal = (
+    snippet: ExtractedFactSnippet,
+    ctx: VerifyContext,
+): ConfidenceSignal | null => {
+    const parsed = parseConfidenceSignal(ctx.artifactConfidence?.get(snippet.artifactId));
+    if (parsed?.selfReported !== undefined) return parsed;
+    if (snippet.confidence === undefined) return parsed;
+    return {
+        ...(parsed ?? { schemaWarningCount: 0, patientMatch: 'full' }),
+        selfReported: snippet.confidence,
+    };
+};
+
+/**
+ * Pre-pass: detect intake-form low-confidence allergies and emit the
+ * category-level fail-closed signal (architecture's allergy
+ * exception). We piggyback on `HARD_STOP_ALLERGIES_UNAVAILABLE` —
+ * the same shape the W1 chart-side rule already emits — so
+ * `isStoppedCategory` and `format.ts`'s suppression policy treat
+ * document-side and chart-side allergy gaps symmetrically.
+ */
+const computeAllergyExceptionStops = (
+    ledger: ClaimLedger,
+    extractedIdx: ExtractedDocIndex,
+    ctx: VerifyContext,
+): readonly HardStop[] => {
+    for (const claim of ledger.claims) {
+        if (claim.category !== 'allergy') continue;
+        const ref = claim.sourceReferences[0];
+        if (ref?.source_type !== 'extracted_document') continue;
+        const fieldPath = ref.locator.field;
+        if (fieldPath === undefined) continue;
+        const snippet = extractedIdx.byKey.get(`${ref.source_id}::${fieldPath}`);
+        if (snippet?.docType !== 'intake_form') continue;
+        const signal = composeConfidenceSignal(snippet, ctx);
+        if (signal === null || isLowConfidence(signal)) {
+            return [HARD_STOP_ALLERGIES_UNAVAILABLE];
+        }
+    }
+    return [];
+};
+
 export const verifyLedger = (
     snapshot: BriefingSnapshot,
     ledger: ClaimLedger,
+    ctx: VerifyContext = {},
 ): VerifiedLedger => {
     const idx = buildSnapshotIndex(snapshot);
-    const stops = computeHardStops(snapshot);
+    const extractedIdx = buildExtractedDocIndex(ctx.documentEvidenceSnippets);
+    const guidelineIdx = buildGuidelineIndex(ctx.evidenceRetrieverOutput);
+
+    // Hard stops are the union of chart-side gaps (existing
+    // computeHardStops) and document-side allergy fail-closed
+    // (intake-form low-confidence allergy fact).
+    const stops: HardStop[] = [
+        ...computeHardStops(snapshot),
+        ...computeAllergyExceptionStops(ledger, extractedIdx, ctx),
+    ];
 
     const accepted: Claim[] = [];
     const rejected: { claim: Claim; reason: string }[] = [];
@@ -508,68 +744,97 @@ export const verifyLedger = (
             continue;
         }
 
-        // §A.8 source_type dispatch. The chart resolution rules below
-        // are the W1 carry-forward (renamed `recordId` → `source_id`).
-        // `extracted_document` and `guideline` rules land in Phase C
-        // alongside the matching retrievers; a citation with one of
-        // those source_types reaching this gate before C means a
-        // retriever shipped without its rule. Throwing makes the
-        // wiring gap obvious — the alternative (silent reject) would
-        // let a Phase B/C MR pass CI with every claim under the new
-        // type silently dropped.
-        for (const ref of claim.sourceReferences) {
-            if (ref.source_type !== 'chart') {
-                throw new NotYetImplementedError(ref.source_type);
+        // §C.5 source_type dispatch. The first source ref's type
+        // determines the resolution path — matches `format.ts`'s
+        // primary-source-reference rule for sectioning. Mixed
+        // source_type within one claim's refs is unusual; the chart
+        // multi-ref strict-pass rule (every ref must resolve) is
+        // applied within the chart branch, and extracted/guideline
+        // claims are typically single-ref.
+        const primary = claim.sourceReferences[0]!;
+
+        if (primary.source_type === 'chart') {
+            // Carry-forward W1 chart resolution path.
+            if (isStoppedCategory(claim.category, stops)) {
+                rejected.push({ claim, reason: REJECT_HARD_STOP });
+                continue;
             }
-        }
-
-        if (isStoppedCategory(claim.category, stops)) {
-            rejected.push({ claim, reason: REJECT_HARD_STOP });
-            continue;
-        }
-
-        const check = CHECKS[claim.category];
-
-        // §4.2 strengthening for `lab` category: a trend claim cites
-        // multiple values (one ref per value), and every ref must
-        // resolve AND its content match the claim text. The pre-§4.2
-        // first-resolves-wins loop allowed a claim that mixed real
-        // ids with fabricated ones to slip through; the strict pass
-        // refuses any unresolved or non-matching ref.
-        if (claim.category === 'lab') {
-            let labReject: string | null = null;
-            for (const ref of claim.sourceReferences) {
-                if (!check.resolves(ref, idx)) {
-                    labReject = REJECT_UNRESOLVED;
-                    break;
+            const check = CHECKS[claim.category];
+            if (claim.category === 'lab') {
+                // §4.2 strict-pass: every ref must resolve AND match.
+                let labReject: string | null = null;
+                for (const ref of claim.sourceReferences) {
+                    if (!check.resolves(ref, idx)) {
+                        labReject = REJECT_UNRESOLVED;
+                        break;
+                    }
+                    if (
+                        check.contentMatches !== undefined
+                        && !check.contentMatches(claim, ref, idx)
+                    ) {
+                        labReject = REJECT_CONTENT;
+                        break;
+                    }
                 }
-                if (
-                    check.contentMatches !== undefined
-                    && !check.contentMatches(claim, ref, idx)
-                ) {
-                    labReject = REJECT_CONTENT;
-                    break;
+                if (labReject !== null) {
+                    rejected.push({ claim, reason: labReject });
+                    continue;
                 }
+                accepted.push(claim);
+                continue;
             }
-            if (labReject !== null) {
-                rejected.push({ claim, reason: labReject });
+            const resolvedRef = claim.sourceReferences.find((ref) => check.resolves(ref, idx));
+            if (resolvedRef === undefined) {
+                rejected.push({ claim, reason: REJECT_UNRESOLVED });
+                continue;
+            }
+            if (
+                check.contentMatches !== undefined
+                && !check.contentMatches(claim, resolvedRef, idx)
+            ) {
+                rejected.push({ claim, reason: REJECT_CONTENT });
                 continue;
             }
             accepted.push(claim);
             continue;
         }
 
-        const resolvedRef = claim.sourceReferences.find((ref) => check.resolves(ref, idx));
-        if (resolvedRef === undefined) {
-            rejected.push({ claim, reason: REJECT_UNRESOLVED });
+        if (primary.source_type === 'extracted_document') {
+            const result = resolveExtractedDocument(primary, claim, extractedIdx);
+            if (!result.ok) {
+                rejected.push({ claim, reason: result.reason });
+                continue;
+            }
+            // Confidence hard-stop runs AFTER source resolution and
+            // BEFORE category fail-closed. Order matters: a claim
+            // that fails resolution is a fabrication (different
+            // engineering signal than a low-confidence-but-real
+            // claim), and a claim suppressed by the allergy
+            // exception belongs in the safety bucket regardless of
+            // its individual confidence.
+            const signal = composeConfidenceSignal(result.snippet, ctx);
+            if (signal === null || isLowConfidence(signal)) {
+                rejected.push({ claim, reason: REJECT_LOW_CONFIDENCE });
+                continue;
+            }
+            if (isStoppedCategory(claim.category, stops)) {
+                rejected.push({ claim, reason: REJECT_HARD_STOP });
+                continue;
+            }
+            accepted.push(claim);
             continue;
         }
 
-        if (check.contentMatches !== undefined && !check.contentMatches(claim, resolvedRef, idx)) {
-            rejected.push({ claim, reason: REJECT_CONTENT });
+        // primary.source_type === 'guideline'
+        if (isStoppedCategory(claim.category, stops)) {
+            rejected.push({ claim, reason: REJECT_HARD_STOP });
             continue;
         }
-
+        const result = resolveGuideline(primary, claim, guidelineIdx);
+        if (!result.ok) {
+            rejected.push({ claim, reason: result.reason });
+            continue;
+        }
         accepted.push(claim);
     }
 

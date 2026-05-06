@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
     HARD_STOP_ALLERGIES_UNAVAILABLE,
     HARD_STOP_PRESCRIPTIONS_UNAVAILABLE,
-    NotYetImplementedError,
     verifyLedger,
 } from '../../src/verify/verifier.js';
-import type { BriefingSnapshot, Claim, ClaimLedger } from '../../src/graph/types.js';
+import type {
+    BriefingSnapshot,
+    Claim,
+    ClaimLedger,
+    EvidenceSnippet,
+    ExtractedFactSnippet,
+} from '../../src/graph/types.js';
 
 // Maps the W1 FHIR resource type the existing test cases pass to the
 // W2 `locator.field` value the unified shape requires for `chart`
@@ -842,89 +847,13 @@ describe('verifyLedger — §4.2 UC2 strengthened lab rule', () => {
     });
 });
 
-describe('verifyLedger — source_type dispatch (§A.8)', () => {
-    // Phase A only ships the `chart` source_type path. Phase C adds
-    // `extracted_document` and `guideline` resolution rules; until
-    // then, a citation with a non-chart source_type reaching the
-    // verifier means a new retriever wired in without the matching
-    // rule. We want a typed, loud failure rather than a silent
-    // false-acceptance — the verifier is the load-bearing gate.
-
-    const extractedDocumentRef = (sourceId: string) => ({
-        source_type: 'extracted_document' as const,
-        source_id: sourceId,
-        locator: { page: 1, bbox: [0, 0, 100, 100] as [number, number, number, number] },
-        quote: 'extracted',
-    });
-
-    const guidelineRef = (sourceId: string) => ({
-        source_type: 'guideline' as const,
-        source_id: sourceId,
-        locator: { section: '4.2.1' },
-        quote: 'guideline-snippet',
-    });
-
-    it('throws NotYetImplementedError on an extracted_document citation', () => {
-        // The architecture: "throw a typed not-yet-implemented error
-        // so calls from a future stub-replacement fail loudly". A
-        // silent reject would let an extracted_document retriever
-        // ship in Phase B and fail every claim without a clear
-        // signal pointing at the missing rule.
-        expect(() =>
-            verifyLedger(
-                baseSnapshot(),
-                single(
-                    claim({
-                        category: 'diagnosis',
-                        text: 'extracted diagnosis',
-                        sourceReferences: [extractedDocumentRef('art-1')],
-                    }),
-                ),
-            ),
-        ).toThrow(NotYetImplementedError);
-    });
-
-    it('throws NotYetImplementedError on a guideline citation', () => {
-        expect(() =>
-            verifyLedger(
-                baseSnapshot(),
-                single(
-                    claim({
-                        category: 'diagnosis',
-                        text: 'guideline-backed claim',
-                        sourceReferences: [guidelineRef('chunk-1')],
-                    }),
-                ),
-            ),
-        ).toThrow(NotYetImplementedError);
-    });
-
-    it('NotYetImplementedError carries the unhandled source_type so the message points at the missing rule', () => {
-        try {
-            verifyLedger(
-                baseSnapshot(),
-                single(
-                    claim({
-                        category: 'diagnosis',
-                        text: 'guideline-backed claim',
-                        sourceReferences: [guidelineRef('chunk-1')],
-                    }),
-                ),
-            );
-            throw new Error('expected verifyLedger to throw');
-        } catch (err) {
-            expect(err).toBeInstanceOf(NotYetImplementedError);
-            const message = (err as Error).message;
-            expect(message).toContain('guideline');
-        }
-    });
-
-    it('still accepts chart-type citations under the renamed dispatch (W1 carry-forward)', () => {
-        // The W1 chart path still works after the dispatch lands —
-        // every existing test in this file already exercises it,
-        // but pin one explicit assertion here so a future
-        // refactor of the dispatch can't accidentally drop the
-        // chart branch.
+describe('verifyLedger — source_type dispatch (chart carry-forward)', () => {
+    // C.5 added the `extracted_document` and `guideline` paths; the
+    // chart path still works. The §A.8 NotYetImplementedError stub
+    // tests are gone (the union is closed at compile time, so a
+    // "future-unhandled source_type" test would need an `as never`
+    // hack and isn't reachable in practice).
+    it('still accepts chart-type citations under the C.5 dispatch (W1 carry-forward)', () => {
         const out = verifyLedger(
             baseSnapshot(),
             single(
@@ -937,5 +866,583 @@ describe('verifyLedger — source_type dispatch (§A.8)', () => {
         );
         expect(out.passed).toBe(true);
         expect(out.accepted).toHaveLength(1);
+    });
+});
+
+// §C.5: per-`source_type` resolution rules for `extracted_document`.
+// Architecture (`W2_ARCHITECTURE.md` §"Verifier resolution rules"):
+// - `source_id` must be in this turn's document-evidence retriever
+//   output snippets (the actual state slot is
+//   `state.documentEvidenceSnippets`; the architecture text reads
+//   "extraction_artifacts" but that's the source-of-truth table —
+//   the verifier resolves against the snippets the retriever
+//   produced this turn).
+// - `locator.page` and `locator.bbox` must equal the snippet's
+//   recorded values (no fabricated bboxes).
+// - `quote` substring-matches the snippet's recorded quote (or its
+//   stringified value at `locator.field`).
+describe('verifyLedger — extracted_document source_type (§C.5)', () => {
+    const extractedRef = (
+        sourceId: string,
+        opts: {
+            readonly fieldPath: string;
+            readonly page: number;
+            readonly bbox: readonly [number, number, number, number];
+            readonly quote: string;
+        },
+    ) => ({
+        source_type: 'extracted_document' as const,
+        source_id: sourceId,
+        locator: {
+            page: opts.page,
+            bbox: opts.bbox as [number, number, number, number],
+            field: opts.fieldPath,
+        },
+        quote: opts.quote,
+    });
+
+    const a1cSnippet: ExtractedFactSnippet = {
+        artifactId: 'art-lab-1',
+        documentUuid: 'doc-uuid-1',
+        docType: 'lab_pdf',
+        fieldPath: 'results.0.value',
+        value: '9.4',
+        page: 1,
+        bbox: [10, 20, 200, 40],
+        quote: 'A1c 9.4 % (H)',
+        confidence: 0.95,
+        extractorVersion: 'v1',
+        createdAt: '2026-04-15T10:00:00Z',
+    };
+
+    it('accepts an extracted_document claim whose locator matches the snippet exactly', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Recent intake form shows A1c 9.4',
+                    sourceReferences: [
+                        extractedRef('art-lab-1', {
+                            fieldPath: 'results.0.value',
+                            page: 1,
+                            bbox: [10, 20, 200, 40],
+                            quote: 'A1c 9.4',
+                        }),
+                    ],
+                }),
+            ),
+            { documentEvidenceSnippets: [a1cSnippet] },
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.passed).toBe(true);
+    });
+
+    it('rejects an extracted_document claim whose source_id is not in this turn\'s snippets', () => {
+        // The whole point: model named an artifact id that the
+        // retriever didn't return this turn → fabricated citation.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'A1c 9.4 from intake',
+                    sourceReferences: [
+                        extractedRef('art-FABRICATED', {
+                            fieldPath: 'results.0.value',
+                            page: 1,
+                            bbox: [10, 20, 200, 40],
+                            quote: 'A1c 9.4',
+                        }),
+                    ],
+                }),
+            ),
+            { documentEvidenceSnippets: [a1cSnippet] },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+
+    it('rejects an extracted_document claim with a fabricated bbox', () => {
+        // Snippet bbox is [10, 20, 200, 40]; claim writes a different
+        // bbox. Bbox spoofing is the exact failure mode the §C.5
+        // architecture text calls out ("no fabricated bboxes").
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'A1c 9.4',
+                    sourceReferences: [
+                        extractedRef('art-lab-1', {
+                            fieldPath: 'results.0.value',
+                            page: 1,
+                            bbox: [99, 99, 99, 99],
+                            quote: 'A1c 9.4',
+                        }),
+                    ],
+                }),
+            ),
+            { documentEvidenceSnippets: [a1cSnippet] },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects an extracted_document claim with a wrong page number', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'A1c 9.4',
+                    sourceReferences: [
+                        extractedRef('art-lab-1', {
+                            fieldPath: 'results.0.value',
+                            page: 7,
+                            bbox: [10, 20, 200, 40],
+                            quote: 'A1c 9.4',
+                        }),
+                    ],
+                }),
+            ),
+            { documentEvidenceSnippets: [a1cSnippet] },
+        );
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects an extracted_document claim whose quote does not substring-match the snippet text or value', () => {
+        // The snippet quote is "A1c 9.4 % (H)" and value is "9.4".
+        // The claim says "A1c 5.5" — neither substring matches.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'A1c 5.5',
+                    sourceReferences: [
+                        extractedRef('art-lab-1', {
+                            fieldPath: 'results.0.value',
+                            page: 1,
+                            bbox: [10, 20, 200, 40],
+                            quote: 'A1c 5.5',
+                        }),
+                    ],
+                }),
+            ),
+            { documentEvidenceSnippets: [a1cSnippet] },
+        );
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects an extracted_document claim whose locator.field points at a different snippet on the same artifact', () => {
+        // Same artifact has two snippets at two field paths. The
+        // claim cites field `results.1.value` but its bbox is the one
+        // for `results.0.value` — the locator must resolve to a
+        // *single* snippet whose page+bbox match.
+        const a1cSnippet2: ExtractedFactSnippet = {
+            ...a1cSnippet,
+            fieldPath: 'results.1.value',
+            value: '180',
+            bbox: [10, 80, 200, 100],
+            quote: 'Glucose 180 mg/dL',
+        };
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Glucose 180',
+                    sourceReferences: [
+                        extractedRef('art-lab-1', {
+                            fieldPath: 'results.1.value',
+                            page: 1,
+                            bbox: [10, 20, 200, 40], // ← bbox of results.0, not results.1
+                            quote: 'Glucose 180',
+                        }),
+                    ],
+                }),
+            ),
+            { documentEvidenceSnippets: [a1cSnippet, a1cSnippet2] },
+        );
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+});
+
+// §C.5: per-`source_type` resolution rules for `guideline`.
+describe('verifyLedger — guideline source_type (§C.5)', () => {
+    const guidelineRef = (sourceId: string, section: string, quote: string) => ({
+        source_type: 'guideline' as const,
+        source_id: sourceId,
+        locator: { section },
+        quote,
+    });
+
+    const colorectalSnippet: EvidenceSnippet = {
+        chunkId: 'uspstf::colorectal-cancer-screening--recommendation-summary',
+        publication: 'USPSTF',
+        year: 2021,
+        section: 'recommendation-summary',
+        title: 'Colorectal Cancer: Screening',
+        url: 'https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening',
+        licenseTier: 'public_domain',
+        quote:
+            'The USPSTF recommends screening for colorectal cancer in adults aged 45 to 75 years. Grade B.',
+        rerankScore: 0.92,
+        degradedRerank: false,
+    };
+
+    const evidenceOutput = (snippets: readonly EvidenceSnippet[]) => ({
+        snippets,
+        gap: null,
+    });
+
+    it('accepts a guideline claim whose chunk_id resolves and whose quote substring-matches the snippet', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text: 'USPSTF recommends colorectal screening in adults aged 45 to 75.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::colorectal-cancer-screening--recommendation-summary',
+                            'recommendation-summary',
+                            'screening for colorectal cancer in adults aged 45 to 75',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([colorectalSnippet]) },
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.passed).toBe(true);
+    });
+
+    it('rejects a guideline claim whose chunk_id is not in this turn\'s retriever output', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text: 'USPSTF says colorectal screening is recommended.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::FABRICATED-chunk-id',
+                            'recommendation-summary',
+                            'screening for colorectal cancer',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([colorectalSnippet]) },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+
+    it('rejects a guideline claim whose locator.section does not match the snippet', () => {
+        // The snippet is in section `recommendation-summary`; the
+        // claim names section `clinical-considerations` — same
+        // recommendation, different chunk. Without a section check,
+        // the model could cite a chunk from one section but quote
+        // text actually only present in another.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text: 'USPSTF recommends colorectal screening at 45.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::colorectal-cancer-screening--recommendation-summary',
+                            'clinical-considerations',
+                            'screening for colorectal cancer',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([colorectalSnippet]) },
+        );
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects a guideline claim whose quote is not a substring of the snippet text', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text: 'USPSTF recommends colonoscopy every 5 years.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::colorectal-cancer-screening--recommendation-summary',
+                            'recommendation-summary',
+                            'colonoscopy every 5 years',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([colorectalSnippet]) },
+        );
+        expect(out.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
+    });
+
+    it('rejects a guideline claim when the retriever returned an empty snippet list this turn', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text: 'USPSTF recommends screening.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::any-chunk',
+                            'recommendation-summary',
+                            'screening',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([]) },
+        );
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+
+    it('rejects a guideline claim when no retriever output is in scope (retriever did not run this turn)', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text: 'USPSTF says.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::any-chunk',
+                            'recommendation-summary',
+                            'something',
+                        ),
+                    ],
+                }),
+            ),
+            // intentionally no evidenceRetrieverOutput
+        );
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+});
+
+// §C.5: confidence hard-stops applied AFTER source-reference
+// resolution, BEFORE category fail-closed checks (architecture order).
+// Default: drop the low-confidence claim with a typed reason. Allergy
+// exception: a low-confidence allergy fact in an *intake form* fails
+// the entire medication section closed (matches the W1 missing-allergy
+// hard stop, applied symmetrically across chart-side and document-side
+// gaps).
+describe('verifyLedger — confidence hard-stops (§C.5)', () => {
+    const lowConfSignal = {
+        self_reported: 0.5,
+        schema_warning_count: 0,
+        patient_match: 'full',
+    };
+    const highConfSignal = {
+        self_reported: 0.95,
+        schema_warning_count: 0,
+        patient_match: 'full',
+    };
+
+    const labSnippet: ExtractedFactSnippet = {
+        artifactId: 'art-lab-low',
+        documentUuid: 'doc-uuid-lab',
+        docType: 'lab_pdf',
+        fieldPath: 'results.0.value',
+        value: '9.4',
+        page: 1,
+        bbox: [10, 20, 200, 40],
+        quote: 'A1c 9.4 %',
+        extractorVersion: 'v1',
+        createdAt: '2026-04-15T10:00:00Z',
+    };
+    const allergySnippet: ExtractedFactSnippet = {
+        artifactId: 'art-intake-allergy',
+        documentUuid: 'doc-uuid-intake',
+        docType: 'intake_form',
+        fieldPath: 'allergies.0.substance',
+        value: 'Penicillin',
+        page: 2,
+        bbox: [50, 100, 200, 30],
+        quote: 'Penicillin',
+        extractorVersion: 'v1',
+        createdAt: '2026-04-15T10:00:00Z',
+    };
+
+    const extractedRef = (
+        sourceId: string,
+        snippet: ExtractedFactSnippet,
+        quote: string,
+    ) => ({
+        source_type: 'extracted_document' as const,
+        source_id: sourceId,
+        locator: {
+            page: snippet.page,
+            bbox: snippet.bbox as [number, number, number, number],
+            field: snippet.fieldPath,
+        },
+        quote,
+    });
+
+    it('accepts a high-confidence extracted_document claim (carry-forward)', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Recent intake A1c 9.4',
+                    sourceReferences: [extractedRef('art-lab-low', labSnippet, 'A1c 9.4')],
+                }),
+            ),
+            {
+                documentEvidenceSnippets: [labSnippet],
+                artifactConfidence: new Map([['art-lab-low', highConfSignal]]),
+            },
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+
+    it('drops a low-confidence non-allergy extracted_document claim with reason low-confidence-extraction', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Recent intake A1c 9.4',
+                    sourceReferences: [extractedRef('art-lab-low', labSnippet, 'A1c 9.4')],
+                }),
+            ),
+            {
+                documentEvidenceSnippets: [labSnippet],
+                artifactConfidence: new Map([['art-lab-low', lowConfSignal]]),
+            },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('low-confidence-extraction');
+    });
+
+    it('low-confidence allergy on an intake form fails the entire medication section closed', () => {
+        // Architecture allergy exception: the *category* fail-closes,
+        // not just the one fact. We assert by feeding both an allergy
+        // claim and a prescription claim — both should drop, and the
+        // hard-stop list reports `allergies-unavailable` (same shape
+        // as W1's missing-chart-allergies stop, surfaced symmetrically
+        // for the document-side gap).
+        const out = verifyLedger(
+            baseSnapshot(),
+            {
+                claims: [
+                    claim({
+                        id: 'allergy-low',
+                        category: 'allergy',
+                        text: 'Patient reports Penicillin allergy.',
+                        sourceReferences: [
+                            extractedRef('art-intake-allergy', allergySnippet, 'Penicillin'),
+                        ],
+                        safetyCritical: true,
+                    }),
+                    claim({
+                        id: 'rx-collateral',
+                        category: 'prescription',
+                        text: 'Metformin 500 mg BID',
+                        sourceReferences: [sourceRef('MedicationRequest', 'rx-1')],
+                        safetyCritical: true,
+                    }),
+                ],
+            },
+            {
+                documentEvidenceSnippets: [allergySnippet],
+                artifactConfidence: new Map([['art-intake-allergy', lowConfSignal]]),
+            },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected.map((r) => r.reason).sort()).toEqual([
+            'low-confidence-extraction',
+            'safety-critical-data-unavailable',
+        ]);
+        expect(out.safetyHardStops).toContain('allergies-unavailable');
+        expect(out.passed).toBe(false);
+    });
+
+    it('high-confidence allergy on an intake form does NOT fire the category fail-closed', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'allergy',
+                    text: 'Patient reports Penicillin allergy.',
+                    sourceReferences: [
+                        extractedRef('art-intake-allergy', allergySnippet, 'Penicillin'),
+                    ],
+                    safetyCritical: true,
+                }),
+            ),
+            {
+                documentEvidenceSnippets: [allergySnippet],
+                artifactConfidence: new Map([['art-intake-allergy', highConfSignal]]),
+            },
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.safetyHardStops).not.toContain('allergies-unavailable');
+    });
+
+    it('low-confidence allergy on a *lab_pdf* does NOT fail closed (intake-form-specific)', () => {
+        // The architecture pins the allergy exception to intake forms
+        // explicitly. A low-confidence allergy field landed on a lab
+        // PDF would be an extractor bug, not a clinically meaningful
+        // allergy claim — the broad fail-closed wouldn't help.
+        const labWithAllergyShape: ExtractedFactSnippet = {
+            ...labSnippet,
+            fieldPath: 'allergies.0.substance',
+            quote: 'Penicillin',
+            value: 'Penicillin',
+        };
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'allergy',
+                    text: 'Penicillin allergy noted.',
+                    sourceReferences: [
+                        extractedRef('art-lab-low', labWithAllergyShape, 'Penicillin'),
+                    ],
+                    safetyCritical: true,
+                }),
+            ),
+            {
+                documentEvidenceSnippets: [labWithAllergyShape],
+                artifactConfidence: new Map([['art-lab-low', lowConfSignal]]),
+            },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('low-confidence-extraction');
+        expect(out.safetyHardStops).not.toContain('allergies-unavailable');
+    });
+
+    it('treats a missing artifactConfidence entry as low-confidence (fail-closed default)', () => {
+        // Production wiring populates the map for every artifact the
+        // retriever returned. If a future bug omits one, the verifier
+        // must not treat absence as "high confidence".
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'lab',
+                    text: 'Recent intake A1c 9.4',
+                    sourceReferences: [extractedRef('art-lab-low', labSnippet, 'A1c 9.4')],
+                }),
+            ),
+            {
+                documentEvidenceSnippets: [labSnippet],
+                artifactConfidence: new Map(),
+            },
+        );
+        expect(out.rejected[0]?.reason).toBe('low-confidence-extraction');
     });
 });
