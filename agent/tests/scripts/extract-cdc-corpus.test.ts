@@ -49,6 +49,44 @@ describe('extract-cdc-corpus', () => {
             expect(result.chunks).toEqual([]);
             expect(result.warnings).toContain('no-note-anchors');
         });
+
+        it('splits shared-textblock pages into per-vaccine, per-accordion chunks', async () => {
+            // Repros the child-adolescent-notes shape where every vaccine's
+            // heading and accordions share one outer cdc-textblock —
+            // chunk boundaries have to come from document-order anchor/
+            // accordion-item mapping, not closest()-textblock.
+            const html = await loadFixture('acip-notes-with-accordions.html');
+            const result = extractFromHtml(
+                'acip-notes',
+                'acip-child-adolescent-notes',
+                html,
+            );
+
+            expect(result.warnings).toEqual([]);
+            // 2 flu + 3 mmr accordions = 5 chunks; no chunks bleed
+            // between the two vaccines.
+            expect(result.chunks.map((c) => c.section)).toEqual([
+                'note-flu--routine-vaccination',
+                'note-flu--special-situations',
+                'note-mmr--routine-vaccination',
+                'note-mmr--catch-up-vaccination',
+                'note-mmr--contraindications-and-precautions',
+            ]);
+
+            const fluRoutine = result.chunks.find(
+                (c) => c.section === 'note-flu--routine-vaccination',
+            );
+            expect(fluRoutine?.section_label).toBe(
+                'Influenza vaccination — Routine vaccination',
+            );
+            expect(fluRoutine?.body).toContain('Age 6 months or older');
+            // The MMR catch-up accordion's body must NOT include flu content.
+            const mmrCatchup = result.chunks.find(
+                (c) => c.section === 'note-mmr--catch-up-vaccination',
+            );
+            expect(mmrCatchup?.body).toContain('Minimum interval between doses');
+            expect(mmrCatchup?.body).not.toContain('Influenza');
+        });
     });
 
     describe('acip-schedule', () => {

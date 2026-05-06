@@ -288,10 +288,22 @@ export function extractAcipSchedule($: cheerio.CheerioAPI, slug: string): Extrac
 }
 
 /**
- * ACIP notes pages: one chunk per per-vaccine note. Each note is
- * announced by an `<a id="note-<vaccine>">` anchor inside an `<h3>`
- * inside a `<div class="cdc-textblock">`. The chunk body is the
- * cdc-textblock's inner text, verbatim.
+ * ACIP notes pages: one chunk per per-vaccine note, sub-divided by the
+ * publisher's accordion sections when present.
+ *
+ * Each note is announced by an `<a id="note-<vaccine>">` anchor inside
+ * an `<h3>` inside a `<div class="cdc-textblock">`. Most notes contain
+ * an `<div class="accordions">` with 2–4 `accordion-button` headers
+ * (Routine vaccination, Special situations, Catch-up vaccination,
+ * Contraindications and Precautions, etc.) — those headers are the
+ * publisher's natural sub-section boundaries and we emit one chunk per
+ * accordion section. The COVID-19 notes in particular cascade all
+ * manufacturer × age × prior-dose combinations into one note section
+ * and exceed OpenAI's 8192-token embedding limit if kept whole;
+ * splitting at the accordion boundary keeps every chunk under the
+ * limit and matches the publisher's own clinical structure.
+ *
+ * Notes without accordions stay a single chunk (the small ones).
  */
 export function extractAcipNotes($: cheerio.CheerioAPI, slug: string): ExtractResult {
     const warnings: string[] = [];
@@ -308,38 +320,133 @@ export function extractAcipNotes($: cheerio.CheerioAPI, slug: string): ExtractRe
     const chunks: RawChunk[] = [];
     const seen = new Set<string>();
 
-    main.find('a[id^="note-"]').each((_i, anchor) => {
-        const id = $(anchor).attr('id');
-        if (!id) return;
-        if (seen.has(id)) return;
-        seen.add(id);
+    // The DOM is heterogeneous between the adult-notes and
+    // child-adolescent-notes pages: adult puts each note's heading and
+    // accordions in their own `cdc-textblock`, while child wraps all 19
+    // vaccine notes in a single shared `cdc-textblock` with anchors and
+    // accordion-items intermixed. Closest-textblock-as-boundary doesn't
+    // work for the child-page shape. Instead, walk every `note-*` anchor
+    // and every `accordion-item` in document order: each accordion-item
+    // belongs to the most recently seen note anchor.
+    const anchors = main.find('a[id^="note-"]').toArray();
+    const items = main.find('div.accordion-item').toArray();
 
-        const block = $(anchor).closest('div.cdc-textblock').first();
-        if (block.length === 0) {
-            warnings.push(`missing-textblock:${id}`);
-            return;
-        }
-        const heading = normalizeWhitespace(block.find('h3').first().text());
-        const body = normalizeWhitespace(block.text());
-        if (!heading) {
-            warnings.push(`missing-heading:${id}`);
-            return;
-        }
-        // The heading is part of `block.text()`; check that the block carries
-        // body text beyond just the heading itself.
-        const trailing = normalizeWhitespace(body.slice(body.indexOf(heading) + heading.length));
-        if (!trailing) {
-            warnings.push(`empty-section:${id}`);
-            return;
-        }
-        chunks.push({
-            section: id, // already kebab-case via the publisher's anchor
-            section_label: heading,
-            body,
-        });
-    });
+    interface Event {
+        readonly kind: 'anchor' | 'item';
+        readonly node: AnyNode;
+    }
+    // We need an order on AnyNode. cheerio gives us this via the
+    // dom-serializer position fields, but the simplest cross-version
+    // approach is to re-derive order by walking `main` once and
+    // assigning indices.
+    const order = new Map<AnyNode, number>();
+    let counter = 0;
+    const indexAll = (node: AnyNode): void => {
+        order.set(node, counter);
+        counter += 1;
+        const children = (node as { children?: AnyNode[] }).children ?? [];
+        for (const c of children) indexAll(c);
+    };
+    indexAll(main.get(0)!);
 
-    if (chunks.length === 0) warnings.push('no-note-anchors');
+    const events: Event[] = [
+        ...anchors.map<Event>((node) => ({ kind: 'anchor' as const, node })),
+        ...items.map<Event>((node) => ({ kind: 'item' as const, node })),
+    ].sort((a, b) => (order.get(a.node) ?? 0) - (order.get(b.node) ?? 0));
+
+    interface NoteState {
+        readonly id: string;
+        readonly heading: string;
+        readonly accordionItems: AnyNode[];
+    }
+    const notes = new Map<string, NoteState>();
+    const noteOrder: string[] = [];
+    let currentId: string | null = null;
+    for (const ev of events) {
+        if (ev.kind === 'anchor') {
+            const id = $(ev.node).attr('id');
+            if (!id || seen.has(id)) {
+                currentId = id ?? null;
+                continue;
+            }
+            seen.add(id);
+            // Heading is the closest h3 containing this anchor (or the anchor's
+            // parent h3, since the publisher puts <a id="note-*"> inside <h3>).
+            const heading = normalizeWhitespace($(ev.node).closest('h3').first().text());
+            if (!heading) {
+                warnings.push(`missing-heading:${id}`);
+                currentId = null;
+                continue;
+            }
+            notes.set(id, { id, heading, accordionItems: [] });
+            noteOrder.push(id);
+            currentId = id;
+        } else {
+            if (!currentId) continue;
+            const state = notes.get(currentId);
+            if (state) state.accordionItems.push(ev.node);
+        }
+    }
+
+    // Emit chunks per note. Notes with accordion-items get one chunk per
+    // accordion section (each titled "<vaccine> — <sub-label>"); notes
+    // without accordion-items get one whole-textblock chunk. Splitting at
+    // accordion boundaries keeps every chunk under OpenAI's 8192-token
+    // embedding limit; the unsplit COVID note exceeds it (see commit log).
+    for (const id of noteOrder) {
+        const state = notes.get(id);
+        if (!state) continue;
+        const { heading, accordionItems } = state;
+        if (accordionItems.length === 0) {
+            // Fall back to the heading's containing textblock for the body.
+            // The adult-page pattern: heading-only-textblock is rare on the
+            // adult page (most notes are accordion-bearing); this branch
+            // catches only the very small notes with no sub-structure.
+            const headingBlock = $(`a#${id}`).closest('div.cdc-textblock').first();
+            const body = normalizeWhitespace(headingBlock.text());
+            const trailing = normalizeWhitespace(
+                body.slice(body.indexOf(heading) + heading.length),
+            );
+            if (!trailing) {
+                warnings.push(`empty-section:${id}`);
+                continue;
+            }
+            chunks.push({ section: id, section_label: heading, body });
+            continue;
+        }
+        let emitted = 0;
+        for (const item of accordionItems) {
+            const itemNode = $(item);
+            const subLabel = normalizeWhitespace(
+                itemNode.find('button.accordion-button').first().text(),
+            );
+            if (!subLabel) {
+                warnings.push(`missing-accordion-label:${id}`);
+                continue;
+            }
+            const itemText = normalizeWhitespace(itemNode.text());
+            const subBody = normalizeWhitespace(
+                itemText.slice(itemText.indexOf(subLabel) + subLabel.length),
+            );
+            if (!subBody) {
+                warnings.push(`empty-accordion:${id}/${subLabel}`);
+                continue;
+            }
+            const subSlug = slugify(subLabel);
+            const body = `${heading} — ${subLabel}\n\n${subBody}`;
+            chunks.push({
+                section: `${id}--${subSlug}`,
+                section_label: `${heading} — ${subLabel}`,
+                body,
+            });
+            emitted += 1;
+        }
+        if (emitted === 0) {
+            warnings.push(`no-emitted-accordions:${id}`);
+        }
+    }
+
+    if (chunks.length === 0 && seen.size === 0) warnings.push('no-note-anchors');
     return { slug, chunks, title, year, url, warnings };
 }
 

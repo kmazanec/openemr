@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="canonical" href="https://example.test/vaccines/hcp/imz-schedules/child-adolescent-notes.html" />
+</head>
+<body>
+<main role="main">
+  <div class="cdc-page-title"><h1>Child Immunization Schedule Notes</h1></div>
+  <section><time datetime="2025-07-02 04:00:00">July 2, 2025</time></section>
+  <div class="cdc-page-content">
+    <!--
+      The child-adolescent-notes page wraps every vaccine note's heading
+      and accordions in a single shared cdc-textblock. Anchors and
+      accordion-items are siblings inside that one container — closest()
+      walks all return the same outer block, so chunk boundaries have to
+      come from document-order anchor/accordion-item mapping.
+    -->
+    <div class="cdc-textblock">
+      <div class="accordions">
+        <h3><a id="note-flu"></a>Influenza vaccination</h3>
+        <div class="accordion-item">
+          <button class="accordion-button">Routine vaccination</button>
+          <div class="accordion-body">
+            <p>Age 6 months or older: 1 dose any influenza vaccine annually.</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <button class="accordion-button">Special situations</button>
+          <div class="accordion-body">
+            <p>Egg allergy: any age-appropriate influenza vaccine may be used.</p>
+          </div>
+        </div>
+        <h3><a id="note-mmr"></a>MMR vaccination</h3>
+        <div class="accordion-item">
+          <button class="accordion-button">Routine vaccination</button>
+          <div class="accordion-body">
+            <p>Age 12 months: 1st dose. Age 4 through 6 years: 2nd dose.</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <button class="accordion-button">Catch-up vaccination</button>
+          <div class="accordion-body">
+            <p>Minimum interval between doses: 4 weeks.</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <button class="accordion-button">Contraindications and Precautions</button>
+          <div class="accordion-body">
+            <p>Severe immunodeficiency.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>
