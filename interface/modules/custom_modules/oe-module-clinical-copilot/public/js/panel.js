@@ -1068,16 +1068,13 @@ const __copilotPanel = (function () {
     };
 
     /**
-     * §4.1 chip click. POSTs the typed follow-up params (no `question`
-     * field — the agent's transitional bridge stringifies the params
-     * into a question for the free-text path until §4.2/§4.3/§4.4
-     * replace the bridge with UC-specific graph branches). The chip's
-     * `displayText` enters the thread as the user-side bubble so the UI
-     * reads as a normal turn.
+     * Suggested-follow-up chip click. Posts the chip's `displayText` as
+     * the `question` field so a tapped chip is identical on the wire to
+     * a typed question — the agent sees one shape, not two.
      */
     const submitTypedFollowUp = async (suggestion) => {
         if (composerBusy) return;
-        if (!suggestion || !suggestion.params) return;
+        if (!suggestion || typeof suggestion.displayText !== 'string' || suggestion.displayText.length === 0) return;
         composerBusy = true;
         thread.push({ role: 'user', text: suggestion.displayText });
         renderThread();
@@ -1090,7 +1087,7 @@ const __copilotPanel = (function () {
                     siteId,
                     patient: { pid, uuid: '' },
                     task: 'follow_up',
-                    followUp: suggestion.params,
+                    question: suggestion.displayText,
                 },
                 errorTag: 'follow-up-chip',
             });
