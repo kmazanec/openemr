@@ -98,7 +98,14 @@ const collectRuns = async (limit: number): Promise<RunSummary[]> => {
     return runs;
 };
 
-const liveModeEnabled = (process.env['LANGSMITH_API_KEY'] ?? '').length > 0;
+// Live mode requires BOTH credentials and a project name. With only an API
+// key set, `listRuns` falls back to LangSmith's `'default'` project — which
+// most accounts do not have, causing a noisy `Project not found` error
+// that masquerades as a real test failure. Gate on both so the live suite
+// either runs against a real project or skips cleanly.
+const liveModeEnabled =
+    (process.env['LANGSMITH_API_KEY'] ?? '').length > 0
+    && (process.env['LANGSMITH_PROJECT'] ?? '').length > 0;
 const live = liveModeEnabled ? describe : describe.skip;
 
 live('PHI trace scanner — live mode against LangSmith', () => {
