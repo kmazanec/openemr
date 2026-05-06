@@ -43,6 +43,17 @@ import {
     type BriefingRunner,
 } from './briefingRunner.js';
 import { classifyBriefingError } from './errorClassifier.js';
+import { createExtractHandler, type PipelineRunner } from './routes/extract.js';
+import { randomUUID } from 'node:crypto';
+import { parseSpacesEnv } from '../config/spacesEnv.js';
+import { buildProductionPipelineRunner } from '../pipeline/production.js';
+import { createPdfImgConvertRasterizer } from '../pipeline/rasterizer.js';
+import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
+import { createAgentSpacesClient, createOpenEmrSpacesClient } from '../storage/spaces.js';
+import { createOpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
+import { createPgExtractionArtifactStore } from '../state/extractionArtifacts.js';
+import { decodeChartSnapshot } from '../snapshot/decode.js';
+import { createSnapshotClient } from '../tools/snapshotClient.js';
 
 const DEFAULT_AUDIENCE = 'openemr-clinical-copilot-agent';
 
@@ -80,6 +91,13 @@ interface AppDeps {
      * the interactive default-briefing path.
      */
     readonly scheduleBriefingsLog?: ScheduleBriefingsLog;
+    /**
+     * §B.8 ingestion pipeline runner. Required by the `/v1/agent/extract`
+     * route. Optional so legacy tests that exercise only the
+     * conversational graph stay green — the route returns 503 if the
+     * dep isn't wired.
+     */
+    readonly pipeline?: PipelineRunner;
 }
 
 // `analyte` is an identifier we feed into a SQL `LIKE` pattern downstream.
@@ -192,6 +210,7 @@ export const createApp = ({
     conversationApi,
     conversationSuggestions,
     scheduleBriefingsLog,
+    pipeline,
 }: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
@@ -643,6 +662,25 @@ export const createApp = ({
         });
     });
 
+    /**
+     * §B.8 ingestion pipeline trigger. Path A: panel uploads a doc
+     * during a conversation; OpenEMR's `agent.php` proxy mints a
+     * scoped JWT and forwards the body here, then pipes the SSE
+     * response back to the panel. Pipeline progress is surfaced as
+     * `pipeline.*.complete` events, terminal status as `pipeline.exit`,
+     * failures as `pipeline.error`.
+     *
+     * Wired only when the pipeline dep is supplied. Boot wires the
+     * production pipeline; legacy tests that don't construct one see a
+     * 503 with `pipeline_unavailable` instead.
+     */
+    app.post('/v1/agent/extract', async (c) => {
+        if (pipeline === undefined) {
+            return c.json({ code: 'pipeline_unavailable' }, 503);
+        }
+        return createExtractHandler({ pipeline })(c);
+    });
+
     // Smoke-test endpoint paired with the proxy's `echo` action. End-to-end
     // smoke verifies the trust boundary works before any real LLM lands.
     app.post('/v1/agent/echo', async (c) => {
@@ -774,6 +812,58 @@ export const start = async (port: number): Promise<void> => {
         );
     }, 60_000).unref();
 
+    // §B.8 ingestion pipeline. The route is path A only (panel
+    // upload during a conversation). The rasterizer + vision invoker
+    // are constructed once at boot — both are stateless and the per-
+    // call values (token, canonicalExt, conversationId) thread through
+    // `PipelineCallContext` so the production runner builds a fresh
+    // `PipelineDeps` per `stream()`.
+    const spacesEnv = parseSpacesEnv();
+    const openemrSpaces = createOpenEmrSpacesClient(spacesEnv);
+    const agentSpaces = createAgentSpacesClient(spacesEnv);
+    const extractionArtifactStore = createPgExtractionArtifactStore({ connectionString: databaseUrl });
+    const documentReferenceClient = createOpenEmrDocumentReferenceClient({ baseUrl: openEmrBaseUrl });
+    const snapshotClient = createSnapshotClient({ baseUrl: openEmrBaseUrl });
+    // Both pipeline-side fetch boundaries hit the same snapshot
+    // endpoint with the same category set; the demographics fetcher
+    // just projects `.patient` off the result. Sharing the fetch
+    // keeps a single source of truth for the category list.
+    const fetchSnapshotForCtx = (ctx: { openemrToken: string; openemrSiteId: string }) =>
+        async (pid: number) =>
+            decodeChartSnapshot(
+                await snapshotClient.fetchSnapshot({
+                    pid,
+                    categories: [
+                        'diagnosis',
+                        'allergy',
+                        'lab',
+                        'encounter',
+                        'reminder',
+                        'medication_statement',
+                        'prescription',
+                    ],
+                    token: ctx.openemrToken,
+                    siteId: ctx.openemrSiteId,
+                }),
+            );
+    const pipelineRunner: PipelineRunner = buildProductionPipelineRunner({
+        artifactStore: extractionArtifactStore,
+        openemrSpaces,
+        agentSpaces,
+        rasterizer: createPdfImgConvertRasterizer(),
+        visionInvoker: createAnthropicVisionInvocation(),
+        documentReferenceClient,
+        buildFetchChartDemographics: (ctx) => {
+            const fetch = fetchSnapshotForCtx(ctx);
+            return async (pid) => (await fetch(pid)).patient;
+        },
+        buildFetchChartSnapshot: (ctx) => fetchSnapshotForCtx(ctx),
+        transientPrefix: spacesEnv.transientPrefix,
+        bucketName: spacesEnv.bucket,
+        artifactIdGenerator: () => randomUUID(),
+        logger,
+    });
+
     const app = createApp({
         auth: { verify },
         briefingRunner,
@@ -784,6 +874,7 @@ export const start = async (port: number): Promise<void> => {
         },
         conversationSuggestions,
         scheduleBriefingsLog,
+        pipeline: pipelineRunner,
     });
     serve({ fetch: app.fetch, port });
     logger.info({ port }, 'agent service listening');

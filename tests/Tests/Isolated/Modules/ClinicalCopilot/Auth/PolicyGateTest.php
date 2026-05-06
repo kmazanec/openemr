@@ -349,6 +349,54 @@ final class PolicyGateTest extends TestCase
         $this->assertSame(PolicyDenyReason::ScopeNotPermitted, $decision->reason);
     }
 
+    public function testExtractActionAllowsPipelineTriggerForActivePatient(): void
+    {
+        // §B.8 ingestion-pipeline trigger. Path A: panel uploads a
+        // doc during a conversation, so a patient is in session and
+        // requestedPatientPid mirrors it.
+        $gate = new PolicyGate();
+        $session = new SessionContext(
+            authUserId: '42',
+            authUser: 'admin',
+            siteId: 'default',
+            patientPid: '4242',
+            fhirUser: $this->stubFhirUser(),
+        );
+        $request = new AgentRequest(
+            action: 'extract',
+            siteId: 'default',
+            requestedPatientPid: '4242',
+            requestedScopes: $gate->defaultScopesFor('extract'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertTrue($decision->allowed);
+        $extractScopes = $gate->defaultScopesFor('extract');
+        // The persist node writes a DocumentReference; the
+        // patientMatch + emitDeltas nodes read the chart for the
+        // delta diff. Both must be present.
+        $this->assertContains('user/DocumentReference.cs', $extractScopes);
+        $this->assertContains('user/Patient.rs', $extractScopes);
+    }
+
+    public function testExtractActionDeniesAcrossPatients(): void
+    {
+        $gate = new PolicyGate();
+        $session = new SessionContext('42', 'admin', 'default', '101', $this->stubFhirUser());
+        $request = new AgentRequest(
+            action: 'extract',
+            siteId: 'default',
+            requestedPatientPid: '4242',
+            requestedScopes: $gate->defaultScopesFor('extract'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertFalse($decision->allowed);
+        $this->assertSame(PolicyDenyReason::PatientMismatch, $decision->reason);
+    }
+
     private function stubFhirUser(): ResolvedFhirUser
     {
         return new ResolvedFhirUser(

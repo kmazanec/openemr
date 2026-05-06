@@ -2,6 +2,7 @@ import { createApp } from '../../src/server/index.js';
 import { createLocalKeyResolver } from '../../src/auth/jwks.js';
 import { createAgentJwtVerifier } from '../../src/auth/verify.js';
 import type { BriefingRunner } from '../../src/server/briefingRunner.js';
+import type { PipelineRunner } from '../../src/server/routes/extract.js';
 import type { ConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import type { ConversationStore } from '../../src/state/conversationStore.js';
 import type { ConversationSuggestionStore } from '../../src/state/conversationSuggestions.js';
@@ -37,6 +38,7 @@ export interface AuthedAppOptions {
     };
     readonly conversationSuggestions?: ConversationSuggestionStore;
     readonly scheduleBriefingsLog?: ScheduleBriefingsLog;
+    readonly pipeline?: PipelineRunner;
 }
 
 const stubBriefingRunner: BriefingRunner = () => Promise.resolve([]);
@@ -73,6 +75,9 @@ export const buildAuthedApp = async (options: AuthedAppOptions = {}): Promise<Au
                 : {}),
             ...(options.scheduleBriefingsLog !== undefined
                 ? { scheduleBriefingsLog: options.scheduleBriefingsLog }
+                : {}),
+            ...(options.pipeline !== undefined
+                ? { pipeline: options.pipeline }
                 : {}),
         }),
         privateKey,
