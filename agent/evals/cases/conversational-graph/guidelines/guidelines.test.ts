@@ -1,8 +1,8 @@
 /**
- * §C.7 conversational-graph evals — guidelines retriever (4 cases).
+ * Guidelines retriever evals.
  *
- * Drives the C.3 retriever node with stubbed Pinecone + Cohere clients
- * and asserts the four invariants Phase C must hold:
+ * Drives the retriever node with stubbed Pinecone + Cohere clients
+ * and asserts the four invariants the per-MR gate must hold:
  *  1. A relevant query returns the expected chunk in top-1 — the
  *     verifier accepts a guideline claim citing it.
  *  2. An out-of-scope query (Pinecone returns []) emits empty
@@ -83,13 +83,13 @@ const buildPineconeStub = (
 
 const buildCohereStub = (rerank: CohereRerankClient['rerank']): CohereRerankClient => ({ rerank });
 
-describe('§C.7 guidelines retriever — 4 cases', () => {
-    it('case 1: relevant query → top-1 chunk; verifier accepts a guideline claim citing it', async () => {
+describe('guidelines retriever', () => {
+    it('relevant query → top-1 chunk; verifier accepts a guideline claim citing it', async () => {
         const pinecone = buildPineconeStub(() => Promise.resolve(HITS));
         const cohere = buildCohereStub(() =>
             // Cohere reranks the colorectal chunk to top with high score.
-            // The C.3 node passes `topN: top_k` to cohere; the stub
-            // returns just one result so the snippet count matches.
+            // The retriever node passes `topN: top_k` to cohere; the
+            // stub returns just one result so the snippet count matches.
             Promise.resolve([{ index: 0, relevanceScore: 0.97 }]),
         );
         const node = createEvidenceRetriever({ pineconeRetriever: pinecone, cohereRerank: cohere });
@@ -117,7 +117,7 @@ describe('§C.7 guidelines retriever — 4 cases', () => {
         expect(verified.accepted).toHaveLength(1);
     });
 
-    it('case 2: out-of-scope query — empty snippets with no Gap; verifier rejects a claim citing a non-existent chunk', async () => {
+    it('out-of-scope query — empty snippets with no Gap; verifier rejects a claim citing a non-existent chunk', async () => {
         const pinecone = buildPineconeStub(() => Promise.resolve([]));
         const rerank = vi.fn(() => Promise.resolve(null));
         const cohere = buildCohereStub(rerank);
@@ -148,7 +148,7 @@ describe('§C.7 guidelines retriever — 4 cases', () => {
         expect(verified.rejected).toHaveLength(1);
     });
 
-    it('case 3: Cohere outage — falls through to top-k by Pinecone hybrid score; degradedRerank: true on every snippet', async () => {
+    it('Cohere outage — falls through to top-k by Pinecone hybrid score; degradedRerank: true on every snippet', async () => {
         const pinecone = buildPineconeStub(() => Promise.resolve(HITS));
         // null is the cohere.ts contract for "service unavailable —
         // use Pinecone's hybrid order."
@@ -165,7 +165,7 @@ describe('§C.7 guidelines retriever — 4 cases', () => {
         expect(result?.snippets[0]?.rerankScore).toBe(0.81);
     });
 
-    it('case 4: Pinecone outage — Gap{evidence-retrieval-unavailable}; verifier rejects guideline citations as unresolved', async () => {
+    it('Pinecone outage — Gap{evidence-retrieval-unavailable}; verifier rejects guideline citations as unresolved', async () => {
         const pinecone = buildPineconeStub(() =>
             Promise.reject(new PineconeUnavailableError('connection reset')),
         );

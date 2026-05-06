@@ -159,8 +159,8 @@ describe('labTrendsSuite', () => {
 
 describe('documentExtractionSuite', () => {
     it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
-        // First version of the §C.7 conversational-graph dataset; bump
-        // to -v2 when the input/output shape changes so old experiments
+        // First version of the conversational-graph dataset; bump to
+        // -v2 when the input/output shape changes so old experiments
         // stay comparable.
         expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v1')).toBe(true);
     });

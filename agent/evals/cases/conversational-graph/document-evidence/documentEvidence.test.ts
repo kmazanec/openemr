@@ -1,10 +1,10 @@
 /**
- * §C.7 conversational-graph evals — document-evidence retriever (4 cases).
+ * Document-evidence retriever evals.
  *
- * Drives the C.1 retriever node with a fake `searchArtifacts` store and
- * asserts the four invariants Phase C must hold:
- *  1. Returned snippets preserve bbox/page/quote so the C.5 verifier
- *     can resolve `extracted_document` citations against them.
+ * Drives the retriever node with a fake `searchArtifacts` store and
+ * asserts the four invariants the per-MR gate must hold:
+ *  1. Returned snippets preserve bbox/page/quote so the verifier can
+ *     resolve `extracted_document` citations against them.
  *  2. The store filter is always scoped to `envelope.patient.pid`; a
  *     query against patient A's session never leaks patient B's
  *     artifacts.
@@ -43,8 +43,8 @@ const args = (overrides: Partial<DocumentEvidenceArgs> = {}): DocumentEvidenceAr
     ...overrides,
 });
 
-describe('§C.7 document-evidence retriever — 4 cases', () => {
-    it('case 1: per-patient retrieval preserves bbox/page/quote so the verifier accepts an extracted_document claim', async () => {
+describe('document-evidence retriever', () => {
+    it('per-patient retrieval preserves bbox/page/quote so the verifier accepts an extracted_document claim', async () => {
         const artifact = labArtifact();
         const store = fakeArtifactStore(new Map([[PID, [artifact]]]));
         const node = createDocumentEvidenceRetriever({ store, now: () => NOW });
@@ -73,7 +73,7 @@ describe('§C.7 document-evidence retriever — 4 cases', () => {
         expect(verified.rejected).toHaveLength(0);
     });
 
-    it('case 2: pid scope cannot be widened — patient B query against patient A envelope returns no artifacts', async () => {
+    it('pid scope cannot be widened — patient B query against patient A envelope returns no artifacts', async () => {
         const patientAArtifact = labArtifact({ pid: PID, artifactId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' });
         const patientBArtifact = labArtifact({ pid: OTHER_PID, artifactId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' });
         const store = fakeArtifactStore(
@@ -102,7 +102,7 @@ describe('§C.7 document-evidence retriever — 4 cases', () => {
         expect(store.calls[0]?.pid).toBe(OTHER_PID);
     });
 
-    it('case 3: stale lookback_days excludes old artifacts', async () => {
+    it('stale lookback_days excludes old artifacts', async () => {
         const fresh = labArtifact({
             artifactId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
             createdAt: '2026-05-03T00:00:00.000Z', // 2 days before NOW
@@ -122,7 +122,7 @@ describe('§C.7 document-evidence retriever — 4 cases', () => {
         expect(snippets[0]?.artifactId).toBe('cccccccc-cccc-cccc-cccc-cccccccccccc');
     });
 
-    it('case 4: empty-state — no artifacts returns [] (not null) and the verifier rejects an extracted_document claim against it', async () => {
+    it('empty-state — no artifacts returns [] (not null) and the verifier rejects an extracted_document claim against it', async () => {
         const store = fakeArtifactStore(new Map());
         const node = createDocumentEvidenceRetriever({ store, now: () => NOW });
 

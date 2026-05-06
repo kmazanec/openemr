@@ -1,12 +1,11 @@
 /**
- * §C.7 conversational-graph evals — verification (4 cases).
+ * Verification evals.
  *
  * Drives `verifyLedger` over the three `source_type` resolution paths
- * the C.5 implementation owns. Each case pins one structural invariant
- * that a structural regression in the verifier or the supporting
- * snippets would break:
- *  1. Chart claim accept/reject (W1 carry-forward, renamed to the
- *     unified `SourceReference` shape).
+ * the verifier owns. Each case pins one structural invariant that a
+ * regression in the verifier or its supporting snippets would break:
+ *  1. Chart claim accept/reject under the unified `SourceReference`
+ *     shape.
  *  2. Extracted-document claim with a fabricated bbox is rejected
  *     even when the artifact id resolves — the architecture's
  *     explicit failure mode for this rule.
@@ -39,8 +38,8 @@ import {
     intakeArtifact,
 } from '../_helpers.js';
 
-describe('§C.7 verification — 4 cases', () => {
-    it('case 1: chart claim accept/reject — W1 carry-forward under the unified SourceReference shape', () => {
+describe('verification', () => {
+    it('chart claim accept/reject under the unified SourceReference shape', () => {
         const snapshot = baseSnapshot({
             diagnoses: [
                 {
@@ -77,7 +76,7 @@ describe('§C.7 verification — 4 cases', () => {
         expect(verified.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
     });
 
-    it('case 2: extracted-document claim with a fabricated bbox is rejected even when the artifact id resolves', () => {
+    it('extracted-document claim with a fabricated bbox is rejected even when the artifact id resolves', () => {
         const realSnippet = factSnippet();
         // The architecture's bbox-fabrication failure mode rejects the
         // claim via REJECT_CONTENT — same artifact id + field path,
@@ -102,7 +101,7 @@ describe('§C.7 verification — 4 cases', () => {
         expect(verified.rejected[0]?.reason).toBe('claim-text-does-not-match-source-fields');
     });
 
-    it('case 3: guideline claim citing a chunk_id not in this turn\'s retriever output is rejected', () => {
+    it('guideline claim citing a chunk_id not in this turn\'s retriever output is rejected', () => {
         // The retriever returned the colorectal chunk this turn — the
         // claim cites a different chunk id.
         const output: EvidenceRetrieverOutput = {
@@ -127,7 +126,7 @@ describe('§C.7 verification — 4 cases', () => {
         expect(verified.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
     });
 
-    it('case 4: low-confidence allergy in intake form fires HARD_STOP_ALLERGIES_UNAVAILABLE; allergy + prescription content suppressed', () => {
+    it('low-confidence allergy in intake form fires HARD_STOP_ALLERGIES_UNAVAILABLE; allergy + prescription content suppressed', () => {
         // Snapshot itself has a normal prescription row; the allergy
         // hard-stop should suppress it regardless of chart-side state.
         const snapshot = baseSnapshot({
@@ -185,8 +184,9 @@ describe('§C.7 verification — 4 cases', () => {
         expect(verified.safetyHardStops).toContain(HARD_STOP_ALLERGIES_UNAVAILABLE);
 
         // Both the low-confidence allergy AND the chart prescription
-        // are suppressed under the category fail-closed — the C.5
-        // "allergy + medication symmetric suppression" rule.
+        // are suppressed under the category fail-closed — the
+        // architecture's "allergy + medication symmetric suppression"
+        // rule.
         expect(verified.accepted).toHaveLength(0);
         const rejectedRxReasons = verified.rejected
             .filter((r) => r.claim.id === 'cl-rx')

@@ -1,12 +1,13 @@
 /**
- * §C.7 conversational-graph eval helpers.
+ * Conversational-graph eval helpers.
  *
  * The cases in this directory are deterministic Vitest gates over the
- * W2 retrievers (C.1, C.3) and verifier (C.5). Each one exercises a
- * specific structural invariant the per-MR test:agent job must hold —
- * patient-scope cannot widen, fabricated bboxes reject, retriever
- * gaps surface as unresolved citations, low-confidence allergies
- * fail the safety category closed.
+ * document-evidence retriever, the guidelines retriever, and the
+ * verifier. Each one exercises a specific structural invariant the
+ * per-MR test:agent job must hold — patient-scope cannot widen,
+ * fabricated bboxes reject, retriever gaps surface as unresolved
+ * citations, low-confidence allergies fail the safety category
+ * closed.
  *
  * The cases stub the retriever's external dependencies (Postgres for
  * extraction artifacts, Pinecone + Cohere for guidelines) rather than
@@ -235,10 +236,10 @@ export const extractedDocRef = (
 
 /**
  * Build an `ExtractedFactSnippet` directly without round-tripping
- * through the C.1 projection. Cases that exercise the verifier's
- * `extracted_document` resolution don't need the projection — they
- * just need a snippet shape that mirrors what the retriever would
- * have produced.
+ * through the retriever's projection. Cases that exercise the
+ * verifier's `extracted_document` resolution don't need the
+ * projection — they just need a snippet shape that mirrors what the
+ * retriever would have produced.
  */
 export const factSnippet = (
     overrides: Partial<ExtractedFactSnippet> = {},

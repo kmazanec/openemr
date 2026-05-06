@@ -1,16 +1,15 @@
 /**
- * Document-extraction / conversational-graph suite — the §C.7
- * registry entry for the W2 retrievers (C.1, C.3) and verifier (C.5).
+ * Conversational-graph eval suite — registry entry for the
+ * document-evidence retriever, guidelines retriever, and verifier.
  *
  * The per-MR Vitest gate for these cases lives at
  * `agent/evals/cases/conversational-graph/{document-evidence,
  * guidelines,verification}/*.test.ts` and asserts the structural
- * invariants every C.7 case pins (patient-scope cannot widen,
- * fabricated bboxes reject, retriever gaps surface as unresolved,
- * low-confidence allergy fails closed). This file is the
- * **nightly-experiment** layer per `W2_ARCHITECTURE.md` §"Eval
- * Architecture" — same dataset, real Anthropic + Pinecone + Cohere +
- * OpenAI clients.
+ * invariants (patient-scope cannot widen, fabricated bboxes reject,
+ * retriever gaps surface as unresolved, low-confidence allergy fails
+ * closed). This file is the **nightly-experiment** layer per
+ * `W2_ARCHITECTURE.md` §"Eval Architecture" — same dataset, real
+ * Anthropic + Pinecone + Cohere + OpenAI clients.
  *
  * Dataset shape: one example per case-group. The inputs encode the
  * scenario (a stubbed-vendor scenario for the deterministic gates;
@@ -21,10 +20,9 @@
  * shows up in the same diff.
  *
  * Real-vendor `runExperiment` skips when any of PINECONE_API_KEY /
- * PINECONE_INDEX_NAME / OPENAI_API_KEY / COHERE_API_KEY is missing —
- * the C.0 human-track has populated all four on the Droplet, but the
- * end-to-end real-vendor pass is gated behind the user provisioning
- * the Pinecone index per C.2/C.3 partial DoDs.
+ * PINECONE_INDEX_NAME / OPENAI_API_KEY / COHERE_API_KEY is missing,
+ * and additionally skips until the Pinecone index has been
+ * provisioned and populated by the corpus-reindex script.
  */
 
 import type { Client } from 'langsmith';
@@ -40,7 +38,7 @@ import {
 export const DATASET_NAME = 'clinical-copilot-conversational-graph-v1';
 
 const DATASET_DESCRIPTION =
-    'Phase C conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI per architecture §"Real model in CI".';
+    'Conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI.';
 
 interface ConversationalGraphInputs {
     readonly group:
@@ -136,11 +134,10 @@ const runExperiment = (
         });
     }
     // The real-vendor end-to-end run is gated behind the user
-    // provisioning the Pinecone index (C.2/C.3 partial DoDs). Until
-    // then the per-MR Vitest layer is the load-bearing gate.
-    // Returning a skip with a descriptive reason keeps the runner's
-    // contract clean — it doesn't confuse "ran zero rows" with "ran
-    // all rows green."
+    // provisioning the Pinecone index. Until then the per-MR Vitest
+    // layer is the load-bearing gate. Returning a skip with a
+    // descriptive reason keeps the runner's contract clean — it
+    // doesn't confuse "ran zero rows" with "ran all rows green."
     return Promise.resolve({
         suiteName: 'conversational-graph',
         datasetName: DATASET_NAME,
