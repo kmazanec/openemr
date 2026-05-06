@@ -21,6 +21,7 @@
     "evals:regenerate-fixtures": "tsx evals/fixtures/regenerate.ts",
     "evals:upload-dataset": "tsx --env-file-if-exists=.env evals/runners/cli.ts upload-dataset",
     "evals:experiment": "tsx --env-file-if-exists=.env evals/runners/cli.ts experiment",
+    "evals:rebaseline": "tsx --env-file-if-exists=.env scripts/rebaseline.ts",
     "corpus:fetch:uspstf": "tsx scripts/fetch-uspstf-corpus.ts",
     "corpus:extract:uspstf": "tsx scripts/extract-uspstf-corpus.ts",
     "corpus:fetch:cdc": "tsx scripts/fetch-cdc-corpus.ts",
