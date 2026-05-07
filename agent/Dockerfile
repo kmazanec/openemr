@@ -8,8 +8,14 @@ ARG NODE_IMAGE=node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647b
 # ── Stage: deps ──────────────────────────────────────────────────────────────
 # Install full dependency tree (incl. dev) for the build stage. Cached on
 # package*.json so source-only changes don't invalidate the install layer.
+#
+# `poppler-utils` (pdftoppm + pdfinfo) ships in `deps` as well as `runtime`
+# because the local-dev compose target uses this stage directly (`npm run dev`
+# under tsx-watch). Without poppler here the §B.3 rasterizer fails with
+# `spawn pdfinfo ENOENT` whenever a clinician uploads a PDF locally.
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
+RUN apk add --no-cache poppler-utils
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --include=dev
