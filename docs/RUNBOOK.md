@@ -378,6 +378,33 @@ the list of flipped cells, the cost estimate, and any vendor-outage
 skips. The post uses `CI_JOB_TOKEN` against the Notes API — no extra
 auth setup.
 
+**Gotcha — CI variable "Protected" flag breaks the MR gate.** GitLab's
+**Protected** flag on a CI/CD variable means the variable is only
+exposed to jobs running on **protected** refs (`master`, tags, and any
+branch globs you've added under Settings → Repository → Protected
+branches). Feature-branch MR pipelines run on `merge_request_event`
+from an unprotected ref, so a "Protected" variable is silently
+withheld and the script reports `LANGSMITH_API_KEY not set` (or the
+same for any other vendor key).
+
+The eval-related vars must be **masked but NOT protected** for the
+per-MR gate to authenticate:
+
+- `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `COHERE_API_KEY`,
+  `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`,
+  `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`.
+
+If you can't accept unprotected vendor keys (e.g. you don't trust
+everyone with push access), the alternative is to add `feat/*` to the
+protected-branches glob — variables stay protected but are now
+available on `feat/*` MR runs. Trade-off: any contributor with push
+access to a `feat/*` branch can use the keys (echoing-in-CI risk
+mitigated only by masking).
+
+The nightly job `test:agent-evals-nightly` runs on `master` or
+`schedule`, both protected contexts, so it works correctly even when
+the same vars are marked protected.
+
 **What "down" means for vendor-outage skip.** The
 `evals:vendor-health` step GETs each vendor's public status-summary
 endpoint (Anthropic, OpenAI, Cohere, Pinecone, LangSmith). Any of the

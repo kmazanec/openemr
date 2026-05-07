@@ -36,7 +36,7 @@ By the end of E: every suite's nightly experiment runs against real models; the 
 **Owner.** User.
 
 **Checklist.**
-- [x] GitLab CI variables populated: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`, `LANGSMITH_API_KEY`, all `SPACES_*`. **All marked "masked, protected"** per GitLab's CI variable best practices.
+- [x] GitLab CI variables populated: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`, `LANGSMITH_API_KEY`, all `SPACES_*`. **Eval-related vars (the eight above except `SPACES_*`) must be marked "masked" but NOT "protected"** — protected vars are withheld from `merge_request_event` pipelines on unprotected branches, which is exactly when the per-MR `test:agent-evals-gate` job needs them. The `SPACES_*` vars stay "masked, protected" because they're only consumed by the `deploy` job (master-only). See `docs/RUNBOOK.md` §"Eval-gate CI job (per-MR)" for the gotcha and the alternative (adding `feat/*` to the protected-branches glob).
 - [x] If a key needs to be different in CI vs prod (e.g., a separate Pinecone namespace for CI evals to avoid disturbing prod), document the namespace in `agent/README.md`.
 
 **Definition of done.** Engineer triggers a CI run on a feature branch; vendor-using job authenticates without env-var errors.
