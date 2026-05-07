@@ -48,9 +48,6 @@ use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementListsTableWriter;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementPromotionRequest;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry;
 use OpenEMR\Modules\ClinicalCopilot\Service\ProcedureReportTableWriter;
@@ -87,6 +84,12 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PersistedProcedureReport.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ObservationResult.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/DemographicsField.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsSnapshot.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsTableWriter.php';
 
 final class AllergyListWriteServiceTest extends TestCase
 {
@@ -160,6 +163,14 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsField.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsSnapshot.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsWriteService.php';
+        require_once self::MODULE_DIR . '/Events/PatientDemographicsUpdatedEvent.php';
+        require_once self::MODULE_DIR . '/Controller/DemographicsPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -281,8 +292,18 @@ final class AllergyListWriteServiceTest extends TestCase
         $token = $this->mintToken([PromoteController::SCOPE_ALLERGY]);
         $writer = new InMemoryAllergyTableWriter();
 
-        [$status1, $body1] = $this->dispatchController($token, 'allergy', $this->validBody(), $writer);
-        [$status2, $body2] = $this->dispatchController($token, 'allergy', $this->validBody(), $writer);
+        [$status1, $body1, $disclosures1] = $this->dispatchController(
+            $token,
+            'allergy',
+            $this->validBody(),
+            $writer,
+        );
+        [$status2, $body2, $disclosures2] = $this->dispatchController(
+            $token,
+            'allergy',
+            $this->validBody(),
+            $writer,
+        );
 
         $this->assertSame(200, $status1);
         $this->assertSame(200, $status2);
@@ -291,6 +312,13 @@ final class AllergyListWriteServiceTest extends TestCase
         $this->assertSame($body1['chart_record_uuid'], $body2['chart_record_uuid']);
         $this->assertFalse($body1['idempotent_hit']);
         $this->assertTrue($body2['idempotent_hit']);
+        // Idempotent re-call is a structural no-op: no second chart
+        // write, and no second disclosure event. The fix that gated
+        // `fireDisclosure()` on `!$result->idempotentHit` makes the
+        // audit trail say "the agent disclosed PHI for one Tier-3
+        // promotion," not two.
+        $this->assertCount(1, $disclosures1);
+        $this->assertCount(0, $disclosures2);
     }
 
     public function testControllerAllergyRejectsTokenLackingScope(): void
@@ -467,6 +495,12 @@ final class AllergyListWriteServiceTest extends TestCase
             clock: $this->fixedClock(),
             logger: $logger,
         );
+        $demographicsService = new \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsWriteService(
+            tableWriter: new NoopDemographicsTableWriterForAllergyTest(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
 
         $controller = new PromoteController(
             auth: $auth,
@@ -475,6 +509,7 @@ final class AllergyListWriteServiceTest extends TestCase
             medicalProblemWriteService: $medicalProblemService,
             medicationStatementWriteService: $medicationService,
             familyHistoryWriteService: $familyHistoryService,
+            demographicsWriteService: $demographicsService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -647,6 +682,34 @@ final class NoopFamilyHistoryListsTableWriter implements FamilyHistoryListsTable
     ): PersistedListEntry {
         throw new \RuntimeException(
             'NoopFamilyHistoryListsTableWriter.insertFamilyHistory must not be called',
+        );
+    }
+}
+
+/**
+ * No-op demographics writer for the allergy controller tests. F.6
+ * added `demographicsWriteService` to the controller's constructor;
+ * no allergy test routes through the demographics branch.
+ */
+final class NoopDemographicsTableWriterForAllergyTest implements
+    \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsTableWriter
+{
+    public function fetchSnapshot(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+    ): ?\OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsSnapshot {
+        return null;
+    }
+
+    public function updateField(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+        string $value,
+        int $promotedByUserId,
+        \DateTimeImmutable $updatedAt,
+    ): string {
+        throw new \RuntimeException(
+            'NoopDemographicsTableWriterForAllergyTest.updateField must not be called',
         );
     }
 }

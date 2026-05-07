@@ -12,11 +12,15 @@
  * {@see MedicationStatementWriteService}; F.5d adds the
  * `past_medical_history` path through {@see MedicalProblemWriteService};
  * F.5e adds the `family_history` path through
- * {@see FamilyHistoryWriteService}. The `demographics` fact type is
- * accepted by the dispatcher but rejects with HTTP 501 until F.6
- * lands. The 501 is deliberately structural: the agent should not
- * silently route a Tier-3 promotion of an unimplemented type as if
- * it succeeded.
+ * {@see FamilyHistoryWriteService}; F.6 adds the `demographics` path
+ * through {@see PatientDemographicsWriteService}, which routes through
+ * OpenEMR's standard `PatientService::databaseUpdate()` so the
+ * existing audit log + `PatientUpdatedEvent` listeners fire as if
+ * a clinician edited the demographics form. F.6 was the last per-type
+ * branch — every VALID_TYPE now has a real dispatch arm. Adding a
+ * new VALID_TYPE without a matching `match` arm fails PHPStan
+ * exhaustiveness with `match.unhandled`, which is a stronger
+ * structural signal than the F.5-era 501 branch was.
  *
  * Auth surface mirrors the narrow snapshot controllers (JWT bearer →
  * {@see AgentEndpointAuth}). Required scopes are per-type
@@ -24,9 +28,8 @@
  * `user/AllergyIntolerance.cs` for `allergy`,
  * `user/MedicationStatement.cs` for `medication_statement`,
  * `user/Condition.cs` for `past_medical_history`,
- * `user/FamilyMemberHistory.cs` for `family_history`); future fact-type
- * branches will require their own scopes (architecture's "Repeat
- * explicit checks at agent endpoints"). The single-controller
+ * `user/FamilyMemberHistory.cs` for `family_history`,
+ * `user/Patient.cs` for `demographics`). The single-controller
  * approach is deliberate per the F.2 checklist — one entry, one
  * disclosure shape, one place to add a new type — but each branch
  * enforces its own scope so a token over-broadly minted for `lab`
@@ -35,7 +38,7 @@
  * Disclosure shape: every promotion fires
  * {@see AgentDisclosedEvent} with `action='tier3_promotion'` and a
  * type-specific data category (`['lab']`, `['allergy']`,
- * `['family_history']`, …) so compliance reviewers can see "lab was
+ * `['demographics']`, …) so compliance reviewers can see "lab was
  * promoted to chart from source document X."
  *
  * @package   OpenEMR
@@ -58,6 +61,7 @@ use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsWriteService;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -80,6 +84,13 @@ final readonly class PromoteController
     // past-medical-history branch uses) cannot smuggle through and
     // write a family-history row.
     public const SCOPE_FAMILY_HISTORY = 'user/FamilyMemberHistory.cs';
+    // F.6 — demographics Tier-3 writes use the FHIR `Patient`
+    // resource's content-write scope. Each accept click promotes one
+    // (address|phone|email) delta through OpenEMR's standard
+    // `PatientService::databaseUpdate()` surface; this scope is the
+    // right semantic match because the chart effect is "write to the
+    // Patient resource."
+    public const SCOPE_DEMOGRAPHICS = 'user/Patient.cs';
 
     private const ACTION = 'tier3_promotion';
     private const CHART_RECORD_TYPE_DIAGNOSTIC_REPORT = 'diagnostic_report';
@@ -87,6 +98,7 @@ final readonly class PromoteController
     private const CHART_RECORD_TYPE_LIST_MEDICAL_PROBLEM = 'list_medical_problem';
     private const CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT = 'list_medication_statement';
     private const CHART_RECORD_TYPE_LIST_FAMILY_HISTORY = 'list_family_history';
+    private const CHART_RECORD_TYPE_PATIENT_DEMOGRAPHICS = 'patient_demographics';
 
     private const VALID_TYPES = [
         self::TYPE_LAB,
@@ -97,10 +109,6 @@ final readonly class PromoteController
         self::TYPE_DEMOGRAPHICS,
     ];
 
-    private const NOT_YET_IMPLEMENTED_TYPES = [
-        self::TYPE_DEMOGRAPHICS,
-    ];
-
     public function __construct(
         private AgentEndpointAuth $auth,
         private ObservationLabWriteService $labWriteService,
@@ -108,6 +116,7 @@ final readonly class PromoteController
         private MedicalProblemWriteService $medicalProblemWriteService,
         private MedicationStatementWriteService $medicationStatementWriteService,
         private FamilyHistoryWriteService $familyHistoryWriteService,
+        private PatientDemographicsWriteService $demographicsWriteService,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -129,28 +138,12 @@ final readonly class PromoteController
             return;
         }
 
-        if (in_array($type, self::NOT_YET_IMPLEMENTED_TYPES, true)) {
-            // Authorize first so an unimplemented type still rejects an
-            // unauthenticated request with 401, not 501. The 501 is
-            // reserved for callers that *could* write but the
-            // server-side handler isn't built yet. We use the lab
-            // scope as a structural placeholder — once the type's
-            // own scope lands, its dispatchX() method enforces it.
-            $request = $this->auth->authorize($bearerToken, self::SCOPE_LAB);
-            if ($request === null) {
-                return;
-            }
-            $this->respondError(501, 'not_yet_implemented');
-            return;
-        }
-
-        // After VALID_TYPES + NOT_YET_IMPLEMENTED filtering, $type is
-        // exactly one of the implemented types. PHPStan sees this and
-        // verifies match exhaustiveness — a future PR that adds a
-        // new VALID_TYPE without flipping NOT_YET_IMPLEMENTED and
-        // without wiring a match arm fails static analysis with
-        // `match.unhandled`, which is a stronger signal than a runtime
-        // default arm.
+        // F.6 — every VALID_TYPE now has a real dispatch arm.
+        // PHPStan's match exhaustiveness check on the call below is
+        // what keeps a future "added a VALID_TYPE without wiring a
+        // match arm" change from compiling: it surfaces as
+        // `match.unhandled`. Stronger structural signal than the
+        // F.5-era 501 fallthrough.
         match ($type) {
             self::TYPE_LAB => $this->dispatchLab($bearerToken, $body, $conversationId),
             self::TYPE_ALLERGY => $this->dispatchAllergy($bearerToken, $body, $conversationId),
@@ -165,6 +158,11 @@ final readonly class PromoteController
                 $conversationId,
             ),
             self::TYPE_FAMILY_HISTORY => $this->dispatchFamilyHistory(
+                $bearerToken,
+                $body,
+                $conversationId,
+            ),
+            self::TYPE_DEMOGRAPHICS => $this->dispatchDemographics(
                 $bearerToken,
                 $body,
                 $conversationId,
@@ -212,14 +210,16 @@ final readonly class PromoteController
             return;
         }
 
-        $this->fireDisclosure(
-            request: $request,
-            pid: $promotion->pid,
-            conversationId: $conversationId,
-            categories: ['lab'],
-            chartRecordUuid: $result->diagnosticReportUuid,
-            chartRecordTypeForLog: self::CHART_RECORD_TYPE_DIAGNOSTIC_REPORT,
-        );
+        if (!$result->idempotentHit) {
+            $this->fireDisclosure(
+                request: $request,
+                pid: $promotion->pid,
+                conversationId: $conversationId,
+                categories: ['lab'],
+                chartRecordUuid: $result->diagnosticReportUuid,
+                chartRecordTypeForLog: self::CHART_RECORD_TYPE_DIAGNOSTIC_REPORT,
+            );
+        }
 
         $this->respondJson(200, [
             'chart_record_uuid' => $result->diagnosticReportUuid,
@@ -269,14 +269,16 @@ final readonly class PromoteController
             return;
         }
 
-        $this->fireDisclosure(
-            request: $request,
-            pid: $promotion->pid,
-            conversationId: $conversationId,
-            categories: ['allergy'],
-            chartRecordUuid: $result->listUuid,
-            chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_ALLERGY,
-        );
+        if (!$result->idempotentHit) {
+            $this->fireDisclosure(
+                request: $request,
+                pid: $promotion->pid,
+                conversationId: $conversationId,
+                categories: ['allergy'],
+                chartRecordUuid: $result->listUuid,
+                chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_ALLERGY,
+            );
+        }
 
         $this->respondJson(200, [
             'chart_record_uuid' => $result->listUuid,
@@ -328,14 +330,16 @@ final readonly class PromoteController
             return;
         }
 
-        $this->fireDisclosure(
-            request: $request,
-            pid: $promotion->pid,
-            conversationId: $conversationId,
-            categories: ['medication_statement'],
-            chartRecordUuid: $result->listUuid,
-            chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT,
-        );
+        if (!$result->idempotentHit) {
+            $this->fireDisclosure(
+                request: $request,
+                pid: $promotion->pid,
+                conversationId: $conversationId,
+                categories: ['medication_statement'],
+                chartRecordUuid: $result->listUuid,
+                chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT,
+            );
+        }
 
         $this->respondJson(200, [
             'chart_record_uuid' => $result->listUuid,
@@ -384,14 +388,16 @@ final readonly class PromoteController
             return;
         }
 
-        $this->fireDisclosure(
-            request: $request,
-            pid: $promotion->pid,
-            conversationId: $conversationId,
-            categories: ['past_medical_history'],
-            chartRecordUuid: $result->listUuid,
-            chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_MEDICAL_PROBLEM,
-        );
+        if (!$result->idempotentHit) {
+            $this->fireDisclosure(
+                request: $request,
+                pid: $promotion->pid,
+                conversationId: $conversationId,
+                categories: ['past_medical_history'],
+                chartRecordUuid: $result->listUuid,
+                chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_MEDICAL_PROBLEM,
+            );
+        }
 
         $this->respondJson(200, [
             'chart_record_uuid' => $result->listUuid,
@@ -443,18 +449,89 @@ final readonly class PromoteController
             return;
         }
 
-        $this->fireDisclosure(
-            request: $request,
-            pid: $promotion->pid,
-            conversationId: $conversationId,
-            categories: ['family_history'],
-            chartRecordUuid: $result->listUuid,
-            chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_FAMILY_HISTORY,
-        );
+        if (!$result->idempotentHit) {
+            $this->fireDisclosure(
+                request: $request,
+                pid: $promotion->pid,
+                conversationId: $conversationId,
+                categories: ['family_history'],
+                chartRecordUuid: $result->listUuid,
+                chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_FAMILY_HISTORY,
+            );
+        }
 
         $this->respondJson(200, [
             'chart_record_uuid' => $result->listUuid,
             'chart_record_type' => self::CHART_RECORD_TYPE_LIST_FAMILY_HISTORY,
+            'idempotent_hit' => $result->idempotentHit,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     */
+    private function dispatchDemographics(
+        ?string $bearerToken,
+        ?array $body,
+        ?string $conversationId,
+    ): void {
+        $request = $this->auth->authorize($bearerToken, self::SCOPE_DEMOGRAPHICS);
+        if ($request === null) {
+            return;
+        }
+
+        if ($body === null) {
+            $this->respondError(400, 'invalid_body');
+            return;
+        }
+
+        try {
+            $promotion = DemographicsPromotionRequestParser::parse(
+                $body,
+                $request->actor->userId,
+            );
+        } catch (\DomainException $e) {
+            $this->logger->warning('Tier-3 demographics promotion rejected at parse', [
+                'reason' => $e->getMessage(),
+            ]);
+            $this->respondError(400, 'invalid_body');
+            return;
+        }
+
+        try {
+            $result = $this->demographicsWriteService->write($promotion);
+        } catch (\RuntimeException $e) {
+            $this->logger->error('Tier-3 demographics promotion failed', [
+                'pid' => $promotion->pid,
+                'field' => $promotion->field->value,
+                'sourceDocumentUuid' => $promotion->sourceDocumentUuid,
+                'exception' => $e,
+            ]);
+            $this->respondError(503, 'write_unavailable');
+            return;
+        }
+
+        // Disclosure-event idempotency: the chart write only happens
+        // on a non-idempotent hit, so the disclosure event only fires
+        // there too. An idempotent re-call is a structural no-op for
+        // both the chart and the audit trail — `extended_log` /
+        // `agent_request_log` say "the agent disclosed PHI for one
+        // Tier-3 promotion," not two. See {@see fireDisclosure()}'s
+        // docblock for the full rationale.
+        if (!$result->idempotentHit) {
+            $this->fireDisclosure(
+                request: $request,
+                pid: $promotion->pid,
+                conversationId: $conversationId,
+                categories: ['demographics'],
+                chartRecordUuid: $result->patientUuid,
+                chartRecordTypeForLog: self::CHART_RECORD_TYPE_PATIENT_DEMOGRAPHICS,
+            );
+        }
+
+        $this->respondJson(200, [
+            'chart_record_uuid' => $result->patientUuid,
+            'chart_record_type' => self::CHART_RECORD_TYPE_PATIENT_DEMOGRAPHICS,
             'idempotent_hit' => $result->idempotentHit,
         ]);
     }
@@ -467,6 +544,15 @@ final readonly class PromoteController
      * `extracted_fact_dispositions`, so the F.2 contract is "log
      * loudly, respond success." Same shape for every fact type;
      * categories vary.
+     *
+     * Idempotency contract: this is *only* called when the write
+     * service actually wrote a chart row (i.e. `result.idempotentHit
+     * === false`). The per-branch dispatch arms gate the call with
+     * `if (!$result->idempotentHit)` so an idempotent re-call (a
+     * second clinician click on the same fact, a network retry, etc.)
+     * is a structural no-op for both the chart row and the audit
+     * trail. The `extended_log` + `agent_request_log` rows say "the
+     * agent disclosed PHI for one Tier-3 promotion," not two.
      *
      * @param list<string> $categories
      */

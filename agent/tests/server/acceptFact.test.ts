@@ -1074,6 +1074,201 @@ describe('POST /v1/agent/accept_fact — happy path (family_history)', () => {
     });
 });
 
+describe('POST /v1/agent/accept_fact — happy path (demographics)', () => {
+    const baseDemographicsArtifact = (
+        overrides: Partial<ExtractionArtifact> = {},
+    ): ExtractionArtifact => ({
+        artifactId: 'artifact-demographics-1',
+        documentUuid: 'doc-uuid-demographics',
+        pid: 4242,
+        docType: 'intake_form',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            allergies: [],
+            current_medications: [],
+            past_medical_history: [],
+            family_history: [],
+            patient_demographics: {
+                name: { value: 'Patel, Maya', page: 1, bbox: [10, 10, 100, 20], quote: 'Patel, Maya', confidence: 0.99 },
+                dob: { value: '1979-03-04', page: 1, bbox: [10, 30, 100, 40], quote: '1979-03-04', confidence: 0.99 },
+                sex: { value: 'female', page: 1, bbox: [10, 50, 100, 60], quote: 'female', confidence: 0.99 },
+                address: {
+                    value: '742 Evergreen Terrace, Springfield IL 62701',
+                    page: 1,
+                    bbox: [10, 70, 380, 80],
+                    quote: '742 Evergreen Terrace, Springfield IL 62701',
+                    confidence: 0.95,
+                },
+                phone: {
+                    value: '555-867-5309',
+                    page: 1,
+                    bbox: [10, 90, 200, 100],
+                    quote: '555-867-5309',
+                    confidence: 0.94,
+                },
+                email: {
+                    value: 'maya.patel@example.com',
+                    page: 1,
+                    bbox: [10, 110, 280, 120],
+                    quote: 'maya.patel@example.com',
+                    confidence: 0.96,
+                },
+            },
+        },
+        deltasJson: null,
+        confidenceSignal: null,
+        status: 'pending_confirmation',
+        documentHash: 'hash',
+        createdAt: '2026-05-04T12:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+        ...overrides,
+    });
+
+    it('reads intake_form artifact, posts demographics promote.php with field=address, records accepted disposition', async () => {
+        const deps = makeDeps({
+            artifact: baseDemographicsArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'patient-uuid-1',
+                chartRecordType: 'patient_demographics',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-demographics-1',
+                fieldPath: 'patient_demographics.address',
+                factType: 'demographics',
+            }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            chartRecordUuid: string;
+            chartRecordType: string;
+        };
+        expect(body.chartRecordUuid).toBe('patient-uuid-1');
+        expect(body.chartRecordType).toBe('patient_demographics');
+
+        // Promote.php was called with the closed-set `field` enum and
+        // the cited `value` from the demographics envelope. The PHP
+        // service writes the value verbatim into the matching
+        // `patient_data` column (street/phone_cell/email).
+        expect(deps.promoteCalls).toHaveLength(1);
+        const promoteCall = deps.promoteCalls[0]!;
+        expect(promoteCall.type).toBe('demographics');
+        expect(promoteCall.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-demographics',
+            field: 'address',
+            value: '742 Evergreen Terrace, Springfield IL 62701',
+        });
+
+        expect(deps.dispositionCalls).toHaveLength(1);
+        expect(deps.dispositionCalls[0]).toMatchObject({
+            artifactId: 'artifact-demographics-1',
+            fieldPath: 'patient_demographics.address',
+            status: 'accepted',
+            userId: 'Practitioner/dr-patel',
+        });
+    });
+
+    it('routes phone deltas through the same path with field=phone', async () => {
+        const deps = makeDeps({
+            artifact: baseDemographicsArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'patient-uuid-1',
+                chartRecordType: 'patient_demographics',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-demographics-1',
+                fieldPath: 'patient_demographics.phone',
+                factType: 'demographics',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-demographics',
+            field: 'phone',
+            value: '555-867-5309',
+        });
+    });
+
+    it('returns 400 unsupported_field_path for a non-{address|phone|email} demographics slot', async () => {
+        const deps = makeDeps({ artifact: baseDemographicsArtifact() });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-demographics-1',
+                fieldPath: 'patient_demographics.name',
+                factType: 'demographics',
+            }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'unsupported_field_path' });
+        expect(deps.promoteCalls).toHaveLength(0);
+    });
+
+    it('returns 400 schema_invalid when the cited demographics slot is missing', async () => {
+        const stripped = baseDemographicsArtifact({
+            schemaJson: {
+                allergies: [],
+                current_medications: [],
+                past_medical_history: [],
+                family_history: [],
+                patient_demographics: {
+                    name: { value: 'Patel, Maya', page: 1, bbox: [10, 10, 100, 20], quote: 'Patel, Maya', confidence: 0.99 },
+                    dob: { value: '1979-03-04', page: 1, bbox: [10, 30, 100, 40], quote: '1979-03-04', confidence: 0.99 },
+                    sex: { value: 'female', page: 1, bbox: [10, 50, 100, 60], quote: 'female', confidence: 0.99 },
+                    // address/phone/email omitted — the cited slot is missing.
+                },
+            },
+        });
+        const deps = makeDeps({ artifact: stripped });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-demographics-1',
+                fieldPath: 'patient_demographics.address',
+                factType: 'demographics',
+            }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'schema_invalid' });
+    });
+});
+
 describe('POST /v1/agent/accept_fact — artifact + materialization errors', () => {
     it('returns 404 artifact_not_found when the store has no such id', async () => {
         const deps = makeDeps({ artifact: null });

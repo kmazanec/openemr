@@ -449,6 +449,11 @@ final class PolicyGateTest extends TestCase
         $this->assertContains('user/MedicationStatement.cs', $scopes);
         $this->assertContains('user/Condition.cs', $scopes);
         $this->assertContains('user/FamilyMemberHistory.cs', $scopes);
+        // F.6 — demographics-delta promotion uses the FHIR Patient
+        // content-write scope so an over-broadly minted Condition or
+        // AllergyIntolerance token cannot smuggle through and rewrite
+        // the patient's address.
+        $this->assertContains('user/Patient.cs', $scopes);
     }
 
     public function testAcceptFactActionDeniesAcrossPatients(): void

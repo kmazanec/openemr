@@ -79,6 +79,12 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ObservationResult.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementListsTableWriter.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/DemographicsField.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsSnapshot.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsTableWriter.php';
 
 final class MedicationStatementWriteServiceTest extends TestCase
 {
@@ -147,11 +153,19 @@ final class MedicationStatementWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsField.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsSnapshot.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsWriteService.php';
+        require_once self::MODULE_DIR . '/Events/PatientDemographicsUpdatedEvent.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/DemographicsPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -279,13 +293,13 @@ final class MedicationStatementWriteServiceTest extends TestCase
         $token = $this->mintToken([PromoteController::SCOPE_MEDICATION_STATEMENT]);
         $writer = new InMemoryMedicationTableWriter();
 
-        [$status1, $body1] = $this->dispatchController(
+        [$status1, $body1, $disclosures1] = $this->dispatchController(
             $token,
             'medication_statement',
             $this->validBody(),
             $writer,
         );
-        [$status2, $body2] = $this->dispatchController(
+        [$status2, $body2, $disclosures2] = $this->dispatchController(
             $token,
             'medication_statement',
             $this->validBody(),
@@ -299,6 +313,10 @@ final class MedicationStatementWriteServiceTest extends TestCase
         $this->assertSame($body1['chart_record_uuid'], $body2['chart_record_uuid']);
         $this->assertFalse($body1['idempotent_hit']);
         $this->assertTrue($body2['idempotent_hit']);
+        // Idempotent re-call is a structural no-op for both the chart
+        // row and the disclosure trail.
+        $this->assertCount(1, $disclosures1);
+        $this->assertCount(0, $disclosures2);
     }
 
     public function testControllerMedicationRejectsTokenLackingScope(): void
@@ -491,6 +509,12 @@ final class MedicationStatementWriteServiceTest extends TestCase
             clock: $this->fixedClock(),
             logger: $logger,
         );
+        $demographicsService = new \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsWriteService(
+            tableWriter: new MedicationNoopDemographicsTableWriter(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
 
         $controller = new PromoteController(
             auth: $auth,
@@ -499,6 +523,7 @@ final class MedicationStatementWriteServiceTest extends TestCase
             medicalProblemWriteService: $medicalProblemService,
             medicationStatementWriteService: $medicationService,
             familyHistoryWriteService: $familyHistoryService,
+            demographicsWriteService: $demographicsService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -716,6 +741,34 @@ final class MedicationNoopFamilyHistoryTableWriter implements FamilyHistoryLists
     ): PersistedListEntry {
         throw new \RuntimeException(
             'MedicationNoopFamilyHistoryTableWriter.insertFamilyHistory must not be called',
+        );
+    }
+}
+
+/**
+ * No-op demographics writer for the medication controller tests. F.6
+ * added `demographicsWriteService` to the controller's constructor;
+ * no medication test routes through the demographics branch.
+ */
+final class MedicationNoopDemographicsTableWriter implements
+    \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsTableWriter
+{
+    public function fetchSnapshot(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+    ): ?\OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsSnapshot {
+        return null;
+    }
+
+    public function updateField(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+        string $value,
+        int $promotedByUserId,
+        \DateTimeImmutable $updatedAt,
+    ): string {
+        throw new \RuntimeException(
+            'MedicationNoopDemographicsTableWriter.updateField must not be called',
         );
     }
 }
