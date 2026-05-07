@@ -144,8 +144,14 @@ describe('documentExtractionSuite', () => {
 });
 
 describe('endToEndSuite', () => {
-    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
-        expect(END_TO_END_DATASET_NAME.endsWith('-v1')).toBe(true);
+    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // Bumped to -v2 when the redaction cases (cross-patient-leakage,
+        // hidden-off-schema-field) were reclassified from `kind: 'refusal'`
+        // to `kind: 'conversational'` and their `expectedVerdict` enum
+        // shifted from `no-sections-render-redacted` to
+        // `chart-only-redacted` to reflect that the model legitimately
+        // answers the (benign, on-topic) question with chart claims.
+        expect(END_TO_END_DATASET_NAME.endsWith('-v2')).toBe(true);
     });
 
     it('ships exactly six examples (3 Patel + 3 refusal) — Phase D MVP gate count', () => {

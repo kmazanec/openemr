@@ -63,7 +63,7 @@ describe('caseIdFromRun', () => {
 
     it('end-to-end: pulls inputs.scenario verbatim', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-end-to-end-v1',
+            'clinical-copilot-end-to-end-v2',
             stubRun({ scenario: 'lab-plus-chart' }),
         );
         expect(id).toBe('lab-plus-chart');
@@ -159,7 +159,7 @@ describe('sortCases', () => {
 describe('sortDatasets', () => {
     it('sorts dataset-name keys alphabetically', () => {
         const input = {
-            'clinical-copilot-end-to-end-v1': { cases: {} },
+            'clinical-copilot-end-to-end-v2': { cases: {} },
             'clinical-copilot-briefing-graph-v1': { cases: {} },
             'clinical-copilot-document-extraction-v1': { cases: {} },
             'clinical-copilot-conversational-graph-v2': { cases: {} },
@@ -169,7 +169,7 @@ describe('sortDatasets', () => {
             'clinical-copilot-briefing-graph-v1',
             'clinical-copilot-conversational-graph-v2',
             'clinical-copilot-document-extraction-v1',
-            'clinical-copilot-end-to-end-v1',
+            'clinical-copilot-end-to-end-v2',
         ]);
     });
 
@@ -178,7 +178,7 @@ describe('sortDatasets', () => {
             'archetype:diabetic': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
         };
         const input = {
-            'clinical-copilot-end-to-end-v1': { cases: {} },
+            'clinical-copilot-end-to-end-v2': { cases: {} },
             'clinical-copilot-briefing-graph-v1': { cases },
         };
         const sorted = sortDatasets(input);
