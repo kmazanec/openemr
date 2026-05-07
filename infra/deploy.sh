@@ -93,15 +93,42 @@ DEPLOY_GID=$(id -g)
 docker run --rm \
     -v openemr-deploy-dashboard-node-modules:/cache \
     alpine:3 chown "${DEPLOY_UID}:${DEPLOY_GID}" /cache
-docker run --rm \
-    --user "${DEPLOY_UID}:${DEPLOY_GID}" \
-    -v "${RELEASE_DIR}:/work-root" \
-    -v openemr-deploy-dashboard-node-modules:/work-root/dashboard/node_modules \
-    -w /work-root/dashboard \
-    -e HOME=/tmp \
-    -e npm_config_cache=/tmp/.npm \
-    node:22-alpine \
-    sh -c 'npm ci --no-audit --no-fund && npm run build'
+
+# Vite inlines `import.meta.env.VITE_*` at build time, so the dashboard
+# bundle only knows the OIDC issuer/client/redirect/scope if those vars
+# are set in the build container. Source the shared /etc/openemr/.env
+# in a subshell, then forward only the four VITE_OIDC_* keys to docker
+# — narrowing keeps the rest of the .env (Spaces creds, Pinecone,
+# LangSmith, etc.) out of the build context and the bundle.
+#
+# Missing vars trip getOidcConfig() at app startup with a descriptive
+# error, so we don't silently ship a broken bundle. We `source` rather
+# than `eval`-after-grep because .env values may contain unquoted
+# spaces (e.g. VITE_OIDC_SCOPE is a space-separated SMART scope list).
+# `set -a` exports each key=value as we source.
+(
+    set -a
+    # shellcheck disable=SC1090
+    . "${ENV_FILE}"
+    set +a
+    : "${VITE_OIDC_ISSUER:?VITE_OIDC_ISSUER missing from ${ENV_FILE}}"
+    : "${VITE_OIDC_CLIENT_ID:?VITE_OIDC_CLIENT_ID missing from ${ENV_FILE}}"
+    : "${VITE_OIDC_REDIRECT_URI:?VITE_OIDC_REDIRECT_URI missing from ${ENV_FILE}}"
+    : "${VITE_OIDC_SCOPE:?VITE_OIDC_SCOPE missing from ${ENV_FILE}}"
+    docker run --rm \
+        --user "${DEPLOY_UID}:${DEPLOY_GID}" \
+        -v "${RELEASE_DIR}:/work-root" \
+        -v openemr-deploy-dashboard-node-modules:/work-root/dashboard/node_modules \
+        -w /work-root/dashboard \
+        -e HOME=/tmp \
+        -e npm_config_cache=/tmp/.npm \
+        -e VITE_OIDC_ISSUER \
+        -e VITE_OIDC_CLIENT_ID \
+        -e VITE_OIDC_REDIRECT_URI \
+        -e VITE_OIDC_SCOPE \
+        node:22-alpine \
+        sh -c 'npm ci --no-audit --no-fund && npm run build'
+)
 
 # ---------------------------------------------------------------------
 # 2. Recreate the openemr container.
