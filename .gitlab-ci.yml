@@ -236,11 +236,13 @@ test:agent-evals-gate:
       -e CI_MERGE_REQUEST_IID \
       -e CI_API_V4_URL \
       -e CI_JOB_TOKEN \
+      -e GITLAB_API_TOKEN \
       node:22-alpine \
       sh -c '
         apk add --no-cache \
           build-base g++ make python3 pkgconf \
-          cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev && \
+          cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev \
+          poppler-utils imagemagick imagemagick-tiff && \
         npm ci --no-audit --no-fund && \
         npm run evals:check-cost && \
         npm run evals:upload-dataset && \

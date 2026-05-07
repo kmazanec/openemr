@@ -344,36 +344,50 @@ export const renderMarkdownReport = (
 
 /**
  * Post the markdown summary to the MR. No-op when not in a merge_request
- * pipeline. Uses the GitLab Notes API; auth via `CI_JOB_TOKEN` (a
- * job-scoped token GitLab supplies automatically).
+ * pipeline or when no API token is available.
+ *
+ * Auth precedence: `GITLAB_API_TOKEN` (PAT or project access token with
+ * `api` scope) is preferred when set — it works against any self-hosted
+ * GitLab. `CI_JOB_TOKEN` is the fallback; many self-hosted GitLab
+ * instances reject job-token writes to the Notes API with 401, so the
+ * fallback is best-effort. The job log already contains the rendered
+ * markdown verbatim either way, so a missing comment is cosmetic, not
+ * a failure mode.
  */
 const postGitlabComment = async (markdown: string, fetchImpl: typeof fetch = fetch): Promise<void> => {
     const projectId = process.env['CI_PROJECT_ID'];
     const mrIid = process.env['CI_MERGE_REQUEST_IID'];
     const apiUrl = process.env['CI_API_V4_URL'] ?? 'https://gitlab.com/api/v4';
-    const token = process.env['CI_JOB_TOKEN'];
+    const apiToken = process.env['GITLAB_API_TOKEN'];
+    const jobToken = process.env['CI_JOB_TOKEN'];
     if (
         projectId === undefined ||
         mrIid === undefined ||
-        token === undefined ||
         projectId.length === 0 ||
-        mrIid.length === 0 ||
-        token.length === 0
+        mrIid.length === 0
     ) {
         process.stdout.write('eval-gate: not in an MR pipeline; skipping GitLab comment\n');
+        return;
+    }
+    let headers: Record<string, string>;
+    if (apiToken !== undefined && apiToken.length > 0) {
+        headers = { 'PRIVATE-TOKEN': apiToken, 'content-type': 'application/json' };
+    } else if (jobToken !== undefined && jobToken.length > 0) {
+        headers = { 'JOB-TOKEN': jobToken, 'content-type': 'application/json' };
+    } else {
+        process.stdout.write('eval-gate: no GitLab token available; skipping GitLab comment\n');
         return;
     }
     const url = `${apiUrl}/projects/${encodeURIComponent(projectId)}/merge_requests/${encodeURIComponent(mrIid)}/notes`;
     const res = await fetchImpl(url, {
         method: 'POST',
-        headers: {
-            'JOB-TOKEN': token,
-            'content-type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ body: markdown }),
     });
     if (!res.ok) {
-        process.stderr.write(`eval-gate: GitLab API returned ${res.status} when posting note\n`);
+        process.stderr.write(
+            `eval-gate: GitLab Notes API returned ${res.status} when posting MR comment (gate result is in the job log above)\n`,
+        );
     }
 };
 
