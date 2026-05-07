@@ -200,14 +200,59 @@ describe('buildLeftNavShims — no-ops', () => {
   });
 });
 
-describe('buildRTopShims — setLocation', () => {
-  it('opens a legacy tab with the given URL', () => {
+describe('buildRTopShims', () => {
+  it('setLocation opens the "pat" legacy tab when the URL carries no set_pid', () => {
     const router = mockRouter();
     const shims = buildRTopShims({ router, win: fakeWindow() });
 
     shims.setLocation('/interface/foo.php');
 
-    expect(router.openLegacyTab).toHaveBeenCalledWith('RTop', '/interface/foo.php');
+    expect(router.openLegacyTab).toHaveBeenCalledWith('pat', '/interface/foo.php');
+  });
+
+  it('location setter routes set_pid URLs to navigateToPatient', () => {
+    // This is the legacy patient-finder contract:
+    //   top.RTop.location = "../../patient_file/summary/demographics.php?set_pid=42"
+    // The setter must fire and route the SPA to /patient/42 (and
+    // open the Patient Dashboard tab via the bootShims layer).
+    const router = mockRouter();
+    const shims = buildRTopShims({ router, win: fakeWindow() });
+
+    shims.location = '../../patient_file/summary/demographics.php?set_pid=42';
+
+    expect(router.navigateToPatient).toHaveBeenCalledWith('42');
+    expect(router.openLegacyTab).not.toHaveBeenCalled();
+  });
+
+  it('setLocation routes set_pid URLs the same way as the location setter', () => {
+    const router = mockRouter();
+    const shims = buildRTopShims({ router, win: fakeWindow() });
+
+    shims.setLocation('demographics.php?set_pid=7');
+
+    expect(router.navigateToPatient).toHaveBeenCalledWith('7');
+    expect(router.openLegacyTab).not.toHaveBeenCalled();
+  });
+
+  it('location setter without set_pid falls back to opening a "pat" tab', () => {
+    const router = mockRouter();
+    const shims = buildRTopShims({ router, win: fakeWindow() });
+
+    shims.location = '/interface/something/else.php?foo=bar';
+
+    expect(router.navigateToPatient).not.toHaveBeenCalled();
+    expect(router.openLegacyTab).toHaveBeenCalledWith(
+      'pat',
+      '/interface/something/else.php?foo=bar',
+    );
+  });
+
+  it('reading location returns the last-assigned URL', () => {
+    const router = mockRouter();
+    const shims = buildRTopShims({ router, win: fakeWindow() });
+
+    shims.location = '/foo.php?set_pid=1';
+    expect(shims.location).toBe('/foo.php?set_pid=1');
   });
 });
 

@@ -57,9 +57,22 @@ export interface LeftNavShims {
   syncRadios(this: void): void;
 }
 
-/** Subset of the legacy `RTop.*` surface (only setLocation is used). */
+/**
+ * Subset of the legacy `RTop.*` surface. The legacy contract is a
+ * JavaScript setter property: callers do `top.RTop.location = url`,
+ * which triggers `set location(url)` (defined in
+ * interface/main/tabs/js/frame_proxies.js). We mirror that exact
+ * shape — a `location` setter — so iframe code that drives patient
+ * picks (notably interface/main/finder/dynamic_finder.php line 326,
+ * `top.RTop.location = "../../patient_file/summary/demographics.php?set_pid=..."`)
+ * lands the user on our SPA's Patient Dashboard tab.
+ *
+ * `setLocation(url)` is kept as a method-style alias for any caller
+ * (tests, future code) that prefers a function call over assignment.
+ */
 export interface RTopShims {
   setLocation(this: void, url: string): void;
+  location: string;
 }
 
 /**
@@ -252,19 +265,61 @@ export function buildLeftNavShims(deps: LeftNavDeps): LeftNavShims {
   };
 }
 
-/** Build the `RTop.setLocation` shim. Same router adapter contract. */
+/**
+ * Extracts the `set_pid` query param from a legacy demographics URL
+ * (e.g. "../../patient_file/summary/demographics.php?set_pid=42").
+ * Returns the pid as a string, or null if the URL has no set_pid.
+ *
+ * Exported for tests; not part of the runtime shim install.
+ */
+export function extractSetPid(url: string): string | null {
+  // The legacy URLs are relative (../../patient_file/...) which the
+  // URL constructor can't parse without a base. Use a synthetic
+  // base; we only care about the query string.
+  let parsed: URL;
+  try {
+    parsed = new URL(url, 'http://x.invalid/');
+  } catch {
+    return null;
+  }
+  const pid = parsed.searchParams.get('set_pid');
+  if (pid === null || pid === '') return null;
+  return pid;
+}
+
+/** Build the `RTop.setLocation` + `RTop.location` setter shim. */
 export function buildRTopShims(deps: LeftNavDeps): RTopShims {
   const router = deps.router;
 
-  const setLocation: RTopShims['setLocation'] = (url) => {
-    // RTop.setLocation matches loadFrame's URL semantics. Legacy
-    // callers pass full URLs without an iframe-name hint, so we
-    // bucket those under a stable name. T5's tab strip can split
-    // them out further later.
-    router.openLegacyTab('RTop', url);
+  // Shared handler: route a URL update either to a patient pick
+  // (when the URL carries set_pid=, as the patient finder emits)
+  // or to a legacy tab (the generic case the legacy RTop setter
+  // targeted under the "pat" iframe name).
+  const handleLocation = (url: string): void => {
+    const pid = extractSetPid(url);
+    if (pid !== null) {
+      router.navigateToPatient(pid);
+      return;
+    }
+    router.openLegacyTab('pat', url);
   };
 
-  return { setLocation };
+  const setLocation: RTopShims['setLocation'] = (url) => handleLocation(url);
+
+  // Backing field for the location setter — read-back returns the
+  // last-assigned URL, which is what legacy callers may inspect.
+  let lastLocation = '';
+  const shims: RTopShims = {
+    setLocation,
+    get location() {
+      return lastLocation;
+    },
+    set location(url: string) {
+      lastLocation = url;
+      handleLocation(url);
+    },
+  };
+  return shims;
 }
 
 /**
