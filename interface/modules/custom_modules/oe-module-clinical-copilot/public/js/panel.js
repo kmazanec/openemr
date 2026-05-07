@@ -1314,6 +1314,7 @@ const __copilotPanel = (function () {
     let viewerMountEl = null;
     let viewerCloseEl = null;
     let viewerActiveChip = null;
+    let viewerScrimEl = null;
 
     const documentViewerImpl = () => {
         if (typeof globalThis === 'undefined') return null;
@@ -1336,14 +1337,50 @@ const __copilotPanel = (function () {
         return viewerPaneEl;
     };
 
+    /**
+     * Lazily create the scrim element on first viewer open. The scrim
+     * sits behind the drawer and dims the rest of the panel; clicking
+     * it closes the drawer. Created lazily (rather than baked into
+     * the template) so panels that never open the viewer don't
+     * render an unused element.
+     */
+    const ensureViewerScrim = () => {
+        if (viewerScrimEl !== null) return viewerScrimEl;
+        if (root === null) return null;
+        const el = root.ownerDocument.createElement('div');
+        el.className = 'copilot-doc-viewer-scrim';
+        el.dataset.role = 'document-viewer-scrim';
+        el.hidden = true;
+        el.addEventListener('click', () => closeDocumentViewer());
+        root.ownerDocument.body.appendChild(el);
+        viewerScrimEl = el;
+        return el;
+    };
+
+    /**
+     * Close the drawer with a slide-out + scrim-fade animation.
+     * Removes the `--open` modifier classes (which run the CSS
+     * transitions in reverse), then re-applies `hidden` on
+     * `transitionend` so the drawer can't intercept clicks while it
+     * is animating away.
+     */
     const closeDocumentViewer = () => {
         if (viewerPaneEl === null) return;
         const impl = documentViewerImpl();
         if (impl !== null && viewerMountEl !== null) {
             impl.closeViewer(viewerMountEl);
         }
-        viewerPaneEl.hidden = true;
         viewerActiveChip = null;
+        viewerPaneEl.classList.remove('copilot-doc-viewer--open');
+        if (viewerScrimEl !== null) {
+            viewerScrimEl.classList.remove('copilot-doc-viewer-scrim--open');
+        }
+        const onSlideOutDone = () => {
+            viewerPaneEl.removeEventListener('transitionend', onSlideOutDone);
+            viewerPaneEl.hidden = true;
+            if (viewerScrimEl !== null) viewerScrimEl.hidden = true;
+        };
+        viewerPaneEl.addEventListener('transitionend', onSlideOutDone);
     };
 
     /**
@@ -1381,8 +1418,20 @@ const __copilotPanel = (function () {
         if (impl === null) return;
         const urlBase = documentViewUrlBase();
         if (urlBase === null) return;
+        const scrim = ensureViewerScrim();
         viewerPaneEl.hidden = false;
+        if (scrim !== null) scrim.hidden = false;
         viewerActiveChip = chip;
+        // Add the `--open` modifier classes on the next frame so the
+        // browser registers the initial `translateX(100%)` style
+        // before transitioning to `translateX(0)`. Without the
+        // requestAnimationFrame, the browser may collapse both into
+        // a single frame and skip the animation.
+        const win = root.ownerDocument.defaultView;
+        win.requestAnimationFrame(() => {
+            viewerPaneEl.classList.add('copilot-doc-viewer--open');
+            if (scrim !== null) scrim.classList.add('copilot-doc-viewer-scrim--open');
+        });
         // Fire-and-forget — the openDocument promise mounts the new
         // content; if it rejects, the placeholder card already inside
         // the mount communicates the failure to the user.

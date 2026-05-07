@@ -842,28 +842,67 @@
     font-weight: 400;
 }
 
-/* F.4 — side-by-side document viewer.
+/* F.4 — document viewer drawer (right-side overlay).
  *
- * The viewer aside is hidden by default (`hidden` attribute on the
- * element). When un-hidden, it claims the right half of the panel
- * above 1200px and stacks below the chat below the breakpoint. The
- * `.copilot-panel` flex container's `max-width: 1180px` is relaxed
- * when the viewer is open via `:has()` so the side-by-side layout
- * isn't squeezed by a desktop-shaped chart pane.
- */
-.copilot-panel:has(.copilot-doc-viewer:not([hidden])) {
-    max-width: none;
-}
-
+ * Earlier iterations tried side-by-side and stacked layouts based on
+ * a viewport-width breakpoint, but both fought the OpenEMR chart-
+ * iframe's fixed width and the chat thread's content-greedy flex.
+ * The drawer pattern decouples the viewer from the chat layout
+ * entirely: it's `position: fixed`, slides in from the right, and
+ * floats above the panel content with a scrim behind it. Same shape
+ * across viewport widths.
+ *
+ * The aside element starts with the `hidden` attribute (so it doesn't
+ * render at all on first paint). On open, panel.js removes `hidden`
+ * and adds `.copilot-doc-viewer--open`; the transform animation runs
+ * from that class. Close is the reverse + a transitionend listener
+ * that re-applies `hidden` once the slide-out finishes (so the
+ * drawer can't intercept clicks while it's animating away). */
 .copilot-doc-viewer {
-    flex: 1 1 50%;
-    min-width: 0;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    /* Drawer width: 60% of the viewport, capped at 900px so it
+     * doesn't dominate large monitors. Min 320px so on a tiny iframe
+     * it still fits the document at a usable scale. */
+    width: min(60vw, 900px);
+    min-width: 320px;
+    max-width: 100vw;
     display: flex;
     flex-direction: column;
-    border: 1px solid #ddd;
-    border-radius: 6px;
     background: #fff;
+    border-left: 1px solid #ddd;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
+    /* Slide animation. transform on a fixed element composites on a
+     * separate layer, so the slide stays smooth on slow machines. */
+    transform: translateX(100%);
+    transition: transform 0.22s ease-out;
     overflow: hidden;
+}
+
+.copilot-doc-viewer--open {
+    transform: translateX(0);
+}
+
+/* Scrim sits behind the drawer (z-index 999) and covers the rest of
+ * the panel. Click-to-close is wired in panel.js. The scrim is
+ * created lazily by JS rather than baked into the template so it
+ * can also serve as the "drawer is open" outside-click target
+ * without polluting every panel render. */
+.copilot-doc-viewer-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.22s ease-out;
+    cursor: pointer;
+}
+
+.copilot-doc-viewer-scrim--open {
+    opacity: 1;
 }
 
 .copilot-doc-viewer__header {
@@ -959,23 +998,14 @@
     text-decoration: underline;
 }
 
-/* Below 1400px the viewer falls back to a stacked layout — pane below
- * the chat instead of beside it. The architecture's Layer-1 spec
- * (`W2_ARCHITECTURE.md` §"Click-to-source UI") originally said 1200px,
- * but the panel runs inside an OpenEMR chart iframe that is typically
- * exactly 1200px wide; at that width side-by-side allocates only a
- * sliver to the viewer because the chat thread + history sidebar
- * already eat ~1100px. Stacking is the usable mode at any normal
- * chart-iframe width; side-by-side is the right answer only when the
- * panel has substantially more horizontal real estate (e.g. opened in
- * its own browser tab). */
-@media (max-width: 1399px) {
-    .copilot-panel:has(.copilot-doc-viewer:not([hidden])) {
-        flex-wrap: wrap;
-    }
-
+/* Below 600px the drawer takes the full viewport — at that point the
+ * "drawer beside content" idea breaks down anyway, so we let it
+ * dominate the screen rather than crush the document into a sliver.
+ * This branch only hits if the panel is opened in a phone-shaped
+ * window (uncommon for clinical workflows but worth covering). */
+@media (max-width: 600px) {
     .copilot-doc-viewer {
-        flex: 1 1 100%;
-        min-height: 60vh;
+        width: 100vw;
+        min-width: 0;
     }
 }
