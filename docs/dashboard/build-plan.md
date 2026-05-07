@@ -113,139 +113,109 @@ research items I can resolve myself.
 
 Foundational; everything else depends on it.
 
-### T1.1 — Initialize Vite + React + TS at `dashboard/`
+### T1.1 — Initialize Vite + React + TS at `dashboard/` — **DONE**
 
 - **What.** Create `dashboard/` at the repo root. Set up
   `package.json`, `vite.config.ts`, `tsconfig.json` (strict +
   `noUncheckedIndexedAccess`), `index.html`, `src/main.tsx`,
   `src/App.tsx` rendering "Hello dashboard".
 - **Acceptance.**
-  - [ ] `cd dashboard && npm install && npm run dev` boots Vite,
+  - [x] `cd dashboard && npm install && npm run dev` boots Vite,
         prints "Hello dashboard" at `http://localhost:5173/`.
-  - [ ] `npm run build` produces `dist/` with hashed JS/CSS bundles.
-  - [ ] TypeScript config has `strict: true` and
+  - [x] `npm run build` produces `dist/` with hashed JS/CSS bundles.
+  - [x] TypeScript config has `strict: true` and
         `noUncheckedIndexedAccess: true`. A test asserts a typed
         array index returns `T | undefined` (proves the flag is on).
-  - [ ] `dashboard/README.md` lists `npm install`, `dev`, `build`,
+  - [x] `dashboard/README.md` lists `npm install`, `dev`, `build`,
         `test`, `e2e` commands.
 - **Blockers.** T0.1.
 
-### T1.2 — Wire Vitest + React Testing Library
+### T1.2 — Wire Vitest + React Testing Library — **DONE**
 
 - **What.** Add Vitest config and one passing component test for
   the `App` placeholder. Use Vite's native plugin path.
 - **Acceptance.**
-  - [ ] `npm test` runs `App.test.tsx` and passes.
-  - [ ] `App.test.tsx` uses RTL's `render` and `screen.getByText`.
-  - [ ] CI script in `package.json` runs `tsc --noEmit && vitest run`.
+  - [x] `npm test` runs `App.test.tsx` and passes.
+  - [x] `App.test.tsx` uses RTL's `render` and `screen.getByText`.
+  - [x] CI script in `package.json` runs `tsc --noEmit && vitest run`.
 - **Blockers.** T1.1.
 
-### T1.3 — Wire ESLint + Prettier
+### T1.3 — Wire ESLint + Prettier — **DONE**
 
 - **What.** Standard React + TS ESLint config. Prettier for
   formatting. Hook them into `prek` so `git commit` runs them on
   staged `dashboard/` files only.
 - **Acceptance.**
-  - [ ] `npm run lint` exits 0 on a clean tree.
-  - [ ] `npm run lint` fails on a deliberate violation
+  - [x] `npm run lint` exits 0 on a clean tree.
+  - [x] `npm run lint` fails on a deliberate violation
         (e.g. unused import).
-  - [ ] `prek run` on a staged `dashboard/` file runs ESLint.
-  - [ ] We do not lint files outside `dashboard/`
+  - [x] `prek run` on a staged `dashboard/` file runs ESLint.
+  - [x] We do not lint files outside `dashboard/`
         (per the no-repo-wide-reformat convention).
 - **Blockers.** T1.1.
 
-### T1.4 — Wire Playwright for E2E smoke
+### T1.4 — Wire Playwright for E2E smoke — **DONE**
 
 - **What.** Install Playwright, set up `playwright.config.ts`. One
   smoke test that loads `http://localhost:5173/` and asserts the
   body renders. No browser auth flow yet — that comes in T2.
 - **Acceptance.**
-  - [ ] `npm run e2e` runs the smoke test against a Vite dev server,
+  - [x] `npm run e2e` runs the smoke test against a Vite dev server,
         passes.
-  - [ ] Test screenshots / traces on failure go to
+  - [x] Test screenshots / traces on failure go to
         `dashboard/test-results/`, gitignored.
 - **Blockers.** T1.1.
 
-### T1.5 — `dashboard/dist/` vendoring + GitLab CI build job
+### T1.5 — `dashboard/dist/` vendoring + GitLab CI build job — **DONE (deviation)**
 
-- **Context.** The repo's GitLab CI (`.gitlab-ci.yml`) runs on a
-  shell-executor on the production Droplet (concurrency 1, 2GB RAM —
-  see header in `.gitlab-ci.yml` for constraints). Existing test
-  jobs run inside Docker containers via the
-  `docker run -v openemr-ci-*-modules:...` pattern with named volumes
-  for cache reuse. The `test:agent` job is the closest precedent —
-  same shape we follow.
-- **What.** Vendor `dashboard/dist/` into git. Add a new
-  `test:dashboard` job to `.gitlab-ci.yml` that mirrors `test:agent`:
-  runs `node:22-alpine` against `/work-root/dashboard`, named volume
-  for `node_modules`, runs `npm ci && npm run lint && npm run
-  typecheck && npm test && npm run build`, then asserts
-  `git diff --exit-code dashboard/dist/` to fail if the committed
-  bundle is stale. Add a local `prek` hook that runs the same check
-  on staged files.
-- **Acceptance.**
-  - [ ] `dashboard/dist/` is committed.
-  - [ ] `.gitlab-ci.yml` has a `test:dashboard` job that follows the
+- **Deviation from the original plan.** We chose **not** to vendor
+  `dashboard/dist/`. Source maps alone are ~900 KB per build and
+  would churn on every PR. Instead:
+  - `dashboard/dist/` stays gitignored.
+  - `test:dashboard` builds the bundle in CI as a smoke test that the
+    source compiles. (Originally we uploaded dist/ as a CI artifact
+    too; that was dropped after the named-volume incident — see CI
+    YAML comment at `test:dashboard`.)
+  - Production rebuilds dist/ at deploy time inside a one-shot
+    `node:22-alpine` container against the release tree (see T1.5b).
+- **Acceptance (revised).**
+  - [x] `.gitlab-ci.yml` has a `test:dashboard` job that follows the
         existing `test:agent` pattern (named volume, runs in a
         `node:22-alpine` container, gated by the `.test-rules`
         anchor — runs on MRs and on push to master).
-  - [ ] The job fails if `dashboard/dist/` is stale (committed
-        bundle doesn't match what `npm run build` produces).
-  - [ ] A new named volume `openemr-ci-dashboard-node-modules` is
-        added to the `cache-prune` job's nuke list.
-  - [ ] Local `prek` hook runs the same diff check on staged files
-        — if `dashboard/src/` is staged but `dashboard/dist/` isn't,
-        the commit blocks with a "run npm run build" message.
-  - [ ] `dashboard/README.md` documents the workflow.
+  - [x] `node_modules` and `dist/` both ride on named volumes
+        (`openemr-ci-dashboard-node-modules`,
+        `openemr-ci-dashboard-dist`) so the container's root-owned
+        writes never reach the gitlab-runner-owned bind mount.
+  - [x] Both volumes are added to the `cache-prune` job's nuke list.
+  - [x] `dashboard/README.md` documents the workflow.
+  - [ ] ~~`dashboard/dist/` is committed~~ — superseded.
+  - [ ] ~~Stale-dist diff check~~ — superseded (no committed dist
+        to be stale).
+  - [ ] ~~prek hook for src-without-dist~~ — superseded.
 - **Blockers.** T1.1.
 
-### T1.5b — Verify `infra/deploy.sh` ships the dashboard correctly
+### T1.5b — Verify `infra/deploy.sh` ships the dashboard correctly — **DONE (deviation)**
 
-- **Context.** Production deploy is scripted in `infra/deploy.sh`,
-  invoked by GitLab CI's `deploy` stage via `runner-bootstrap.sh`.
-  The script's step 3 already runs `npm install && npm run build`
-  inside the openemr container — but that's the **legacy** OpenEMR
-  top-level npm/gulp build, not our `dashboard/`. Because we're
-  vendoring `dashboard/dist/` into git (T1.5), the static bundle
-  rides along with the release tree as part of step 1's `rsync`
-  and is served straight off disk by Apache. **No deploy-script
-  changes should be needed**, but this story exists to confirm
-  that and to add any missing pieces.
-- **What.** Trace exactly how the dashboard bundle reaches a
-  served URL on production.
-  1. The flex image's docroot is
-     `/var/www/localhost/htdocs/openemr` inside the openemr
-     container, bind-mounted from the release tree.
-  2. The release tree is the symlink target of
-     `/srv/openemr/current`, populated by `runner-bootstrap.sh`
-     from the GitLab artifact (post-CI git checkout).
-  3. So `dashboard/dist/` lands at
-     `/var/www/localhost/htdocs/openemr/dashboard/dist/` inside
-     the container.
-  4. Apache serves whatever `mod_rewrite` rules T1.6 lays down.
-- **Acceptance.**
-  - [ ] Trace the path above against the actual production setup
-        (read `docker/digitalocean/docker-compose.yml`,
-        `docker/digitalocean/openemr/Dockerfile`, the flex image
-        bind-mount config). Confirm `dashboard/dist/` ends up in
-        the container's docroot.
-  - [ ] If anything's missing (e.g. the flex image's `.dockerignore`
-        excludes our path), patch the relevant Dockerfile or compose
-        config so it doesn't.
-  - [ ] If the deploy script needs *any* change (add a step? echo
-        a verification line?), make it small and additive.
-  - [ ] Document the production deploy flow for the dashboard
-        in `dashboard/README.md`: "git push to master → CI runs
-        `test:dashboard` → CI's `deploy` stage runs
-        `runner-bootstrap.sh` → `infra/deploy.sh` rsyncs the new
-        release → Apache picks up the new `dashboard/dist/`."
+- **Deviation from the original plan.** Because T1.5 dropped the
+  vendored `dist/`, deploy.sh now has to **build** it. A new step
+  was added (between symlink swap and openemr container recreate)
+  that runs `node:22-alpine` against the release tree and produces
+  `dashboard/dist/` in place. The flex entrypoint's source-rsync
+  picks it up on container boot.
+- **Acceptance (revised).**
+  - [x] `infra/deploy.sh` builds `dashboard/dist/` inside a one-shot
+        `node:22-alpine` container against `${RELEASE_DIR}` before
+        the openemr container recreate.
+  - [x] Named volume `openemr-deploy-dashboard-node-modules` caches
+        the install across deploys.
+  - [x] `dashboard/README.md` documents the production deploy flow.
   - [ ] Manual smoke after a real deploy: visit
         `https://emr.biograph.dev/dashboard/` and confirm the
-        bundle loads. (T2 will make this a real flow; for now the
-        Hello-dashboard page is enough.)
+        bundle loads.
 - **Blockers.** T1.5, T1.6.
 
-### T1.6 — Web-server config: SPA routing + CSP
+### T1.6 — Web-server config: SPA routing + CSP — **DONE**
 
 - **Context.** Production has **two** layers in front of OpenEMR:
   Caddy at the public edge (TLS, security headers — see
@@ -262,20 +232,20 @@ Foundational; everything else depends on it.
   `Content-Security-Policy-Report-Only` per the migration doc;
   T6.5 flips to enforced after the integration cycle.
 - **Acceptance.**
-  - [ ] In the dev Docker Compose env, hit
+  - [x] In the dev Docker Compose env, hit
         `http://localhost:8300/dashboard/anything` — gets
         `dashboard/dist/index.html`. Static assets under
         `/dashboard/assets/...` are served directly (rewrite must
         skip files that exist).
-  - [ ] Response includes `Content-Security-Policy-Report-Only`
+  - [x] Response includes `Content-Security-Policy-Report-Only`
         header with the policy from
         `PATIENT_DASHBOARD_MIGRATION.md`.
   - [ ] In prod, the Caddy → Apache hop preserves the header. (We
         verify this in T1.5b's manual smoke, after we have
         something at `/dashboard/` to load.)
-  - [ ] No CSP `report-uri` configured yet — note in the doc that
+  - [x] No CSP `report-uri` configured yet — note in the doc that
         T6 may add one.
-  - [ ] The change is **additive only**. We don't touch existing
+  - [x] The change is **additive only**. We don't touch existing
         Apache rules for legacy paths.
 - **Blockers.** T0.1, T1.5.
 
