@@ -1,7 +1,8 @@
 {
   "version": 1,
-  "committedAt": "2026-05-06",
+  "committedAt": "2026-05-07T16:41:21.475Z",
   "commitSha": null,
+  "commitMessage": "initial empirical baseline",
   "datasets": {
     "clinical-copilot-briefing-graph-v1": {
       "cases": {
@@ -155,6 +156,7 @@
     "clinical-copilot-conversational-graph-v2": {
       "cases": {
         "cap-hit": {
+          "factually_consistent": false,
           "no_phi_in_logs": true
         },
         "document-evidence": {
@@ -173,6 +175,7 @@
           "no_phi_in_logs": true
         },
         "verification": {
+          "citation_present": true,
           "factually_consistent": true,
           "no_phi_in_logs": true
         }
@@ -210,7 +213,7 @@
         },
         "degraded-rotated": {
           "no_phi_in_logs": true,
-          "schema_valid": false
+          "schema_valid": true
         },
         "degraded-smudged": {
           "no_phi_in_logs": true,
