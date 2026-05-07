@@ -21,6 +21,9 @@
     "e2e:install": "playwright install --with-deps"
   },
   "dependencies": {
+    "@medplum/fhirtypes": "^4.5.2",
+    "@tanstack/react-router": "^1.169.2",
+    "fhirclient": "^2.6.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

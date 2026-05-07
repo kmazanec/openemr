@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import { App } from './App';
+import { describe, expect, it } from 'vitest';
+import { DashboardLanding } from './routes/dashboardLanding';
 
-describe('<App />', () => {
-  it('renders the hello-dashboard heading', () => {
-    render(<App />);
-    expect(screen.getByText('Hello dashboard')).toBeInTheDocument();
+describe('<DashboardLanding />', () => {
+  it('renders the dashboard landing heading', () => {
+    render(<DashboardLanding />);
+    expect(screen.getByRole('heading', { name: /patient dashboard/i })).toBeInTheDocument();
   });
 });
