@@ -62,6 +62,7 @@ const acceptFactRequestSchema = z.object({
         z.literal('medication_statement'),
         z.literal('past_medical_history'),
         z.literal('family_history'),
+        z.literal('demographics'),
     ]),
     conversationId: z.string().min(1).max(200).optional(),
 });
@@ -490,6 +491,88 @@ const materializeAllergyPromotionBody = (
     return { body };
 };
 
+/**
+ * Materialize the F.6 demographics promotion body from `schemaJson` +
+ * `fieldPath`. The panel cites one cited slot under
+ * `patient_demographics.{address|phone|email}` (the cited field's
+ * `value` is the agent's free-text extraction). F.6's
+ * `?type=demographics` endpoint takes one (field, value) pair per
+ * call — single-field-per-click, idempotent on
+ * compare-then-write of the matching `patient_data` column.
+ *
+ * Field path shape: the agent emits `patient_demographics.<name>`
+ * (the panel `factType` is `'demographics'`, but each delta carries
+ * its own field path so the materializer routes through the closed
+ * `address|phone|email` enum). An off-list slot returns
+ * `unsupported_field_path` so a future schema add doesn't silently
+ * promote.
+ *
+ * The agent supplies `address` as a single free-text string (the
+ * cited demographics envelope's `value`). The PHP-side service
+ * writes it verbatim into `patient_data.street` per F.6's "free-text
+ * pass-through" decision — see the {@see PatientDemographicsWriteService}
+ * top-of-file comment for why we don't parse the line into structured
+ * `city`/`state`/`postal_code` columns. Phone goes to
+ * `patient_data.phone_cell`, email to `patient_data.email`.
+ */
+const DEMOGRAPHICS_FIELDS = ['address', 'phone', 'email'] as const;
+type DemographicsFieldName = (typeof DEMOGRAPHICS_FIELDS)[number];
+
+const isDemographicsField = (s: string): s is DemographicsFieldName =>
+    (DEMOGRAPHICS_FIELDS as readonly string[]).includes(s);
+
+const materializeDemographicsPromotionBody = (
+    artifact: ExtractionArtifact,
+    fieldPath: string,
+): Materialized => {
+    // Both lab PDFs and intake forms can carry demographics deltas
+    // (the lab header may contradict the chart). Either docType is
+    // acceptable here — the schema lookup below pins the cited slot.
+    if (artifact.docType !== 'intake_form' && artifact.docType !== 'lab_pdf') {
+        return { error: 'fact_type_mismatch' };
+    }
+    const schema = artifact.schemaJson;
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+        return { error: 'schema_invalid' };
+    }
+    const schemaRecord = schema as Record<string, unknown>;
+    const demographicsRaw = schemaRecord['patient_demographics'];
+    if (
+        demographicsRaw === null
+        || typeof demographicsRaw !== 'object'
+        || Array.isArray(demographicsRaw)
+    ) {
+        return { error: 'schema_invalid' };
+    }
+
+    const fieldMatch = /^patient_demographics\.([A-Za-z_]+)/.exec(fieldPath);
+    if (fieldMatch === null) {
+        return { error: 'unsupported_field_path' };
+    }
+    const fieldName = fieldMatch[1] ?? '';
+    if (!isDemographicsField(fieldName)) {
+        return { error: 'unsupported_field_path' };
+    }
+
+    const cited: unknown = (demographicsRaw as Record<string, unknown>)[fieldName];
+    if (cited === null || typeof cited !== 'object' || Array.isArray(cited)) {
+        return { error: 'schema_invalid' };
+    }
+    const value = (cited as Record<string, unknown>)['value'];
+    if (typeof value !== 'string' || value.trim() === '') {
+        return { error: 'schema_invalid' };
+    }
+
+    return {
+        body: {
+            pid: artifact.pid,
+            source_document_uuid: artifact.documentUuid,
+            field: fieldName,
+            value,
+        },
+    };
+};
+
 export const createAcceptFactHandler = (
     deps: AcceptFactRouteDeps,
 ): ((c: Context) => Promise<Response>) => {
@@ -511,22 +594,29 @@ export const createAcceptFactHandler = (
 
         // F.5a shipped the lab materializer; F.5b ships allergy; F.5c
         // ships medication_statement; F.5d ships past_medical_history;
-        // F.5e ships family_history. All five list-shaped fact types
-        // are now wired; only `demographics` stays 501 (F.6).
-        let materialized: Materialized;
-        if (factType === 'lab') {
-            materialized = materializeLabPromotionBody(artifact, fieldPath);
-        } else if (factType === 'allergy') {
-            materialized = materializeAllergyPromotionBody(artifact, fieldPath);
-        } else if (factType === 'medication_statement') {
-            materialized = materializeMedicationStatementPromotionBody(artifact, fieldPath);
-        } else if (factType === 'past_medical_history') {
-            materialized = materializeMedicalProblemPromotionBody(artifact, fieldPath);
-        } else if (factType === 'family_history') {
-            materialized = materializeFamilyHistoryPromotionBody(artifact, fieldPath);
-        } else {
-            return c.json({ error: 'not_yet_implemented' }, 501);
-        }
+        // F.5e ships family_history; F.6 ships demographics. Every
+        // fact type is now wired — the function is exhaustive over
+        // the closed factType union and returns `Materialized`
+        // unconditionally, so the post-switch narrowing works.
+        const materialize = (
+            type: typeof factType,
+        ): Materialized => {
+            switch (type) {
+                case 'lab':
+                    return materializeLabPromotionBody(artifact, fieldPath);
+                case 'allergy':
+                    return materializeAllergyPromotionBody(artifact, fieldPath);
+                case 'medication_statement':
+                    return materializeMedicationStatementPromotionBody(artifact, fieldPath);
+                case 'past_medical_history':
+                    return materializeMedicalProblemPromotionBody(artifact, fieldPath);
+                case 'family_history':
+                    return materializeFamilyHistoryPromotionBody(artifact, fieldPath);
+                case 'demographics':
+                    return materializeDemographicsPromotionBody(artifact, fieldPath);
+            }
+        };
+        const materialized: Materialized = materialize(factType);
         if ('error' in materialized) {
             logger.warn(
                 { artifactId, fieldPath, factType, reason: materialized.error },

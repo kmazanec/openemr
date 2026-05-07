@@ -44,11 +44,14 @@ use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalAllergyListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalFamilyHistoryListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicalProblemListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicationStatementListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalProcedureReportTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\PatientServicePatientDemographicsTableWriter;
+use OpenEMR\Services\PatientService;
 use Symfony\Component\HttpFoundation\Request;
 
 $request = Request::createFromGlobals();
@@ -113,6 +116,13 @@ $familyHistoryWriteService = new FamilyHistoryWriteService(
     logger: $logger,
 );
 
+$demographicsWriteService = new PatientDemographicsWriteService(
+    tableWriter: new PatientServicePatientDemographicsTableWriter($connection, new PatientService()),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
+    logger: $logger,
+);
+
 $controller = new PromoteController(
     auth: new AgentEndpointAuth($verifier, new SqlAgentActorResolver(), $logger, $parsed->siteId),
     labWriteService: $labWriteService,
@@ -120,6 +130,7 @@ $controller = new PromoteController(
     medicalProblemWriteService: $medicalProblemWriteService,
     medicationStatementWriteService: $medicationStatementWriteService,
     familyHistoryWriteService: $familyHistoryWriteService,
+    demographicsWriteService: $demographicsWriteService,
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $parsed->siteId,

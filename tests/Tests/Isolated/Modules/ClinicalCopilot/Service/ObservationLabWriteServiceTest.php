@@ -74,6 +74,12 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementPromotionRequest.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementListsTableWriter.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/DemographicsField.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsSnapshot.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsTableWriter.php';
 
 final class ObservationLabWriteServiceTest extends TestCase
 {
@@ -142,11 +148,19 @@ final class ObservationLabWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsField.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsSnapshot.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsWriteService.php';
+        require_once self::MODULE_DIR . '/Events/PatientDemographicsUpdatedEvent.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/DemographicsPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -265,8 +279,18 @@ final class ObservationLabWriteServiceTest extends TestCase
         $token = $this->mintToken([PromoteController::SCOPE_LAB]);
         $writer = new InMemoryProcedureReportTableWriter();
 
-        [$status1, $body1] = $this->dispatchController($token, 'lab', $this->validBody(), $writer);
-        [$status2, $body2] = $this->dispatchController($token, 'lab', $this->validBody(), $writer);
+        [$status1, $body1, $disclosures1] = $this->dispatchController(
+            $token,
+            'lab',
+            $this->validBody(),
+            $writer,
+        );
+        [$status2, $body2, $disclosures2] = $this->dispatchController(
+            $token,
+            'lab',
+            $this->validBody(),
+            $writer,
+        );
 
         $this->assertSame(200, $status1);
         $this->assertSame(200, $status2);
@@ -275,6 +299,10 @@ final class ObservationLabWriteServiceTest extends TestCase
         $this->assertSame($body1['chart_record_uuid'], $body2['chart_record_uuid']);
         $this->assertFalse($body1['idempotent_hit']);
         $this->assertTrue($body2['idempotent_hit']);
+        // Idempotent re-call is a structural no-op for both the chart
+        // row and the disclosure trail.
+        $this->assertCount(1, $disclosures1);
+        $this->assertCount(0, $disclosures2);
     }
 
     public function testControllerRejectsMissingType(): void
@@ -295,23 +323,15 @@ final class ObservationLabWriteServiceTest extends TestCase
         $this->assertSame(['error' => 'invalid_type'], $body);
     }
 
-    public function testControllerReturnsNotImplementedForFutureTypes(): void
-    {
-        $token = $this->mintToken([PromoteController::SCOPE_LAB]);
-        // F.5b flipped `allergy`, F.5c flipped `medication_statement`,
-        // F.5d flipped `past_medical_history`, and F.5e flipped
-        // `family_history` from 501 to real branches — see the
-        // matching `*WriteServiceTest` files. Only `demographics`
-        // stays 501 until F.6 ships.
-        foreach (
-            ['demographics']
-            as $type
-        ) {
-            [$status, $body] = $this->dispatchController($token, $type, $this->validBody());
-            $this->assertSame(501, $status, "type=$type should be 501");
-            $this->assertSame(['error' => 'not_yet_implemented'], $body);
-        }
-    }
+    // F.5b–F.5e flipped `allergy`, `medication_statement`,
+    // `past_medical_history`, and `family_history` from 501 to real
+    // branches; F.6 flipped the last one (`demographics`) through
+    // `PatientDemographicsWriteService`. Every VALID_TYPE now has a
+    // real dispatch arm. Adding a new VALID_TYPE without wiring a
+    // match arm is now a PHPStan match-exhaustiveness failure on
+    // `dispatch()` rather than a runtime 501, which is a stronger
+    // structural signal — this old "should be 501" test is replaced
+    // by that static check.
 
     public function testControllerRejectsTokenLackingScope(): void
     {
@@ -513,6 +533,13 @@ final class ObservationLabWriteServiceTest extends TestCase
             logger: $logger,
         );
 
+        $demographicsService = new \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsWriteService(
+            tableWriter: new InMemoryDemographicsTableWriterForLabTest(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
+
         $controller = new PromoteController(
             auth: $auth,
             labWriteService: $service,
@@ -520,6 +547,7 @@ final class ObservationLabWriteServiceTest extends TestCase
             medicalProblemWriteService: $medicalProblemService,
             medicationStatementWriteService: $medicationService,
             familyHistoryWriteService: $familyHistoryService,
+            demographicsWriteService: $demographicsService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -918,6 +946,37 @@ final class InMemoryFamilyHistoryListsTableWriterForLabTest implements
     ): \OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry {
         throw new \RuntimeException(
             'InMemoryFamilyHistoryListsTableWriterForLabTest.insertFamilyHistory must not be called',
+        );
+    }
+}
+
+/**
+ * Bare-minimum in-memory demographics writer the lab-controller test
+ * needs — F.6 added `demographicsWriteService` to the controller's
+ * constructor so every per-type test now has to satisfy that
+ * dependency. The dedicated demographics assertions live in
+ * {@see PatientDemographicsWriteServiceTest}; this stub just satisfies
+ * the type signature for tests that route to the lab branch.
+ */
+final class InMemoryDemographicsTableWriterForLabTest implements
+    \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsTableWriter
+{
+    public function fetchSnapshot(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+    ): ?\OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsSnapshot {
+        return null;
+    }
+
+    public function updateField(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+        string $value,
+        int $promotedByUserId,
+        \DateTimeImmutable $updatedAt,
+    ): string {
+        throw new \RuntimeException(
+            'InMemoryDemographicsTableWriterForLabTest.updateField must not be called',
         );
     }
 }

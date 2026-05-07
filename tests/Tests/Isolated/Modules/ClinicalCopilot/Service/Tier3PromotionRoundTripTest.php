@@ -30,26 +30,18 @@
  * branch on the writer's runtime type with a single `if` rather than
  * being parameterized over both shapes.
  *
- * NOTE on disclosure idempotency. F.5f's plan-doc checklist
- * ("disclosure event fires once with the right category") and this
- * task's instructions both phrase the contract as "second call fires
- * zero additional disclosures." However, the current production
- * `PromoteController::dispatch<Type>()` fires the
+ * NOTE on disclosure idempotency. F.5f's docblock previously flagged
+ * a known gap: `PromoteController::dispatch<Type>()` fired
  * `tier3_promotion` `AgentDisclosedEvent` on every successful
- * response, including idempotent re-calls — `fireDisclosure()` is
- * invoked unconditionally after a successful service write. The
- * write-service's entity-creation event (e.g.
- * `AllergyListEntryCreatedEvent`) IS gated on `idempotentHit` and
- * is the canonical "this row landed for the first time" signal.
- *
- * This test pins the existing production behavior (disclosures
- * fire per-request; entity-creation events fire per-row) so the
- * regression surface is honest. The plan-doc comment on this
- * checkbox flags the gap so the user/reviewer can decide whether
- * the controller should be changed to skip disclosures on
- * idempotent re-calls. Either decision will land cleanly: a code
- * change makes the disclosure assertion stricter, no code change
- * keeps it as is.
+ * response, including idempotent re-calls. F.6's MR resolved the
+ * gap — every per-type branch now gates `fireDisclosure(...)` on
+ * `!$result->idempotentHit`, so the cumulative disclosure count is
+ * 1 across two identical calls (not 2). The
+ * {@see assertIdempotentSecondCall()} assertion below pins the
+ * fixed behavior; the entity-creation event (e.g.
+ * `AllergyListEntryCreatedEvent`) is still gated on
+ * `idempotentHit` and remains the canonical "this row landed for
+ * the first time" signal.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -130,6 +122,12 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemPromotionRequest.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementPromotionRequest.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/DemographicsField.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsSnapshot.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PatientDemographicsTableWriter.php';
 
 final class Tier3PromotionRoundTripTest extends TestCase
 {
@@ -205,11 +203,19 @@ final class Tier3PromotionRoundTripTest extends TestCase
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsField.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/DemographicsPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsSnapshot.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/PatientDemographicsWriteService.php';
+        require_once self::MODULE_DIR . '/Events/PatientDemographicsUpdatedEvent.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/DemographicsPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -308,12 +314,11 @@ final class Tier3PromotionRoundTripTest extends TestCase
      *
      * Both calls share a single {@see InMemoryAgentRequestLogRecorder}
      * so the disclosure assertion measures cumulative disclosures
-     * across the whole flow (rather than per-call). The current
-     * production controller fires `tier3_promotion` on every
-     * successful response, so the cumulative count is 2 across two
-     * identical calls; if the controller is later changed to skip
-     * disclosures on idempotent re-calls, the cumulative count drops
-     * to 1 and only the first-call assertion below needs adjustment.
+     * across the whole flow (rather than per-call). F.6 gated
+     * `fireDisclosure(...)` on `!$result->idempotentHit` across every
+     * per-type branch, so the cumulative count is 1 — first call
+     * lands the row + the disclosure; second call is a structural
+     * no-op for both.
      *
      * @param array<string, mixed> $body
      */
@@ -445,17 +450,15 @@ final class Tier3PromotionRoundTripTest extends TestCase
             'idempotent re-call must not insert a duplicate row',
         );
 
-        // Disclosure-event count after both calls. Production fires
-        // `tier3_promotion` per successful response (idempotent or
-        // not), so the cumulative count is 2; both rows carry the
-        // same per-type category. If the controller is changed to
-        // skip disclosures on idempotent re-calls (the F.5f
-        // plan-doc question), this assertion's expected count drops
-        // to 1.
+        // Disclosure-event count after both calls. F.6 gated
+        // `fireDisclosure(...)` on `!$result->idempotentHit` across
+        // every per-type branch, so an idempotent re-call is a
+        // structural no-op for the audit trail too. Cumulative count
+        // is 1 — the first call's row, no second row.
         $this->assertCount(
-            2,
+            1,
             $cumulativeDisclosures,
-            'production controller fires the disclosure event on every successful response',
+            'idempotent re-call must not fire a duplicate disclosure event (F.6 fix)',
         );
         foreach ($cumulativeDisclosures as $disclosure) {
             $this->assertSame('tier3_promotion', $disclosure->action);
@@ -655,6 +658,17 @@ final class Tier3PromotionRoundTripTest extends TestCase
                 tableWriter: $liveWriter instanceof Tier3RoundTripFamilyHistoryWriter
                     ? $liveWriter
                     : new Tier3RoundTripFamilyHistoryWriter(),
+                eventDispatcher: $dispatcher,
+                clock: $this->fixedClock(),
+                logger: $logger,
+            ),
+            // F.6 added `demographicsWriteService` to the constructor.
+            // F.5f's round-trip suite doesn't exercise demographics
+            // (the demographics-specific round-trip lives in
+            // `PatientDemographicsWriteServiceTest`), so a no-op stub
+            // suffices here.
+            demographicsWriteService: new \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsWriteService(
+                tableWriter: new Tier3RoundTripNoopDemographicsWriter(),
                 eventDispatcher: $dispatcher,
                 clock: $this->fixedClock(),
                 logger: $logger,
@@ -1029,6 +1043,36 @@ final class Tier3RoundTripFamilyHistoryWriter implements FamilyHistoryListsTable
         return array_map(
             static fn (FamilyHistoryPromotionRequest $r): string => $r->sourceDocumentUuid,
             $this->insertedEntries,
+        );
+    }
+}
+
+/**
+ * No-op demographics writer for the F.5f round-trip suite. F.6 added
+ * `demographicsWriteService` to the controller's constructor; the
+ * F.5f suite doesn't exercise demographics (its dedicated round-trip
+ * lives in `PatientDemographicsWriteServiceTest`), so this stub
+ * satisfies the constructor type without any setup cost.
+ */
+final class Tier3RoundTripNoopDemographicsWriter implements
+    \OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsTableWriter
+{
+    public function fetchSnapshot(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+    ): ?\OpenEMR\Modules\ClinicalCopilot\Service\PatientDemographicsSnapshot {
+        return null;
+    }
+
+    public function updateField(
+        int $pid,
+        \OpenEMR\Modules\ClinicalCopilot\Service\DemographicsField $field,
+        string $value,
+        int $promotedByUserId,
+        \DateTimeImmutable $updatedAt,
+    ): string {
+        throw new \RuntimeException(
+            'Tier3RoundTripNoopDemographicsWriter.updateField must not be called',
         );
     }
 }
