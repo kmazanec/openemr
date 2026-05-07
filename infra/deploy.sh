@@ -78,10 +78,28 @@ fi
 #   - Named volume for node_modules so subsequent deploys reuse the
 #     install — first deploy ~30s, repeat deploys ~5s.
 log "building dashboard/dist/ for ${NEW_SHA}"
+# Run the build container as the host user so dashboard/dist/ ends up
+# owned by the deploy user, not root. Otherwise the prune step at the
+# end of this script (running unprivileged) can't `rm -rf` previous
+# releases and we leak release directories on every deploy.
+#
+# The named-volume node_modules cache also has to be writable by that
+# UID. On a fresh volume Docker creates the mountpoint as root:root, so
+# we one-shot a chown as root before the unprivileged build runs. The
+# install step itself populates node_modules; chown is just claiming
+# the mountpoint, not the tree.
+DEPLOY_UID=$(id -u)
+DEPLOY_GID=$(id -g)
 docker run --rm \
+    -v openemr-deploy-dashboard-node-modules:/cache \
+    alpine:3 chown "${DEPLOY_UID}:${DEPLOY_GID}" /cache
+docker run --rm \
+    --user "${DEPLOY_UID}:${DEPLOY_GID}" \
     -v "${RELEASE_DIR}:/work-root" \
     -v openemr-deploy-dashboard-node-modules:/work-root/dashboard/node_modules \
     -w /work-root/dashboard \
+    -e HOME=/tmp \
+    -e npm_config_cache=/tmp/.npm \
     node:22-alpine \
     sh -c 'npm ci --no-audit --no-fund && npm run build'
 
@@ -266,7 +284,16 @@ for r in "${all_releases[@]}"; do
         kept=$(( kept + 1 ))
     else
         log "prune ${r}"
-        rm -rf "${r}"
+        # Fall back to docker if rm hits permission denied. Older
+        # releases (pre-fix) have root-owned dashboard/dist/ files left
+        # behind by the build container; the unprivileged deploy user
+        # can't delete those directly.
+        if ! rm -rf "${r}" 2>/dev/null; then
+            log "rm -rf ${r} failed; retrying via docker as root"
+            docker run --rm \
+                -v "${RELEASES_DIR}:/releases" \
+                alpine:3 rm -rf "/releases/$(basename "${r}")"
+        fi
     fi
 done
 
