@@ -256,6 +256,12 @@ $viewArgs = [
     'displaySecondaryLogo' => $globalsBag->getBoolean('extra_logo_login'),
     'secondaryLogo' => $secondaryLogo,
     'secondaryLogoPosition' => $globalsBag->get('secondary_logo_position'),
+    // T3.1: dashboard-V2 shell opt-in. The login form propagates this
+    // through to main_screen.php as a `&v2=1` query param so the
+    // post-login redirect lands on main_v2.php. Production opt-in is
+    // typically the OPENEMR_DASHBOARD_V2 env var; the URL switch is
+    // a dev-iteration aid.
+    'dashboardV2' => filter_input(INPUT_GET, 'v2') === '1',
 ];
 
 /**
