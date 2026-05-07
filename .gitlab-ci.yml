@@ -185,6 +185,68 @@ test:agent-evals-nightly:
         npm run evals:experiment
       '
 
+# Phase E.4 PR-blocking eval gate. Runs every suite's experiment
+# against real models, pulls per-rubric scores back from LangSmith, and
+# fails the pipeline when more than 5% of (case, rubric) cells flip
+# against `agent/evals/baselines/eval-suite.json`. Suites run
+# concurrently in-process (Promise.all in `runExperiment`) so wall
+# clock is dominated by the slowest suite (~3-5 min) rather than the
+# sum.
+#
+# Path-scoped: only runs on MRs that touch the agent service, the
+# baseline file, or this CI config. Docs-only and PHP-only PRs skip
+# the gate to keep CI fast and cheap.
+#
+# Required CI variables (Settings → CI/CD → Variables, masked +
+# protected): ANTHROPIC_API_KEY, OPENAI_API_KEY, COHERE_API_KEY,
+# PINECONE_API_KEY, PINECONE_INDEX_NAME, PINECONE_NAMESPACE,
+# LANGSMITH_API_KEY, LANGSMITH_PROJECT.
+#
+# Cost discipline: the `evals:check-cost` step refuses to launch the
+# experiment when the estimate exceeds $5/PR. Vendor outages are
+# detected up-front by `evals:vendor-health`; affected cases are
+# excluded from the regression-rate denominator and surfaced
+# separately on the MR comment instead of failing the gate.
+test:agent-evals-gate:
+  <<: *runner-tags
+  stage: test
+  needs:
+  - test:agent
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    changes:
+    - agent/**/*
+    - .gitlab-ci.yml
+  script:
+  - |
+    docker run --rm \
+      -v "$CI_PROJECT_DIR:/work-root" \
+      -v openemr-ci-node-modules:/work-root/agent/node_modules \
+      -w /work-root/agent \
+      -e ANTHROPIC_API_KEY \
+      -e OPENAI_API_KEY \
+      -e COHERE_API_KEY \
+      -e PINECONE_API_KEY \
+      -e PINECONE_INDEX_NAME \
+      -e PINECONE_NAMESPACE \
+      -e LANGSMITH_API_KEY \
+      -e LANGSMITH_PROJECT \
+      -e CI_COMMIT_SHA \
+      -e CI_PROJECT_ID \
+      -e CI_MERGE_REQUEST_IID \
+      -e CI_API_V4_URL \
+      -e CI_JOB_TOKEN \
+      node:22-alpine \
+      sh -c '
+        apk add --no-cache \
+          build-base g++ make python3 pkgconf \
+          cairo-dev pango-dev jpeg-dev giflib-dev libjpeg-turbo-dev pixman-dev && \
+        npm ci --no-audit --no-fund && \
+        npm run evals:check-cost && \
+        npm run evals:upload-dataset && \
+        npm run evals:gate
+      '
+
 deploy:
   <<: *runner-tags
   stage: deploy
