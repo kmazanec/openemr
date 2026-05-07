@@ -309,9 +309,9 @@ Owns OIDC handshake and the FHIR transport. No UI.
   instance, or throws if not authenticated (caught by the global
   error boundary, redirects to `/login`).
 - **Acceptance.**
-  - [ ] Test: hook returns the client when fhirclient has a session.
-  - [ ] Test: hook throws a `NotAuthenticatedError` when no session.
-  - [ ] Test: error boundary catches `NotAuthenticatedError` and
+  - [x] Test: hook returns the client when fhirclient has a session.
+  - [x] Test: hook throws a `NotAuthenticatedError` when no session.
+  - [x] Test: error boundary catches `NotAuthenticatedError` and
         renders a "redirecting to login" UI.
 - **Blockers.** T2.1.
 
