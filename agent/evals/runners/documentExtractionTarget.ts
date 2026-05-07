@@ -66,7 +66,8 @@ import type { ChartSnapshot, Demographics } from '../../src/snapshot/types.js';
 
 import { type CaseKind, type ManifestEntry } from '../fixtures/regenerate-document-extraction.js';
 import {
-    demographicsForArchetype,
+    chartDemographicsForCase,
+    documentDemographicsForCase,
     loadFixtureBytes,
     pidForArchetype,
 } from './documentExtractionFixtures.js';
@@ -222,22 +223,13 @@ const buildCorruptedRasterizer = (): Rasterizer => ({
  * The wrong-patient adversarial case is special: the manifest's
  * `patient.archetype` is the *envelope* patient (Kowalski) so the
  * chart fetch returns Kowalski; but the *document* contains Chen
- * (the source PDF is Chen's lipid panel). The stub honors that by
- * producing Chen's demographics even though the envelope is
- * Kowalski's, which is exactly what makes patientMatch refuse.
+ * (the source PDF is Chen's lipid panel). `documentDemographicsForCase`
+ * honors that by returning Chen's demographics for the document side
+ * even though the envelope is Kowalski's, which is exactly what makes
+ * patientMatch refuse.
  */
-const documentArchetypeForCase = (entry: ManifestEntry): string => {
-    if (entry.caseKind === 'adversarial-wrong-patient') {
-        // The fixture path is Chen's lab; the stub must mirror Chen
-        // so the extracted demographics disagree with the Kowalski
-        // chart and patientMatch refuses.
-        return 'p01-chen';
-    }
-    return entry.patient.archetype;
-};
-
 export const buildStubExtraction = (entry: ManifestEntry): unknown => {
-    const demo = demographicsForArchetype(documentArchetypeForCase(entry));
+    const demo = documentDemographicsForCase(entry);
     const cited = (value: string, conf = 0.95) => ({
         value,
         page: 1,
@@ -467,7 +459,7 @@ export const runDocumentExtractionCase = async (
             forceSchemaInvalid: shouldForceSchemaInvalid(entry.caseKind),
         });
 
-    const chartDemographics = demographicsForArchetype(entry.patient.archetype);
+    const chartDemographics = chartDemographicsForCase(entry);
     const chartSnapshot = buildChartSnapshot(chartDemographics);
 
     const rpcUuid = `canonical-${entry.id}`;
