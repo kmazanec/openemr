@@ -116,27 +116,22 @@ interface ShimDeps {
  */
 export function buildTopShims(deps: ShimDeps): TopShims {
   const router = deps.router;
-  const win = deps.win ?? (globalThis as unknown as Window & typeof globalThis);
 
   // Arrow functions so the shims survive being detached
   // (e.g. `const f = top.set_pid; f(123)`). Legacy callers do
   // exactly that, and method-style `function` declarations would
   // bind `this` to the undefined detached call site.
+  //
+  // restoreSession is a no-op in the SPA host. The legacy
+  // /library/restoreSession.php is not an HTTP endpoint — it's a
+  // PHP-rendered JS file that main.php inlines via <script src>.
+  // POST'ing to it 500s because the file has no globals.php
+  // bootstrap. The session is kept alive by the legacy iframes'
+  // own AJAX traffic, which all goes through normal PHP entry
+  // points. Returning a resolved promise satisfies callers that
+  // `await top.restoreSession()` without doing harm.
   const restoreSession = async (): Promise<void> => {
-    const webroot = readWebroot(win);
-    // Resolve fetch lazily so a fake window without `fetch` (used
-    // in tests for set_pid/clearPatient) doesn't crash on shim
-    // construction.
-    const fetchImpl = deps.fetchImpl ?? win.fetch.bind(win);
-    // Cookies must ride along — restoreSession.php's whole job is
-    // to refresh the session cookie's lifetime.
-    const response = await fetchImpl(`${webroot}/library/restoreSession.php`, {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-    if (!response.ok) {
-      throw new Error(`restoreSession failed: HTTP ${response.status}`);
-    }
+    return Promise.resolve();
   };
 
   const set_pid = (pid: number | string): void => {
@@ -170,14 +165,6 @@ export function installTopShims(deps: ShimDeps): TopShims {
   target['set_pid'] = shims.set_pid;
   target['clearPatient'] = shims.clearPatient;
   return shims;
-}
-
-function readWebroot(win: Window & typeof globalThis): string {
-  // main_v2.php injects `var webroot_url = "..."`. Default to "" so
-  // a missing global resolves to relative URLs (which still hit the
-  // OpenEMR origin) rather than crashing.
-  const globals = win as unknown as InjectedGlobals;
-  return globals.webroot_url ?? '';
 }
 
 interface LeftNavDeps {

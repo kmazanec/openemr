@@ -70,44 +70,21 @@ describe('buildTopShims — clearPatient', () => {
 });
 
 describe('buildTopShims — restoreSession', () => {
-  it('POSTs to /library/restoreSession.php with same-origin credentials', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
-    const shims = buildTopShims({
-      router: mockRouter(),
-      win: fakeWindow({ webroot_url: '/openemr' }),
-      fetchImpl,
-    });
-
-    await shims.restoreSession();
-
-    expect(fetchImpl).toHaveBeenCalledWith('/openemr/library/restoreSession.php', {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-  });
-
-  it('uses an empty webroot when window.webroot_url is unset', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+  // restoreSession is a no-op in the SPA host. The legacy
+  // /library/restoreSession.php is a PHP-rendered JS file (not an
+  // HTTP endpoint), so any attempt to POST to it 500s. Legacy
+  // iframe AJAX traffic keeps the PHP session alive on its own;
+  // the SPA never has to ping anything.
+  it('resolves without invoking fetch (no-op contract)', async () => {
+    const fetchImpl = vi.fn();
     const shims = buildTopShims({
       router: mockRouter(),
       win: fakeWindow(),
       fetchImpl,
     });
 
-    await shims.restoreSession();
-
-    expect(fetchImpl).toHaveBeenCalledWith('/library/restoreSession.php', expect.any(Object));
-  });
-
-  it('rejects when the server responds non-2xx', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response('nope', { status: 500 }));
-    const shims = buildTopShims({
-      router: mockRouter(),
-      win: fakeWindow(),
-      fetchImpl,
-    });
-
-    await expect(shims.restoreSession()).rejects.toThrow(/HTTP 500/);
+    await expect(shims.restoreSession()).resolves.toBeUndefined();
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 
