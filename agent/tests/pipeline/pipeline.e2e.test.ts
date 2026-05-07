@@ -262,7 +262,6 @@ const buildPipelineDeps = (
             canonicalExt: 'pdf',
             openemrToken: 'JWT',
             openemrSiteId: 'default',
-            bucketName: 'cdn.test.dev',
         },
         emitDeltas: {
             artifactStore: storeContext.store,

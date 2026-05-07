@@ -12,7 +12,9 @@ declare(strict_types=1);
 
 namespace OpenEMR\Modules\ClinicalCopilot\Controller;
 
+use OpenEMR\Modules\ClinicalCopilot\Service\DocumentReferenceWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\DocumentUuidGenerator;
+use OpenEMR\Modules\ClinicalCopilot\Service\LocalDocumentStore;
 use OpenEMR\Modules\ClinicalCopilot\Service\SpacesUploadService;
 use Psr\Log\LoggerInterface;
 
@@ -29,11 +31,20 @@ use Psr\Log\LoggerInterface;
  * entry points; `snapshot/*.php` is reserved for agent-callback
  * bearer-token traffic).
  *
- * Per `W2_ARCHITECTURE.md` §"Three invokers, one pipeline" path A, the
- * upload writes canonical bytes to Spaces and mints a `document_uuid`,
- * but does *not* insert a `documents` row. The agent-side pipeline's
- * `persist` node is the sole writer of the Tier-1 DocumentReference;
- * pre-creating one here would race the pipeline's idempotency lookup.
+ * Persistence shape: the controller writes the bytes to **both**
+ * DigitalOcean Spaces (so the agent's vision pipeline can pull them
+ * for the external LLM) and to local disk under
+ * `OE_SITE_DIR/documents/<pid>/`, then pre-writes the `documents` row
+ * with `type='file_url'` + `path_depth=1` so the legacy Documents-tab
+ * viewer renders chat-uploaded files identically to legacy uploads.
+ * The agent-side `persist` node confirms (rather than re-inserts) the
+ * row by UUID — see {@see DocumentReferenceController::handle}.
+ *
+ * Failure handling: if the local-disk write or row insert fails after
+ * a successful Spaces upload, we return 503. We don't roll back the
+ * Spaces upload — the orphaned object is tolerable (the agent's
+ * idempotency check on `extraction_artifacts.document_uuid` ensures
+ * we don't re-process it on retry).
  *
  * MIME validation is content-sniff first (via `finfo`), filename and
  * declared client MIME are not trusted. The 10 MB cap matches the
@@ -64,6 +75,8 @@ final readonly class DocumentUploadController
 
     public function __construct(
         private SpacesUploadService $uploadService,
+        private LocalDocumentStore $localStore,
+        private DocumentReferenceWriteService $writeService,
         private DocumentUuidGenerator $uuidGenerator,
         private LoggerInterface $logger,
     ) {
@@ -108,6 +121,9 @@ final readonly class DocumentUploadController
 
         $extension = self::MIME_TO_EXT[$detectedMime];
         $generated = $this->uuidGenerator->generate();
+        $filenameForDisplay = is_string($originalFilename) && trim($originalFilename) !== ''
+            ? $originalFilename
+            : $generated->canonical . '.' . $extension;
 
         try {
             $spacesUrl = $this->uploadService->upload(
@@ -130,7 +146,37 @@ final readonly class DocumentUploadController
 
         $docTypeGuess = $this->guessDocType($originalFilename, $detectedMime);
 
-        $this->logger->info('Document uploaded to Spaces', [
+        // Spaces is now the source of truth for the bytes; mirror them
+        // to local disk and pre-write the documents row so the legacy
+        // Documents-tab viewer can render the upload immediately
+        // (without waiting for the agent's persist node to fire). A
+        // failure here is a hard error: we already have bytes in
+        // Spaces but the chart row is missing, so the user would see a
+        // ghost upload otherwise. The Spaces orphan is tolerable.
+        try {
+            $stored = $this->localStore->store($pid, $filenameForDisplay, $bytes);
+            $fileUrl = 'file://' . $stored['absolutePath'];
+            $this->writeService->write(
+                pid: $pid,
+                docType: $docTypeGuess,
+                url: $fileUrl,
+                mimeType: $detectedMime,
+                filename: $stored['filename'],
+                hash: $stored['hash'],
+                size: $stored['size'],
+                documentUuid: $generated->canonical,
+            );
+        } catch (\DomainException | \RuntimeException $e) {
+            $this->logger->error('Local document persistence failed after Spaces upload', [
+                'pid' => $pid,
+                'documentUuid' => $generated->canonical,
+                'exception' => $e,
+            ]);
+            $this->respondError(503, 'persist_unavailable');
+            return;
+        }
+
+        $this->logger->info('Document uploaded to Spaces and persisted locally', [
             'pid' => $pid,
             'documentUuid' => $generated->canonical,
             'mime' => $detectedMime,

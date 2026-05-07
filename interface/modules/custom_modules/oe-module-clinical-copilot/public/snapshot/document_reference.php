@@ -1,19 +1,25 @@
 <?php
 
 /**
- * Tier-1 endpoint: agent-callback POST that records a DocumentReference
- * for canonical document bytes already uploaded to DigitalOcean Spaces.
+ * Tier-1 endpoint: agent-callback POST that confirms a DocumentReference
+ * row already pre-written by the chat-upload controller. The chat
+ * upload pre-writes the row with `type='file_url'` so the legacy
+ * Documents-tab viewer can render it; the agent calls back here only
+ * to acknowledge it processed the document successfully.
  *
  * Request shape:
  *   POST /interface/modules/custom_modules/oe-module-clinical-copilot/
  *     public/snapshot/document_reference.php?site=<id>[&conversation=<id>]
- *   Body (JSON): { pid, doc_type, spaces_url, mime_type, filename }
+ *   Body (JSON): { pid, doc_type, document_uuid }
  *   Headers: Authorization: Bearer <agent JWT>
  *   Required scope: user/DocumentReference.cs
  *
  * Response:
  *   200 { document_uuid }
- *   400/401/403/503 { error: <code> }
+ *   400/403/409/503 { error: <code> }
+ *     409 with `error: document_not_pre_written` means the upload
+ *     controller never wrote the row — the agent should treat this as
+ *     persist_failed.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org

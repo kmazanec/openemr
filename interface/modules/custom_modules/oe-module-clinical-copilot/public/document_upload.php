@@ -2,9 +2,11 @@
 
 /**
  * §D.1 panel upload endpoint: browser POST that stores canonical
- * document bytes in DigitalOcean Spaces and returns a freshly minted
- * `document_uuid` so the panel can attach it to the next supervisor
- * turn.
+ * document bytes in DigitalOcean Spaces *and* on local disk under
+ * `OE_SITE_DIR/documents/<pid>/`, pre-writes the `documents` row so
+ * the legacy Documents-tab viewer can render the upload immediately,
+ * and returns a freshly minted `document_uuid` so the panel can
+ * attach it to the next supervisor turn.
  *
  * This entry point uses the **proxy** pattern (session-based auth,
  * server-side Spaces credential) and lives next to `agent.php` and
@@ -39,8 +41,14 @@ require_once __DIR__ . '/../../../../globals.php';
 use OpenEMR\BC\ServiceContainer;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Session\SessionWrapperFactory;
+use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SystemClock;
+use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
+use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
+use OpenEMR\Modules\ClinicalCopilot\Service\DocumentReferenceWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalDocumentTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\FilesystemLocalDocumentStore;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\SigV4SpacesUploadService;
 use OpenEMR\Modules\ClinicalCopilot\Service\SpacesConfig;
 use OpenEMR\Modules\ClinicalCopilot\Service\UuidRegistryDocumentUuidGenerator;
@@ -102,6 +110,25 @@ if (function_exists('finfo_open')) {
 }
 
 $logger = ServiceContainer::getLogger();
+$dispatcher = AgentEndpointBootstrap::buildDispatcher($logger);
+$globals = OEGlobalsBag::getInstance();
+$siteDir = $globals->getString('OE_SITE_DIR');
+if ($siteDir === '') {
+    $logger->error('Document upload missing OE_SITE_DIR — refusing to persist locally');
+    http_response_code(503);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'persist_unavailable'], JSON_THROW_ON_ERROR);
+    return;
+}
+
+$writeService = new DocumentReferenceWriteService(
+    tableWriter: new DbalDocumentTableWriter(AgentDbalConnection::get()),
+    uuidGenerator: new UuidRegistryDocumentUuidGenerator(),
+    eventDispatcher: $dispatcher,
+    clock: new SystemClock(),
+    logger: $logger,
+);
+
 $controller = new DocumentUploadController(
     uploadService: new SigV4SpacesUploadService(
         config: SpacesConfig::fromEnv(getenv()),
@@ -109,6 +136,8 @@ $controller = new DocumentUploadController(
         clock: new SystemClock(),
         logger: $logger,
     ),
+    localStore: new FilesystemLocalDocumentStore($siteDir . '/documents'),
+    writeService: $writeService,
     uuidGenerator: new UuidRegistryDocumentUuidGenerator(),
     logger: $logger,
 );

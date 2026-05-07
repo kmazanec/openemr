@@ -1,7 +1,10 @@
 /**
- * §B.7 Tests for the OpenEMR Tier-1 RPC client. Mirrors the
+ * Tests for the OpenEMR Tier-1 confirm RPC client. Mirrors the
  * `snapshotClient.test.ts` style: stub `fetch`, drive happy-path,
  * transient retry, and error-class branches.
+ *
+ * The chat-upload controller pre-writes the row; this client confirms
+ * by `{pid, doc_type, document_uuid}`.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -30,9 +33,7 @@ describe('openemrDocumentReferenceClient', () => {
         const result = await client.writeDocumentReference({
             pid: 4242,
             docType: 'lab_pdf',
-            spacesUrl: 's3://bucket/4242/uuid.pdf',
-            mimeType: 'application/pdf',
-            filename: 'a.pdf',
+            documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
             token: 'JWT',
             siteId: 'default',
         });
@@ -49,9 +50,7 @@ describe('openemrDocumentReferenceClient', () => {
         expect(body).toEqual({
             pid: 4242,
             doc_type: 'lab_pdf',
-            spaces_url: 's3://bucket/4242/uuid.pdf',
-            mime_type: 'application/pdf',
-            filename: 'a.pdf',
+            document_uuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
         });
     });
 
@@ -70,9 +69,7 @@ describe('openemrDocumentReferenceClient', () => {
         const result = await client.writeDocumentReference({
             pid: 1,
             docType: 'intake_form',
-            spacesUrl: 's3://b/1/x.pdf',
-            mimeType: 'application/pdf',
-            filename: 'x.pdf',
+            documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
             token: 'JWT',
             siteId: 'default',
         });
@@ -95,13 +92,41 @@ describe('openemrDocumentReferenceClient', () => {
             client.writeDocumentReference({
                 pid: 1,
                 docType: 'lab_pdf',
-                spacesUrl: 's3://b/1/x.pdf',
-                mimeType: 'application/pdf',
-                filename: 'x.pdf',
+                documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
                 token: 'JWT',
                 siteId: 'default',
             }),
         ).rejects.toBeInstanceOf(DocumentReferenceHttpError);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws DocumentReferenceHttpError on 409 (no retry, surfaces document_not_pre_written)', async () => {
+        const fetchImpl = vi
+            .fn()
+            .mockResolvedValue(
+                new Response('{"error":"document_not_pre_written"}', { status: 409 }),
+            );
+        const client = createOpenEmrDocumentReferenceClient({
+            baseUrl: 'https://emr.example.test',
+            fetchImpl,
+            retryDelayMs: 0,
+        });
+
+        let caught: unknown;
+        try {
+            await client.writeDocumentReference({
+                pid: 1,
+                docType: 'lab_pdf',
+                documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+                token: 'JWT',
+                siteId: 'default',
+            });
+        } catch (err) {
+            caught = err;
+        }
+        expect(caught).toBeInstanceOf(DocumentReferenceHttpError);
+        expect((caught as DocumentReferenceHttpError).status).toBe(409);
+        expect((caught as DocumentReferenceHttpError).bodyPreview).toContain('document_not_pre_written');
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
@@ -117,9 +142,7 @@ describe('openemrDocumentReferenceClient', () => {
             client.writeDocumentReference({
                 pid: 1,
                 docType: 'lab_pdf',
-                spacesUrl: 's3://b/1/x.pdf',
-                mimeType: 'application/pdf',
-                filename: 'x.pdf',
+                documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
                 token: 'JWT',
                 siteId: 'default',
             }),
@@ -141,9 +164,7 @@ describe('openemrDocumentReferenceClient', () => {
             client.writeDocumentReference({
                 pid: 1,
                 docType: 'lab_pdf',
-                spacesUrl: 's3://b/1/x.pdf',
-                mimeType: 'application/pdf',
-                filename: 'x.pdf',
+                documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
                 token: 'JWT',
                 siteId: 'default',
             }),
@@ -160,13 +181,29 @@ describe('openemrDocumentReferenceClient', () => {
             client.writeDocumentReference({
                 pid: 0,
                 docType: 'lab_pdf',
-                spacesUrl: 's3://b/1/x.pdf',
-                mimeType: 'application/pdf',
-                filename: 'x.pdf',
+                documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
                 token: 'JWT',
                 siteId: 'default',
             }),
         ).rejects.toThrow('pid must be a positive integer');
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('rejects empty documentUuid before reaching fetch', async () => {
+        const fetchImpl = vi.fn();
+        const client = createOpenEmrDocumentReferenceClient({
+            baseUrl: 'https://emr.example.test',
+            fetchImpl,
+        });
+        await expect(
+            client.writeDocumentReference({
+                pid: 1,
+                docType: 'lab_pdf',
+                documentUuid: '',
+                token: 'JWT',
+                siteId: 'default',
+            }),
+        ).rejects.toThrow('documentUuid is required');
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
@@ -179,9 +216,7 @@ describe('openemrDocumentReferenceClient', () => {
         await client.writeDocumentReference({
             pid: 1,
             docType: 'lab_pdf',
-            spacesUrl: 's3://b/1/x.pdf',
-            mimeType: 'application/pdf',
-            filename: 'x.pdf',
+            documentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
             token: 'JWT',
             siteId: 'default',
             conversationId: 'conv-99',

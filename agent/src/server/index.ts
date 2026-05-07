@@ -769,7 +769,6 @@ export const start = async (port: number): Promise<void> => {
             },
             buildFetchChartSnapshot: (ctx) => fetchSnapshotForCtx(ctx),
             transientPrefix: spacesEnv.transientPrefix,
-            bucketName: spacesEnv.bucket,
             artifactIdGenerator: () => randomUUID(),
             logger,
         });

@@ -54,6 +54,8 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
         string $url,
         string $mimeType,
         string $filename,
+        string $hash,
+        int $size,
         \DateTimeImmutable $createdAt,
         int $categoryId,
     ): int {
@@ -72,10 +74,17 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
             $this->connection->insert('documents', [
                 'id' => $documentRowId,
                 'uuid' => $uuidBinary,
-                'type' => 'web_url',
+                // Local-disk row matches legacy uploads — the
+                // Documents-tab viewer expects `file_url` + `path_depth`
+                // to walk the URL backwards into
+                // `OE_SITE_DIR/documents/<pid>/<filename>`.
+                'type' => 'file_url',
                 'url' => $url,
                 'mimetype' => $mimeType,
                 'name' => $filename,
+                'hash' => $hash,
+                'size' => $size,
+                'path_depth' => 1,
                 'date' => $createdAt->format('Y-m-d H:i:s'),
                 'docdate' => $createdAt->format('Y-m-d'),
                 'foreign_id' => $pid,
@@ -100,6 +109,50 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
             $this->connection->rollBack();
             throw $e;
         }
+    }
+
+    public function findRowIdByUuid(string $uuidBinary): ?int
+    {
+        $existing = $this->connection->fetchOne(
+            'SELECT id FROM documents WHERE uuid = ? AND deleted = 0',
+            [$uuidBinary],
+        );
+        return is_numeric($existing) ? (int) $existing : null;
+    }
+
+    public function findRowByUuid(string $uuidBinary): ?array
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT d.id AS row_id, d.foreign_id AS pid, c.name AS category_name '
+            . 'FROM documents d '
+            . 'LEFT JOIN categories_to_documents c2d ON c2d.document_id = d.id '
+            . 'LEFT JOIN categories c ON c.id = c2d.category_id '
+            . 'WHERE d.uuid = ? AND d.deleted = 0 '
+            . 'LIMIT 1',
+            [$uuidBinary],
+        );
+        if ($row === false) {
+            return null;
+        }
+
+        $rowIdRaw = $row['row_id'] ?? null;
+        $pidRaw = $row['pid'] ?? null;
+        if (!is_numeric($rowIdRaw) || !is_numeric($pidRaw)) {
+            return null;
+        }
+
+        $categoryName = $row['category_name'] ?? null;
+        $docType = match ($categoryName) {
+            self::LEAF_CATEGORY_NAME_LAB => DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            self::LEAF_CATEGORY_NAME_INTAKE => DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM,
+            default => '',
+        };
+
+        return [
+            'rowId' => (int) $rowIdRaw,
+            'pid' => (int) $pidRaw,
+            'docType' => $docType,
+        ];
     }
 
     private function findOrCreateCategory(string $name, int $parentId): int

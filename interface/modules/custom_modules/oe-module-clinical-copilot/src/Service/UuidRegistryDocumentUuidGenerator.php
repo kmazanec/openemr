@@ -28,6 +28,8 @@ use OpenEMR\Common\Uuid\UuidRegistry;
 
 final class UuidRegistryDocumentUuidGenerator implements DocumentUuidGenerator
 {
+    private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
+
     public function generate(): GeneratedDocumentUuid
     {
         $registry = new UuidRegistry([
@@ -36,6 +38,19 @@ final class UuidRegistryDocumentUuidGenerator implements DocumentUuidGenerator
         ]);
         $binary = $registry->createUuid();
         $canonical = UuidRegistry::uuidToString($binary);
+        return new GeneratedDocumentUuid(canonical: $canonical, binary: $binary);
+    }
+
+    public function fromCanonical(string $canonical): GeneratedDocumentUuid
+    {
+        if (preg_match(self::UUID_PATTERN, $canonical) !== 1) {
+            throw new \DomainException('canonical must be a lowercase 36-char UUID');
+        }
+        $hex = str_replace('-', '', $canonical);
+        $binary = hex2bin($hex);
+        if ($binary === false || strlen($binary) !== 16) {
+            throw new \DomainException('canonical UUID could not be decoded to 16 bytes');
+        }
         return new GeneratedDocumentUuid(canonical: $canonical, binary: $binary);
     }
 }

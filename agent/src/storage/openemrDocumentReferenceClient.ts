@@ -1,13 +1,17 @@
 /**
- * §B.7 — agent-side HTTP client for the OpenEMR Tier-1 endpoint
+ * Agent-side HTTP client for the OpenEMR Tier-1 confirm endpoint
  * (`public/snapshot/document_reference.php`).
  *
- * The persist node calls this once per extraction to record that the
- * canonical document bytes (already in DigitalOcean Spaces) belong to
- * patient `pid` under doc-type `lab_pdf` or `intake_form`. The endpoint
- * inserts a `documents` row + categorizes it, then returns the
- * lowercase 36-char DocumentReference UUID we persist on the
- * `extraction_artifacts.document_uuid` column.
+ * The chat-upload controller pre-writes the `documents` row with
+ * `type='file_url'` so the legacy Documents-tab viewer can render
+ * chat uploads identically to legacy uploads. The persist node calls
+ * this client to acknowledge the row by UUID; the endpoint validates
+ * the caller's `pid` and `docType` claims against the existing row
+ * and returns the canonical `document_uuid`.
+ *
+ * If no row exists for the supplied UUID, the endpoint returns HTTP
+ * 409 with `error: document_not_pre_written` — the persist node maps
+ * that to `persist_failed`.
  *
  * The client mirrors `snapshotClient.ts`'s shape — single-call retry
  * on transient errors; the bearer token is supplied by the caller per
@@ -24,9 +28,7 @@ const TIER1_PATH =
 export interface WriteDocumentReferenceInput {
     readonly pid: number;
     readonly docType: 'lab_pdf' | 'intake_form';
-    readonly spacesUrl: string;
-    readonly mimeType: string;
-    readonly filename: string;
+    readonly documentUuid: string;
     readonly token: string;
     readonly siteId: string;
     readonly conversationId?: string;
@@ -116,9 +118,7 @@ export const createOpenEmrDocumentReferenceClient = (
         JSON.stringify({
             pid: input.pid,
             doc_type: input.docType,
-            spaces_url: input.spacesUrl,
-            mime_type: input.mimeType,
-            filename: input.filename,
+            document_uuid: input.documentUuid,
         });
 
     return {
@@ -133,6 +133,9 @@ export const createOpenEmrDocumentReferenceClient = (
             }
             if (input.token.length === 0) {
                 throw new Error('token is required');
+            }
+            if (input.documentUuid.length === 0) {
+                throw new Error('documentUuid is required');
             }
 
             const url = buildUrl(input.siteId, input.conversationId);

@@ -9,8 +9,8 @@
  * cannot bake the deps once and reuse them. Instead, this factory
  * takes the boot-time pieces (Spaces clients, rasterizer, vision
  * invoker, artifact store, document-reference client, chart-fetch
- * boundaries, bucket name) and returns a `PipelineRunner` whose
- * `stream()` builds a fresh graph per call.
+ * boundaries) and returns a `PipelineRunner` whose `stream()` builds
+ * a fresh graph per call.
  *
  * Boot wires this once in `start()`; the `/v1/agent/extract` route is
  * the only consumer today.
@@ -50,7 +50,6 @@ export interface ProductionPipelineDeps {
         ctx: PipelineCallContext,
     ) => (pid: number) => Promise<ChartSnapshot>;
     readonly transientPrefix: string;
-    readonly bucketName: string;
     readonly artifactIdGenerator: () => string;
     readonly logger: Logger;
 }
@@ -71,7 +70,6 @@ export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): Pip
                 logger: deps.logger,
                 artifactIdGenerator: deps.artifactIdGenerator,
                 canonicalExt: ctx.canonicalExt,
-                bucketName: deps.bucketName,
                 openemrToken: ctx.openemrToken,
                 openemrSiteId: ctx.openemrSiteId,
                 ...(ctx.conversationId !== undefined ? { conversationId: ctx.conversationId } : {}),

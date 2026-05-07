@@ -24,6 +24,19 @@ namespace OpenEMR\Modules\ClinicalCopilot\Service;
 interface DocumentUuidGenerator
 {
     public function generate(): GeneratedDocumentUuid;
+
+    /**
+     * Wrap a caller-supplied canonical UUID (lowercase 36-char form)
+     * into a {@see GeneratedDocumentUuid} pair without minting a fresh
+     * value. Used by the chat-upload flow where the upload controller
+     * mints the UUID, persists the row, and then asks the
+     * write/confirm path to operate on that same UUID.
+     *
+     * Throws `\DomainException` if the input is not a valid lowercase
+     * 36-char UUID — the canonical form is the wire format and we
+     * refuse to coerce.
+     */
+    public function fromCanonical(string $canonical): GeneratedDocumentUuid;
 }
 
 final readonly class GeneratedDocumentUuid
