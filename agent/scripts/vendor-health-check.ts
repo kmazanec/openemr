@@ -1,7 +1,7 @@
 /**
  * Vendor health check used by the per-MR `evals:gate` CI job.
  *
- * Each of the four eval suites depends on at least one external vendor
+ * Each of the three eval suites depends on at least one external vendor
  * (Anthropic for synthesis, OpenAI for embeddings, Pinecone for vector
  * retrieval, Cohere for rerank). When any of those vendors is mid-outage
  * during a PR run the gate would otherwise fail spuriously — same code,
@@ -123,7 +123,6 @@ export const SUITE_VENDOR_DEPENDENCIES: Readonly<Record<string, readonly Vendor[
     'briefing-graph': ['anthropic', 'langsmith'],
     'conversational-graph': ['anthropic', 'openai', 'pinecone', 'cohere', 'langsmith'],
     'document-extraction': ['anthropic', 'langsmith'],
-    'end-to-end': ['anthropic', 'openai', 'pinecone', 'cohere', 'langsmith'],
 };
 
 export const isMain = (importMetaUrl: string): boolean =>

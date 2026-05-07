@@ -12,10 +12,6 @@ import {
 } from './briefingGraphSuite.js';
 import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './conversationalGraphSuite.js';
 import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from './documentExtractionSuite.js';
-import {
-    DATASET_NAME as END_TO_END_DATASET_NAME,
-    buildExamples as buildEndToEndExamples,
-} from './endToEndSuite.js';
 
 /**
  * Suite uploader unit tests. Two branches matter for every suite:
@@ -132,42 +128,20 @@ describe('conversationalGraphSuite', () => {
     it('uses a v3 dataset name (schema-bump contract: rename when shape changes)', () => {
         // Bumped -v2 → -v3 when the case-group enum widened to add the
         // five `refusal-*` scenarios (so the dataset's expectedGate
-        // shape gained a `'refusal'` arm). Bump again when the
-        // input/output shape changes so old experiments stay
+        // shape gained a `'refusal'` arm). Bumped -v3 → -v4 when the
+        // suite absorbed the deleted end-to-end suite's behavioral
+        // coverage and added 26 realistic clinic-encounter cases (8
+        // document-retrieval, 8 guideline-retrieval, 4
+        // multi-retriever, 4 chart-only, 2 redaction). Bump again
+        // when the input/output shape changes so old experiments stay
         // comparable.
-        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v3')).toBe(true);
+        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v4')).toBe(true);
     });
 });
 
 describe('documentExtractionSuite', () => {
     it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
         expect(DOCUMENT_EXTRACTION_DATASET_NAME.endsWith('-v1')).toBe(true);
-    });
-});
-
-describe('endToEndSuite', () => {
-    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
-        // Bumped to -v2 when the redaction cases (cross-patient-leakage,
-        // hidden-off-schema-field) were reclassified from `kind: 'refusal'`
-        // to `kind: 'conversational'` and their `expectedVerdict` enum
-        // shifted from `no-sections-render-redacted` to
-        // `chart-only-redacted` to reflect that the model legitimately
-        // answers the (benign, on-topic) question with chart claims.
-        expect(END_TO_END_DATASET_NAME.endsWith('-v2')).toBe(true);
-    });
-
-    it('ships exactly six examples (3 Patel + 3 refusal) — Phase D MVP gate count', () => {
-        const examples = buildEndToEndExamples();
-        expect(examples).toHaveLength(6);
-        const groups = examples.map((e) => e.metadata.group).sort();
-        expect(groups).toEqual([
-            'patel-scenario',
-            'patel-scenario',
-            'patel-scenario',
-            'refusal',
-            'refusal',
-            'refusal',
-        ]);
     });
 });
 

@@ -115,9 +115,9 @@ describe('SUITE_VENDOR_DEPENDENCIES', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('covers each of the four eval suites', () => {
+    it('covers each of the three eval suites', () => {
         expect(new Set(Object.keys(SUITE_VENDOR_DEPENDENCIES))).toEqual(
-            new Set(['briefing-graph', 'conversational-graph', 'document-extraction', 'end-to-end']),
+            new Set(['briefing-graph', 'conversational-graph', 'document-extraction']),
         );
     });
 });

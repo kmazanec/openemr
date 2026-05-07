@@ -9,20 +9,17 @@ describe('estimateCost', () => {
                 'briefing-graph': 10,
                 'conversational-graph': 5,
                 'document-extraction': 5,
-                'end-to-end': 5,
             },
             perCaseUsd: {
                 'briefing-graph': 0.10,
                 'conversational-graph': 0.20,
                 'document-extraction': 0.30,
-                'end-to-end': 0.40,
             },
         });
         expect(estimate.perSuite['briefing-graph']).toEqual({ caseCount: 10, estimatedUsd: 1.0 });
         expect(estimate.perSuite['conversational-graph']).toEqual({ caseCount: 5, estimatedUsd: 1.0 });
         expect(estimate.perSuite['document-extraction']).toEqual({ caseCount: 5, estimatedUsd: 1.5 });
-        expect(estimate.perSuite['end-to-end']).toEqual({ caseCount: 5, estimatedUsd: 2.0 });
-        expect(estimate.totalUsd).toBe(5.5);
+        expect(estimate.totalUsd).toBe(3.5);
     });
 
     it('underCap is true at exactly the cap', async () => {
@@ -56,12 +53,11 @@ describe('estimateCost', () => {
 
     it('uses the live dataset case counts when caseCounts is not overridden', async () => {
         const estimate = await estimateCost();
-        // The four suites must all be present.
+        // The three suites must all be present.
         expect(Object.keys(estimate.perSuite).sort()).toEqual([
             'briefing-graph',
             'conversational-graph',
             'document-extraction',
-            'end-to-end',
         ]);
         // Case counts are non-negative integers and known to be small at HEAD.
         for (const { caseCount } of Object.values(estimate.perSuite)) {
@@ -75,12 +71,11 @@ describe('estimateCost', () => {
         expect(estimate.underCap).toBe(true);
     });
 
-    it('every PER_CASE_USD entry covers exactly the four suites we ship', () => {
+    it('every PER_CASE_USD entry covers exactly the three suites we ship', () => {
         expect(Object.keys(PER_CASE_USD).sort()).toEqual([
             'briefing-graph',
             'conversational-graph',
             'document-extraction',
-            'end-to-end',
         ]);
     });
 });

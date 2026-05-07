@@ -8,7 +8,6 @@
 import { briefingGraphSuite } from './briefingGraphSuite.js';
 import { conversationalGraphSuite } from './conversationalGraphSuite.js';
 import { documentExtractionSuite } from './documentExtractionSuite.js';
-import { endToEndSuite } from './endToEndSuite.js';
 
 import type { EvalSuite } from './shared.js';
 
@@ -16,5 +15,4 @@ export const SUITES: readonly EvalSuite[] = [
     briefingGraphSuite,
     conversationalGraphSuite,
     documentExtractionSuite,
-    endToEndSuite,
 ];

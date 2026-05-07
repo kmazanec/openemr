@@ -21,7 +21,6 @@ import { fileURLToPath } from 'node:url';
 import { buildExamples as buildBriefingGraphExamples } from '../evals/runners/briefingGraphSuite.js';
 import { buildExamples as buildConversationalGraphExamples } from '../evals/runners/conversationalGraphSuite.js';
 import { buildExamples as buildDocumentExtractionExamples } from '../evals/runners/documentExtractionSuite.js';
-import { buildExamples as buildEndToEndExamples } from '../evals/runners/endToEndSuite.js';
 
 /** Hard cap per PR run, in USD. From W2_ARCHITECTURE.md §"Eval Architecture". */
 export const HARD_CAP_USD = 7.5;
@@ -49,9 +48,6 @@ export const PER_CASE_USD: Readonly<Record<string, number>> = {
     // Document extraction is one vision-mode synthesizer pass per
     // case. Document images → structured output.
     'document-extraction': 0.06,
-    // End-to-end exercises the full pipeline → conversational handoff.
-    // Largest unit.
-    'end-to-end': 0.15,
 };
 
 export interface CostEstimate {
@@ -81,7 +77,6 @@ export const estimateCost = async (options: EstimateOptions = {}): Promise<CostE
             'briefing-graph': buildBriefingGraphExamples().length,
             'conversational-graph': buildConversationalGraphExamples().length,
             'document-extraction': (await buildDocumentExtractionExamples()).length,
-            'end-to-end': buildEndToEndExamples().length,
         };
 
     const perSuite: Record<string, { caseCount: number; estimatedUsd: number }> = {};

@@ -52,7 +52,6 @@ import {
 import { DATASET_NAME as BRIEFING_GRAPH_DATASET_NAME } from '../evals/runners/briefingGraphSuite.js';
 import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from '../evals/runners/conversationalGraphSuite.js';
 import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from '../evals/runners/documentExtractionSuite.js';
-import { DATASET_NAME as END_TO_END_DATASET_NAME } from '../evals/runners/endToEndSuite.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASELINE_PATH = join(HERE, '..', 'evals', 'baselines', 'eval-suite.json');
@@ -65,7 +64,6 @@ export const SUITE_TO_DATASET: Readonly<Record<string, string>> = {
     'briefing-graph': BRIEFING_GRAPH_DATASET_NAME,
     'conversational-graph': CONVERSATIONAL_GRAPH_DATASET_NAME,
     'document-extraction': DOCUMENT_EXTRACTION_DATASET_NAME,
-    'end-to-end': END_TO_END_DATASET_NAME,
 };
 
 interface BaselineFile {

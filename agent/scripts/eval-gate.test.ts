@@ -270,14 +270,11 @@ describe('resolveSkippedCases', () => {
             'clinical-copilot-briefing-graph-v1': {
                 cases: { 'archetype:diabetic': { citation_present: true } },
             },
-            'clinical-copilot-conversational-graph-v3': {
+            'clinical-copilot-conversational-graph-v4': {
                 cases: { 'multi-retriever': { citation_present: true } },
             },
             'clinical-copilot-document-extraction-v1': {
                 cases: { 'lab-chen-lipid-panel': { schema_valid: true } },
-            },
-            'clinical-copilot-end-to-end-v2': {
-                cases: { 'lab-plus-chart': { citation_present: true } },
             },
         },
     };
@@ -311,7 +308,7 @@ describe('resolveSkippedCases', () => {
         expect(skips.size).toBe(0);
     });
 
-    it('Anthropic degraded → all four suites skip (every suite uses Anthropic)', () => {
+    it('Anthropic degraded → all three suites skip (every suite uses Anthropic)', () => {
         const skips = resolveSkippedCases(baseline, [
             degradedReport('anthropic'),
             okReport('openai'),
@@ -319,11 +316,11 @@ describe('resolveSkippedCases', () => {
             okReport('pinecone'),
             okReport('langsmith'),
         ]);
-        expect(skips.size).toBe(4);
+        expect(skips.size).toBe(3);
         expect(skips.has('clinical-copilot-briefing-graph-v1::archetype:diabetic')).toBe(true);
     });
 
-    it('Pinecone degraded → only conversational + end-to-end skip (briefing/document do not use Pinecone)', () => {
+    it('Pinecone degraded → only conversational skips (briefing/document do not use Pinecone)', () => {
         const skips = resolveSkippedCases(baseline, [
             okReport('anthropic'),
             okReport('openai'),
@@ -331,9 +328,8 @@ describe('resolveSkippedCases', () => {
             degradedReport('pinecone'),
             okReport('langsmith'),
         ]);
-        expect(skips.size).toBe(2);
-        expect(skips.has('clinical-copilot-conversational-graph-v3::multi-retriever')).toBe(true);
-        expect(skips.has('clinical-copilot-end-to-end-v2::lab-plus-chart')).toBe(true);
+        expect(skips.size).toBe(1);
+        expect(skips.has('clinical-copilot-conversational-graph-v4::multi-retriever')).toBe(true);
         expect(skips.has('clinical-copilot-briefing-graph-v1::archetype:diabetic')).toBe(false);
     });
 });
@@ -419,7 +415,7 @@ describe('renderMarkdownReport', () => {
                 flipped: [],
                 skipped: [
                     {
-                        dataset: 'clinical-copilot-conversational-graph-v3',
+                        dataset: 'clinical-copilot-conversational-graph-v4',
                         caseId: 'multi-retriever',
                         reason: 'vendor-outage',
                     },
