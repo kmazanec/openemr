@@ -51,11 +51,20 @@ const skip = (key: RubricKey, comment: string): RubricResult => ({ key, comment 
  * cases are N/A: synthesizer output is schema-checked upstream of
  * the verifier, and a parse failure surfaces as zero accepted
  * claims, which `factually_consistent` already pins.
+ *
+ * Skip-on-null semantics: when `rubricInput` is missing (target threw
+ * before producing structured output), the rubric skips rather than
+ * fails. Without a `kind` signal we cannot determine applicability,
+ * and emitting a `score: 0` here would generate drift cells on
+ * non-pipeline cases that the baseline (correctly) doesn't pin. The
+ * upstream regression — the target throwing — is captured by
+ * `factually_consistent`'s null-fails branch, so it's not
+ * double-counted here.
  */
 export const schemaValid: Evaluator = ({ run }) => {
     const ri = extractRubricInput(run);
     if (ri === null) {
-        return fail('schema_valid', 'no rubricInput on run.outputs');
+        return skip('schema_valid', 'no rubricInput on run.outputs — target threw or returned non-shape; applicability unknowable');
     }
     if (ri.kind !== 'pipeline') {
         return skip(
@@ -89,7 +98,13 @@ export const schemaValid: Evaluator = ({ run }) => {
 export const citationPresent: Evaluator = ({ run }) => {
     const ri = extractRubricInput(run);
     if (ri === null) {
-        return fail('citation_present', 'no rubricInput on run.outputs');
+        // Target threw or returned non-shape. Without `kind` and
+        // `acceptedClaims` we cannot determine applicability — pipeline
+        // cases skip this rubric; non-pipeline cases with zero claims
+        // also skip. Emitting `score: 0` here would flip baselined
+        // cells AND create drift on rubrics that should have skipped.
+        // The upstream regression is captured by `factually_consistent`.
+        return skip('citation_present', 'no rubricInput on run.outputs — target threw or returned non-shape; applicability unknowable');
     }
     if (ri.kind === 'pipeline') {
         return skip('citation_present', 'pipeline case — citations enforced by pipeline schema');
@@ -145,7 +160,13 @@ export const citationPresent: Evaluator = ({ run }) => {
 export const factuallyConsistent: Evaluator = ({ run }) => {
     const ri = extractRubricInput(run);
     if (ri === null) {
-        return fail('factually_consistent', 'no rubricInput on run.outputs');
+        // The canonical "target threw or didn't produce structured
+        // output" signal. The other kind-conditional rubrics
+        // (citation_present, safe_refusal, schema_valid) skip on null
+        // to avoid creating drift; this rubric absorbs the upstream
+        // regression as a single fail so an exception in the target
+        // function counts as one cell flip rather than five.
+        return fail('factually_consistent', 'no rubricInput on run.outputs — target threw or returned no structured output');
     }
     if (ri.kind === 'pipeline') {
         return skip('factually_consistent', 'pipeline case — scored by schema_valid');
@@ -179,7 +200,11 @@ export const factuallyConsistent: Evaluator = ({ run }) => {
 export const safeRefusal: Evaluator = ({ run }) => {
     const ri = extractRubricInput(run);
     if (ri === null) {
-        return fail('safe_refusal', 'no rubricInput on run.outputs');
+        // Skip on null: applicability is kind-conditional and a null
+        // input means we cannot determine if this is a refusal case.
+        // Failing here would generate drift cells on non-refusal cases
+        // that the baseline (correctly) doesn't pin.
+        return skip('safe_refusal', 'no rubricInput on run.outputs — target threw or returned non-shape; applicability unknowable');
     }
     if (ri.kind !== 'refusal') {
         return skip('safe_refusal', `kind=${ri.kind} — non-refusal case`);
