@@ -38,7 +38,13 @@ import {
     type BriefingRunner,
 } from './briefingRunner.js';
 import { classifyBriefingError } from './errorClassifier.js';
+import { createAcceptFactHandler } from './routes/acceptFact.js';
+import { createDispositionsHandler } from './routes/dispositions.js';
 import { createExtractHandler, type PipelineRunner } from './routes/extract.js';
+import {
+    createOpenEmrPromoteClient,
+    type OpenEmrPromoteClient,
+} from '../storage/openemrPromoteClient.js';
 import { randomUUID } from 'node:crypto';
 import { tryParseSpacesEnv } from '../config/spacesEnv.js';
 import { buildProductionPipelineRunner } from '../pipeline/production.js';
@@ -46,7 +52,10 @@ import { createPopplerRasterizer } from '../pipeline/rasterizer.js';
 import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
 import { createAgentSpacesClient, createOpenEmrSpacesClient } from '../storage/spaces.js';
 import { createOpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
-import { createPgExtractionArtifactStore } from '../state/extractionArtifacts.js';
+import {
+    createPgExtractionArtifactStore,
+    type ExtractionArtifactStore,
+} from '../state/extractionArtifacts.js';
 import { decodeChartSnapshot } from '../snapshot/decode.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 
@@ -86,6 +95,27 @@ interface AppDeps {
      * dep isn't wired.
      */
     readonly pipeline?: PipelineRunner;
+    /**
+     * F.5a per-fact disposition store. Required by the
+     * `/v1/agent/dispositions` (uses `recordDisposition`) and
+     * `/v1/agent/accept_fact` (uses `findArtifactById` +
+     * `recordDisposition`) routes. Optional so legacy tests that
+     * exercise only the briefing path stay green — the routes return
+     * 503 if the dep isn't wired. The route handlers narrow further
+     * onto the methods they actually call, so a test that only wires
+     * `recordDisposition` keeps the dispositions route alive while the
+     * accept_fact route surfaces 503.
+     */
+    readonly extractionArtifactStore?: Partial<
+        Pick<ExtractionArtifactStore, 'recordDisposition' | 'findArtifactById'>
+    >;
+    /**
+     * F.5a OpenEMR promote-endpoint client. Required by the
+     * `/v1/agent/accept_fact` route. Optional so legacy tests that
+     * exercise only the briefing path stay green — the route returns
+     * 503 if the dep isn't wired.
+     */
+    readonly promoteClient?: OpenEmrPromoteClient;
 }
 
 /**
@@ -159,6 +189,8 @@ export const createApp = ({
     conversationApi,
     scheduleBriefingsLog,
     pipeline,
+    extractionArtifactStore,
+    promoteClient,
 }: AppDeps): Hono => {
     const app = new Hono();
     const logger = createLogger('server');
@@ -587,6 +619,49 @@ export const createApp = ({
         return createExtractHandler({ pipeline })(c);
     });
 
+    /**
+     * F.5a per-fact disposition recording. The panel UI calls this
+     * after every reject (no chart write needed). Accept flows go
+     * through the `accept_fact` middleman below, which records the
+     * disposition itself after the chart write succeeds. The
+     * disposition store is idempotent on `(artifact_id, field_path)`,
+     * so a network retry that the panel believes timed out is safe.
+     */
+    app.post('/v1/agent/dispositions', async (c) => {
+        const recordDisposition = extractionArtifactStore?.recordDisposition;
+        if (recordDisposition === undefined) {
+            return c.json({ error: 'dispositions_unavailable' }, 503);
+        }
+        return createDispositionsHandler({
+            store: { recordDisposition },
+        })(c);
+    });
+
+    /**
+     * F.5a accept-fact middleman. Reads the artifact, materializes the
+     * per-type promotion body, calls `promote.php`, records the
+     * disposition. The panel calls this for every Accept click on an
+     * extracted-document fact.
+     */
+    app.post('/v1/agent/accept_fact', async (c) => {
+        const findArtifactById = extractionArtifactStore?.findArtifactById;
+        const recordDisposition = extractionArtifactStore?.recordDisposition;
+        if (
+            findArtifactById === undefined
+            || recordDisposition === undefined
+            || promoteClient === undefined
+        ) {
+            return c.json({ error: 'accept_fact_unavailable' }, 503);
+        }
+        return createAcceptFactHandler({
+            store: {
+                findArtifactById,
+                recordDisposition,
+            },
+            promoteClient,
+        })(c);
+    });
+
     // Smoke-test endpoint paired with the proxy's `echo` action. End-to-end
     // smoke verifies the trust boundary works before any real LLM lands.
     app.post('/v1/agent/echo', async (c) => {
@@ -803,6 +878,8 @@ export const start = async (port: number): Promise<void> => {
         );
     }, 60_000).unref();
 
+    const promoteClient = createOpenEmrPromoteClient({ baseUrl: openEmrBaseUrl });
+
     const app = createApp({
         auth: { verify },
         briefingRunner,
@@ -812,6 +889,8 @@ export const start = async (port: number): Promise<void> => {
             resumeWindowHours: 12,
         },
         scheduleBriefingsLog,
+        extractionArtifactStore,
+        promoteClient,
         ...(pipelineRunner !== undefined ? { pipeline: pipelineRunner } : {}),
     });
     serve({ fetch: app.fetch, port });

@@ -15,9 +15,9 @@ import { labPdfSchema, type LabPdfExtraction } from '../../src/pipeline/schemas/
 
 const validLabPdf = (): LabPdfExtraction => ({
     patient_demographics: {
-        name: { value: 'Jane Doe', page: 1, bbox: [10, 10, 100, 20], quote: 'Jane Doe', confidence: 0.95 },
-        dob: { value: '1980-05-12', page: 1, bbox: [10, 30, 100, 20], quote: '05/12/1980', confidence: 0.9 },
-        sex: { value: 'female', page: 1, bbox: [10, 50, 100, 20], quote: 'F', confidence: 0.85 },
+        name: { value: 'Jane Doe', page: 1, bbox: [50, 50, 300, 30], quote: 'Jane Doe', confidence: 0.95 },
+        dob: { value: '1980-05-12', page: 1, bbox: [50, 100, 300, 30], quote: '05/12/1980', confidence: 0.9 },
+        sex: { value: 'female', page: 1, bbox: [50, 150, 300, 30], quote: 'F', confidence: 0.85 },
     },
     results: [
         {
@@ -29,7 +29,7 @@ const validLabPdf = (): LabPdfExtraction => ({
             abnormal_flag: 'high',
             collection_date: '2026-04-15',
             page: 2,
-            bbox: [50, 200, 200, 30],
+            bbox: [60, 250, 600, 40],
             quote: 'HbA1c 7.2 %',
             confidence: 0.92,
         },
@@ -38,7 +38,7 @@ const validLabPdf = (): LabPdfExtraction => ({
         name: 'Dr. Alice Smith',
         npi: '1234567890',
         page: 1,
-        bbox: [400, 700, 200, 20],
+        bbox: [500, 850, 400, 30],
         quote: 'Ordering: Dr. Alice Smith NPI 1234567890',
         confidence: 0.88,
     },
@@ -46,9 +46,9 @@ const validLabPdf = (): LabPdfExtraction => ({
 
 const validIntakeForm = (): IntakeFormExtraction => ({
     patient_demographics: {
-        name: { value: 'John Roe', page: 1, bbox: [10, 10, 100, 20], quote: 'John Roe', confidence: 0.9 },
-        dob: { value: '1970-01-01', page: 1, bbox: [10, 30, 100, 20], quote: '01/01/1970', confidence: 0.9 },
-        sex: { value: 'male', page: 1, bbox: [10, 50, 100, 20], quote: 'M', confidence: 0.9 },
+        name: { value: 'John Roe', page: 1, bbox: [50, 50, 300, 30], quote: 'John Roe', confidence: 0.9 },
+        dob: { value: '1970-01-01', page: 1, bbox: [50, 100, 300, 30], quote: '01/01/1970', confidence: 0.9 },
+        sex: { value: 'male', page: 1, bbox: [50, 150, 300, 30], quote: 'M', confidence: 0.9 },
     },
     allergies: [
         {
@@ -56,7 +56,7 @@ const validIntakeForm = (): IntakeFormExtraction => ({
             reaction: 'Hives',
             severity: 'moderate',
             page: 2,
-            bbox: [10, 100, 200, 20],
+            bbox: [50, 150, 600, 30],
             quote: 'Penicillin — hives, moderate',
             confidence: 0.9,
         },
@@ -67,7 +67,7 @@ const validIntakeForm = (): IntakeFormExtraction => ({
             dose: '500 mg',
             frequency: 'twice daily',
             page: 2,
-            bbox: [10, 200, 200, 20],
+            bbox: [50, 300, 600, 30],
             quote: 'Metformin 500mg BID',
             confidence: 0.9,
         },
@@ -77,7 +77,7 @@ const validIntakeForm = (): IntakeFormExtraction => ({
             condition: 'Type 2 Diabetes',
             onset_year: '2018',
             page: 3,
-            bbox: [10, 100, 200, 20],
+            bbox: [50, 150, 600, 30],
             quote: 'T2DM dx 2018',
             confidence: 0.85,
         },
@@ -87,7 +87,7 @@ const validIntakeForm = (): IntakeFormExtraction => ({
             relation: 'mother',
             condition: 'Coronary artery disease',
             page: 3,
-            bbox: [10, 200, 200, 20],
+            bbox: [50, 300, 600, 30],
             quote: 'Mother: CAD',
             confidence: 0.85,
         },
@@ -156,7 +156,7 @@ describe('labPdfSchema', () => {
                     unit: 'g/dL',
                     collection_date: '2026-04-15',
                     page: 2,
-                    bbox: [50, 220, 200, 20],
+                    bbox: [60, 270, 600, 30],
                     quote: 'Hgb 14.0 g/dL',
                     confidence: 0.9,
                 },
@@ -254,14 +254,14 @@ describe('intakeFormSchema', () => {
                 address: {
                     value: '123 Main St',
                     page: 1,
-                    bbox: [10, 70, 200, 20],
+                    bbox: [50, 100, 600, 30],
                     quote: '123 Main St',
                     confidence: 0.9,
                 },
                 phone: {
                     value: '555-0100',
                     page: 1,
-                    bbox: [10, 90, 200, 20],
+                    bbox: [50, 130, 600, 30],
                     quote: '555-0100',
                     confidence: 0.9,
                 },

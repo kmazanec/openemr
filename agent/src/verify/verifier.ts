@@ -588,6 +588,17 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
         resolves: (ref, idx) => idx.diagnoses.has(ref.source_id),
         contentMatches: matchesDiagnosis,
     },
+    family_history: {
+        // F.5e — family_history claims primarily come from
+        // `extracted_document` source_type (the briefing snapshot has
+        // no chart-side family-history map today). The chart-source
+        // path runs through this `resolves` and always returns false:
+        // the snapshot has no `idx.familyHistory.*` to look against,
+        // so a chart-typed family_history claim is treated as
+        // unresolved (REJECT_UNRESOLVED). The extracted_document path
+        // bypasses CHECKS entirely.
+        resolves: () => false,
+    },
     encounter: {
         resolves: (ref, idx) => idx.encounters.has(ref.source_id),
         contentMatches: matchesEncounter,
@@ -804,6 +815,56 @@ const resolveExtractedDocument = (
     return { ok: true, snippet };
 };
 
+/**
+ * Copy artifact identity onto an accepted extracted_document claim's
+ * primary ref. The synthesizer only emits artifactId (as `source_id`)
+ * + locator + quote; the panel's document drawer needs `meta.document_uuid`
+ * to construct the document fetch URL. Returns a new claim with the
+ * primary ref's `meta` extended.
+ */
+const enrichExtractedDocClaim = (claim: Claim, snippet: ExtractedFactSnippet): Claim => {
+    const refs = claim.sourceReferences;
+    if (refs.length === 0) return claim;
+    const primary = refs[0]!;
+    const enrichedMeta = {
+        ...(primary.meta ?? {}),
+        document_uuid: snippet.documentUuid,
+        ...(primary.meta?.extractor_version === undefined
+            ? { extractor_version: snippet.extractorVersion }
+            : {}),
+    };
+    const enrichedPrimary: SourceReference = { ...primary, meta: enrichedMeta };
+    return { ...claim, sourceReferences: [enrichedPrimary, ...refs.slice(1)] };
+};
+
+/**
+ * Copy publication metadata from the matched `EvidenceSnippet` onto
+ * the accepted claim's primary guideline ref. The synthesizer only
+ * emits chunkId + section + quote; the snippet carries the rest of the
+ * metadata the panel needs to render a self-contained guideline drawer
+ * (publication, title, year, source URL). Returns a new claim with the
+ * primary ref's `meta` extended; non-primary refs (rare but allowed by
+ * the schema) pass through untouched.
+ */
+const enrichGuidelineClaim = (claim: Claim, snippet: EvidenceSnippet): Claim => {
+    const refs = claim.sourceReferences;
+    if (refs.length === 0) return claim;
+    const primary = refs[0]!;
+    const enrichedMeta = {
+        ...(primary.meta ?? {}),
+        publication: snippet.publication,
+        title: snippet.title,
+        year: snippet.year,
+        section: snippet.section,
+        ...(snippet.url !== undefined ? { url: snippet.url } : {}),
+        ...(primary.meta?.rerank_score === undefined
+            ? { rerank_score: snippet.rerankScore }
+            : {}),
+    };
+    const enrichedPrimary: SourceReference = { ...primary, meta: enrichedMeta };
+    return { ...claim, sourceReferences: [enrichedPrimary, ...refs.slice(1)] };
+};
+
 const resolveGuideline = (
     ref: SourceReference,
     claim: Claim,
@@ -987,7 +1048,13 @@ export const verifyLedger = (
                 rejected.push({ claim, reason: REJECT_HARD_STOP });
                 continue;
             }
-            accepted.push(claim);
+            // Enrich the accepted claim's primary ref with the snippet's
+            // documentUuid + extractorVersion. The synthesizer only emits
+            // (artifactId, locator, quote); the panel's document drawer
+            // and the format step's "From documents" grouping both need
+            // `meta.document_uuid` to resolve the artifact back to its
+            // source document.
+            accepted.push(enrichExtractedDocClaim(claim, result.snippet));
             continue;
         }
 
@@ -1001,7 +1068,14 @@ export const verifyLedger = (
             rejected.push({ claim, reason: result.reason });
             continue;
         }
-        accepted.push(claim);
+        // Enrich the accepted claim's primary ref with the snippet's
+        // publication metadata. The agent-side schema receives these
+        // slots; the panel reads them to render the guideline source
+        // drawer (publication / section / quote / "view on publisher"
+        // link). Without this enrichment the wire-side ref would carry
+        // only the synthesizer's chunkId+section, and the panel would
+        // have no way to surface the source URL.
+        accepted.push(enrichGuidelineClaim(claim, result.snippet));
     }
 
     return {

@@ -362,6 +362,12 @@
     color: #6a3c00;
     background: #fff1d9;
     border-color: #e9c884;
+    /* F.5a — animated chip swap on accept. When the click handler
+       removes `--document` and adds `--chart`, the W1 blue palette
+       fades in over 0.3s instead of jump-cutting. The same transition
+       runs on the chart side because both variant rules cover the
+       same color/background/border properties. */
+    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .copilot-source--document:hover {
@@ -1038,4 +1044,213 @@
         width: 100vw;
         min-width: 0;
     }
+}
+
+/* ───────── Guideline source drawer ─────────
+ *
+ * Reuses .copilot-doc-viewer for slide-in/scrim/header. The body
+ * renders a guideline citation card: publication header, section
+ * subheading, the cited quote, and a "view on publisher" link out.
+ * No image canvas / bbox machinery — the snippet content comes off
+ * the source ref's meta, no fetch needed. */
+.copilot-guideline-viewer__body {
+    text-align: left;
+    padding: 1.25em 1.25em 1.5em;
+    color: #2a2f36;
+    font-size: 0.95em;
+    line-height: 1.55;
+}
+
+.copilot-guideline-viewer__header-block {
+    margin-bottom: 1em;
+    padding-bottom: 0.75em;
+    border-bottom: 1px solid #e3e6ea;
+}
+
+.copilot-guideline-viewer__publication {
+    display: inline-block;
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #2c6b3f;
+    background: rgba(46, 125, 50, 0.10);
+    padding: 0.2em 0.55em;
+    border-radius: 3px;
+    margin-bottom: 0.55em;
+}
+
+.copilot-guideline-viewer__title {
+    font-size: 1.05em;
+    font-weight: 600;
+    color: #1a1f24;
+    margin: 0 0 0.25em;
+}
+
+.copilot-guideline-viewer__section {
+    font-size: 0.88em;
+    color: #5a6068;
+    margin: 0;
+}
+
+.copilot-guideline-viewer__quote {
+    border-left: 3px solid rgba(46, 125, 50, 0.55);
+    background: rgba(46, 125, 50, 0.04);
+    margin: 0 0 1em;
+    padding: 0.7em 0.95em;
+    color: #2a2f36;
+    font-style: italic;
+}
+
+.copilot-guideline-viewer__claim-block {
+    margin: 1em 0 0.5em;
+    padding-top: 0.75em;
+    border-top: 1px solid #e3e6ea;
+}
+
+.copilot-guideline-viewer__claim-label {
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5a6068;
+    margin: 0 0 0.35em;
+}
+
+.copilot-guideline-viewer__claim {
+    margin: 0;
+    color: #2a2f36;
+}
+
+.copilot-guideline-viewer__link {
+    display: inline-block;
+    margin-top: 0.5em;
+    color: #2058a8;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.copilot-guideline-viewer__link:hover {
+    text-decoration: underline;
+}
+
+.copilot-guideline-viewer__nolink {
+    display: inline-block;
+    margin-top: 0.5em;
+    color: #888;
+    font-size: 0.9em;
+}
+
+/* ───────── F.5a accept/reject controls + toast ───────── */
+
+/* Per F.0: accept/reject buttons sit inline-right of the fact value. */
+.copilot-fact-actions {
+    display: inline-flex;
+    gap: 0.4em;
+    margin-left: 0.6em;
+    vertical-align: baseline;
+}
+
+.copilot-fact-actions__btn {
+    font: inherit;
+    font-size: 0.8em;
+    line-height: 1.2;
+    padding: 0.15em 0.6em;
+    border-radius: 0.3em;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.copilot-fact-actions__btn:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.copilot-fact-actions__btn--accept {
+    background: #2563eb;
+    color: #fff;
+    border-color: #1d4ed8;
+}
+
+.copilot-fact-actions__btn--accept:not(:disabled):hover {
+    background: #1d4ed8;
+}
+
+.copilot-fact-actions__btn--reject {
+    background: transparent;
+    color: #475569;
+    border-color: #cbd5e1;
+}
+
+.copilot-fact-actions__btn--reject:not(:disabled):hover {
+    background: #f1f5f9;
+}
+
+/* After accept lands, the button group's accept button shows
+   "Accepted" and goes muted/inert. */
+.copilot-fact-actions--accepted .copilot-fact-actions__btn--accept {
+    background: #d1fae5;
+    color: #065f46;
+    border-color: #6ee7b7;
+}
+
+/* After reject lands, the whole claim row dims with a strikethrough
+   so the doctor still sees what they rejected without the fact
+   competing for attention. */
+.copilot-claim-groups__claim--rejected {
+    opacity: 0.55;
+    text-decoration: line-through;
+}
+
+.copilot-claim-groups__claim--rejected .copilot-fact-actions {
+    text-decoration: none;
+}
+
+/* Toast container — fixed bottom-right, stacks vertically. */
+.copilot-toast-container {
+    position: fixed;
+    bottom: 1.2em;
+    right: 1.2em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.copilot-toast {
+    pointer-events: auto;
+    min-width: 220px;
+    max-width: 360px;
+    padding: 0.6em 0.9em;
+    border-radius: 0.4em;
+    font-size: 0.9em;
+    line-height: 1.3;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    opacity: 0;
+    transform: translateY(0.4em);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.copilot-toast--visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.copilot-toast--leaving {
+    opacity: 0;
+    transform: translateY(0.4em);
+}
+
+.copilot-toast--success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
+
+.copilot-toast--error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }

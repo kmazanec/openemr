@@ -37,6 +37,11 @@ use DomainException;
  *     extractor_version?: string,
  *     rerank_score?: float|int,
  *     record_recorded_at?: string,
+ *     publication?: string,
+ *     title?: string,
+ *     year?: int,
+ *     url?: string,
+ *     section?: string,
  * }
  * @phpstan-type SourceReferenceArray array{
  *     source_type: 'chart'|'extracted_document'|'guideline',

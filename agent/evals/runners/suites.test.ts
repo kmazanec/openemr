@@ -37,13 +37,14 @@ const stubClient = (overrides: Partial<Client>): Client =>
     }) as unknown as Client;
 
 describe('briefingGraphSuite', () => {
-    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
-        // Merged-suite v1 — the predecessor archetypes-v4, lab-trends-v2,
-        // and morning-prep-v2 datasets are deprecated. Bump to -v2 if
-        // any of the case-kind input shapes change so prior experiments
-        // stay comparable.
-        expect(BRIEFING_GRAPH_DATASET_NAME.endsWith('-v1')).toBe(true);
-        expect(BRIEFING_GRAPH_DATASET_NAME).toBe('clinical-copilot-briefing-graph-v1');
+    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // Merged-suite v1 was the predecessor archetypes-v4 +
+        // lab-trends-v2 + morning-prep-v2 consolidation. Bumped to v2
+        // (F.5e) when the synthesizer's `ClaimCategory` enum gained a
+        // `family_history` slot — older experiments captured before
+        // the slot landed are no longer directly comparable.
+        expect(BRIEFING_GRAPH_DATASET_NAME.endsWith('-v2')).toBe(true);
+        expect(BRIEFING_GRAPH_DATASET_NAME).toBe('clinical-copilot-briefing-graph-v2');
     });
 
     it('skips when LANGSMITH_API_KEY is unset', async () => {
@@ -125,16 +126,16 @@ describe('briefingGraphSuite', () => {
 });
 
 describe('conversationalGraphSuite', () => {
-    it('uses a v3 dataset name (schema-bump contract: rename when shape changes)', () => {
-        // Bumped -v2 → -v3 when the case-group enum widened to add the
-        // five `refusal-*` scenarios (so the dataset's expectedGate
-        // shape gained a `'refusal'` arm). Bumped -v3 → -v4 when the
-        // suite absorbed the deleted end-to-end suite's behavioral
-        // coverage and added 26 realistic clinic-encounter cases (8
-        // document-retrieval, 8 guideline-retrieval, 4
-        // multi-retriever, 4 chart-only, 2 redaction). Bump again
-        // when the input/output shape changes so old experiments stay
-        // comparable.
+    it('uses a v4 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // Bumped to -v2 when the case-group enum widened to add
+        // multi-retriever and cap-hit. Bumped to -v3 (F.5e) when the
+        // synthesizer's `ClaimCategory` enum gained a `family_history`
+        // slot. Bumped -v3 → -v4 when the suite absorbed the deleted
+        // end-to-end suite's behavioral coverage and added 26
+        // realistic clinic-encounter cases (8 document-retrieval, 8
+        // guideline-retrieval, 4 multi-retriever, 4 chart-only, 2
+        // redaction). Bump again when the input/output shape changes
+        // so old experiments stay comparable.
         expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v4')).toBe(true);
     });
 });
@@ -144,6 +145,7 @@ describe('documentExtractionSuite', () => {
         expect(DOCUMENT_EXTRACTION_DATASET_NAME.endsWith('-v1')).toBe(true);
     });
 });
+
 
 /**
  * Standing policy: every eval suite runs against the real model

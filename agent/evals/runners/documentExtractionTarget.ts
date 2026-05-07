@@ -142,6 +142,7 @@ const buildFakeArtifactStore = (): FakeArtifactStoreContext => {
                 confirmedByUser: null,
             });
         },
+        findArtifactById: (): Promise<ExtractionArtifact | null> => Promise.resolve(null),
         insertArtifact: (a: NewExtractionArtifact): Promise<ExtractionArtifact> => {
             inserts.push(a);
             return Promise.resolve({

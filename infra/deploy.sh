@@ -56,6 +56,86 @@ if [[ ! -r "${ENV_FILE}" ]]; then
 fi
 
 # ---------------------------------------------------------------------
+# 1.5. Build the patient dashboard SPA bundle.
+# ---------------------------------------------------------------------
+# The dashboard at /dashboard/ (T1 onward) is a Vite-built React SPA.
+# Its build output, dashboard/dist/, is intentionally NOT vendored
+# into git — we build it here, into the release tree, before the
+# openemr container starts.
+#
+# The flex entrypoint rsyncs the bind-mounted /openemr source into
+# the container's writable docroot on boot (with --ignore-existing,
+# which is fine because dist/ doesn't yet exist in the docroot on a
+# fresh recreate). Apache then serves /dashboard/* off dist/ via the
+# T1.6 .htaccess rewrite.
+#
+# Build runs in a one-shot node:22-alpine container:
+#   - Node-on-host avoided: the 2 GB Droplet has no Node toolchain
+#     and we don't want to add one.
+#   - Mounts the *release tree* (not /srv/openemr/current) so a
+#     concurrent symlink swap by a follow-up deploy can't hand us a
+#     half-built workdir.
+#   - Named volume for node_modules so subsequent deploys reuse the
+#     install — first deploy ~30s, repeat deploys ~5s.
+log "building dashboard/dist/ for ${NEW_SHA}"
+# Run the build container as the host user so dashboard/dist/ ends up
+# owned by the deploy user, not root. Otherwise the prune step at the
+# end of this script (running unprivileged) can't `rm -rf` previous
+# releases and we leak release directories on every deploy.
+#
+# The named-volume node_modules cache also has to be writable by that
+# UID. On a fresh volume Docker creates the mountpoint as root:root, so
+# we one-shot a chown as root before the unprivileged build runs.
+#
+# Recursive: an earlier deploy may have populated the volume as root
+# (older builder image, or before this script ran the build container
+# unprivileged). `npm ci` wipes node_modules/ before reinstalling and
+# would EACCES on root-owned files like .bin/acorn. The recursive
+# chown is slow on the recovery deploy (~30k files) but a no-op on
+# subsequent deploys once the volume is deploy-user-owned.
+DEPLOY_UID=$(id -u)
+DEPLOY_GID=$(id -g)
+docker run --rm \
+    -v openemr-deploy-dashboard-node-modules:/cache \
+    alpine:3 chown -R "${DEPLOY_UID}:${DEPLOY_GID}" /cache
+
+# Vite inlines `import.meta.env.VITE_*` at build time, so the dashboard
+# bundle only knows the OIDC issuer/client/redirect/scope if those vars
+# are set in the build container. Source the shared /etc/openemr/.env
+# in a subshell, then forward only the four VITE_OIDC_* keys to docker
+# — narrowing keeps the rest of the .env (Spaces creds, Pinecone,
+# LangSmith, etc.) out of the build context and the bundle.
+#
+# Missing vars trip getOidcConfig() at app startup with a descriptive
+# error, so we don't silently ship a broken bundle. We `source` rather
+# than `eval`-after-grep because .env values may contain unquoted
+# spaces (e.g. VITE_OIDC_SCOPE is a space-separated SMART scope list).
+# `set -a` exports each key=value as we source.
+(
+    set -a
+    # shellcheck disable=SC1090
+    . "${ENV_FILE}"
+    set +a
+    : "${VITE_OIDC_ISSUER:?VITE_OIDC_ISSUER missing from ${ENV_FILE}}"
+    : "${VITE_OIDC_CLIENT_ID:?VITE_OIDC_CLIENT_ID missing from ${ENV_FILE}}"
+    : "${VITE_OIDC_REDIRECT_URI:?VITE_OIDC_REDIRECT_URI missing from ${ENV_FILE}}"
+    : "${VITE_OIDC_SCOPE:?VITE_OIDC_SCOPE missing from ${ENV_FILE}}"
+    docker run --rm \
+        --user "${DEPLOY_UID}:${DEPLOY_GID}" \
+        -v "${RELEASE_DIR}:/work-root" \
+        -v openemr-deploy-dashboard-node-modules:/work-root/dashboard/node_modules \
+        -w /work-root/dashboard \
+        -e HOME=/tmp \
+        -e npm_config_cache=/tmp/.npm \
+        -e VITE_OIDC_ISSUER \
+        -e VITE_OIDC_CLIENT_ID \
+        -e VITE_OIDC_REDIRECT_URI \
+        -e VITE_OIDC_SCOPE \
+        node:22-alpine \
+        sh -c 'npm ci --no-audit --no-fund && npm run build'
+)
+
+# ---------------------------------------------------------------------
 # 2. Recreate the openemr container.
 # ---------------------------------------------------------------------
 cd "${CONFIG_DIR}"
@@ -236,7 +316,16 @@ for r in "${all_releases[@]}"; do
         kept=$(( kept + 1 ))
     else
         log "prune ${r}"
-        rm -rf "${r}"
+        # Fall back to docker if rm hits permission denied. Older
+        # releases (pre-fix) have root-owned dashboard/dist/ files left
+        # behind by the build container; the unprivileged deploy user
+        # can't delete those directly.
+        if ! rm -rf "${r}" 2>/dev/null; then
+            log "rm -rf ${r} failed; retrying via docker as root"
+            docker run --rm \
+                -v "${RELEASES_DIR}:/releases" \
+                alpine:3 rm -rf "/releases/$(basename "${r}")"
+        fi
     fi
 done
 

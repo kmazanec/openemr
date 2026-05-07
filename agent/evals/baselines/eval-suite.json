@@ -4,7 +4,7 @@
   "commitSha": null,
   "commitMessage": "initial empirical baseline",
   "datasets": {
-    "clinical-copilot-briefing-graph-v1": {
+    "clinical-copilot-briefing-graph-v2": {
       "cases": {
         "archetype:complex_elderly": {
           "citation_present": true,

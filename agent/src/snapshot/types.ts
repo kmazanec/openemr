@@ -35,6 +35,11 @@ export interface SourceReference {
         readonly extractor_version?: string | undefined;
         readonly rerank_score?: number | undefined;
         readonly record_recorded_at?: string | undefined;
+        readonly publication?: string | undefined;
+        readonly title?: string | undefined;
+        readonly year?: number | undefined;
+        readonly url?: string | undefined;
+        readonly section?: string | undefined;
     } | undefined;
 }
 

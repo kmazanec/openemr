@@ -1,0 +1,204 @@
+# OpenEMR Dashboard SPA
+
+Modern patient-dashboard SPA for OpenEMR. Replaces the legacy
+PHP/iframe dashboard rendered below `interface/main/tabs/main.php`.
+The framework decision and integration architecture are defended in
+[`PATIENT_DASHBOARD_MIGRATION.md`](../PATIENT_DASHBOARD_MIGRATION.md);
+the story-by-story build plan lives in
+[`docs/dashboard/build-plan.md`](../docs/dashboard/build-plan.md).
+
+## Stack
+
+- React 19 + TypeScript 5 (strict + `noUncheckedIndexedAccess`)
+- Vite 6 (static SPA bundle, no Node runtime in production)
+- Vitest + React Testing Library (unit/component)
+- Playwright (smoke E2E)
+- ESLint 9 (flat config) + Prettier
+
+## Commands
+
+The default workflow runs the build inside a docker container —
+no host Node toolchain required. The `dashboard` service in
+`docker/development-easy/docker-compose.yml` runs `vite build --watch`
+in the background and writes `dist/` to the bind-mounted host tree;
+the openemr container's docroot picks it up and Apache serves
+`/dashboard/*` (T1.6).
+
+```sh
+# Once: start the dev stack (builds the dashboard image on first run).
+cd docker/development-easy && docker compose up -d
+
+# Tail the watcher's rebuild logs.
+docker compose logs -f dashboard
+
+# Hit the SPA via openemr's Apache.
+open http://localhost:8300/dashboard/
+
+# Ad-hoc commands inside the dashboard container.
+docker compose run --rm dashboard npm test
+docker compose run --rm dashboard npm run lint
+docker compose run --rm dashboard npm run typecheck
+```
+
+Host-side commands also still work if you have Node 22+ installed
+locally (`cd dashboard && npm install && npm run …`); the docker
+service is the recommended path for day-to-day work because it
+matches what CI and the production deploy do.
+
+| Command            | What it does                                                |
+| ------------------ | ----------------------------------------------------------- |
+| `npm install`      | Install deps. First-time only.                              |
+| `npm run dev`      | Vite dev server on http://localhost:5173/.                  |
+| `npm run build`    | Typecheck + production build to `dist/`.                    |
+| `npm test`         | Vitest, single run.                                         |
+| `npm run test:watch` | Vitest, watch mode.                                       |
+| `npm run typecheck`| `tsc --noEmit`. No emit; just type errors.                  |
+| `npm run lint`     | ESLint over `dashboard/`. CI gate.                          |
+| `npm run lint:fix` | ESLint with `--fix`.                                        |
+| `npm run format`   | Prettier `--write`.                                         |
+| `npm run format:check` | Prettier `--check`.                                     |
+| `npm run e2e`      | Playwright smoke. Auto-spawns the Vite dev server.          |
+| `npm run e2e:install` | One-time: `playwright install --with-deps`.              |
+| `npm run ci`       | `tsc --noEmit && vitest run`. Mirrors the CI gate.          |
+
+## Project layout
+
+```
+dashboard/
+├── src/
+│   ├── App.tsx                    # Wires the router and exports <App>
+│   ├── App.test.tsx
+│   ├── main.tsx                   # Vite entry
+│   ├── lib/
+│   │   ├── fhir.ts                # fhirclient + OIDC config (T2.1)
+│   │   └── fhir.test.ts
+│   └── routes/
+│       ├── routeTree.tsx          # TanStack Router tree (code-based)
+│       ├── login.tsx              # /login → FHIR.oauth2.authorize
+│       ├── authCallback.tsx       # /auth/callback → FHIR.oauth2.ready
+│       ├── dashboardLanding.tsx   # / and /dashboard placeholder
+│       ├── patient.tsx            # /patient/$pid placeholder (T4 fills)
+│       └── auth.test.tsx          # T2.2 unit coverage
+├── tests/
+│   ├── setup.ts                   # @testing-library/jest-dom registration
+│   └── e2e/
+│       └── smoke.spec.ts          # Playwright smoke
+├── eslint.config.js
+├── playwright.config.ts
+├── vite.config.ts
+├── vitest.config.ts
+├── tsconfig.json                  # Solution-style: refs app + node configs
+├── tsconfig.app.json              # `src/` + tests: strict, jsdom env
+├── tsconfig.node.json             # config files (vite.config.ts, …)
+└── README.md
+```
+
+> **Routing.** Routes are defined in code (`routes/routeTree.tsx`)
+> rather than via TanStack Router's file-based plugin. Same library,
+> same type safety, less generator churn for the small T2 route set.
+> If/when the file count makes the code-based tree painful (T4–T5
+> probably), a follow-up can migrate to file-based; the route
+> components are already split per-file to keep that easy.
+
+## Dev environment integration
+
+The SPA is served at `/dashboard/` in production. `dashboard/.htaccess`
+(T1.6) handles two things:
+
+- Maps real files under `dashboard/dist/` to clean URLs at
+  `/dashboard/*` (so the bundle's `<script src="/dashboard/assets/...">`
+  resolves without leaking `dist/` into URLs).
+- Falls through to `dashboard/dist/index.html` for any unknown path
+  so TanStack Router can resolve it.
+- Sets `Content-Security-Policy-Report-Only` per the policy in
+  `PATIENT_DASHBOARD_MIGRATION.md`. T6.5 flips report-only to
+  enforced after the integration cycle.
+
+For local iteration, `npm run dev` is the canonical loop — the SPA
+stands alone on `:5173` outside OpenEMR. Vite's `base` is set to
+`/dashboard/` for production builds and to `/` for the dev server
+(via `VITE_BASE=/` in `playwright.config.ts`'s webServer block).
+
+`dashboard/dist/` is **not vendored**. It is built fresh on every
+push and on every deploy:
+
+```
+git push to master
+  → CI runs test:dashboard
+      (lint, typecheck, vitest, vite build)
+      → emits dashboard/dist/ as a pipeline artifact (1 week TTL)
+  → CI deploy stage runs runner-bootstrap.sh
+      → fresh git clone into /srv/openemr/releases/<sha>/
+      → exec into infra/deploy.sh
+          → builds dashboard/dist/ inside a node:22-alpine container
+            against the release tree
+          → openemr container's bind mount picks up dist/ automatically
+  → Apache serves /dashboard/* off the new release tree
+```
+
+The CI artifact is for **inspection only** (download from the MR UI
+to spot-check a build). The bundle that reaches production is the
+one `deploy.sh` builds from the deploy SHA's source.
+
+## OAuth2 client registration (T2 onwards)
+
+Both dev and prod deploys need a registered OIDC client (see T0.2 in
+the build plan). The dashboard registers as a SMART **public** client
+(`application_type: "public"`) — no client secret, PKCE-only.
+
+> **Important:** OpenEMR's `application_type` field overloads the
+> public/confidential distinction. `"public"` → no `client_secret`,
+> auto-enabled if scopes are `patient/*` only. `"private"` → confidential
+> client with a generated `client_secret`, requires admin approval.
+> The `token_endpoint_auth_method` field is for confidential clients
+> only; omit it for public clients.
+
+One-time registration:
+
+```sh
+# Dev: site=default, host=https://localhost:9300, redirect=http://localhost:5173/auth/callback
+# Prod: site=default (or your site), host=https://emr.example.com,
+#       redirect=https://emr.example.com/dashboard/auth/callback
+curl -sk -X POST "https://{host}/oauth2/{site}/registration" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "application_type": "public",
+    "redirect_uris": ["{redirect_uri}"],
+    "client_name": "OpenEMR Patient Dashboard",
+    "scope": "openid fhirUser launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read"
+  }'
+```
+
+The response includes `client_id` and an empty `client_secret` (public
+client). Drop the `client_id` into `.env.local` (dev) or the
+production deployment env as `VITE_OIDC_CLIENT_ID`. See `.env.example`
+for the full var surface.
+
+> **Note on Medications scope.** OpenEMR's FHIR layer does not expose a
+> `patient/MedicationStatement.read` scope (verified against the dev
+> install on 2026-05-07). The build plan's T4.4 Medications card will
+> need to source from `MedicationRequest` or a non-FHIR endpoint —
+> revisit when T4.4 lands.
+
+## Conventions
+
+- **No repo-wide reformat.** `npm run lint`/`format` only operate
+  inside `dashboard/`. Drive-by lint changes outside this directory
+  are reverted before commit (project-wide convention — fork of
+  upstream `openemr/openemr`).
+- **No `any` without an inline justification.** Prefer `unknown` +
+  narrowing.
+- **Conventional Commits, scope `dashboard`.** Story IDs land in
+  the commit body: `Story: T1.4`.
+
+## Pre-commit (prek)
+
+The repo's `prek` config runs the dashboard's lint + typecheck on
+staged `dashboard/**/*.{ts,tsx}` files. To install the hooks:
+
+```sh
+prek install
+```
+
+If you don't yet have prek, the same checks run in CI on every
+push. Local install is recommended but not required.

@@ -39,7 +39,15 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\SystemClock;
 use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PromoteController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
+use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalAllergyListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalFamilyHistoryListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicalProblemListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicationStatementListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalProcedureReportTableWriter;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -67,20 +75,55 @@ if ($rawBody !== '') {
     }
 }
 
+$connection = AgentDbalConnection::get();
+$clock = new SystemClock();
+
 $labWriteService = new ObservationLabWriteService(
-    tableWriter: new DbalProcedureReportTableWriter(AgentDbalConnection::get()),
+    tableWriter: new DbalProcedureReportTableWriter($connection),
     eventDispatcher: $dispatcher,
-    clock: new SystemClock(),
+    clock: $clock,
+    logger: $logger,
+);
+
+$allergyWriteService = new AllergyListWriteService(
+    tableWriter: new DbalAllergyListsTableWriter($connection),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
+    logger: $logger,
+);
+
+$medicalProblemWriteService = new MedicalProblemWriteService(
+    tableWriter: new DbalMedicalProblemListsTableWriter($connection),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
+    logger: $logger,
+);
+
+$medicationStatementWriteService = new MedicationStatementWriteService(
+    tableWriter: new DbalMedicationStatementListsTableWriter($connection),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
+    logger: $logger,
+);
+
+$familyHistoryWriteService = new FamilyHistoryWriteService(
+    tableWriter: new DbalFamilyHistoryListsTableWriter($connection),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
     logger: $logger,
 );
 
 $controller = new PromoteController(
     auth: new AgentEndpointAuth($verifier, new SqlAgentActorResolver(), $logger, $parsed->siteId),
     labWriteService: $labWriteService,
+    allergyWriteService: $allergyWriteService,
+    medicalProblemWriteService: $medicalProblemWriteService,
+    medicationStatementWriteService: $medicationStatementWriteService,
+    familyHistoryWriteService: $familyHistoryWriteService,
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $parsed->siteId,
-    clock: new SystemClock(),
+    clock: $clock,
 );
 
 $controller->dispatch($parsed->bearer, $type, $decodedBody, $parsed->conversationId);

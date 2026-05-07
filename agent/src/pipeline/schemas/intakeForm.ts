@@ -18,7 +18,12 @@
 
 import { z } from 'zod';
 
-const bboxSchema = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const bboxSchema = z.tuple([
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+]);
 
 const citedField = <T extends z.ZodTypeAny>(value: T) =>
     z

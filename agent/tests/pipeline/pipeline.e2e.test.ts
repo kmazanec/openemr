@@ -163,6 +163,7 @@ const buildFakeArtifactStore = (): {
                 });
             },
         ),
+        findArtifactById: vi.fn(() => Promise.resolve(null)),
         insertArtifact: vi.fn((a: NewExtractionArtifact): Promise<ExtractionArtifact> => {
             inserts.push(a);
             counter += 1;

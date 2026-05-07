@@ -200,28 +200,259 @@ The original plan's note about Spaces transient caching with a 24h lifecycle and
 
 ---
 
-## F.5 Inline accept/reject controls per extracted fact
+## F.5 Inline accept/reject controls per extracted fact — split into F.5a–F.5f
 
-**Goal.** Each extracted fact in the "From documents" section carries small accept/reject buttons inline with the fact. Accept fires the appropriate Tier-3 promotion through `PromoteController` (per fact type). Reject marks the fact's disposition as rejected. After promotion: the fact transitions to a `chart` source-type chip on the next briefing turn.
+**Why split.** F.5 as originally written assumed only the lab path needed
+to land in this subphase, since F.2 had shipped the lab write service.
+In practice the user wants every extracted fact type promotable end to
+end (lab, allergy, medication_statement, past_medical_history,
+family_history). Each non-lab type needs its own write service against
+the OpenEMR `lists` table, with its own type-specific quirks
+(allergy's `verification`/`reaction`/`severity_al` columns reference
+`list_options`; medication needs the `lists_medication` sibling row;
+medical_problem's `diagnosis` column carries a coding-system prefix;
+family_history's natural key is composite). Each is its own focused
+sub-phase so the per-PR review surface stays manageable.
+
+The original F.5 goal — "accept fires Tier-3 promotion; reject marks
+disposition; fact transitions to chart chip on next turn" — is the
+goal of the split as a whole. F.5a establishes the UI plumbing and
+the disposition-recording surface; F.5b–F.5e add per-type write
+services and flip their `PromoteController` 501s; F.5f is the
+end-to-end integration test that locks the round-trip across every
+type.
 
 **Blocked by:** F.0 (UX review), F.2 (`ObservationLabWriteService`), F.3 (per-fact disposition), F.4 (chip-click flow).
 **Unblocks:** F.6.
 
-**Refs.** `W2_ARCHITECTURE.md` §"Layer 3 — inline accept/reject for Tier-3 promotion"; UX decisions captured in F.0.
+**F.0 design decisions (captured here so each split sub-phase can refer to them).**
+- **Accept/reject button placement:** inline-right of the fact value, compact pair.
+- **Confirmation toast:** ephemeral, ~3s, success-shaped messaging.
+- **Chip transition behavior on accept:** animated swap — apply the `chart` source-type variant class with a CSS transition so the chip recolors in place; the next-turn refresh fully redraws.
+
+---
+
+## F.5a Inline accept/reject UI + agent dispositions endpoint (lab-only end-to-end)
+
+**Goal.** The panel renders accept/reject buttons inline-right of every fact in the "From documents" section. Click handlers are fully wired. The accept path POSTs to `promote.php` (PHP-side Tier-3 write), then records the per-fact disposition through a new agent endpoint. The reject path POSTs the disposition directly (no chart write). For the lab fact type, the full round-trip works end-to-end: clicking accept on a recent extracted-lab value writes a `procedure_report`/`procedure_result` row through F.2's `ObservationLabWriteService`, fires the disclosure event, and flips the fact's disposition to `accepted`. For the four non-lab fact types the buttons render and the click POSTs to `promote.php`, but the controller still returns 501 (handled by the panel as a typed error toast) — the per-type write services land in F.5b–F.5e.
+
+**Blocked by:** F.0 (decisions captured above), F.2 (lab write service), F.3 (per-fact disposition store), F.4 (chip-click flow).
+**Unblocks:** F.5b, F.5c, F.5d, F.5e (each adds a new fact type to an already-working UI).
+
+**Refs.** `W2_ARCHITECTURE.md` §"Layer 3 — inline accept/reject for Tier-3 promotion"; F.0 decisions above; F.2 / F.3 / F.4 prior subphases.
 
 **Files touched.**
 - `interface/modules/custom_modules/oe-module-clinical-copilot/templates/panel.html.twig` — accept/reject button group per fact in "From documents".
-- `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js` — click handlers.
-- `interface/modules/custom_modules/oe-module-clinical-copilot/public/css/panel.css` — button styles.
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js` — click handlers, fetch wiring, toast, chip-swap animation.
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/css/panel.css` — button styles, toast, chip transition.
+- `agent/src/server/dispositionsRoute.ts` (new) — JWT-bearer-auth POST `/v1/agent/dispositions` route.
+- `agent/src/server/index.ts` — wire the new route.
+- `agent/src/graph/nodes/format.ts` — surface `artifactId` + `fieldPath` on each `extractedDocument` claim card so the panel has the data it needs to POST the disposition.
 
 **Checklist.**
-- [ ] Render accept/reject button group inline with each fact in "From documents" (placement per F.0 review).
-- [ ] **Accept flow:** click → POST `/promote.php?type=<type>` with the fact's payload → on 200, dispatch on UX decision (toast, animation, refresh). Re-render the fact in disabled state with a "Accepted" indicator until next-turn refresh.
-- [ ] **Reject flow:** click → POST `/promote.php?type=<type>&action=reject` → fact disposition updated; UI hides the fact (or shows it dimmed with "Rejected" indicator).
-- [ ] **Per-fact-only:** "accept all" / "reject all" deferred to post-MVP per architecture.
-- [ ] Tests: render test for the button group; JS test (mocked fetch) for accept happy path + reject; integration test against a fixture extracted artifact end-to-end.
+- [x] **Surface `artifactId` + `fieldPath` on extracted-document claim cards.** Already on the wire — every `Claim.sourceReferences[]` entry carries `source_id` (= artifactId) and `locator.field` (= fieldPath). The panel's `docPromotionTargetForClaim` reads them off the primary `extracted_document` ref directly; no agent-side data-shape change was needed.
+- [x] **Agent `/v1/agent/dispositions` endpoint.** Implemented in `agent/src/server/routes/dispositions.ts` — POST `{artifactId, fieldPath, status}` → `recordDisposition` round-trip. 12 vitest cases cover auth, dep wiring, envelope validation, accept + reject happy paths, and the store-throw branch. Wired through `createApp` via a `Partial<Pick<...>>` dep so legacy briefing tests stay green.
+- [x] **Agent `/v1/agent/accept_fact` middleman (β shape).** Implemented in `agent/src/server/routes/acceptFact.ts`. Added because the panel doesn't have the structured artifact data (analytes/values/units) and PHP can't read agent Postgres — so the panel POSTs `(artifactId, fieldPath, factType)`, the agent reads the artifact, materializes the F.2 lab body from `schemaJson.results[]`, calls `promote.php` with the panel's bearer, records the disposition. 22 vitest cases pin the lab happy path, the four 501 branches for non-lab types, every error envelope, and the disposition-fails-after-chart-write branch.
+- [x] **PolicyGate `accept_fact` action.** Adds the new action to `ACTION_SCOPE_ALLOWLIST` with the union of every Tier-3 write scope (`user/DiagnosticReport.cs`, `user/AllergyIntolerance.cs`, `user/MedicationStatement.cs`, `user/Condition.cs`). Holding the union here keeps the panel from having to round-trip the type to the proxy before each click; the agent middleman is the type-aware policy point. PHPUnit tests cover the happy + cross-patient branches.
+- [x] **Render accept/reject button group inline-right of each fact.** Button pair (`button.copilot-fact-actions__btn--accept`, `button.copilot-fact-actions__btn--reject`) carries `data-artifact-id`, `data-field-path`, `data-fact-type`. Renders only on `extractedDocument` section claims via `renderClaimWithChips({ withActions: true })`. The render-test layer covers the structural shape; helper-logic tests in `tests/js/copilot-panel-fact-actions.test.js` cover `factTypeForClaimCategory` + `docPromotionTargetForClaim`.
+- [x] **Accept click flow.** Click → POST `/agent.php?action=accept_fact` (proxy mints `accept_fact`-scoped JWT, forwards to the agent middleman) → on 200, fire toast + animated chip swap. Non-200 surfaces a typed error toast via `messageForFactActionCode`. Routes through the shared `postFactAction` helper (the result-envelope-shape pinned by jest tests).
+- [x] **Reject click flow.** Click → POST `/agent.php?action=dispositions` with `status='rejected'` → on 200, dim the claim row with strikethrough. Same shared `postFactAction` helper; same typed error toasts.
+- [x] **Ephemeral toast.** ~3s, fade-in/fade-out via CSS transition (`copilot-toast--visible` / `copilot-toast--leaving`), success/error variants. Lazy-mounted container (`ensureToastContainer`) so panels that never use it pay no DOM cost. Stacks vertically.
+- [x] **Animated chip swap.** After accept 200, `finalizeAccept` removes `copilot-source--document` and adds `copilot-source--chart` on every doc chip in the just-accepted claim. The CSS transition on `color`/`background-color`/`border-color` (added to both chip variants) drives the visual recolor.
+- [x] **Per-fact-only:** "accept all" / "reject all" deferred to post-MVP per architecture.
+- [x] Tests: 30 jest cases cover the helper logic; 12 + 22 vitest cases cover the dispositions and accept_fact routes; 25 PHPUnit cases pin PolicyGate's new action.
 
-**Definition of done.** Accept an extracted lab value on a live response → see toast (or whichever UX) → `Observation` row appears in OpenEMR for the patient → next conversational turn re-cites that value with `source_type='chart'`.
+**Definition of done.** A clinician on a live response with an extracted-lab fact in the "From documents" section can click "Accept" → see toast → `procedure_report` + `procedure_result` rows appear in OpenEMR for the patient → next conversational turn re-cites that value with `source_type='chart'` (because the agent's snapshot now reads the new chart row). For any of the four non-lab types, clicking "Accept" produces a typed error toast ("This fact type is not yet promotable") — the buttons render, the click is wired, and F.5b–F.5e flip 501→200 incrementally without UI work.
+
+---
+
+## F.5b `AllergyListWriteService` — Tier-3 allergy promotion
+
+**Goal.** New PHP write service that lands an extracted allergy fact as a `lists` row with `type='allergy'`, populating the type-specific columns (`reaction`, `verification`, `severity_al`) with values that match what the OpenEMR allergy widget displays. Idempotent on `(source_document_uuid, lower(trim(title)))`. Fires `AgentDisclosedEvent` with `categories=['allergy']`. `PromoteController` flips its 501 branch for `?type=allergy` to dispatch through this service.
+
+**Blocked by:** F.5a (UI plumbing in place; without it the new service is unreachable from a clinician click).
+
+**Unblocks:** F.5f (the integration test exercises every type).
+
+**Refs.** `W2_ARCHITECTURE.md` §"Tier 3 — chart records" (intake-form → lists row); F.2 `ObservationLabWriteService` as the structural pattern; OpenEMR's `AllergyIntoleranceService` as the reference for which `lists` columns + `list_options` FKs are required for the chart UI to display the row correctly.
+
+**Files touched.**
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyListWriteService.php` (new).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyPromotionRequest.php` (new — typed DTO).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyPromotionResult.php` (new).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyListsTableWriter.php` (new — interface, mirrors `ProcedureReportTableWriter` shape).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/Production/DbalAllergyListsTableWriter.php` (new — production DBAL impl).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/AllergyPromotionRequestParser.php` (new).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/PromoteController.php` (edit — flip the `allergy` 501 branch to dispatch the new service).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/src/Events/AllergyListEntryCreatedEvent.php` (new — post-insert event mirroring `ProcedureReportCreatedEvent`).
+- `interface/modules/custom_modules/oe-module-clinical-copilot/public/snapshot/promote.php` (edit — wire the new service into the bootstrap).
+- `tests/Tests/Isolated/Modules/ClinicalCopilot/Service/AllergyListWriteServiceTest.php` (new — service + controller + parser tests).
+
+**Checklist.**
+- [x] **Schema check.** F.1's `lists.source_document_uuid` covers it; allergy writes use the existing `lists` columns (`severity_al`, `reaction`, `verification`) that ship with stock OpenEMR. No new schema work.
+- [x] **`AllergyPromotionRequest` DTO** with `normalizedSubstance()` helper for case-insensitive idempotency. Required: `pid`, `sourceDocumentUuid`, `substance`. Optional: `reactionOptionId`, `verificationOptionId`, `severity`, `comments`, `onsetDate`. `promotedByUserId` is controller-supplied (sourced from the verified JWT actor, never the body).
+- [x] **`AllergyListWriteService::write()`.** Idempotent on `(source_document_uuid, normalizedSubstance())`. On hit, returns existing UUID with `idempotentHit=true`. On miss, inserts via `AllergyListsTableWriter::insertAllergy()`, fires `AllergyListEntryCreatedEvent`.
+- [x] **`AllergyListsTableWriter` interface + `DbalAllergyListsTableWriter` impl.** Mirrors the F.2 lab writer shape. SELECT-then-INSERT idempotency with `LOWER(TRIM(title))` matched on both sides so case + whitespace variants collapse correctly. Writes the canonical `lists` row with `type='allergy'`, mints a fresh `lists.uuid` (binary), populates `severity_al` / `reaction` / `verification` / `source_document_uuid` / `user` / `pid` / `title` / `comments` / `begdate`.
+- [x] **`PromoteController` dispatch flip.** Added `dispatchAllergy()` mirroring `dispatchLab()`. New `SCOPE_ALLERGY = 'user/AllergyIntolerance.cs'` public constant. Removed `TYPE_ALLERGY` from `NOT_YET_IMPLEMENTED_TYPES`. Switched the dispatcher to a `match` over the implemented types so PHPStan enforces exhaustiveness on future per-type adds. Extracted shared `fireDisclosure()` helper since lab + allergy carry the same disclosure-event shape with different categories.
+- [x] **`AllergyPromotionRequestParser`** with the same boundary discipline as the lab parser — `\DomainException` on missing/invalid inputs, `promoted_by_user_id` not in the body.
+- [x] **`AllergyListEntryCreatedEvent`** mirrors `ProcedureReportCreatedEvent`. Carries `listUuid`, `listRowId`, `pid`, `sourceDocumentUuid`, `substance`, `createdAt`.
+- [x] **`promote.php` bootstrap edit.** Constructs both services off a shared `Connection` + `SystemClock` and passes both to `PromoteController`.
+- [x] **Disclosure event fires** with `action='tier3_promotion'`, `categories=['allergy']` via the shared `fireDisclosure()` helper.
+- [x] **Tests** (`AllergyListWriteServiceTest`, 13 cases): service round-trip + dispatches event; idempotent re-call (incl. case + whitespace variants); table-writer failure → `RuntimeException`; DTO rejects empty required fields; controller happy path; idempotent re-call through the dispatcher; lab-scope cannot promote allergy (cross-scope check); missing/invalid bearer/scope/body envelopes. Plus the agent-side branch flip in `acceptFact.test.ts` (3 new allergy cases) covering the materializer + the cross-doctype mismatch + unsupported-fieldPath errors.
+- [x] **PHPStan level 10 clean** across the new code; no baseline entries; no `@phpstan-ignore` markers.
+
+**Additional infra delivered alongside F.5b** (planned for F.5c–F.5e but landed early because allergy needed it):
+
+- **`PersistedListEntry`** value object — shared by every list-shaped Tier-3 fact type (allergy + the three remaining types in F.5c–F.5e).
+- **Agent-side `acceptFact` middleman flip** for `factType='allergy'`: new `materializeAllergyPromotionBody()` that reads `intake_form` artifacts' `allergies[<idx>]` slot, plus the dispatch update from "lab-only branch / 501 fallthrough" to "lab or allergy / 501 fallthrough for the remaining three types." Refactored the materialized-body type into a shared `Materialized` alias so F.5c–F.5e can mirror without redeclaring.
+- **`openemrPromoteClient.PromoteResult.observationUuids`** is now structurally optional (an empty array projection for single-row chart records). Lab still returns one UUID per analyte; allergy + the three F.5c–F.5e types collapse to `[]`.
+
+**Definition of done.** Click "Accept" on an extracted allergy fact in the panel → `lists` row with `type='allergy'`, `source_document_uuid`, and all required columns appears for the patient → fact's disposition flips to `accepted` → next conversational turn re-cites the allergy with `source_type='chart'`.
+
+---
+
+## F.5c `MedicationStatementWriteService` — Tier-3 patient-reported medication promotion
+
+**Goal.** Extracted medication facts (from intake forms — patient-reported, distinct from the prescription-table flow) land as a `lists` row with `type='medication'` plus a sibling `lists_medication` row flagged as a reported (not primary) record. Idempotent on `(source_document_uuid, lower(trim(drugName)))`. `PromoteController` flips its 501 branch.
+
+**Blocked by:** F.5a, F.5b (shared `PersistedListEntry` + `Materialized` type alias + the optional `observationUuids` projection).
+**Unblocks:** F.5f.
+
+**Refs.** `W2_ARCHITECTURE.md` §"Tier 3 — chart records" (intake-form → `lists_medication`); W1 §4.6.4 (the patient-reported-medication / `MedicationStatement` distinction); OpenEMR's `MedicationPatientIssueService` as the reference for `lists_medication` column shape; F.5b `AllergyListWriteService` as the structural pattern for everything except the two-table insert.
+
+**Shared infra reused (already on master from F.5b).**
+- `Service/PersistedListEntry` — the canonical return shape; do not declare `PersistedMedicationStatementEntry`.
+- `agent/src/server/routes/acceptFact.ts` — exports a `Materialized` type alias; F.5c's `materializeMedicationStatementPromotionBody` returns it.
+- `openemrPromoteClient.PromoteResult.observationUuids` is structurally optional already; medication's response collapses to `[]` (single-row chart record like allergy). No change needed.
+- `PromoteController` is already a `match` over implemented types with a shared `fireDisclosure()` helper. F.5c just adds `SCOPE_MEDICATION_STATEMENT`, `dispatchMedicationStatement()`, removes `TYPE_MEDICATION_STATEMENT` from `NOT_YET_IMPLEMENTED_TYPES`, and adds the match arm.
+
+**Files touched.**
+- `src/Service/MedicationStatementWriteService.php`, `MedicationStatementPromotionRequest.php`, `MedicationStatementPromotionResult.php`, `MedicationStatementListsTableWriter.php` (interface), `Production/DbalMedicationStatementListsTableWriter.php` (impl), `Controller/MedicationStatementPromotionRequestParser.php`, `Events/MedicationStatementListEntryCreatedEvent.php`.
+- `Controller/PromoteController.php` (dispatch flip + match arm).
+- `public/snapshot/promote.php` (bootstrap; service constructed off the shared `Connection` + `SystemClock` like the lab + allergy writers).
+- `agent/src/server/routes/acceptFact.ts` (add `materializeMedicationStatementPromotionBody`; flip the dispatch from "lab|allergy / 501 fallthrough" to "lab|allergy|medication_statement / 501 fallthrough for the remaining two types").
+- `agent/tests/server/acceptFact.test.ts` (3 new vitest cases mirroring the F.5b allergy block: happy path, missing optional fields, fact_type_mismatch + unsupported_field_path).
+- `tests/Tests/Isolated/Modules/ClinicalCopilot/Service/MedicationStatementWriteServiceTest.php`.
+
+**Checklist.**
+- [x] **DTO** carries: `pid`, `sourceDocumentUuid`, `drugName` (the `title`), `dosageInstructions` (the `lists_medication.drug_dosage_instructions`; nullable), `usageCategory` (NOT NULL — defaults to `'patient_reported'` if the body omits it), `requestIntent` (NOT NULL — defaults to `'plan'` or `'order'` per `MedicationPatientIssueService`'s convention; pick at implementation time), `comments`, `onsetDate`, `promotedByUserId`. *(Implementation chose `community` / `Home/Community` for the usage-category default — best fit for patient-reported intake-form medications, FHIR MedicationRequest's "self-administered home meds" category — and `plan` / `Plan` for the request-intent default — chart record documenting intended use without authorizing dispense. The DTO carries both option_id + companion `*_title` columns explicitly because the schema's `*_title` columns are NOT NULL.)*
+- [x] **Pass-through free text for `list_options`-shaped columns where the schema allows it.** Per the F.5b precedent (`reaction`/`verification`/`severity_al` carry agent free text without FK validation; chart UI displays as-is), `usage_category` and `request_intent` should accept free text too — but their `lists_medication` columns are NOT NULL with companion `*_title` columns, so the writer needs to populate both `usage_category` (option_id) and `usage_category_title` (display title) consistently. Confirm at implementation: do real OpenEMR rows use `option_id == title`, or are they distinct? Pick a default that satisfies the NOT NULL + the chart-UI display path. *(Confirmed distinct: `option_id` is the FHIR ValueSet code (e.g. `community`), `*_title` is the human-readable display (`Home/Community`). `MedicationPatientIssueService::populateListOptionValues()` looks up the title from `list_options.title` keyed on option_id; the writer mirrors that contract verbatim by accepting both fields and passing them through. Schema confirmed via `sql/database.sql` — `usage_category_title VARCHAR(255) NOT NULL`, `request_intent_title VARCHAR(255) NOT NULL`.)*
+- [x] **Two-row insert under transaction.** `lists` row (type=medication, title, comments, begdate, source_document_uuid, …) + `lists_medication` row (list_id=newly-minted lists.id, drug_dosage_instructions, usage_category, usage_category_title, request_intent, request_intent_title, is_primary_record=0, medication_adherence_information_source=`patient`). Unlike F.5b's single-table insert, this one needs `Connection::beginTransaction()` / `commit()` / `rollBack()` like F.2 (`DbalProcedureReportTableWriter`). *(Implemented in `DbalMedicationStatementListsTableWriter::insertMedication()`; column set documented in the writer's top-of-file comment for future readers.)*
+- [x] **Idempotency** on `(source_document_uuid, lower(trim(drugName)))` — the SELECT joins `lists` to `lists_medication` (LEFT JOIN so an orphaned `lists` row is still found and the writer doesn't double-insert). Same `LOWER(TRIM(...))`-on-both-sides pattern as F.5b. *(LEFT JOIN implemented even though only `lists.id`/`lists.uuid` are read back — the join shape ensures correctness if `lists_medication` insert fails between the two-row inserts on a future migration that splits them. Idempotency-key collision tested for case + whitespace variants.)*
+- [x] **`PromoteController` integration:** add `SCOPE_MEDICATION_STATEMENT = 'user/MedicationStatement.cs'` (already in `PolicyGate`'s `accept_fact` scope union from F.5a), `dispatchMedicationStatement()`, the match arm, the `chart_record_type` marker (`'list_medication_statement'`).
+- [x] **`promote.php` bootstrap edit.** Construct the new service alongside `labWriteService` and `allergyWriteService` off the shared connection + clock.
+- [x] **Disclosure event** with `categories=['medication_statement']`. Routes through the existing `fireDisclosure()` helper.
+- [x] **Agent middleman flip.** New `materializeMedicationStatementPromotionBody` reading `intake_form` artifacts' `current_medications[<idx>]` slot. Schema fields: `name` → `drug_name`; `dose` + `frequency` + `route` + `notes` compose into `dosage_instructions` (free text). Confirm the synthesizer's `medication_statement` claim category routes through the panel correctly (F.5a's `factTypeForClaimCategory` already maps it to `factType: 'medication_statement'`). *(Composed via space-join of present non-empty parts; nullable when all four sub-fields are missing. The PHP-side parser supplies `usage_category`/`request_intent` defaults so the middleman body can stay minimal.)*
+- [x] **Tests:** PHPUnit (mirror F.5b's 13-case `AllergyListWriteServiceTest` shape — service round-trip, idempotency including case + whitespace variants, table-writer failure, DTO rejects empty fields, controller happy path + idempotent re-call + cross-scope rejection + missing/invalid envelopes). Plus 3 new vitest cases on the agent side. *(13 PHPUnit cases in `MedicationStatementWriteServiceTest`, 3 vitest cases — happy path, missing optional fields, fact_type_mismatch + unsupported_field_path. Lab + allergy controller tests' constructor-arg lists updated to pass the new `medicationStatementWriteService` arg with no-op stubs.)*
+- [x] **PHPStan level 10 clean.** No new baseline entries; no `@phpstan-ignore`.
+- [x] **Commit shape.** Bundle into one cohesive commit (per F.5b's lessons-learned: pre-commit phpstan-on-staged-files surfaces cross-file references when controller flip + service stack are split).
+
+**Definition of done.** Click "Accept" on an extracted medication-statement fact → `lists` + `lists_medication` rows appear, flagged as a reported (not primary) record → fact's disposition flips → next turn re-cites with `source_type='chart'`.
+
+---
+
+## F.5d `MedicalProblemWriteService` — Tier-3 past-medical-history promotion
+
+**Goal.** Extracted past-medical-history facts (from intake forms) land as a `lists` row with `type='medical_problem'`, populating `title` (display label) and `diagnosis` (coded value when the agent supplies one; otherwise empty / free-text). Idempotent on `(source_document_uuid, lower(trim(title)))`. `PromoteController` flips its 501 branch.
+
+**Blocked by:** F.5a, F.5b (shared `PersistedListEntry` + `Materialized` + the F.5c-or-F.5b precedent for the shape).
+**Unblocks:** F.5f.
+
+**Refs.** OpenEMR's `ConditionService` (line 80 forces `type='medical_problem'`) as the reference for column shape; F.5b `AllergyListWriteService` as the structural pattern (medical_problem is single-table like allergy).
+
+**Shared infra reused (already on master).**
+- `Service/PersistedListEntry`.
+- `agent/src/server/routes/acceptFact.ts` `Materialized` alias.
+- `PromoteController` `match` dispatch + `fireDisclosure()` helper.
+
+**Files touched.**
+- `src/Service/MedicalProblemWriteService.php`, `MedicalProblemPromotionRequest.php`, `MedicalProblemPromotionResult.php`, `MedicalProblemListsTableWriter.php`, `Production/DbalMedicalProblemListsTableWriter.php`, `Controller/MedicalProblemPromotionRequestParser.php`, `Events/MedicalProblemListEntryCreatedEvent.php`.
+- `Controller/PromoteController.php`, `public/snapshot/promote.php`.
+- `agent/src/server/routes/acceptFact.ts` (add `materializeMedicalProblemPromotionBody`).
+- `agent/tests/server/acceptFact.test.ts` (3 new vitest cases).
+- `tests/Tests/Isolated/Modules/ClinicalCopilot/Service/MedicalProblemWriteServiceTest.php`.
+
+**Checklist.**
+- [x] **DTO** carries: `pid`, `sourceDocumentUuid`, `title` (the human-readable condition label, e.g. "Type 2 diabetes"), `diagnosis` (optional coded value, free text or coding-system-prefixed; nullable), `verificationOptionId` (optional; pass-through per F.5b precedent), `comments`, `onsetDate`, `promotedByUserId`.
+- [x] **Drop the strict coding-system prefix validation.** The intake-form schema's `past_medical_history[<idx>]` carries free-text `condition` + optional `notes`; the agent does not currently extract ICD/SNOMED codes from intake forms. Treat `diagnosis` as optional; if the agent supplies a prefixed code (e.g. `ICD10:E11.9`), pass it through verbatim. Otherwise the column stays empty and `lists.title` carries the human label. (Implementation note: live `lists.diagnosis` is `varchar(255) NULL DEFAULT NULL`, not the NOT NULL DEFAULT '' the planning doc inferred; the writer passes `''` for missing values to match the convention `ConditionService` uses where empty diagnosis is treated as "no code yet.")
+- [x] **Single-row insert** into `lists` with `type='medical_problem'`. No transaction needed. Mints `lists.uuid` (binary).
+- [x] **Idempotency** on `(source_document_uuid, lower(trim(title)))`. Title (not diagnosis) is the natural key because the agent reliably has a `condition` string but may not have a coded value. (Same `LOWER(TRIM(title))`-on-both-sides shape as F.5b allergy.)
+- [x] **`PromoteController` integration:** add `SCOPE_MEDICAL_PROBLEM = 'user/Condition.cs'` (already in PolicyGate's `accept_fact` scope union from F.5a), `dispatchMedicalProblem()`, the match arm, the `chart_record_type` marker (`'list_medical_problem'`). `verification` is populated as the agent free-text pass-through (or `''` when omitted), matching F.5b's allergy precedent for `list_options`-shaped columns.
+- [x] **Agent middleman flip.** New `materializeMedicalProblemPromotionBody` reading `intake_form` artifacts' `past_medical_history[<idx>]` slot. Maps `condition` → `title`, `onset_year` → `onset_date` (4-digit year, range 1900..currentYear+1, normalized to `YYYY-01-01`; out-of-range / non-year strings are silently dropped from the body so a malformed `onset_year` doesn't fail the whole promotion), `notes` → `comments`. Synthesizer's `medication_statement`/`diagnosis` category routing — F.5a's comment notes `diagnosis` claims map to `factType: 'past_medical_history'` because `ClaimCategory` has no `family_history` slot; F.5d inherits that decision. (See F.5e for the family-history disambiguation question.)
+- [x] **Tests:** PHPUnit mirror of F.5b's 13-case shape + 3 new vitest cases (happy path with onset_year normalization; minimal body with optional fields omitted; fact_type_mismatch + unsupported_field_path bundled per F.5b shape).
+- [x] **PHPStan level 10 clean.** Full-codebase run, no baseline entries, no `@phpstan-ignore`, no `@var` casts.
+- [x] **Commit shape.** One cohesive commit (per F.5b's lessons-learned).
+
+**Definition of done.** Click "Accept" on an extracted past-medical-history fact → `lists` row with `type='medical_problem'`, `title` populated, `source_document_uuid` set, `diagnosis` set if the agent supplied a coded value (else empty) → fact's disposition flips → next turn re-cites with `source_type='chart'`.
+
+---
+
+## F.5e `FamilyHistoryWriteService` — Tier-3 family-history promotion
+
+**Goal.** Extracted family-history facts (from intake forms) land as a `lists` row with `type='family_history'`, populating `title` (e.g. "Mother — Type 2 diabetes"), `comments` (free-form additional context), and `begdate` if the intake form supplied an age-of-onset. Idempotent on `(source_document_uuid, lower(trim(title)))`. `PromoteController` flips its 501 branch.
+
+**Blocked by:** F.5a, F.5b (shared `PersistedListEntry` + `Materialized` + the precedent for single-table list-row writes).
+**Unblocks:** F.5f.
+
+**Refs.** Stock OpenEMR has no dedicated family-history service; `lists` rows with `type='family_history'` are the canonical chart representation per F.1's clarification (architecture's named `family_history` table doesn't exist in stock OpenEMR). F.5b `AllergyListWriteService` as the structural pattern.
+
+**Shared infra reused (already on master).** Same as F.5d.
+
+**Open question carried forward from F.5a/F.5d.** The synthesizer's `ClaimCategory` enum has no `family_history` slot — both `past_medical_history` and `family_history` claims surface as `category='diagnosis'` and the panel's `factTypeForClaimCategory` maps `'diagnosis'` → `factType: 'past_medical_history'` unconditionally. Two possible resolutions when F.5e lands:
+
+1. **Add `family_history` to `ClaimCategory` and update the synthesizer schema.** The panel maps `'family_history'` → `factType: 'family_history'`; the agent middleman dispatches correctly. Cleanest, but requires a synthesizer schema bump and a dataset version bump (per the W2 dataset-version convention).
+2. **Disambiguate on the artifact side.** F.5e's middleman receives `factType: 'past_medical_history'` from the panel but the artifact's `intake_form.family_history[<idx>]` slot is the only matching `fieldPath` shape — the materializer routes on the `fieldPath` prefix (`family_history.*` → `materializeFamilyHistory`, `past_medical_history.*` → `materializeMedicalProblem`) regardless of `factType`. Less invasive, but the panel-side disambiguation is implicit.
+
+Pick (1) at F.5e implementation time — the synthesizer-schema bump is small and the dataset-version-bump convention is already established. Captured here so the F.5e author has the decision context.
+
+**Files touched.**
+- `src/Service/FamilyHistoryWriteService.php`, `FamilyHistoryPromotionRequest.php`, `FamilyHistoryPromotionResult.php`, `FamilyHistoryListsTableWriter.php`, `Production/DbalFamilyHistoryListsTableWriter.php`, `Controller/FamilyHistoryPromotionRequestParser.php`, `Events/FamilyHistoryListEntryCreatedEvent.php`.
+- `Controller/PromoteController.php`, `public/snapshot/promote.php`.
+- `agent/src/server/routes/acceptFact.ts` (add `materializeFamilyHistoryPromotionBody`; flip the dispatch from "lab|allergy|medication_statement|past_medical_history / 501 fallthrough" to "all five types covered").
+- `agent/tests/server/acceptFact.test.ts` (3 new vitest cases).
+- `agent/src/graph/types.ts` (if option 1 above): add `'family_history'` to `ClaimCategory`. Bump synthesizer dataset versions.
+- `tests/Tests/Isolated/Modules/ClinicalCopilot/Service/FamilyHistoryWriteServiceTest.php`.
+
+**Checklist.**
+- [x] **Resolve the family_history-vs-past_medical_history disambiguation** (see "Open question" above). Picked option 1 — added `family_history` slot to `ClaimCategory`, synthesizer's structured-output enum, `format.ts`'s `CHART_CATEGORY_RANK`, and the panel's `factTypeForClaimCategory`. Bumped briefingGraphSuite (-v1→-v2), conversationalGraphSuite (-v2→-v3), endToEndSuite (-v2→-v3) per the W2 dataset-version convention; documentExtractionSuite stayed at -v1 (it doesn't reference `ClaimCategory`). Fixture regen produced no diff (the dataset shape itself didn't change; only the version label).
+- [x] **DTO** carries: `pid`, `sourceDocumentUuid`, `relation` (e.g. "Mother", "Paternal Grandfather"), `condition` (e.g. "Type 2 diabetes", "Heart disease"), `ageOfOnset` (nullable), `comments`, `promotedByUserId`. The `title` column is computed as `"{relation} — {condition}"` (em-dash separator, exposed as `FamilyHistoryPromotionRequest::TITLE_SEPARATOR`) in the service before the idempotency lookup. `normalizedTitle()` applies lower + trim to the composite for the SELECT key.
+- [x] **Single-row insert** into `lists` with `type='family_history'`. Idempotency on `(source_document_uuid, lower(trim(title)))` — composite normalization happens in the service. No transaction needed. `begdate` column receives `ageOfOnset` if supplied; null otherwise (the intake-form schema has no field for it today).
+- [x] **`PromoteController` integration:** added `SCOPE_FAMILY_HISTORY = 'user/FamilyMemberHistory.cs'` (the dedicated FHIR resource for family history; `Condition.cs` would have collided with the future F.5d past-medical-history branch and let an over-broadly minted Condition token write a family-history row). Added the scope to PolicyGate's `accept_fact` allowlist + the matching PolicyGateTest assertion. Added `dispatchFamilyHistory()`, the match arm, the `chart_record_type` marker (`'list_family_history'`). Removed `TYPE_FAMILY_HISTORY` from `NOT_YET_IMPLEMENTED_TYPES`.
+- [x] **Agent middleman flip.** New `materializeFamilyHistoryPromotionBody` reads `intake_form` artifacts' `family_history[<idx>]` slot. Schema fields: `relation` + `condition` are passed through *separately* (rather than pre-composed) so the PHP service owns the canonical em-dash form and idempotency normalization; `notes` → `comments`. Schema has no `age_of_onset` field today — middleman omits `onset_date`. Dispatch arm for `family_history` lands alongside the existing `lab` and `allergy` branches.
+- [x] **Tests:** PHPUnit `FamilyHistoryWriteServiceTest` mirrors F.5b's 13-case shape (round-trip + dispatches event; idempotent re-call; idempotent across case+whitespace; table-writer failure → `RuntimeException`; DTO rejects empty fields; controller happy path; idempotent re-call through dispatcher; cross-scope check (lab token cannot write family history); missing/invalid envelopes). 3 new vitest cases on `acceptFact.test.ts` (family_history happy path; missing optional fields; fact_type_mismatch + unsupported_field_path). Existing `ObservationLabWriteServiceTest` and `AllergyListWriteServiceTest` updated to construct the controller with the new family-history dependency (no-op writers for unrelated branches).
+- [x] **PHPStan level 10 clean.**
+- [x] **Commit shape.** One cohesive commit for the implementation (PHP service + controller + agent middleman + dataset bumps + fixture regen + verifier `family_history` CategoryCheck stub); separate commit for plan flip.
+
+**Definition of done.** Click "Accept" on an extracted family-history fact → `lists` row with `type='family_history'` and a composite `title` appears → fact's disposition flips → next turn re-cites with `source_type='chart'`.
+
+---
+
+## F.5f End-to-end Tier-3 promotion integration test (every fact type)
+
+**Goal.** A single integration test exercises the full F.5a–F.5e round-trip for every fact type, using fixture extraction artifacts. Per type: build an artifact, call the agent's `accept_fact` middleman programmatically, assert the materialized body matches the per-type `promote.php` contract, assert the chart row landed with `source_document_uuid` populated, assert the `extracted_fact_dispositions` row was written, assert the disclosure event fired with the right category. Re-run the same flow and assert idempotency.
+
+**Blocked by:** F.5a, F.5b, F.5c, F.5d, F.5e.
+
+**Refs.** F.7's round-trip test is the lab-only scope; this is the cross-type counterpart. F.5b's `AllergyListWriteServiceTest` and the existing `ObservationLabWriteServiceTest` define the per-type cell shapes — this test wires them together end-to-end across the full type set.
+
+**Shared infra it can lean on (already on master after F.5b).**
+- Per-type `InMemory<Type>ListsTableWriter` test doubles (lab has `InMemoryProcedureReportTableWriter`; allergy has `InMemoryAllergyTableWriter`; F.5c–F.5e ship their own). F.5f composes them rather than building a single composite writer.
+- `PersistedListEntry` shared shape so the test loop projects every type's result through one assertion helper.
+- Agent-side `Materialized` alias so the materializer-output assertion is type-uniform across all five types.
+
+**Files touched.**
+- `tests/Tests/Isolated/Modules/ClinicalCopilot/Service/Tier3PromotionRoundTripTest.php` (new).
+- Optionally: `agent/tests/server/acceptFact.roundTrip.test.ts` — a thin vitest that asserts the middleman's full `promote.php → recordDisposition` chain for each type using a fake `OpenEmrPromoteClient` plus a fake artifact store. The PHPUnit test covers the PHP-side write services; the vitest covers the agent-side materializer fan-out. Decide at implementation time whether the cross-language coverage is worth the second test file.
+
+**Checklist.**
+- [ ] One test method per fact type covering the round-trip + idempotency + disclosure (PHP side).
+- [ ] All five test methods pass against the in-memory writers; the production DBAL writers are exercised by their own focused tests in F.5a–F.5e.
+- [ ] Cross-type assertion helper that takes a per-type fixture and runs the same round-trip shape (idempotent re-call returns same UUID; disclosure event fires once with the right category; the second call's chart write is a no-op).
+- [ ] (Optional) agent-side vitest mirror.
+
+**Definition of done.** `composer phpunit-isolated -- --filter Tier3PromotionRoundTripTest` green; every fact type covered; idempotent re-call returns same IDs without duplicate rows; disclosure events recorded with the right per-type category.
+
+**Definition of done.** `composer phpunit-isolated -- --filter Tier3PromotionRoundTripTest` green; every fact type covered; idempotent re-call returns same IDs without duplicate rows.
 
 ---
 

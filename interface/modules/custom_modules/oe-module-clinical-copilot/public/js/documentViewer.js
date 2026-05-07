@@ -46,28 +46,29 @@ const __copilotDocumentViewer = (function () {
     const PDFJS_WORKER_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.mjs`;
 
     /**
-     * Vision-pipeline bbox coordinate space.
+     * Bbox coordinate space.
      *
-     * The agent rasterizes PDFs at 150 DPI (see
-     * `agent/src/pipeline/rasterizer.ts` — `RENDER_DPI`), but
-     * Anthropic's vision API internally downscales images to 1024px
-     * longest-edge for processing and returns bboxes in *that*
-     * resized space — not the rasterizer's pixel space we sent.
-     * Empirically confirmed by the bbox magnitudes returned for
-     * 8.5×11 inputs: x ranges up to ~875, y ranges up to ~1024.
+     * The vision pipeline returns bboxes as integers on a 0..1000 grid
+     * normalized to the page image: each component of `[x, y, w, h]`
+     * is "thousandths of the page's width or height". The panel divides
+     * by 10 to render a CSS percentage — independent of the rasterizer
+     * DPI, of any internal resize Anthropic's vision API applies, and
+     * of the PDF.js render scale we choose locally.
      *
-     * For overlay positioning we therefore need the page's
-     * vision-space denominator: (long-edge: 1024, short-edge:
-     * 1024 × short_pt / long_pt). PDF.js's native viewport gives us
-     * the PDF point dimensions to compute the short-edge ratio.
+     * Why a 1000-grid instead of `[0, 1]` floats: vision models tend to
+     * round normalized fractions to one decimal place, and on a
+     * letter-sized page 0.1 of height is ~5 rows of error. The
+     * 1000-grid forces precise integer outputs without asking the model
+     * to think in decimals.
      *
-     * If a future agent revision changes Anthropic's resize behavior
-     * (e.g. higher-resolution vision, or a different SDK option) the
-     * denominator here needs to track. The synthesizer prompt should
-     * eventually emit the natural-size denominator alongside the
-     * bbox so the panel doesn't have to guess.
+     * Older snapshots (extracted before this convention landed) carried
+     * bboxes in raw pixel space — values like `[55, 228, 820, 38]`. The
+     * renderer treats any bbox where x+w or y+h exceeds 1000 as "legacy
+     * pixel space" and falls back to absolute pixel positioning so old
+     * overlays still land on a defensible region of the page; see
+     * `renderBboxOverlay` below.
      */
-    const VISION_LONGEST_EDGE_PX = 1024;
+    const BBOX_GRID = 1000;
 
     const PDF_MIME = 'application/pdf';
     const IMAGE_MIMES = new Set(['image/png', 'image/jpeg']);
@@ -107,25 +108,17 @@ const __copilotDocumentViewer = (function () {
     };
 
     /**
-     * Bbox padding applied before rendering, to absorb known
-     * vision-model imprecision.
-     *
-     * Empirically the model's bbox is reliably *near* the cited
-     * content but biased upward — the y-coordinate lands roughly one
-     * row above the actual cell (sometimes citing the section header
-     * directly above the value rather than the value's row). The
-     * y-padding is therefore asymmetric: more downward than upward,
-     * so the highlight reliably catches the cited row even when the
-     * model's y is shifted up. Empirical row height in the model's
-     * output coordinate space is ~25-35 units; the values below
-     * cover ~half a row above and ~one and a half rows below.
-     *
-     * X is padded modestly on both sides in case the model
-     * undersized the column extent.
+     * Bbox padding (in 0..1000 grid units, i.e. thousandths of the
+     * page) applied before rendering, to absorb residual model
+     * imprecision around the row boundary. Modest values: the
+     * normalized integer bbox is much closer to the cited row than the
+     * legacy pixel-space output was, so we don't need the asymmetric
+     * "half a row above, one and a half rows below" cushion the old
+     * denominator math demanded.
      */
-    const BBOX_PAD_X = 8;
-    const BBOX_PAD_TOP = 10;
-    const BBOX_PAD_BOTTOM = 40;
+    const BBOX_PAD_X = 5;
+    const BBOX_PAD_TOP = 5;
+    const BBOX_PAD_BOTTOM = 5;
 
     /**
      * Render the bbox as a translucent overlay rectangle on top of the
@@ -134,19 +127,31 @@ const __copilotDocumentViewer = (function () {
      * containing-block coordinate system the absolute-positioned
      * overlay can sit inside.
      *
-     * Bbox is `[x, y, w, h]` in the natural pixel space of the source
-     * document (the rasterizer / vision pipeline records it that way).
-     * The rendered image is scaled down by `max-width: 100%` to fit
-     * the viewer pane, so absolute-pixel positioning would land the
-     * overlay way past the rendered image's right edge. When
-     * `naturalSize: { width, height }` is provided, the overlay is
-     * positioned in percentages of those natural dimensions — the
-     * overlay then scales with the rendered image. Without
-     * `naturalSize` (back-compat for unit tests + the canvas branch,
-     * where PDF.js's canvas already renders at the bbox's coordinate
-     * space), the overlay falls back to absolute pixels.
+     * Bbox is `[x, y, w, h]` on the 0..1000 grid (see `BBOX_GRID` above
+     * for the rationale). The overlay positions in CSS percentages, so
+     * it scales with whatever pixel size the page is rendered at — no
+     * per-page denominator needed.
+     *
+     * Legacy bboxes from snapshots produced before the normalized
+     * convention landed have values in raw pixel space (e.g. `820` of
+     * width). When any component lands well outside the grid we fall
+     * back to absolute pixel positioning so old conversations still
+     * render a defensible highlight against the canvas's intrinsic
+     * pixel size, even though it won't be perfectly placed.
      */
-    const renderBboxOverlay = (pageEl, bbox, naturalSize) => {
+    const isNormalizedBbox = (bbox) => {
+        const [x, y, w, h] = bbox;
+        if (![x, y, w, h].every((n) => Number.isFinite(n) && n >= 0)) return false;
+        // The model emits integers, but accept fractional values too —
+        // a future revision could go finer-grained without breaking
+        // older renderers. The grid bound is the discriminator; legacy
+        // pixel-space bboxes routinely exceed it (x+w near 875 with no
+        // grid normalization would land beyond 1000 only if we read
+        // them as already-grid-scaled, which is what catches them).
+        return x + w <= BBOX_GRID && y + h <= BBOX_GRID;
+    };
+
+    const renderBboxOverlay = (pageEl, bbox) => {
         if (!(pageEl instanceof HTMLElement)) return null;
         if (!Array.isArray(bbox) || bbox.length !== 4) return null;
         const [x, y, w, h] = bbox;
@@ -155,27 +160,20 @@ const __copilotDocumentViewer = (function () {
         overlay.className = 'copilot-doc-viewer__bbox';
         overlay.dataset.role = 'bbox-overlay';
         overlay.style.position = 'absolute';
-        // Pad the rectangle to absorb the vision model's known
-        // imprecision. Floor at 0 so a bbox near the page edges does
-        // not produce negative offsets. Y-padding is asymmetric (more
-        // downward than upward) to compensate for the model's
-        // upward y-bias.
-        const paddedX = Math.max(0, x - BBOX_PAD_X);
-        const paddedY = Math.max(0, y - BBOX_PAD_TOP);
-        const paddedW = w + 2 * BBOX_PAD_X;
-        const paddedH = h + BBOX_PAD_TOP + BBOX_PAD_BOTTOM;
-        if (naturalSize
-            && typeof naturalSize.width === 'number' && naturalSize.width > 0
-            && typeof naturalSize.height === 'number' && naturalSize.height > 0) {
-            overlay.style.left = `${(paddedX / naturalSize.width) * 100}%`;
-            overlay.style.top = `${(paddedY / naturalSize.height) * 100}%`;
-            overlay.style.width = `${(paddedW / naturalSize.width) * 100}%`;
-            overlay.style.height = `${(paddedH / naturalSize.height) * 100}%`;
+        if (isNormalizedBbox(bbox)) {
+            const paddedX = Math.max(0, x - BBOX_PAD_X);
+            const paddedY = Math.max(0, y - BBOX_PAD_TOP);
+            const paddedW = Math.min(BBOX_GRID - paddedX, w + 2 * BBOX_PAD_X);
+            const paddedH = Math.min(BBOX_GRID - paddedY, h + BBOX_PAD_TOP + BBOX_PAD_BOTTOM);
+            overlay.style.left = `${(paddedX / BBOX_GRID) * 100}%`;
+            overlay.style.top = `${(paddedY / BBOX_GRID) * 100}%`;
+            overlay.style.width = `${(paddedW / BBOX_GRID) * 100}%`;
+            overlay.style.height = `${(paddedH / BBOX_GRID) * 100}%`;
         } else {
-            overlay.style.left = `${paddedX}px`;
-            overlay.style.top = `${paddedY}px`;
-            overlay.style.width = `${paddedW}px`;
-            overlay.style.height = `${paddedH}px`;
+            overlay.style.left = `${Math.max(0, x)}px`;
+            overlay.style.top = `${Math.max(0, y)}px`;
+            overlay.style.width = `${w}px`;
+            overlay.style.height = `${h}px`;
         }
         return overlay;
     };
@@ -256,10 +254,7 @@ const __copilotDocumentViewer = (function () {
         const release = () => URL.revokeObjectURL(objectUrl);
         const onLoad = () => {
             release();
-            const overlay = renderBboxOverlay(wrapper, bbox, {
-                width: img.naturalWidth,
-                height: img.naturalHeight,
-            });
+            const overlay = renderBboxOverlay(wrapper, bbox);
             if (overlay !== null) {
                 wrapper.appendChild(overlay);
                 // Center the cited region in the drawer viewport. The
@@ -289,20 +284,10 @@ const __copilotDocumentViewer = (function () {
         const pageNumber = Number.isInteger(page) && page > 0 ? Math.min(page, pdf.numPages) : 1;
         const pdfPage = await pdf.getPage(pageNumber);
         const viewport = pdfPage.getViewport({ scale: 1.5 });
-        // Bboxes come back from Anthropic vision in 1024-longest-edge
-        // pixel space (the API's internal resize), not the rasterizer's
-        // 150 DPI pixel space. Compute the vision-space dimensions for
-        // this page from the PDF's native aspect ratio so
-        // renderBboxOverlay can position the overlay in percentages —
-        // independent of the PDF.js render scale we choose for display.
-        const nativeViewport = pdfPage.getViewport({ scale: 1 });
-        const longEdge = Math.max(nativeViewport.width, nativeViewport.height);
-        const shortEdge = Math.min(nativeViewport.width, nativeViewport.height);
-        const visionLong = VISION_LONGEST_EDGE_PX;
-        const visionShort = visionLong * (shortEdge / longEdge);
-        const naturalSize = nativeViewport.width >= nativeViewport.height
-            ? { width: visionLong, height: visionShort }
-            : { width: visionShort, height: visionLong };
+        // Bbox is normalized to the page (`[0, 1]`), so the overlay
+        // positions in CSS percentages on the wrapper — no denominator
+        // math needed; the wrapper sizes to the canvas, the canvas
+        // sizes to the viewport, and the percentages line up.
         const wrapper = mountEl.ownerDocument.createElement('div');
         wrapper.className = 'copilot-doc-viewer__page';
         wrapper.dataset.role = 'viewer-page';
@@ -316,7 +301,7 @@ const __copilotDocumentViewer = (function () {
         canvas.height = viewport.height;
         const ctx = canvas.getContext('2d');
         wrapper.appendChild(canvas);
-        const overlay = renderBboxOverlay(wrapper, bbox, naturalSize);
+        const overlay = renderBboxOverlay(wrapper, bbox);
         if (overlay !== null) wrapper.appendChild(overlay);
         mountEl.appendChild(wrapper);
         if (ctx) {

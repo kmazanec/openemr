@@ -1,0 +1,78 @@
+# Patient Dashboard SPA — Apache config (T1.6).
+#
+# This file ships at /var/www/localhost/htdocs/openemr/dashboard/.htaccess
+# inside the openemr container. The flex image's openemr.conf grants
+# `AllowOverride FileInfo` for the docroot, which permits both
+# RewriteRule and Header directives below.
+#
+# Two responsibilities:
+#   1. Serve the dist/ tree at /dashboard/* (so URLs don't leak the
+#      `dist` segment) and fall back to dist/index.html for any
+#      unknown route.
+#   2. Apply a strict, path-scoped Content-Security-Policy. Report-only
+#      first (this story); T6.5 flips to enforced once the integration
+#      cycle is clean.
+
+# ---------------------------------------------------------------------
+# 1. Serve dist/ at /dashboard/ + SPA routing fallback
+# ---------------------------------------------------------------------
+# Vite is configured with `base: '/dashboard/'` so the production
+# bundle's <script src>, <link href>, etc. reference URLs like
+# /dashboard/assets/index-<hash>.js. None of those paths exist on
+# disk under dashboard/ directly — they exist under dashboard/dist/.
+# These rules paper over that:
+#
+#   - If the request maps to a real file/dir under dashboard/dist/,
+#     internally rewrite to it. (Serves index.html, hashed assets,
+#     the favicon, etc.)
+#   - Otherwise, fall through to dashboard/dist/index.html so
+#     TanStack Router can resolve the path client-side.
+#
+# Without RewriteBase: in directory context, RewriteRule matches the
+# path RELATIVE to this directory. So `^(.*)$` matches `assets/foo.js`
+# (not `dashboard/assets/foo.js`), and the substitution `dist/$1` is
+# also relative to /dashboard/ — i.e. resolves to /dashboard/dist/$1.
+
+RewriteEngine On
+
+# Apache re-executes .htaccess after each rewrite (until the URL
+# stabilizes), so we need to bail out once we've already routed into
+# dist/. Without this guard the post-rewrite pass would see a path
+# starting with dist/, fail Rule 1's existence check (because
+# dashboard/dist/dist/... doesn't exist), and fall through to
+# Rule 2's index.html — turning every asset request into the SPA
+# shell.
+RewriteRule ^dist/ - [L]
+
+# Rule 1: real file (or dir) in dist/ → serve it.
+# Test against the absolute filesystem path: DOCUMENT_ROOT is
+# /var/www/localhost/htdocs/openemr inside the flex image.
+RewriteCond %{DOCUMENT_ROOT}/dashboard/dist/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/dashboard/dist/$1 -d
+RewriteRule ^(.+)$ dist/$1 [L]
+
+# Rule 2: anything else (unknown route, no extension, etc.) →
+# fall through to the SPA shell.
+RewriteRule ^ dist/index.html [L]
+
+# ---------------------------------------------------------------------
+# 2. Path-scoped CSP (Report-only for now; T6.5 flips to enforced)
+# ---------------------------------------------------------------------
+# Defended in PATIENT_DASHBOARD_MIGRATION.md ("CSP" section). Strict
+# defaults; relaxed only where the SPA's runtime actually needs it.
+#
+#   script-src 'self'           Vite's prod build emits no inline scripts.
+#   style-src 'self' 'unsafe-inline'
+#                               Bootstrap 5 + React both use inline
+#                               style attributes; we relax styles only.
+#   connect-src 'self'          FHIR + OAuth on origin only.
+#   frame-ancestors 'self'      main_v2.php (T3.1) hosts the SPA same-origin.
+#   object-src 'none'
+#   base-uri 'self'             Defensive defaults.
+#
+# No `report-uri` configured yet; the migration doc notes T6 may add
+# one.
+
+<IfModule mod_headers.c>
+  Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+</IfModule>

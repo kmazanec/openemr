@@ -267,7 +267,7 @@ describe('resolveSkippedCases', () => {
         committedAt: '2026-01-01T00:00:00.000Z',
         commitSha: null,
         datasets: {
-            'clinical-copilot-briefing-graph-v1': {
+            'clinical-copilot-briefing-graph-v2': {
                 cases: { 'archetype:diabetic': { citation_present: true } },
             },
             'clinical-copilot-conversational-graph-v4': {
@@ -317,7 +317,7 @@ describe('resolveSkippedCases', () => {
             okReport('langsmith'),
         ]);
         expect(skips.size).toBe(3);
-        expect(skips.has('clinical-copilot-briefing-graph-v1::archetype:diabetic')).toBe(true);
+        expect(skips.has('clinical-copilot-briefing-graph-v2::archetype:diabetic')).toBe(true);
     });
 
     it('Pinecone degraded → only conversational skips (briefing/document do not use Pinecone)', () => {
@@ -330,7 +330,7 @@ describe('resolveSkippedCases', () => {
         ]);
         expect(skips.size).toBe(1);
         expect(skips.has('clinical-copilot-conversational-graph-v4::multi-retriever')).toBe(true);
-        expect(skips.has('clinical-copilot-briefing-graph-v1::archetype:diabetic')).toBe(false);
+        expect(skips.has('clinical-copilot-briefing-graph-v2::archetype:diabetic')).toBe(false);
     });
 });
 

@@ -63,7 +63,7 @@ describe('caseIdFromRun', () => {
 
     it('briefing-graph: archetype:<key> for archetype kind', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'archetype', archetype: 'diabetic' }),
         );
         expect(id).toBe('archetype:diabetic');
@@ -71,7 +71,7 @@ describe('caseIdFromRun', () => {
 
     it('briefing-graph: lab-trend:<key> for lab-trend kind', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'lab-trend', scenario: 'a1c_trend_up' }),
         );
         expect(id).toBe('lab-trend:a1c_trend_up');
@@ -79,7 +79,7 @@ describe('caseIdFromRun', () => {
 
     it('briefing-graph: morning-prep:<id> for morning-prep kind', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'morning-prep', appointmentId: 'apt-uc5-12' }),
         );
         expect(id).toBe('morning-prep:apt-uc5-12');
@@ -87,7 +87,7 @@ describe('caseIdFromRun', () => {
 
     it('returns null when the run has no recognizable case id', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'archetype' }),
         );
         expect(id).toBeNull();
@@ -152,12 +152,12 @@ describe('sortDatasets', () => {
     it('sorts dataset-name keys alphabetically', () => {
         const input = {
             'clinical-copilot-document-extraction-v1': { cases: {} },
-            'clinical-copilot-briefing-graph-v1': { cases: {} },
+            'clinical-copilot-briefing-graph-v2': { cases: {} },
             'clinical-copilot-conversational-graph-v4': { cases: {} },
         };
         const sorted = sortDatasets(input);
         expect(Object.keys(sorted)).toEqual([
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             'clinical-copilot-conversational-graph-v4',
             'clinical-copilot-document-extraction-v1',
         ]);
@@ -169,9 +169,9 @@ describe('sortDatasets', () => {
         };
         const input = {
             'clinical-copilot-document-extraction-v1': { cases: {} },
-            'clinical-copilot-briefing-graph-v1': { cases },
+            'clinical-copilot-briefing-graph-v2': { cases },
         };
         const sorted = sortDatasets(input);
-        expect(sorted['clinical-copilot-briefing-graph-v1']?.cases).toBe(cases);
+        expect(sorted['clinical-copilot-briefing-graph-v2']?.cases).toBe(cases);
     });
 });

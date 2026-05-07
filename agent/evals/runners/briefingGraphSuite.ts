@@ -44,7 +44,13 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-briefing-graph-v1';
+// v2 (F.5e): synthesizer's `ClaimCategory` enum gained a
+// `family_history` slot. The dataset's input/output shape is
+// unchanged, but bumping per the W2 dataset-version convention so
+// experiments captured before the schema gained the slot stay
+// comparable (the structured-output enum changed; rejected-claim
+// rates against older runs aren't directly diff-able).
+export const DATASET_NAME = 'clinical-copilot-briefing-graph-v2';
 
 const DATASET_DESCRIPTION =
     'Briefing-graph suite (merged archetypes + lab-trends + morning-prep). Every example invokes createBriefingGraph against a `BriefingSnapshot`; case-kind metadata discriminates which suite-specific assertions and ground truth apply. Five W2 boolean rubrics (schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs) score every row uniformly.';

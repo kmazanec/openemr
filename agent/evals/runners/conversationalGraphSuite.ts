@@ -53,6 +53,11 @@ import {
     type UploadResult,
 } from './shared.js';
 
+// v3 (F.5e): synthesizer's `ClaimCategory` enum gained a
+// `family_history` slot. v4: suite absorbed the deleted end-to-end
+// suite's behavioral coverage and added 26 realistic clinic-encounter
+// cases (8 document-retrieval, 8 guideline-retrieval, 4 multi-
+// retriever, 4 chart-only, 2 redaction).
 export const DATASET_NAME = 'clinical-copilot-conversational-graph-v4';
 
 const DATASET_DESCRIPTION =

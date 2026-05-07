@@ -62,6 +62,7 @@ const stubArtifactStore = (): {
     const store: ExtractionArtifactStore = {
         claimDocumentLock: vi.fn(),
         findArtifactByDocumentHash: vi.fn(),
+        findArtifactById: vi.fn(),
         insertArtifact: vi.fn(),
         updateArtifactStatus: vi.fn(
             (

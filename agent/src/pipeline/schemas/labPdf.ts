@@ -8,9 +8,14 @@
  *   - `.passthrough()` (Zod) silently drops unknown keys — the model can
  *     emit extra fields without breaking the parse, but we never ingest
  *     them. Required fields are hard errors at parse time.
- *   - `bbox` is `[x, y, w, h]` in PDF point space, exactly as
- *     `SourceReferenceSchema` already defines for the `extracted_document`
- *     citation type. Same tuple here keeps the resolver path one-step.
+ *   - `bbox` is `[x, y, w, h]` with each component an INTEGER on a
+ *     0..1000 grid normalized to the page image. Integer-grid
+ *     coordinates dodge the model's tendency to round normalized
+ *     fractions to one decimal (which on a letter-sized page is ~5
+ *     rows of error); the grid is dense enough that the model can
+ *     emit useful precision without thinking about decimals at all.
+ *     The panel divides each component by 10 to render a CSS
+ *     percentage. Same tuple here keeps the resolver path one-step.
  *
  * The PHP DTO at
  * `interface/modules/.../src/Pipeline/LabPdfExtraction.php` mirrors this
@@ -28,7 +33,12 @@ import { z } from 'zod';
  * cross-checks it against external rubrics (`schema_valid`,
  * `factually_consistent`). It is never blindly trusted for routing.
  */
-const bboxSchema = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const bboxSchema = z.tuple([
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+]);
 
 const citedField = <T extends z.ZodTypeAny>(value: T) =>
     z

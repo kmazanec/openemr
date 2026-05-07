@@ -61,6 +61,16 @@ export const SourceReferenceSchema = z
                     .union([z.literal(''), z.string().min(1)])
                     .optional()
                     .transform((v) => (v === '' ? undefined : v)),
+                // Guideline-citation slots — populated by the verifier
+                // when an accepted `guideline` ref is enriched from its
+                // matched `EvidenceSnippet`. The panel's guideline drawer
+                // reads `publication`, `title`, `section`, and `url` to
+                // render the source card without a second fetch.
+                publication: z.string().min(1).optional(),
+                title: z.string().min(1).optional(),
+                year: z.number().int().optional(),
+                url: z.string().url().optional(),
+                section: z.string().min(1).optional(),
             })
             .optional(),
     })
@@ -508,6 +518,12 @@ export type ClaimCategory =
     | 'lab'
     | 'allergy'
     | 'diagnosis'
+    // F.5e — distinct from `diagnosis` so the panel's
+    // `factTypeForClaimCategory` can route family-history claims to
+    // the dedicated Tier-3 promote branch instead of conflating them
+    // with past-medical-history. The synthesizer's structured-output
+    // schema gains the same slot.
+    | 'family_history'
     | 'encounter'
     | 'appointment'
     | 'identity'
