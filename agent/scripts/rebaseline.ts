@@ -199,10 +199,40 @@ export const rebaseline = async (options: RebaselineOptions): Promise<BaselineFi
             if (score === null) continue;
             cases[caseId]![fb.key] = score;
         }
-        datasets[datasetName] = { cases };
+        datasets[datasetName] = { cases: sortCases(cases) };
     }
     return datasets;
 };
+
+/**
+ * Sort case-id keys alphabetically and, within each row, sort the
+ * rubric keys alphabetically too. LangSmith's `listRuns` returns runs
+ * in temporal order, so without this every rebaseline shuffles the
+ * file and produces unreviewable diffs.
+ */
+export const sortCases = (
+    cases: Record<string, Record<RubricKey, boolean>>,
+): Record<string, Record<RubricKey, boolean>> =>
+    Object.fromEntries(
+        Object.entries(cases)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([caseId, row]) => [
+                caseId,
+                Object.fromEntries(
+                    Object.entries(row).sort(([a], [b]) => a.localeCompare(b)),
+                ) as Record<RubricKey, boolean>,
+            ]),
+    );
+
+/**
+ * Sort dataset-name keys alphabetically. `DATASETS` already iterates
+ * in a fixed order, but sorting here makes the output deterministic
+ * regardless of source iteration order.
+ */
+export const sortDatasets = (
+    datasets: BaselineFile['datasets'],
+): BaselineFile['datasets'] =>
+    Object.fromEntries(Object.entries(datasets).sort(([a], [b]) => a.localeCompare(b)));
 
 /**
  * The boolean rubrics emit `score: 0 | 1`. A skip emits no score
@@ -225,7 +255,7 @@ const writeBaseline = async (
         committedAt: new Date().toISOString(),
         commitSha: process.env['CI_COMMIT_SHA'] ?? null,
         commitMessage,
-        datasets,
+        datasets: sortDatasets(datasets),
     };
     const body = `${JSON.stringify(file, null, 2)}\n`;
     await writeFile(BASELINE_PATH, body, { encoding: 'utf8' });

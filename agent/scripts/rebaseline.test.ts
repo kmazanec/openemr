@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { Run } from 'langsmith';
 
-import { caseIdFromRun, parseArgs } from './rebaseline.js';
+import type { RubricKey } from '../evals/rubrics/types.js';
+
+import { caseIdFromRun, parseArgs, sortCases, sortDatasets } from './rebaseline.js';
 
 describe('parseArgs', () => {
     it('parses the happy path: --confirm --commit-message "<text>"', () => {
@@ -102,5 +104,84 @@ describe('caseIdFromRun', () => {
     it('returns null for an unknown dataset name', () => {
         const id = caseIdFromRun('clinical-copilot-unknown-v1', stubRun({ caseId: 'x' }));
         expect(id).toBeNull();
+    });
+});
+
+describe('sortCases', () => {
+    it('sorts case-id keys alphabetically', () => {
+        const input: Record<string, Record<RubricKey, boolean>> = {
+            'archetype:diabetic': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
+            'archetype:complex_elderly': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
+            'archetype:hypertensive': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
+        };
+        const sorted = sortCases(input);
+        expect(Object.keys(sorted)).toEqual([
+            'archetype:complex_elderly',
+            'archetype:diabetic',
+            'archetype:hypertensive',
+        ]);
+    });
+
+    it('sorts rubric keys alphabetically within each case row', () => {
+        const input: Record<string, Record<RubricKey, boolean>> = {
+            'archetype:diabetic': {
+                no_phi_in_logs: true,
+                citation_present: true,
+                factually_consistent: false,
+            } as unknown as Record<RubricKey, boolean>,
+        };
+        const sorted = sortCases(input);
+        expect(Object.keys(sorted['archetype:diabetic']!)).toEqual([
+            'citation_present',
+            'factually_consistent',
+            'no_phi_in_logs',
+        ]);
+    });
+
+    it('preserves rubric values during sort', () => {
+        const input: Record<string, Record<RubricKey, boolean>> = {
+            'archetype:diabetic': {
+                no_phi_in_logs: true,
+                citation_present: false,
+            } as unknown as Record<RubricKey, boolean>,
+        };
+        const sorted = sortCases(input);
+        const row = sorted['archetype:diabetic']!;
+        expect(row['citation_present' as RubricKey]).toBe(false);
+        expect(row['no_phi_in_logs' as RubricKey]).toBe(true);
+    });
+
+    it('returns an empty object unchanged', () => {
+        expect(sortCases({})).toEqual({});
+    });
+});
+
+describe('sortDatasets', () => {
+    it('sorts dataset-name keys alphabetically', () => {
+        const input = {
+            'clinical-copilot-end-to-end-v1': { cases: {} },
+            'clinical-copilot-briefing-graph-v1': { cases: {} },
+            'clinical-copilot-document-extraction-v1': { cases: {} },
+            'clinical-copilot-conversational-graph-v2': { cases: {} },
+        };
+        const sorted = sortDatasets(input);
+        expect(Object.keys(sorted)).toEqual([
+            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-conversational-graph-v2',
+            'clinical-copilot-document-extraction-v1',
+            'clinical-copilot-end-to-end-v1',
+        ]);
+    });
+
+    it('preserves dataset values during sort', () => {
+        const cases = {
+            'archetype:diabetic': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
+        };
+        const input = {
+            'clinical-copilot-end-to-end-v1': { cases: {} },
+            'clinical-copilot-briefing-graph-v1': { cases },
+        };
+        const sorted = sortDatasets(input);
+        expect(sorted['clinical-copilot-briefing-graph-v1']?.cases).toBe(cases);
     });
 });
