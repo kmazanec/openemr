@@ -135,6 +135,9 @@ final readonly class PolicyGate
         // token (which the past-medical-history branch will require
         // once F.5d lands) cannot smuggle through and write a
         // family-history row, and vice-versa.
+        // F.6 adds `user/Patient.cs` for demographics-delta promotion
+        // (address/phone/email writes through OpenEMR's standard
+        // `PatientService::databaseUpdate()` path).
         'accept_fact' => [
             'openid',
             'fhirUser',
@@ -144,6 +147,7 @@ final readonly class PolicyGate
             'user/MedicationStatement.cs',
             'user/Condition.cs',
             'user/FamilyMemberHistory.cs',
+            'user/Patient.cs',
         ],
     ];
 
