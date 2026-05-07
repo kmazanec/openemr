@@ -555,6 +555,25 @@ const __copilotPanel = (function () {
                                 aria-label="Source: ${escapeText(tooltip)}">[source]</button>`;
             }
         }
+        if (source.source_type === 'guideline') {
+            const card = guidelineCardFromSource(source);
+            if (card !== null && (card.publication !== null || card.title !== null || card.url !== null)) {
+                // Emit a clickable chip carrying the snippet metadata
+                // on data-* attributes, so the click handler can build
+                // the drawer card without a thread[] lookup. Mirrors
+                // the section-document-chip pattern above.
+                return `<button type="button" class="copilot-source${variant}"
+                                data-role="section-guideline-chip"
+                                data-publication="${escapeText(card.publication || '')}"
+                                data-title="${escapeText(card.title || '')}"
+                                data-year="${card.year !== null ? String(card.year) : ''}"
+                                data-section="${escapeText(card.section || '')}"
+                                data-url="${escapeText(card.url || '')}"
+                                data-quote="${escapeText(card.quote || '')}"
+                                title="${escapeText(tooltip)}"
+                                aria-label="Source: ${escapeText(tooltip)}">[source]</button>`;
+            }
+        }
         return `<span class="copilot-source${variant} copilot-source--inert"
                       data-role="section-source-tooltip"
                       title="${escapeText(tooltip)}"
@@ -1540,6 +1559,211 @@ const __copilotPanel = (function () {
     };
 
     /**
+     * Guideline source drawer. Same slide-in/scrim UX as the document
+     * viewer above, but renders the cited evidence-corpus snippet
+     * (publication, section, quote, link to publisher) directly from
+     * the source ref's `meta` — no fetch needed because the verifier
+     * already enriched the ref with the matched EvidenceSnippet's
+     * metadata.
+     *
+     * State machine mirrors the document viewer: one shared pane,
+     * lazily-created scrim, `viewerActiveChip`-style tracking so a
+     * second click on the same chip closes the drawer.
+     */
+    let guidelinePaneEl = null;
+    let guidelineMountEl = null;
+    let guidelineCloseEl = null;
+    let guidelineActiveChip = null;
+    let guidelineScrimEl = null;
+
+    const ensureGuidelineEls = () => {
+        if (root === null) return null;
+        if (guidelinePaneEl !== null) return guidelinePaneEl;
+        guidelinePaneEl = root.querySelector('[data-role="guideline-viewer-pane"]');
+        guidelineMountEl = root.querySelector('[data-role="guideline-viewer"]');
+        guidelineCloseEl = root.querySelector('[data-role="guideline-viewer-close"]');
+        return guidelinePaneEl;
+    };
+
+    const ensureGuidelineScrim = () => {
+        if (guidelineScrimEl !== null) return guidelineScrimEl;
+        if (root === null) return null;
+        const el = root.ownerDocument.createElement('div');
+        el.className = 'copilot-doc-viewer-scrim';
+        el.dataset.role = 'guideline-viewer-scrim';
+        el.hidden = true;
+        el.addEventListener('click', () => closeGuidelineDrawer());
+        root.ownerDocument.body.appendChild(el);
+        guidelineScrimEl = el;
+        return el;
+    };
+
+    const closeGuidelineDrawer = () => {
+        if (guidelinePaneEl === null) return;
+        if (guidelineMountEl !== null) {
+            guidelineMountEl.innerHTML = '';
+        }
+        guidelineActiveChip = null;
+        guidelinePaneEl.classList.remove('copilot-doc-viewer--open');
+        if (guidelineScrimEl !== null) {
+            guidelineScrimEl.classList.remove('copilot-doc-viewer-scrim--open');
+        }
+        const onSlideOutDone = () => {
+            guidelinePaneEl.removeEventListener('transitionend', onSlideOutDone);
+            guidelinePaneEl.hidden = true;
+            if (guidelineScrimEl !== null) guidelineScrimEl.hidden = true;
+        };
+        guidelinePaneEl.addEventListener('transitionend', onSlideOutDone);
+    };
+
+    /**
+     * Pull the renderable card fields off a guideline source reference.
+     * The verifier copies `publication`, `title`, `year`, `section`,
+     * and `url` from the matched EvidenceSnippet onto `meta`; section
+     * chips encode the same fields directly on data-* attributes at
+     * render time. Returns null when the ref isn't a guideline or
+     * when the publication slot is missing (older snapshots before the
+     * meta enrichment landed).
+     */
+    const guidelineCardFromSource = (source) => {
+        if (!source || source.source_type !== 'guideline') return null;
+        const meta = (source.meta !== undefined && source.meta !== null) ? source.meta : {};
+        const locator = (source.locator !== undefined && source.locator !== null) ? source.locator : {};
+        const publication = typeof meta.publication === 'string' ? meta.publication : null;
+        const title = typeof meta.title === 'string' ? meta.title : null;
+        const year = typeof meta.year === 'number' ? meta.year : null;
+        const section = typeof meta.section === 'string'
+            ? meta.section
+            : (typeof locator.section === 'string' ? locator.section : null);
+        const url = typeof meta.url === 'string' ? meta.url : null;
+        const quote = typeof source.quote === 'string' ? source.quote : '';
+        return { publication, title, year, section, url, quote };
+    };
+
+    /**
+     * URL-safety filter for the publisher link. The agent's Zod
+     * `meta.url` schema already restricts to valid URLs, but the panel
+     * is the last hop before the click reaches the user's browser, so
+     * we narrow further: only `http(s):` schemes are allowed to escape
+     * into an `href`. Anything else (data:, javascript:, file:) collapses
+     * to null and renders a "no link available" stub instead.
+     */
+    const safeGuidelineUrl = (url) => {
+        if (typeof url !== 'string' || url.length === 0) return null;
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+            return parsed.toString();
+        } catch {
+            return null;
+        }
+    };
+
+    const renderGuidelineCard = (card, claimText) => {
+        const publication = card.publication !== null && card.publication.length > 0
+            ? `<span class="copilot-guideline-viewer__publication">${escapeText(card.publication)}${card.year !== null ? ` · ${escapeText(String(card.year))}` : ''}</span>`
+            : '';
+        const title = card.title !== null && card.title.length > 0
+            ? `<h3 class="copilot-guideline-viewer__title">${escapeText(card.title)}</h3>`
+            : '';
+        const section = card.section !== null && card.section.length > 0
+            ? `<p class="copilot-guideline-viewer__section">${escapeText(card.section)}</p>`
+            : '';
+        const url = safeGuidelineUrl(card.url);
+        const linkRow = url !== null
+            ? `<a class="copilot-guideline-viewer__link"
+                  href="${escapeText(url)}"
+                  target="_blank"
+                  rel="noopener noreferrer">View on publisher →</a>`
+            : `<span class="copilot-guideline-viewer__nolink"
+                     title="No public link is associated with this source.">No public link available</span>`;
+        const claimBlock = typeof claimText === 'string' && claimText.length > 0
+            ? `<div class="copilot-guideline-viewer__claim-block">
+                <p class="copilot-guideline-viewer__claim-label">Cited in this answer</p>
+                <p class="copilot-guideline-viewer__claim">${formatDatesInText(escapeText(claimText))}</p>
+            </div>`
+            : '';
+        const quote = card.quote.length > 0
+            ? `<blockquote class="copilot-guideline-viewer__quote">${formatDatesInText(escapeText(card.quote))}</blockquote>`
+            : '';
+        return `<div class="copilot-guideline-viewer__body">
+            <div class="copilot-guideline-viewer__header-block">
+                ${publication}
+                ${title}
+                ${section}
+            </div>
+            ${quote}
+            ${claimBlock}
+            ${linkRow}
+        </div>`;
+    };
+
+    const openGuidelineDrawer = (chip, card, claimText) => {
+        if (root === null) return;
+        if (ensureGuidelineEls() === null || guidelineMountEl === null) return;
+        const scrim = ensureGuidelineScrim();
+        guidelineMountEl.innerHTML = renderGuidelineCard(card, claimText);
+        guidelinePaneEl.hidden = false;
+        if (scrim !== null) scrim.hidden = false;
+        guidelineActiveChip = chip;
+        const win = root.ownerDocument.defaultView;
+        win.requestAnimationFrame(() => {
+            guidelinePaneEl.classList.add('copilot-doc-viewer--open');
+            if (scrim !== null) scrim.classList.add('copilot-doc-viewer-scrim--open');
+        });
+    };
+
+    const wireGuidelineViewerControls = () => {
+        if (root === null) return;
+        if (ensureGuidelineEls() === null) return;
+        if (guidelineCloseEl !== null) {
+            guidelineCloseEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                closeGuidelineDrawer();
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (guidelinePaneEl === null || guidelinePaneEl.hidden) return;
+            closeGuidelineDrawer();
+        });
+    };
+
+    /**
+     * Decode a section-guideline-chip's data-* attributes into a card
+     * shape. Section chips don't carry bubble/segment/claim indices,
+     * so we encode publication / title / year / section / url / quote
+     * on the chip at render time and rebuild the card here.
+     */
+    const sectionGuidelineCardArgs = (chip) => {
+        const publication = typeof chip.dataset.publication === 'string' && chip.dataset.publication.length > 0
+            ? chip.dataset.publication
+            : null;
+        const title = typeof chip.dataset.title === 'string' && chip.dataset.title.length > 0
+            ? chip.dataset.title
+            : null;
+        const yearRaw = chip.dataset.year;
+        const year = (typeof yearRaw === 'string' && yearRaw.length > 0)
+            ? Number.parseInt(yearRaw, 10)
+            : null;
+        const section = typeof chip.dataset.section === 'string' && chip.dataset.section.length > 0
+            ? chip.dataset.section
+            : null;
+        const url = typeof chip.dataset.url === 'string' && chip.dataset.url.length > 0
+            ? chip.dataset.url
+            : null;
+        const quote = typeof chip.dataset.quote === 'string' ? chip.dataset.quote : '';
+        return {
+            publication,
+            title,
+            year: Number.isInteger(year) ? year : null,
+            section,
+            url,
+            quote,
+        };
+    };
+
+    /**
      * Decode a section-document-chip's data-* attributes back into the
      * shape `documentViewer.openDocument` expects. Section chips don't
      * carry the bubble/segment/claim indices the inline chips use, so
@@ -1635,7 +1859,28 @@ const __copilotPanel = (function () {
                 if (popoverEl !== null && !popoverEl.hidden) {
                     closePopover();
                 }
+                if (guidelinePaneEl !== null && !guidelinePaneEl.hidden) {
+                    closeGuidelineDrawer();
+                }
                 openDocumentWithArgs(sectionDocChip, args);
+                return;
+            }
+            const sectionGuidelineChip = target.closest('[data-role="section-guideline-chip"]');
+            if (sectionGuidelineChip) {
+                e.preventDefault();
+                const guidelineOpen = guidelinePaneEl !== null && !guidelinePaneEl.hidden;
+                if (guidelineOpen && guidelineActiveChip === sectionGuidelineChip) {
+                    closeGuidelineDrawer();
+                    return;
+                }
+                if (popoverEl !== null && !popoverEl.hidden) {
+                    closePopover();
+                }
+                if (viewerPaneEl !== null && !viewerPaneEl.hidden) {
+                    closeDocumentViewer();
+                }
+                const card = sectionGuidelineCardArgs(sectionGuidelineChip);
+                openGuidelineDrawer(sectionGuidelineChip, card, '');
                 return;
             }
             const chip = target.closest('[data-role="source-chip"]');
@@ -1662,10 +1907,14 @@ const __copilotPanel = (function () {
             //     A second click on the *same* extracted_document chip
             //     closes the pane; a click on a *different* one swaps
             //     the document/page/bbox in place via openDocument.
-            //   - chart / guideline → fall through to the popover.
-            //     Any open viewer pane closes so the chip's popover
-            //     isn't half-occluded by the side-by-side layout.
+            //   - guideline → open the guideline source drawer (same
+            //     UX as the document drawer; renders the cited
+            //     evidence-corpus snippet directly from ref.meta).
+            //   - chart → fall through to the popover. Any open
+            //     viewer pane closes so the chip's popover isn't
+            //     half-occluded by the side-by-side layout.
             const viewerOpen = viewerPaneEl !== null && !viewerPaneEl.hidden;
+            const guidelineOpen = guidelinePaneEl !== null && !guidelinePaneEl.hidden;
             if (ref.source_type === 'extracted_document') {
                 if (viewerOpen && viewerActiveChip === chip) {
                     closeDocumentViewer();
@@ -1674,11 +1923,33 @@ const __copilotPanel = (function () {
                 if (popoverEl !== null && !popoverEl.hidden) {
                     closePopover();
                 }
+                if (guidelineOpen) {
+                    closeGuidelineDrawer();
+                }
                 openDocumentForChip(chip, ref);
+                return;
+            }
+            if (ref.source_type === 'guideline') {
+                if (guidelineOpen && guidelineActiveChip === chip) {
+                    closeGuidelineDrawer();
+                    return;
+                }
+                if (popoverEl !== null && !popoverEl.hidden) {
+                    closePopover();
+                }
+                if (viewerOpen) {
+                    closeDocumentViewer();
+                }
+                const card = guidelineCardFromSource(ref);
+                if (card === null) return;
+                openGuidelineDrawer(chip, card, claim.text || '');
                 return;
             }
             if (viewerOpen) {
                 closeDocumentViewer();
+            }
+            if (guidelineOpen) {
+                closeGuidelineDrawer();
             }
             // Re-clicking the chip the popover is anchored to closes
             // it; clicking a different chip moves the popover there.
@@ -2587,6 +2858,7 @@ const __copilotPanel = (function () {
         wireSuggestionsClicks();
         wireSourceChipClicks();
         wireDocumentViewerControls();
+        wireGuidelineViewerControls();
         setStatus('Connecting to Co-Pilot…', 'connecting');
 
         // Resume lookup and history fetch are independent — fire them
@@ -2641,6 +2913,12 @@ const __copilotPanel = (function () {
         // `tests/js/copilot-panel-document-viewer.test.js`.
         viewerArgsFromSource,
         sectionChipViewerArgs,
+        // Guideline drawer helpers, exposed for
+        // `tests/js/copilot-panel-guideline-viewer.test.js`.
+        guidelineCardFromSource,
+        sectionGuidelineCardArgs,
+        safeGuidelineUrl,
+        renderGuidelineCard,
         // F.5a accept/reject helpers, exposed for
         // `tests/js/copilot-panel-fact-actions.test.js`.
         factTypeForClaimCategory,

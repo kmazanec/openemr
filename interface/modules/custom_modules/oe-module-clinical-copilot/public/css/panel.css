@@ -1046,6 +1046,101 @@
     }
 }
 
+/* ───────── Guideline source drawer ─────────
+ *
+ * Reuses .copilot-doc-viewer for slide-in/scrim/header. The body
+ * renders a guideline citation card: publication header, section
+ * subheading, the cited quote, and a "view on publisher" link out.
+ * No image canvas / bbox machinery — the snippet content comes off
+ * the source ref's meta, no fetch needed. */
+.copilot-guideline-viewer__body {
+    text-align: left;
+    padding: 1.25em 1.25em 1.5em;
+    color: #2a2f36;
+    font-size: 0.95em;
+    line-height: 1.55;
+}
+
+.copilot-guideline-viewer__header-block {
+    margin-bottom: 1em;
+    padding-bottom: 0.75em;
+    border-bottom: 1px solid #e3e6ea;
+}
+
+.copilot-guideline-viewer__publication {
+    display: inline-block;
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #2c6b3f;
+    background: rgba(46, 125, 50, 0.10);
+    padding: 0.2em 0.55em;
+    border-radius: 3px;
+    margin-bottom: 0.55em;
+}
+
+.copilot-guideline-viewer__title {
+    font-size: 1.05em;
+    font-weight: 600;
+    color: #1a1f24;
+    margin: 0 0 0.25em;
+}
+
+.copilot-guideline-viewer__section {
+    font-size: 0.88em;
+    color: #5a6068;
+    margin: 0;
+}
+
+.copilot-guideline-viewer__quote {
+    border-left: 3px solid rgba(46, 125, 50, 0.55);
+    background: rgba(46, 125, 50, 0.04);
+    margin: 0 0 1em;
+    padding: 0.7em 0.95em;
+    color: #2a2f36;
+    font-style: italic;
+}
+
+.copilot-guideline-viewer__claim-block {
+    margin: 1em 0 0.5em;
+    padding-top: 0.75em;
+    border-top: 1px solid #e3e6ea;
+}
+
+.copilot-guideline-viewer__claim-label {
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5a6068;
+    margin: 0 0 0.35em;
+}
+
+.copilot-guideline-viewer__claim {
+    margin: 0;
+    color: #2a2f36;
+}
+
+.copilot-guideline-viewer__link {
+    display: inline-block;
+    margin-top: 0.5em;
+    color: #2058a8;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.copilot-guideline-viewer__link:hover {
+    text-decoration: underline;
+}
+
+.copilot-guideline-viewer__nolink {
+    display: inline-block;
+    margin-top: 0.5em;
+    color: #888;
+    font-size: 0.9em;
+}
+
 /* ───────── F.5a accept/reject controls + toast ───────── */
 
 /* Per F.0: accept/reject buttons sit inline-right of the fact value. */

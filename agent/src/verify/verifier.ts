@@ -804,6 +804,34 @@ const resolveExtractedDocument = (
     return { ok: true, snippet };
 };
 
+/**
+ * Copy publication metadata from the matched `EvidenceSnippet` onto
+ * the accepted claim's primary guideline ref. The synthesizer only
+ * emits chunkId + section + quote; the snippet carries the rest of the
+ * metadata the panel needs to render a self-contained guideline drawer
+ * (publication, title, year, source URL). Returns a new claim with the
+ * primary ref's `meta` extended; non-primary refs (rare but allowed by
+ * the schema) pass through untouched.
+ */
+const enrichGuidelineClaim = (claim: Claim, snippet: EvidenceSnippet): Claim => {
+    const refs = claim.sourceReferences;
+    if (refs.length === 0) return claim;
+    const primary = refs[0]!;
+    const enrichedMeta = {
+        ...(primary.meta ?? {}),
+        publication: snippet.publication,
+        title: snippet.title,
+        year: snippet.year,
+        section: snippet.section,
+        ...(snippet.url !== undefined ? { url: snippet.url } : {}),
+        ...(primary.meta?.rerank_score === undefined
+            ? { rerank_score: snippet.rerankScore }
+            : {}),
+    };
+    const enrichedPrimary: SourceReference = { ...primary, meta: enrichedMeta };
+    return { ...claim, sourceReferences: [enrichedPrimary, ...refs.slice(1)] };
+};
+
 const resolveGuideline = (
     ref: SourceReference,
     claim: Claim,
@@ -1001,7 +1029,14 @@ export const verifyLedger = (
             rejected.push({ claim, reason: result.reason });
             continue;
         }
-        accepted.push(claim);
+        // Enrich the accepted claim's primary ref with the snippet's
+        // publication metadata. The agent-side schema receives these
+        // slots; the panel reads them to render the guideline source
+        // drawer (publication / section / quote / "view on publisher"
+        // link). Without this enrichment the wire-side ref would carry
+        // only the synthesizer's chunkId+section, and the panel would
+        // have no way to surface the source URL.
+        accepted.push(enrichGuidelineClaim(claim, result.snippet));
     }
 
     return {

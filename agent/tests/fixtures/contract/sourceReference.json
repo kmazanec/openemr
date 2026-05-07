@@ -40,7 +40,12 @@
       },
       "quote": "The USPSTF recommends against initiating low-dose aspirin use for the primary prevention of CVD in adults 60 years or older.",
       "meta": {
-        "rerank_score": 0.81
+        "rerank_score": 0.81,
+        "publication": "USPSTF",
+        "title": "Aspirin Use to Prevent Cardiovascular Disease",
+        "year": 2022,
+        "section": "Recommendation Statement",
+        "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication"
       }
     }
   ]

@@ -105,6 +105,25 @@
             </header>
             <div class="copilot-doc-viewer__body" data-role="document-viewer"></div>
         </aside>
+        {# Guideline source drawer. Same drawer UX as the document
+           viewer above — slide-in from the right, scrim-dimmed
+           background — but renders the cited evidence-corpus snippet
+           (publication, section, quote, link to the publisher) rather
+           than a chart document. Unhidden by panel.js on guideline
+           chip click. #}
+        <aside class="copilot-doc-viewer copilot-guideline-viewer"
+               data-role="guideline-viewer-pane"
+               hidden>
+            <header class="copilot-doc-viewer__header">
+                <h2 class="copilot-doc-viewer__title">{{ 'Source'|xlt }}</h2>
+                <button class="copilot-doc-viewer__close"
+                        type="button"
+                        data-role="guideline-viewer-close"
+                        aria-label="{{ 'Close source viewer'|xlt }}"
+                        title="{{ 'Close source viewer'|xlt }}">×</button>
+            </header>
+            <div class="copilot-doc-viewer__body" data-role="guideline-viewer"></div>
+        </aside>
     </main>
 
     <script src="{{ documentViewerJsUrl }}" defer></script>
