@@ -78,7 +78,7 @@ test:php-isolated:
           "php${php_ver}-pdo_sqlite" \
           tiff && \
         composer install --no-interaction --no-progress --prefer-dist && \
-        composer phpunit-isolated
+        composer phpunit-isolated -- --display-skipped --display-incomplete
       '
 
 # Disabled in CI: the 4G memory limit phpstan needs OOM-kills it on
