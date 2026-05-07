@@ -85,14 +85,19 @@ log "building dashboard/dist/ for ${NEW_SHA}"
 #
 # The named-volume node_modules cache also has to be writable by that
 # UID. On a fresh volume Docker creates the mountpoint as root:root, so
-# we one-shot a chown as root before the unprivileged build runs. The
-# install step itself populates node_modules; chown is just claiming
-# the mountpoint, not the tree.
+# we one-shot a chown as root before the unprivileged build runs.
+#
+# Recursive: an earlier deploy may have populated the volume as root
+# (older builder image, or before this script ran the build container
+# unprivileged). `npm ci` wipes node_modules/ before reinstalling and
+# would EACCES on root-owned files like .bin/acorn. The recursive
+# chown is slow on the recovery deploy (~30k files) but a no-op on
+# subsequent deploys once the volume is deploy-user-owned.
 DEPLOY_UID=$(id -u)
 DEPLOY_GID=$(id -g)
 docker run --rm \
     -v openemr-deploy-dashboard-node-modules:/cache \
-    alpine:3 chown "${DEPLOY_UID}:${DEPLOY_GID}" /cache
+    alpine:3 chown -R "${DEPLOY_UID}:${DEPLOY_GID}" /cache
 
 # Vite inlines `import.meta.env.VITE_*` at build time, so the dashboard
 # bundle only knows the OIDC issuer/client/redirect/scope if those vars
