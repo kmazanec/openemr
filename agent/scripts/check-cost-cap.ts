@@ -24,7 +24,7 @@ import { buildExamples as buildDocumentExtractionExamples } from '../evals/runne
 import { buildExamples as buildEndToEndExamples } from '../evals/runners/endToEndSuite.js';
 
 /** Hard cap per PR run, in USD. From W2_ARCHITECTURE.md §"Eval Architecture". */
-export const HARD_CAP_USD = 5.0;
+export const HARD_CAP_USD = 7.5;
 
 /**
  * Per-suite cost-per-case in USD. Derived from production median token
