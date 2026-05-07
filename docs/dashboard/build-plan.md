@@ -429,18 +429,34 @@ integration testing.
         opens its own modals via `top.dlgopen` correctly.
 - **Blockers.** T3.2.
 
-### T3.5 — Patient context flow end-to-end
+### T3.5 — Patient context flow end-to-end — **DONE**
 
 - **What.** Hook the shimmed `left_nav.setPatient` to the URL.
   Verify the patient finder's existing flow lands on the new
   dashboard with the right pid.
+- **Implementation note.** T3.2-T3.4 built the shim modules but
+  never installed them at boot. T5 added `src/lib/bootShims.ts`
+  (`installShims()`) which wires `top.*`, `left_nav.*`, `RTop`, and
+  `top.dlgopen` to the TanStack router + tabs store. App's
+  `useEffect` calls `installShims` at mount time, so any iframe
+  hosted in `main_v2.php` finds the shims on `window.top` immediately.
 - **Acceptance.**
   - [ ] Manual: search a patient in the legacy patient finder, click
         the result, end on `/dashboard/patient/$pid` with that pid
-        rendered in the dashboard's identity bar.
-  - [ ] Test (Playwright): same flow scripted.
-  - [ ] Bookmark: copy the URL, open in a new tab, the same patient
-        loads.
+        rendered in the dashboard's identity bar. (Run after merge,
+        on the dev compose stack with `?v2=1`.)
+  - [x] Test (Playwright): same flow scripted —
+        `tests/e2e/patient-context.spec.ts` boots the SPA, calls
+        `top.left_nav.setPatient(...)` from the page, asserts the
+        URL becomes `/patient/$pid`. Vitest also pins the install
+        layer in `src/lib/installShims.test.ts` (4 cases covering
+        `set_pid`, `setPatient`, `dlgopen`, and `loadFrame`).
+  - [x] Bookmark: copy the URL, open in a new tab, the same patient
+        loads. (`/patient/$pid` is a real router path; the route
+        component is wrapped in `RequireFhirSession`, which calls
+        `FHIR.oauth2.ready()` at mount and recovers the SMART
+        session from sessionStorage. Verified by routing tests in
+        `src/routes/auth.test.tsx`.)
 - **Blockers.** T3.3, T4.1, T5.1.
 
 ---
@@ -591,61 +607,72 @@ The FHIR data UI. Each card is a story.
 The SPA's chrome below the patient header. Owns navigation between
 the new dashboard tab and the legacy-iframe tabs.
 
-### T5.1 — `<TabStrip />` component
+### T5.1 — `<TabStrip />` component — **DONE**
 
 - **What.** Renders a Bootstrap-5 tabs strip. Tabs are driven by
-  router state. The dashboard tab is special-cased; everything else
-  is a legacy URL. **No cap on simultaneous tabs** (matches legacy
-  behavior).
+  an external `tabsStore` (a `useSyncExternalStore`-backed singleton
+  in `src/lib/tabsStore.ts`) so the shim layer can drive it from
+  legacy iframe callbacks without going through React hooks. The
+  dashboard tab is special-cased; everything else is a legacy URL.
+  **No cap on simultaneous tabs** (matches legacy behavior).
 - **Acceptance.**
-  - [ ] Tests first. Cover: dashboard tab active, legacy tab active,
-        switching tabs updates the URL.
-  - [ ] Tabs keep their iframes mounted while inactive (so reopening
-        is instant) but visually hidden via `display: none`. Trade
-        the memory cost for the UX.
-  - [ ] No cap on number of open tabs. (If memory becomes an issue
-        in real-world use, revisit as a follow-up — out of W2 scope.)
+  - [x] Tests first. Cover: dashboard tab active, legacy tab active,
+        switching tabs updates the URL (`tabsStore.test.ts` +
+        `TabStrip.test.tsx`).
+  - [x] Tabs keep their iframes mounted while inactive (so reopening
+        is instant) but visually hidden via the `hidden` attribute.
+        Trade the memory cost for the UX.
+  - [x] No cap on number of open tabs. (Pinned by a 9-tabs test.
+        If memory becomes an issue in real-world use, revisit as a
+        follow-up — out of W2 scope.)
 - **Blockers.** T1.1, T3.3.
 
-### T5.2 — `<LegacyIframeTab />` component
+### T5.2 — `<LegacyIframeTab />` component — **DONE (with carve-out)**
 
 - **What.** Component that hosts a legacy URL in a sandboxed iframe.
-  Sized to fill the tab content area. **The SPA owns
-  `document.title`** — legacy iframes that try to set
-  `top.document.title` are routed through a shim (T3.2 owns this)
-  that updates SPA-managed title state instead. Title format
-  follows the legacy `WindowTitleAddPatient` pattern: when a
-  patient is active, `"<Patient Name> - <Base Title>"`; otherwise
-  just the base title.
+  Sized to fill the tab content area.
+- **Title-shim carve-out — DEFERRED to T6.1.** The original story
+  bundled a `top.document.title` interception shim into T5.2. The
+  current `LegacyIframeTab` ships without that shim — the title
+  manager belongs alongside the global error/title boundary that
+  T6.1 builds. Acceptance items below tagged *(deferred)* track
+  back to T6.1.
 - **Acceptance.**
-  - [ ] Tests first. Cover: renders an iframe with the right `src`,
+  - [x] Tests first. Cover: renders an iframe with the right `src`,
         re-renders when URL prop changes.
-  - [ ] Iframe inherits the parent's session (same-origin).
-  - [ ] iframe `sandbox` attribute allows same-origin and forms
-        but not popups (popups are handled by `dlgopen` shim).
-  - [ ] `top.document.title = ...` from inside a legacy iframe is
-        intercepted by the shim (T3.2) and routed to the SPA's
-        title manager. A test covers this.
-  - [ ] When the patient changes, the title updates within one
-        render cycle.
+  - [x] Iframe inherits the parent's session (same-origin via the
+        sandbox `allow-same-origin` flag).
+  - [x] iframe `sandbox` attribute allows same-origin, forms, and
+        scripts but not popups (popups are handled by `dlgopen`
+        shim — pinned in `LegacyIframeTab.test.tsx`).
+  - [ ] *(deferred to T6.1)* `top.document.title = ...` from inside
+        a legacy iframe is intercepted and routed to the SPA's
+        title manager.
+  - [ ] *(deferred to T6.1)* When the patient changes, the title
+        updates within one render cycle.
 - **Blockers.** T5.1, T3.2.
 
-### T5.3 — Tab registry from `loadFrame` interception
+### T5.3 — Tab registry from `loadFrame` interception — **DONE**
 
-- **What.** Don't hardcode the tab→URL map. Let the legacy menu's
-  `loadFrame(id, name, url)` calls populate it. The `loadFrame`
-  shim (T3.3) routes the SPA to `/dashboard/legacy/$name?url=$url`.
+- **What.** Don't hardcode the tab→URL map. The boot shim
+  (`bootShims.ts`) bridges `ShimRouter.openLegacyTab(name, url)` to
+  the tabs store *and* navigates the TanStack router to
+  `/dashboard/legacy/$name?url=$url` so each tab is deep-linkable.
+  A new `LegacyTabRoute` re-registers the tab from the URL when
+  the user opens a bookmark cold.
 - **Acceptance.**
-  - [ ] Tests first. Cover: `loadFrame('framecal', 'cal',
+  - [x] Tests first. Cover: `loadFrame('framecal', 'cal',
         '/interface/main/calendar/index.php')` opens the calendar
-        tab with that URL.
-  - [ ] If the same `name` is loaded twice with different URLs, the
-        existing iframe navigates rather than rebuilding.
-  - [ ] First load of a name registers the tab in the strip; tabs
+        tab with that URL (`installShims.test.ts`).
+  - [x] If the same `name` is loaded twice with different URLs, the
+        existing iframe navigates rather than rebuilding
+        (`tabsStore.test.ts` pins the object-identity preservation
+        across URL changes).
+  - [x] First load of a name registers the tab in the strip; tabs
         persist across navigations until closed.
 - **Blockers.** T3.3, T5.1, T5.2.
 
-### T5.4 — Tab close + active-tab default
+### T5.4 — Tab close + active-tab default — **DONE**
 
 - **What.** "✕" on each tab closes it. Closing the active tab
   activates the next (or the dashboard if none). Closing the
@@ -654,10 +681,16 @@ the new dashboard tab and the legacy-iframe tabs.
   legacy `default_open_tabs` (audit B16) is out of W2 scope and
   lives as a stretch story (T7.5).
 - **Acceptance.**
-  - [ ] Tests first.
-  - [ ] Closing a tab destroys its iframe (frees memory).
-  - [ ] Page reload starts with only the dashboard tab open
-        (current patient context preserved via the URL).
+  - [x] Tests first (`tabsStore.test.ts` covers the close-active,
+        close-non-active, close-dashboard, and close-only-legacy
+        cases).
+  - [x] Closing a tab removes the entry from the store, which
+        unmounts its iframe in `PatientShell` (the iframe is
+        keyed by tab id; React drops the DOM node, freeing memory).
+  - [x] Page reload starts with only the dashboard tab open
+        (the store starts in its initial state on every fresh
+        SPA mount; current patient context is preserved via the
+        `/patient/$pid` URL).
 - **Blockers.** T5.1.
 
 ---

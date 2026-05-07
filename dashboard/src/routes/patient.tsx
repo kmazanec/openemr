@@ -8,21 +8,47 @@ import { MedicationsCard } from '../components/MedicationsCard';
 import { PrescriptionsCard } from '../components/PrescriptionsCard';
 import { CareTeamCard } from '../components/CareTeamCard';
 import { EncountersCard } from '../components/EncountersCard';
+import { TabStrip } from '../components/TabStrip';
+import { LegacyIframeTab } from '../components/LegacyIframeTab';
+import { useTabs } from '../lib/useTabs';
+import { DASHBOARD_TAB_ID } from '../lib/tabsStore';
 
 export function PatientRoute(): ReactElement {
   const { pid } = useParams({ from: '/patient/$pid' });
   return (
     <RequireFhirSession>
-      <PatientDashboard pid={pid} />
+      <PatientShell pid={pid} />
     </RequireFhirSession>
   );
 }
 
-function PatientDashboard({ pid }: { pid: string }): ReactElement {
+function PatientShell({ pid }: { pid: string }): ReactElement {
+  const tabs = useTabs();
   return (
-    <div className="patient-dashboard p-3">
+    <div className="patient-shell">
       <PatientHeader pid={pid} />
-      <div className="row mt-3">
+      <TabStrip />
+      <div className="tab-content p-3">
+        <DashboardPane pid={pid} active={tabs.activeId === DASHBOARD_TAB_ID} />
+        {tabs.tabs
+          .filter((t) => t.id !== DASHBOARD_TAB_ID)
+          .map((t) => (
+            <LegacyIframeTab
+              key={t.id}
+              name={t.id}
+              url={'url' in t ? t.url : ''}
+              active={tabs.activeId === t.id}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardPane({ pid, active }: { pid: string; active: boolean }): ReactElement {
+  return (
+    <div hidden={!active} data-testid="dashboard-pane">
+      <div className="row">
         <div className="col-12 col-lg-4">
           <AllergiesCard pid={pid} />
           <PrescriptionsCard pid={pid} />

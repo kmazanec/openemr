@@ -4,6 +4,7 @@ import { LoginRoute } from './login';
 import { AuthCallbackRoute } from './authCallback';
 import { DashboardLanding } from './dashboardLanding';
 import { PatientRoute } from './patient';
+import { LegacyTabRoute } from './legacyTab';
 
 const rootRoute = createRootRoute({
   component: function Root(): ReactElement {
@@ -41,10 +42,21 @@ const patientRoute = createRoute({
   component: PatientRoute,
 });
 
+const legacyTabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/legacy/$name',
+  component: LegacyTabRoute,
+  validateSearch: (search: Record<string, unknown>): { url?: string } => {
+    const raw = search['url'];
+    return typeof raw === 'string' ? { url: raw } : {};
+  },
+});
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   authCallbackRoute,
   dashboardRoute,
   patientRoute,
+  legacyTabRoute,
 ]);
