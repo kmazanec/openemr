@@ -356,18 +356,18 @@ integration testing.
   Until the toggle is set, OpenEMR keeps using `main.php` exactly as
   before.
 - **Acceptance.**
-  - [ ] `interface/main/tabs/main_v2.php` exists, is a near-copy of
+  - [x] `interface/main/tabs/main_v2.php` exists, is a near-copy of
         `main.php` with the SPA mount swapped in.
-  - [ ] `main_v2.php` reads `dashboard/dist/.vite/manifest.json` and
+  - [x] `main_v2.php` reads `dashboard/dist/.vite/manifest.json` and
         injects the right `<script type="module" src="...">` and
         `<link rel="stylesheet" href="...">` tags.
-  - [ ] PHPStan passes on `main_v2.php`.
-  - [ ] Toggle: `?v2=1` (or env var) routes login to `main_v2.php`;
-        absent, login still goes to `main.php`.
-  - [ ] Manual: with `?v2=1`, load the OpenEMR site, see the menu
+  - [x] PHPStan passes on `main_v2.php`.
+  - [x] Toggle: `?v2=1` (or `OPENEMR_DASHBOARD_V2` env var) routes
+        login to `main_v2.php`; absent, login still goes to `main.php`.
+  - [x] Manual: with `?v2=1`, load the OpenEMR site, see the menu
         plus a blank SPA root. Without, the legacy dashboard
         renders normally.
-  - [ ] Audit B16 (mutating `default_open_tabs` while iterating)
+  - [x] Audit B16 (mutating `default_open_tabs` while iterating)
         is left alone — we don't fix unrelated legacy bugs in this
         change.
 - **Blockers.** T1.5, T1.6.
@@ -382,13 +382,13 @@ integration testing.
   mount. Methods: `top.restoreSession`, `top.set_pid`,
   `top.clearPatient`. Each wires into the SPA's router.
 - **Acceptance.**
-  - [ ] Test: calling `window.top.set_pid(123)` triggers a router
+  - [x] Test: calling `window.top.set_pid(123)` triggers a router
         navigation to `/patient/123`.
-  - [ ] Test: `window.top.clearPatient()` navigates to `/dashboard`
+  - [x] Test: `window.top.clearPatient()` navigates to `/dashboard`
         and clears patient state.
-  - [ ] Test: `window.top.restoreSession()` POSTs to
+  - [x] Test: `window.top.restoreSession()` POSTs to
         `/library/restoreSession.php` and resolves.
-  - [ ] Globals (`csrf_token_js`, `webroot_url`, `site_id_js`,
+  - [x] Globals (`csrf_token_js`, `webroot_url`, `site_id_js`,
         `api_csrf_token_js`) are exposed on `window` from values
         injected by `main.php`.
 - **Blockers.** T1.1.
@@ -401,13 +401,13 @@ integration testing.
   `loadFrame`, `loadFrame2`, `RTop.setLocation`. No-ops:
   `syncRadios`, `removeOptionSelected`.
 - **Acceptance.**
-  - [ ] Test: each method exists on `window.left_nav` (or on
+  - [x] Test: each method exists on `window.left_nav` (or on
         `window` directly, matching legacy callers' lookups).
-  - [ ] Test: `setPatient` updates the URL via the router.
-  - [ ] Test: `loadFrame(id, name, url)` navigates the SPA to
+  - [x] Test: `setPatient` updates the URL via the router.
+  - [x] Test: `loadFrame(id, name, url)` navigates the SPA to
         `/dashboard/legacy/$name?url=...`.
-  - [ ] Test: `RTop.setLocation(url)` matches `loadFrame` semantics.
-  - [ ] Test: no-op methods don't throw.
+  - [x] Test: `RTop.setLocation(url)` matches `loadFrame` semantics.
+  - [x] Test: no-op methods don't throw.
 - **Blockers.** T3.2.
 
 ### T3.4 — Implement `dlgopen` shim
@@ -418,14 +418,14 @@ integration testing.
   Honor `opts.dialogId`, `opts.allowResize`, `opts.allowDrag`,
   `opts.onClosed`, `opts.type === 'iframe'`.
 - **Acceptance.**
-  - [ ] Test: `top.dlgopen('http://...', '_blank', 800, 500)` opens
+  - [x] Test: `top.dlgopen('http://...', '_blank', 800, 500)` opens
         a Bootstrap modal containing an iframe.
-  - [ ] Test: `opts.onClosed` (string or function) fires on modal
+  - [x] Test: `opts.onClosed` (string or function) fires on modal
         close.
-  - [ ] Test: `opts.dialogId` sets the modal's id.
-  - [ ] Test: closing the modal via Escape or backdrop click fires
+  - [x] Test: `opts.dialogId` sets the modal's id.
+  - [x] Test: closing the modal via Escape or backdrop click fires
         `onClosed`.
-  - [ ] Manual: an existing legacy page (e.g. an encounter form)
+  - [x] Manual: an existing legacy page (e.g. an encounter form)
         opens its own modals via `top.dlgopen` correctly.
 - **Blockers.** T3.2.
 
