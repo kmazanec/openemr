@@ -55,7 +55,7 @@ describe('caseIdFromRun', () => {
 
     it('conversational-graph: pulls inputs.group verbatim', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-conversational-graph-v2',
+            'clinical-copilot-conversational-graph-v3',
             stubRun({ group: 'multi-retriever' }),
         );
         expect(id).toBe('multi-retriever');
@@ -162,12 +162,12 @@ describe('sortDatasets', () => {
             'clinical-copilot-end-to-end-v2': { cases: {} },
             'clinical-copilot-briefing-graph-v1': { cases: {} },
             'clinical-copilot-document-extraction-v1': { cases: {} },
-            'clinical-copilot-conversational-graph-v2': { cases: {} },
+            'clinical-copilot-conversational-graph-v3': { cases: {} },
         };
         const sorted = sortDatasets(input);
         expect(Object.keys(sorted)).toEqual([
             'clinical-copilot-briefing-graph-v1',
-            'clinical-copilot-conversational-graph-v2',
+            'clinical-copilot-conversational-graph-v3',
             'clinical-copilot-document-extraction-v1',
             'clinical-copilot-end-to-end-v2',
         ]);
