@@ -75,7 +75,7 @@ The three CDC surfaces are:
   (7 vitest cases covering acip-notes happy path + no-anchors fallback, acip-schedule chrome-dropping, opioid-landing h2 sections, sti-clinical-guidance h2 sections, missing-main, and chrome-only pages.)
 - [x] Run `npm run corpus:fetch:cdc && npm run corpus:extract:cdc` from `agent/`, review the chunk count and content, commit the resulting `agent/data/corpus/cdc/` tree.
   (Output: 65 chunks across 10 source pages — 4 acip-schedule + 34 acip-notes + 4 opioid-landing + 23 sti-clinical-guidance. Bodies inspected and verbatim from publisher DOM; frontmatter shape-identical to USPSTF plus a new `surface` field.)
-- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert CDC chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there.
+- [ ] When the user has Pinecone credentials populated, run `npm run grounding:reindex-corpus` to upsert CDC chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there.
   (Deferred to user — same gate as C.2/C.3 partial DoDs. Verified structurally: the reindex script's `for sourceName of sources` loop already iterates `data/corpus/*/index.json`, so the CDC dir gets picked up automatically once the user runs it.)
 - [x] Update `agent/README.md` corpus section: add "CDC (license_tier: public_domain)" line item alongside USPSTF, link out to the three target URL families.
   (Added a "Sources currently in the corpus" table summarizing USPSTF + CDC and their license tiers + surfaces, plus the 3-step CDC quick-start mirroring the USPSTF block.)
@@ -84,7 +84,7 @@ The three CDC surfaces are:
 - `npm run corpus:fetch:cdc && npm run corpus:extract:cdc` populates `agent/data/corpus/cdc/` with verbatim chunks across all three surfaces; re-running is idempotent.
 - `agent/data/corpus/cdc/index.json` is shape-identical to USPSTF's so `reindex-corpus.ts` indexes it with no changes.
 - Vitest tests green.
-- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts CDC alongside USPSTF.
+- When the user has Pinecone credentials, `npm run grounding:reindex-corpus` upserts CDC alongside USPSTF.
 - `evidenceRetriever({source_filter: ['CDC']})` returns CDC chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate, same gate as C.2/C.3).
 
 ---
@@ -137,7 +137,7 @@ The publisher's direct site (`diabetesjournals.org`) returns a Cloudflare JS-cha
   (3 vitest cases: pmc-section happy path with chrome dropping + verbatim recommendation text + empty-section warning, missing-article-body fallback, chrome-only fallback. Fixture is hand-built to exercise the canonical PMC shape — abstract + 3 real h2 topics + chrome — without committing 350 KB of real article HTML.)
 - [x] Run `npm run corpus:fetch:ada && npm run corpus:extract:ada` from `agent/`, review the chunk count and content, commit the resulting `agent/data/corpus/ada/` tree.
   (Output: 126 chunks across 18 source articles — 6 to 13 chunks per ADA section depending on size; section 16 (Hospital) and 13 (Older Adults) are densest. Bodies inspected and verbatim from PMC DOM, including numbered recommendations like "11.1a Assess kidney function with random urine albumin-to-creatinine ratio (UACR) ... B" and "9.24 Include healthy behaviors ... A". Idempotent re-run reports 0 fetched / 18 skipped.)
-- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert ADA chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as I.1's last checkbox.)
+- [ ] When the user has Pinecone credentials populated, run `npm run grounding:reindex-corpus` to upsert ADA chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as I.1's last checkbox.)
 - [x] Update `agent/README.md` corpus section: add an "ADA Standards of Care in Diabetes (2026, license_tier: `fair_use_cds`)" row to the sources table, with a one-line production-readiness footnote ("explicit ADA license required for production deployment"); add an ADA quick-start mirroring the CDC block.
   (Sources table now has three rows; ADA row carries a footnote ¹ explaining the fair-use posture, and an ADA-specific quick-start block follows the CDC one — including the one-line rationale for why the fetcher targets PMC over the publisher's direct URL.)
 
@@ -145,7 +145,7 @@ The publisher's direct site (`diabetesjournals.org`) returns a Cloudflare JS-cha
 - `npm run corpus:fetch:ada && npm run corpus:extract:ada` populates `agent/data/corpus/ada/` with verbatim chunks across all 18 PMC articles; re-running is idempotent.
 - `agent/data/corpus/ada/index.json` is shape-identical to USPSTF/CDC's (with `license_tier: 'fair_use_cds'` at the top level) so `reindex-corpus.ts` indexes it with no changes.
 - Vitest tests green.
-- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts ADA alongside USPSTF and CDC.
+- When the user has Pinecone credentials, `npm run grounding:reindex-corpus` upserts ADA alongside USPSTF and CDC.
 - `evidenceRetriever({source_filter: ['ADA']})` returns ADA chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate).
 
 ---
@@ -197,13 +197,13 @@ ACC/AHA + JACC publishers are deferred until a real path to that source exists (
   (Output: 20 new chunks across 5 source pages — 4 hbp-hmp-toolkit + 3 hbp-pharmacists-patient-care + 5 hbp-team-based-care + 5 hbp-telehealth-strategies + 3 million-hearts-protocols. Old chunk timestamps preserved via selective `git checkout`; index.json + fetch-manifest.json patched surgically rather than fully regenerated.)
 - [x] Drop `'ACC-AHA'` from `EVIDENCE_SOURCE_FILTERS` in `agent/src/graph/types.ts` (no ingest path; `'ADA'` and `'AGS-Beers'` stay for I.2/I.4).
 - [x] Update `agent/README.md` corpus section: extend the CDC row with the HBP/Million Hearts surface line item.
-- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert the new chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as C.2/C.3/I.1 partial DoDs.)
+- [ ] When the user has Pinecone credentials populated, run `npm run grounding:reindex-corpus` to upsert the new chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as C.2/C.3/I.1 partial DoDs.)
 
 **Definition of done.**
 - `npm run corpus:fetch:cdc && npm run corpus:extract:cdc` produces 20 new chunks under `agent/data/corpus/cdc/` (5 pages × ~4 sections each); re-running is idempotent.
 - Vitest tests green (full agent suite, not just the extended test file).
 - `EVIDENCE_SOURCE_FILTERS` no longer contains `'ACC-AHA'`.
-- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts the new CDC chunks alongside the existing CDC + USPSTF corpora.
+- When the user has Pinecone credentials, `npm run grounding:reindex-corpus` upserts the new CDC chunks alongside the existing CDC + USPSTF corpora.
 - `evidenceRetriever({source_filter: ['CDC']})` returns hypertension-management chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate, same gate as C.2/C.3/I.1).
 
 ---
@@ -255,7 +255,7 @@ The single source publication is *J Am Geriatr Soc* 2023;71(7):2052-2081 (DOI `1
   (6 vitest cases: pmc-section happy path with chrome dropping + verbatim Beers recommendation text + table-figure inline at default threshold, h3.obj_head splitter under small threshold producing one chunk per table-figure with caption-substituted labels, default-threshold under-cap pass-through, oversize-no-h3-boundaries fallback, missing-article-body, chrome-only.)
 - [x] Run `npm run corpus:fetch:ags-beers && npm run corpus:extract:ags-beers` from `agent/`, review the chunk count and content, commit the resulting `agent/data/corpus/ags-beers/` tree.
   (Output: 14 chunks across 1 source article — abstract, INTRODUCTION (split into 5 table-figure chunks via `h3.obj_head`: PIM list, drug-disease, drug-drug, drugs-to-use-with-caution, kidney-function), OBJECTIVES, INTENT OF CRITERIA, METHODS, RESULTS, DISCUSSION, CONCLUSION, Key points, Why does this paper matter?. Largest chunk is 20K chars (under the 24K threshold). Bodies inspected and verbatim from PMC DOM, including the canonical Beers recommendation prose ("Highly anticholinergic; clearance reduced with advanced age, and tolerance develops when used as hypnotic; risk of confusion, dry mouth, constipation…"), strength of evidence labels, and strength of recommendation labels. Idempotent re-run reports 0 fetched / 1 skipped.)
-- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert AGS Beers chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as I.1/I.2/I.3 last checkboxes.)
+- [ ] When the user has Pinecone credentials populated, run `npm run grounding:reindex-corpus` to upsert AGS Beers chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as I.1/I.2/I.3 last checkboxes.)
 - [x] Update `agent/README.md` corpus section: add an "AGS Beers Criteria (2023, license_tier: `fair_use_cds`)" row to the sources table, with a stronger one-line production-readiness footnote ("single-publication artifact in *J Am Geriatr Soc*; explicit AGS license required for production deployment"); add an AGS-Beers quick-start mirroring the ADA block.
   (Sources table now has four rows; AGS-Beers row carries footnote ² explaining the single-publication-artifact posture, and an AGS-Beers-specific quick-start block follows the ADA one — including a one-line rationale for why the fetcher targets PMC over the publisher's direct URL and why the table-figure splitter is needed.)
 
@@ -264,7 +264,7 @@ The single source publication is *J Am Geriatr Soc* 2023;71(7):2052-2081 (DOI `1
 - `agent/data/corpus/ags-beers/index.json` is shape-identical to ADA's (with `license_tier: 'fair_use_cds'` at the top level) so `reindex-corpus.ts` indexes it with no changes.
 - The five Beers criteria tables (T2–T6) each emerge as their own chunk under `INTRODUCTION` — verifiable by greppping the chunk dir for the table captions.
 - Vitest tests green (full agent suite, not just the extended test file).
-- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts AGS Beers alongside USPSTF/ADA/CDC.
+- When the user has Pinecone credentials, `npm run grounding:reindex-corpus` upserts AGS Beers alongside USPSTF/ADA/CDC.
 - `evidenceRetriever({source_filter: ['AGS-Beers']})` returns AGS Beers chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate, same gate as C.2/C.3/I.1/I.2/I.3).
 
 ---

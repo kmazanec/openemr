@@ -85,7 +85,7 @@ Poppler installed will see the suite as skipped rather than failed.
 | `npm run corpus:extract:ada`    | Parse cached PMC HTML into committed chunk files under `agent/data/corpus/ada/`; refreshes `fetch-manifest.json` and `index.json`.                                                       |
 | `npm run corpus:fetch:ags-beers`   | Download the 2023 AGS Beers Criteria from the open-access PMC mirror to `agent/.corpus-cache/ags-beers/`. Idempotent on `content_sha256`.                                            |
 | `npm run corpus:extract:ags-beers` | Parse cached PMC HTML into committed chunk files under `agent/data/corpus/ags-beers/`; refreshes `fetch-manifest.json` and `index.json`.                                             |
-| `npm run evals:reindex-corpus`  | Embed every chunk under `agent/data/corpus/<source>/` and upsert to Pinecone (namespace `guidelines-v1`). No-ops with a warning when corpus env vars are missing.        |
+| `npm run grounding:reindex-corpus`  | Embed every chunk under `agent/data/corpus/<source>/` and upsert to Pinecone (namespace `guidelines-v1`). No-ops with a warning when corpus env vars are missing.        |
 
 ## Environment variables
 
@@ -108,7 +108,7 @@ Required for the LLM/observability path (Phase 3+):
   identifiers into trace tags so the LangSmith UI stays PHI-free
   (§6.1).
 
-Required for the guideline-corpus path (`evals:reindex-corpus`,
+Required for the guideline-corpus path (`grounding:reindex-corpus`,
 `evidenceRetriever`):
 
 - `OPENAI_API_KEY` — embeddings via `text-embedding-3-large` (3072d).
@@ -247,7 +247,7 @@ npm run corpus:extract:uspstf
 #    Required env: OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME.
 #    No-ops with a warning when any are missing. Re-runnable; chunk IDs
 #    are stable so it upserts in place rather than appending.
-npm run evals:reindex-corpus
+npm run grounding:reindex-corpus
 ```
 
 Step 3 is what populates Pinecone. Run it once after the index is
@@ -283,7 +283,7 @@ CDC is added via the same fetch + extract + reindex flow:
 ```sh
 npm run corpus:fetch:cdc       # cache HTML under agent/.corpus-cache/cdc/
 npm run corpus:extract:cdc     # emit chunks under agent/data/corpus/cdc/
-npm run evals:reindex-corpus   # picks up every source under data/corpus/* automatically
+npm run grounding:reindex-corpus   # picks up every source under data/corpus/* automatically
 ```
 
 ADA follows the same shape, with one fetch-time choice: the publisher's
@@ -298,7 +298,7 @@ link — what citation popovers should display to users).
 ```sh
 npm run corpus:fetch:ada       # cache HTML under agent/.corpus-cache/ada/
 npm run corpus:extract:ada     # emit chunks under agent/data/corpus/ada/
-npm run evals:reindex-corpus   # picks up every source under data/corpus/* automatically
+npm run grounding:reindex-corpus   # picks up every source under data/corpus/* automatically
 ```
 
 AGS Beers follows the same shape as ADA — also fetched from the
@@ -313,7 +313,7 @@ and `h3.obj_head` so each table-figure becomes its own chunk
 ```sh
 npm run corpus:fetch:ags-beers     # cache HTML under agent/.corpus-cache/ags-beers/
 npm run corpus:extract:ags-beers   # emit chunks under agent/data/corpus/ags-beers/
-npm run evals:reindex-corpus       # picks up every source under data/corpus/* automatically
+npm run grounding:reindex-corpus       # picks up every source under data/corpus/* automatically
 ```
 
 The fetch + extract pipeline is source-agnostic by convention: future

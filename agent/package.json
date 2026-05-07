@@ -30,7 +30,7 @@
     "corpus:extract:ada": "tsx scripts/extract-ada-corpus.ts",
     "corpus:fetch:ags-beers": "tsx scripts/fetch-ags-beers-corpus.ts",
     "corpus:extract:ags-beers": "tsx scripts/extract-ags-beers-corpus.ts",
-    "evals:reindex-corpus": "tsx --env-file-if-exists=.env scripts/reindex-corpus.ts",
+    "grounding:reindex-corpus": "tsx --env-file-if-exists=.env scripts/reindex-corpus.ts",
     "probe:evidence-retriever": "tsx --env-file-if-exists=.env scripts/probe-evidence-retriever.ts",
     "migrate": "node-pg-migrate --envPath .env --migrations-dir migrations --database-url-var DATABASE_URL",
     "migrate:up": "npm run migrate -- up",

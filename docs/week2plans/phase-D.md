@@ -108,7 +108,7 @@ This phase integrates B + C, ships a tiny upload UI, deploys to `emr.biograph.de
 - [x] Confirm with user that `/etc/openemr/.env` on the Droplet has all of: `SPACES_*`, `PINECONE_*`, `OPENAI_API_KEY`, `COHERE_API_KEY`. If not, list the missing keys.
 - [x] Rebuild and push the agent service image with all of A + B + C + D code.
 - [x] Roll the agent service container on the Droplet (per existing deploy procedure in `RUNBOOK.md`).
-- [x] Run `npm run evals:reindex-corpus` against the deployed Pinecone (one-shot from the Droplet).
+- [x] Run `npm run grounding:reindex-corpus` against the deployed Pinecone (one-shot from the Droplet).
 - [x] Smoke test: open a fixture patient's chart on `emr.biograph.dev`, attach a fixture lab PDF, observe end-to-end flow working.
 
 **Definition of done.** `emr.biograph.dev` runs the full W2 thin slice in production. Smoke-test demo works.

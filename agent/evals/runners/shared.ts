@@ -240,7 +240,7 @@ export const buildEvidenceRetrieverDepsFromEnv = async (
     const { stats, chunkCount } = await loadCorpusBM25Stats();
     if (chunkCount === 0) {
         logger.warn(
-            'evidenceRetriever corpus is empty — run npm run evals:reindex-corpus first',
+            'evidenceRetriever corpus is empty — run npm run grounding:reindex-corpus first',
         );
     }
 

@@ -707,7 +707,7 @@ W1 deployment on a single DigitalOcean Droplet carries forward. W2 additions:
 
 - OpenEMR-side: `db/Migrations/Version<...>.php` — adds `source_document_uuid` columns on `lists`, `family_history`, `procedure_report`. Idempotent.
 - Agent-side: idempotent `CREATE TABLE … IF NOT EXISTS` for `extraction_artifacts` at agent boot.
-- Pinecone index creation: one-shot `npm run evals:reindex-corpus` command (offline, idempotent — re-runs upsert against a versioned namespace).
+- Pinecone index creation: one-shot `npm run grounding:reindex-corpus` command (offline, idempotent — re-runs upsert against a versioned namespace).
 
 ### Runbook additions
 

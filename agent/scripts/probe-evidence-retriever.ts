@@ -6,7 +6,7 @@
  *
  * No-ops with a logged warning when any of OPENAI_API_KEY,
  * PINECONE_API_KEY, PINECONE_INDEX_NAME, or COHERE_API_KEY is missing
- * — same skip semantics as `evals:reindex-corpus`.
+ * — same skip semantics as `grounding:reindex-corpus`.
  *
  * Not part of the test suite. Invoke with:
  *   npm run probe:evidence-retriever -- "USPSTF colorectal cancer screening"
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
     console.log(`[probe] Pinecone returned ${hits.length} hits in ${Date.now() - t0}ms`);
 
     if (hits.length === 0) {
-        console.warn('[probe] no hits — index may be empty. Did you run `evals:reindex-corpus`?');
+        console.warn('[probe] no hits — index may be empty. Did you run `grounding:reindex-corpus`?');
         return;
     }
 

@@ -522,7 +522,7 @@ const buildEvidenceRetrieverDeps = async (): Promise<EvidenceRetrieverDeps | nul
     }
 
     // Boot-time corpus load. The BM25 stats fitted here must match what
-    // the index-time `evals:reindex-corpus` script wrote — `bm25.ts`'s
+    // the index-time `grounding:reindex-corpus` script wrote — `bm25.ts`'s
     // weights are query-side adjustable but the doc-side weights are
     // baked into Pinecone.
     const { stats, chunkCount } = await loadCorpusBM25Stats();

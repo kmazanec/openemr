@@ -792,7 +792,7 @@ The W1 GitLab CI already runs `npm test` on every push as `test:agent`. W2 adds:
 
 - **New deps.** PDF.js (frontend, CDN-hostable), Pinecone SDK (`@pinecone-database/pinecone`), `pinecone-text` (BM25 sparse vectors), Cohere SDK, OpenAI SDK (embeddings only), `pdf-parse` or `pdfjs-dist` server-side for PDF page extraction. Each gets a one-line note in IMPLEMENTATION_PLAN's "Working agreements."
 - **New env vars.** `COHERE_API_KEY`, `OPENAI_API_KEY`. Both no-op gracefully if unset (offline dev mode falls back to a stub embedder + rerank).
-- **Migration.** Doctrine migration adds `source_document_uuid` columns on OpenEMR tables (`lists`, `family_history`, `procedure_report`). Agent-side migration adds the `extraction_artifacts` table on agent Postgres (idempotent `CREATE TABLE … IF NOT EXISTS` at boot, mirroring the W1 LangGraph-checkpointer pattern). Pinecone index creation lives in a one-shot `npm run evals:reindex-corpus` command (offline, idempotent — re-runs upsert against a versioned namespace).
+- **Migration.** Doctrine migration adds `source_document_uuid` columns on OpenEMR tables (`lists`, `family_history`, `procedure_report`). Agent-side migration adds the `extraction_artifacts` table on agent Postgres (idempotent `CREATE TABLE … IF NOT EXISTS` at boot, mirroring the W1 LangGraph-checkpointer pattern). Pinecone index creation lives in a one-shot `npm run grounding:reindex-corpus` command (offline, idempotent — re-runs upsert against a versioned namespace).
 - **Demo deployment.** Same DigitalOcean Droplet. The vision-call cost is per-extraction; budget a small monthly cap on Anthropic to prevent runaway demos.
 
 ### W2-17b. W1 surface stance during the W2 sprint (Q20)
