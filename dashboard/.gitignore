@@ -9,5 +9,9 @@ coverage
 .env.local
 .env.*.local
 
-# T1.5 will vendor dist/ into git; until then it's a build artifact.
+# Build output. Not vendored — `test:dashboard` (GitLab CI) builds
+# dist/ on every push and exposes it as a pipeline artifact; the
+# deploy stage's `needs:` declaration consumes that artifact, so
+# the bundle reaches production without the diff churn of a
+# committed build. Run `npm run build` locally for dev parity.
 dist

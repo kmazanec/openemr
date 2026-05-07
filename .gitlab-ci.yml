@@ -145,6 +145,40 @@ test:agent:
         npm test
       '
 
+test:dashboard:
+  <<: [*test-rules, *runner-tags]
+  stage: test
+  script:
+  - |
+    # Same shape as test:agent — node:22-alpine in a Docker container,
+    # named volume for node_modules cache reuse, runs from the
+    # dashboard/ subdir. The dashboard has no native modules, so the
+    # apk surface stays empty.
+    #
+    # The build output (dist/) is captured as a pipeline artifact and
+    # is inspectable from the MR UI. Production does NOT pull this
+    # artifact — infra/deploy.sh re-runs the same build inside a
+    # node:22-alpine container against the release tree, so the
+    # bundle that ships is the one built from the deploy SHA's source.
+    docker run --rm \
+      -v "$CI_PROJECT_DIR:/work-root" \
+      -v openemr-ci-dashboard-node-modules:/work-root/dashboard/node_modules \
+      -w /work-root/dashboard \
+      node:22-alpine \
+      sh -c '
+        npm ci --no-audit --no-fund && \
+        npm run lint && \
+        npm run typecheck && \
+        npm test && \
+        npm run build
+      '
+  artifacts:
+    name: "dashboard-dist-$CI_COMMIT_SHORT_SHA"
+    paths:
+    - dashboard/dist/
+    expire_in: 1 week
+    when: on_success
+
 # §3.6 nightly LangSmith experiment. Bootstraps the
 # `clinical-copilot-uc1-golden-v1` dataset (idempotent) and runs the
 # briefing graph against every example, posting results as a
@@ -208,7 +242,7 @@ cache-prune:
     when: manual
     allow_failure: true
   script:
-  - docker volume rm -f openemr-ci-vendor openemr-ci-phpstan-cache openemr-ci-node-modules
+  - docker volume rm -f openemr-ci-vendor openemr-ci-phpstan-cache openemr-ci-node-modules openemr-ci-dashboard-node-modules
   - docker volume ls --filter name=openemr-ci-
 
 # Manual button on master to bootstrap the LangSmith golden dataset

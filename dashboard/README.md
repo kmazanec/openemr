@@ -57,24 +57,33 @@ dashboard/
 └── README.md
 ```
 
-## Dev environment integration (T0.1 + T1.5/T1.6)
+## Dev environment integration
 
-The SPA is served at `/dashboard/` in production and dev. T1.6 adds
-the Apache rewrite that maps `/dashboard/*` to `dist/index.html`
-and the path-scoped CSP. Until then, `npm run dev` is the canonical
-way to iterate; the SPA stands alone outside OpenEMR.
+The SPA is served at `/dashboard/` in production. T1.6 adds the
+Apache rewrite that maps `/dashboard/*` to `dashboard/dist/index.html`
+and the path-scoped CSP. For local iteration, `npm run dev` is the
+canonical loop — the SPA stands alone on `:5173` outside OpenEMR.
 
-T1.5 vendors `dashboard/dist/` into git and adds a `test:dashboard`
-GitLab CI job that mirrors `test:agent`. Once that lands, the
-release flow is:
+`dashboard/dist/` is **not vendored**. It is built fresh on every
+push and on every deploy:
 
 ```
 git push to master
-  → CI runs test:dashboard (lint, typecheck, test, build, dist diff)
+  → CI runs test:dashboard
+      (lint, typecheck, vitest, vite build)
+      → emits dashboard/dist/ as a pipeline artifact (1 week TTL)
   → CI deploy stage runs runner-bootstrap.sh
-  → infra/deploy.sh rsyncs the new release tree
-  → Apache picks up the new dashboard/dist/
+      → fresh git clone into /srv/openemr/releases/<sha>/
+      → exec into infra/deploy.sh
+          → builds dashboard/dist/ inside a node:22-alpine container
+            against the release tree
+          → openemr container's bind mount picks up dist/ automatically
+  → Apache serves /dashboard/* off the new release tree
 ```
+
+The CI artifact is for **inspection only** (download from the MR UI
+to spot-check a build). The bundle that reaches production is the
+one `deploy.sh` builds from the deploy SHA's source.
 
 ## OAuth2 client registration (T2 onwards)
 
