@@ -7,18 +7,21 @@
  * write it to the chart." Dispatches on the `?type=` query parameter
  * to a per-fact-type handler. F.2 wires the `lab` path through
  * {@see ObservationLabWriteService}; F.5b adds the `allergy` path
- * through {@see AllergyListWriteService}; F.5d adds the
- * `past_medical_history` path through {@see MedicalProblemWriteService};
- * the remaining non-lab fact types (`medication_statement`,
- * `family_history`, `demographics`) are accepted by the dispatcher but
- * reject with HTTP 501 until F.5c / F.5e / F.6 land. The 501 is
- * deliberately structural: the agent should not silently route a
- * Tier-3 promotion of an unimplemented type as if it succeeded.
+ * through {@see AllergyListWriteService}; F.5c adds the
+ * `medication_statement` path (patient-reported medications) through
+ * {@see MedicationStatementWriteService}; F.5d adds the
+ * `past_medical_history` path through {@see MedicalProblemWriteService}.
+ * The remaining fact types (`family_history`, `demographics`) are
+ * accepted by the dispatcher but reject with HTTP 501 until F.5e / F.6
+ * land. The 501 is deliberately structural: the agent should not
+ * silently route a Tier-3 promotion of an unimplemented type as if
+ * it succeeded.
  *
  * Auth surface mirrors the narrow snapshot controllers (JWT bearer →
  * {@see AgentEndpointAuth}). Required scopes are per-type
  * (`user/DiagnosticReport.cs` for `lab`,
  * `user/AllergyIntolerance.cs` for `allergy`,
+ * `user/MedicationStatement.cs` for `medication_statement`,
  * `user/Condition.cs` for `past_medical_history`); future fact-type
  * branches will require their own scopes (architecture's "Repeat
  * explicit checks at agent endpoints"). The single-controller
@@ -50,6 +53,7 @@ use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -66,11 +70,13 @@ final readonly class PromoteController
     public const SCOPE_LAB = 'user/DiagnosticReport.cs';
     public const SCOPE_ALLERGY = 'user/AllergyIntolerance.cs';
     public const SCOPE_MEDICAL_PROBLEM = 'user/Condition.cs';
+    public const SCOPE_MEDICATION_STATEMENT = 'user/MedicationStatement.cs';
 
     private const ACTION = 'tier3_promotion';
     private const CHART_RECORD_TYPE_DIAGNOSTIC_REPORT = 'diagnostic_report';
     private const CHART_RECORD_TYPE_LIST_ALLERGY = 'list_allergy';
     private const CHART_RECORD_TYPE_LIST_MEDICAL_PROBLEM = 'list_medical_problem';
+    private const CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT = 'list_medication_statement';
 
     private const VALID_TYPES = [
         self::TYPE_LAB,
@@ -82,7 +88,6 @@ final readonly class PromoteController
     ];
 
     private const NOT_YET_IMPLEMENTED_TYPES = [
-        self::TYPE_MEDICATION_STATEMENT,
         self::TYPE_FAMILY_HISTORY,
         self::TYPE_DEMOGRAPHICS,
     ];
@@ -92,6 +97,7 @@ final readonly class PromoteController
         private ObservationLabWriteService $labWriteService,
         private AllergyListWriteService $allergyWriteService,
         private MedicalProblemWriteService $medicalProblemWriteService,
+        private MedicationStatementWriteService $medicationStatementWriteService,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -138,6 +144,11 @@ final readonly class PromoteController
         match ($type) {
             self::TYPE_LAB => $this->dispatchLab($bearerToken, $body, $conversationId),
             self::TYPE_ALLERGY => $this->dispatchAllergy($bearerToken, $body, $conversationId),
+            self::TYPE_MEDICATION_STATEMENT => $this->dispatchMedicationStatement(
+                $bearerToken,
+                $body,
+                $conversationId,
+            ),
             self::TYPE_PAST_MEDICAL_HISTORY => $this->dispatchMedicalProblem(
                 $bearerToken,
                 $body,
@@ -255,6 +266,65 @@ final readonly class PromoteController
         $this->respondJson(200, [
             'chart_record_uuid' => $result->listUuid,
             'chart_record_type' => self::CHART_RECORD_TYPE_LIST_ALLERGY,
+            'idempotent_hit' => $result->idempotentHit,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     */
+    private function dispatchMedicationStatement(
+        ?string $bearerToken,
+        ?array $body,
+        ?string $conversationId,
+    ): void {
+        $request = $this->auth->authorize($bearerToken, self::SCOPE_MEDICATION_STATEMENT);
+        if ($request === null) {
+            return;
+        }
+
+        if ($body === null) {
+            $this->respondError(400, 'invalid_body');
+            return;
+        }
+
+        try {
+            $promotion = MedicationStatementPromotionRequestParser::parse(
+                $body,
+                $request->actor->userId,
+            );
+        } catch (\DomainException $e) {
+            $this->logger->warning('Tier-3 medication_statement promotion rejected at parse', [
+                'reason' => $e->getMessage(),
+            ]);
+            $this->respondError(400, 'invalid_body');
+            return;
+        }
+
+        try {
+            $result = $this->medicationStatementWriteService->write($promotion);
+        } catch (\RuntimeException $e) {
+            $this->logger->error('Tier-3 medication_statement promotion failed', [
+                'pid' => $promotion->pid,
+                'sourceDocumentUuid' => $promotion->sourceDocumentUuid,
+                'exception' => $e,
+            ]);
+            $this->respondError(503, 'write_unavailable');
+            return;
+        }
+
+        $this->fireDisclosure(
+            request: $request,
+            pid: $promotion->pid,
+            conversationId: $conversationId,
+            categories: ['medication_statement'],
+            chartRecordUuid: $result->listUuid,
+            chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT,
+        );
+
+        $this->respondJson(200, [
+            'chart_record_uuid' => $result->listUuid,
+            'chart_record_type' => self::CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT,
             'idempotent_hit' => $result->idempotentHit,
         ]);
     }

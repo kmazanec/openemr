@@ -314,11 +314,11 @@ describe('POST /v1/agent/accept_fact — happy path (lab)', () => {
 });
 
 describe('POST /v1/agent/accept_fact — non-lab fact types stay 501 until their write services land', () => {
-    // F.5a shipped lab; F.5b shipped allergy; F.5d shipped
-    // past_medical_history. The remaining two list-shaped fact types
-    // stay 501 until F.5c / F.5e flip them.
+    // F.5a shipped lab; F.5b shipped allergy; F.5c shipped
+    // medication_statement; F.5d shipped past_medical_history. The
+    // remaining list-shaped fact type (`family_history`) stays 501
+    // until F.5e flips it.
     it.each([
-        ['medication_statement'],
         ['family_history'],
     ])('returns 501 not_yet_implemented for factType=%s', async (factType) => {
         const deps = makeDeps();
@@ -718,6 +718,197 @@ describe('POST /v1/agent/accept_fact — happy path (past_medical_history)', () 
         });
         expect(pathRes.status).toBe(400);
         expect(await pathRes.json()).toEqual({ error: 'unsupported_field_path' });
+    });
+});
+
+describe('POST /v1/agent/accept_fact — happy path (medication_statement)', () => {
+    const baseMedicationArtifact = (
+        overrides: Partial<ExtractionArtifact> = {},
+    ): ExtractionArtifact => ({
+        artifactId: 'artifact-med-1',
+        documentUuid: 'doc-uuid-med',
+        pid: 4242,
+        docType: 'intake_form',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            allergies: [],
+            current_medications: [
+                {
+                    name: 'lisinopril 10mg',
+                    dose: '10mg',
+                    frequency: 'once daily',
+                    route: 'PO',
+                    notes: 'patient reports good adherence',
+                    page: 1,
+                    bbox: [40, 240, 380, 260],
+                    quote: 'lisinopril 10mg once daily',
+                    confidence: 0.93,
+                },
+            ],
+            past_medical_history: [],
+            family_history: [],
+            patient_demographics: {},
+        },
+        deltasJson: null,
+        confidenceSignal: null,
+        status: 'pending_confirmation',
+        documentHash: 'hash',
+        createdAt: '2026-05-04T12:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+        ...overrides,
+    });
+
+    it('reads intake_form artifact, posts medication_statement promote.php, records accepted disposition', async () => {
+        const deps = makeDeps({
+            artifact: baseMedicationArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'chart-med-1',
+                chartRecordType: 'list_medication_statement',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-med-1',
+                fieldPath: 'current_medications.0',
+                factType: 'medication_statement',
+            }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            chartRecordUuid: string;
+            chartRecordType: string;
+            observationUuids: readonly string[];
+        };
+        expect(body.chartRecordUuid).toBe('chart-med-1');
+        expect(body.chartRecordType).toBe('list_medication_statement');
+        expect(body.observationUuids).toEqual([]);
+
+        // Promote.php was called with the materialized medication body —
+        // dose/frequency/route/notes composed into a single
+        // free-text dosage_instructions string.
+        expect(deps.promoteCalls).toHaveLength(1);
+        const promoteCall = deps.promoteCalls[0]!;
+        expect(promoteCall.type).toBe('medication_statement');
+        expect(promoteCall.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-med',
+            drug_name: 'lisinopril 10mg',
+            dosage_instructions: '10mg once daily PO patient reports good adherence',
+        });
+
+        // Disposition recorded as accepted with the JWT subject.
+        expect(deps.dispositionCalls).toHaveLength(1);
+        expect(deps.dispositionCalls[0]).toMatchObject({
+            artifactId: 'artifact-med-1',
+            fieldPath: 'current_medications.0',
+            status: 'accepted',
+            userId: 'Practitioner/dr-patel',
+        });
+    });
+
+    it('omits dosage_instructions from the body when the intake row lacks dose/frequency/route/notes', async () => {
+        const minimal = baseMedicationArtifact({
+            schemaJson: {
+                allergies: [],
+                current_medications: [
+                    {
+                        name: 'metformin',
+                        page: 2,
+                        bbox: [10, 10, 100, 20],
+                        quote: 'metformin',
+                        confidence: 0.85,
+                    },
+                ],
+                past_medical_history: [],
+                family_history: [],
+                patient_demographics: {},
+            },
+        });
+        const deps = makeDeps({
+            artifact: minimal,
+            promoteResponse: {
+                chartRecordUuid: 'chart-med-2',
+                chartRecordType: 'list_medication_statement',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-med-1',
+                fieldPath: 'current_medications.0',
+                factType: 'medication_statement',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-med',
+            drug_name: 'metformin',
+        });
+    });
+
+    it('returns 400 fact_type_mismatch / unsupported_field_path for medication_statement against wrong artifact or path', async () => {
+        // Mismatched docType: factType=medication_statement but artifact is lab_pdf.
+        const mismatchDeps = makeDeps({
+            artifact: baseMedicationArtifact({ docType: 'lab_pdf' }),
+        });
+        {
+            const { app, privateKey } = await buildAuthedApp({
+                extractionArtifactStore: mismatchDeps.store,
+                promoteClient: mismatchDeps.promoteClient,
+            });
+            const token = await issueToken(privateKey);
+            const res = await app.request('/v1/agent/accept_fact', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    artifactId: 'artifact-med-1',
+                    fieldPath: 'current_medications.0',
+                    factType: 'medication_statement',
+                }),
+            });
+            expect(res.status).toBe(400);
+            expect(await res.json()).toEqual({ error: 'fact_type_mismatch' });
+        }
+
+        // Right docType but fieldPath outside `current_medications[]`.
+        const pathDeps = makeDeps({ artifact: baseMedicationArtifact() });
+        {
+            const { app, privateKey } = await buildAuthedApp({
+                extractionArtifactStore: pathDeps.store,
+                promoteClient: pathDeps.promoteClient,
+            });
+            const token = await issueToken(privateKey);
+            const res = await app.request('/v1/agent/accept_fact', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    artifactId: 'artifact-med-1',
+                    fieldPath: 'patient_demographics.name',
+                    factType: 'medication_statement',
+                }),
+            });
+            expect(res.status).toBe(400);
+            expect(await res.json()).toEqual({ error: 'unsupported_field_path' });
+        }
     });
 });
 
