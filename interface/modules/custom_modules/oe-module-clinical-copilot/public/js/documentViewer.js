@@ -87,11 +87,21 @@ const __copilotDocumentViewer = (function () {
      * page element. The shared primitive — same code path for PDF page
      * canvases and `<img>` elements, since both establish a
      * containing-block coordinate system the absolute-positioned
-     * overlay can sit inside. Bbox is `[x, y, w, h]` in the same pixel
-     * space as the rendered page (PDF.js renders at our requested
-     * scale; image branches use the image's natural dimensions).
+     * overlay can sit inside.
+     *
+     * Bbox is `[x, y, w, h]` in the natural pixel space of the source
+     * document (the rasterizer / vision pipeline records it that way).
+     * The rendered image is scaled down by `max-width: 100%` to fit
+     * the viewer pane, so absolute-pixel positioning would land the
+     * overlay way past the rendered image's right edge. When
+     * `naturalSize: { width, height }` is provided, the overlay is
+     * positioned in percentages of those natural dimensions — the
+     * overlay then scales with the rendered image. Without
+     * `naturalSize` (back-compat for unit tests + the canvas branch,
+     * where PDF.js's canvas already renders at the bbox's coordinate
+     * space), the overlay falls back to absolute pixels.
      */
-    const renderBboxOverlay = (pageEl, bbox) => {
+    const renderBboxOverlay = (pageEl, bbox, naturalSize) => {
         if (!(pageEl instanceof HTMLElement)) return null;
         if (!Array.isArray(bbox) || bbox.length !== 4) return null;
         const [x, y, w, h] = bbox;
@@ -100,10 +110,19 @@ const __copilotDocumentViewer = (function () {
         overlay.className = 'copilot-doc-viewer__bbox';
         overlay.dataset.role = 'bbox-overlay';
         overlay.style.position = 'absolute';
-        overlay.style.left = `${x}px`;
-        overlay.style.top = `${y}px`;
-        overlay.style.width = `${w}px`;
-        overlay.style.height = `${h}px`;
+        if (naturalSize
+            && typeof naturalSize.width === 'number' && naturalSize.width > 0
+            && typeof naturalSize.height === 'number' && naturalSize.height > 0) {
+            overlay.style.left = `${(x / naturalSize.width) * 100}%`;
+            overlay.style.top = `${(y / naturalSize.height) * 100}%`;
+            overlay.style.width = `${(w / naturalSize.width) * 100}%`;
+            overlay.style.height = `${(h / naturalSize.height) * 100}%`;
+        } else {
+            overlay.style.left = `${x}px`;
+            overlay.style.top = `${y}px`;
+            overlay.style.width = `${w}px`;
+            overlay.style.height = `${h}px`;
+        }
         return overlay;
     };
 
@@ -173,14 +192,27 @@ const __copilotDocumentViewer = (function () {
         const objectUrl = URL.createObjectURL(fetchedBlob);
         img.src = objectUrl;
         wrapper.appendChild(img);
-        const overlay = renderBboxOverlay(wrapper, bbox);
-        if (overlay !== null) wrapper.appendChild(overlay);
         mountEl.appendChild(wrapper);
-        // Revoke the blob URL once the image has loaded (or failed) so
-        // we don't leak object URLs across chip swaps.
+        // The bbox is in the source's natural-pixel coordinate space,
+        // but the rendered image is scaled by `max-width: 100%`. We
+        // need the image's `naturalWidth`/`naturalHeight` to convert
+        // the bbox to percentages so the overlay scales with the
+        // rendered image. Those are only available after `load`, so
+        // attach the overlay then.
         const release = () => URL.revokeObjectURL(objectUrl);
-        img.addEventListener('load', release, { once: true });
+        const onLoad = () => {
+            release();
+            const overlay = renderBboxOverlay(wrapper, bbox, {
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+            });
+            if (overlay !== null) wrapper.appendChild(overlay);
+        };
+        img.addEventListener('load', onLoad, { once: true });
         img.addEventListener('error', release, { once: true });
+        // If the image is already loaded (e.g. from cache), the load
+        // event won't fire — synthesize the same path.
+        if (img.complete && img.naturalWidth > 0) onLoad();
         return wrapper;
     };
 

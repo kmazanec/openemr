@@ -905,7 +905,17 @@
 .copilot-doc-viewer__page {
     /* `position: relative` is the containing-block anchor for the
      * absolutely-positioned bbox overlay. Same primitive across PDF
-     * canvas and image branches. */
+     * canvas and image branches.
+     *
+     * `display: inline-block` so the wrapper sizes to the image's
+     * rendered box, which means the percentage-positioned overlay
+     * lines up with the image (NOT the wider viewer body). The body
+     * has `text-align: center` already, which centers the wrapper.
+     *
+     * `max-width: 100%` clamps the wrapper to the viewer body's
+     * width — without it the wrapper would size to the image's
+     * natural pixel dimensions (often >1700px for fax-packet TIFFs)
+     * and overflow the viewer pane. */
     position: relative;
     display: inline-block;
     max-width: 100%;
@@ -949,11 +959,17 @@
     text-decoration: underline;
 }
 
-/* Below 1200px the viewer falls back to a stacked layout — pane below
- * the chat instead of beside it. The breakpoint matches the
- * architecture's Layer-1 spec (`W2_ARCHITECTURE.md` §"Click-to-source
- * UI"). */
-@media (max-width: 1199px) {
+/* Below 1400px the viewer falls back to a stacked layout — pane below
+ * the chat instead of beside it. The architecture's Layer-1 spec
+ * (`W2_ARCHITECTURE.md` §"Click-to-source UI") originally said 1200px,
+ * but the panel runs inside an OpenEMR chart iframe that is typically
+ * exactly 1200px wide; at that width side-by-side allocates only a
+ * sliver to the viewer because the chat thread + history sidebar
+ * already eat ~1100px. Stacking is the usable mode at any normal
+ * chart-iframe width; side-by-side is the right answer only when the
+ * panel has substantially more horizontal real estate (e.g. opened in
+ * its own browser tab). */
+@media (max-width: 1399px) {
     .copilot-panel:has(.copilot-doc-viewer:not([hidden])) {
         flex-wrap: wrap;
     }
