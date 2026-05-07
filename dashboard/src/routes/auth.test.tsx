@@ -84,7 +84,13 @@ describe('auth routes', () => {
   });
 
   it('/auth/callback calls FHIR.oauth2.ready and redirects to /patient/$pid', async () => {
-    readyMock.mockResolvedValue({ patient: { id: '7' } });
+    // Return a client whose .request() resolves to an empty bundle so the
+    // patient-route cards (mounted after the redirect) don't blow up the
+    // tree with "client.request is not a function" warnings.
+    readyMock.mockResolvedValue({
+      patient: { id: '7' },
+      request: () => Promise.resolve({ resourceType: 'Bundle', entry: [] }),
+    });
     const router = await buildRouter('/auth/callback');
     render(<RouterProvider router={router} />);
 
@@ -97,7 +103,10 @@ describe('auth routes', () => {
   });
 
   it('/auth/callback falls back to /dashboard when no patient in SMART context', async () => {
-    readyMock.mockResolvedValue({ patient: null });
+    readyMock.mockResolvedValue({
+      patient: null,
+      request: () => Promise.resolve({ resourceType: 'Bundle', entry: [] }),
+    });
     const router = await buildRouter('/auth/callback');
     render(<RouterProvider router={router} />);
 
