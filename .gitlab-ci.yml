@@ -150,19 +150,23 @@ test:dashboard:
   stage: test
   script:
   - |
-    # Same shape as test:agent — node:22-alpine in a Docker container,
-    # named volume for node_modules cache reuse, runs from the
-    # dashboard/ subdir. The dashboard has no native modules, so the
-    # apk surface stays empty.
+    # Same shape as test:agent: node:22-alpine in a Docker container,
+    # node_modules on a named volume so npm install never lands on
+    # the host bind mount. The dashboard has no native modules, so
+    # the apk surface stays empty.
     #
-    # The build output (dist/) is captured as a pipeline artifact and
-    # is inspectable from the MR UI. Production does NOT pull this
-    # artifact — infra/deploy.sh re-runs the same build inside a
-    # node:22-alpine container against the release tree, so the
-    # bundle that ships is the one built from the deploy SHA's source.
+    # `vite build` writes to dashboard/dist/. We mount THAT path on a
+    # named volume too — without it, the container (running as root)
+    # would drop root-owned files on the gitlab-runner-owned bind
+    # mount, and the next pipeline's `git checkout` would fail trying
+    # to clean them up. Discarding dist/ at job-exit is fine: the
+    # bundle isn't pushed to production via this artifact (infra/
+    # deploy.sh rebuilds against the deploy SHA's source). The build
+    # is only run here as a smoke test that the source compiles.
     docker run --rm \
       -v "$CI_PROJECT_DIR:/work-root" \
       -v openemr-ci-dashboard-node-modules:/work-root/dashboard/node_modules \
+      -v openemr-ci-dashboard-dist:/work-root/dashboard/dist \
       -w /work-root/dashboard \
       node:22-alpine \
       sh -c '
@@ -172,12 +176,6 @@ test:dashboard:
         npm test && \
         npm run build
       '
-  artifacts:
-    name: "dashboard-dist-$CI_COMMIT_SHORT_SHA"
-    paths:
-    - dashboard/dist/
-    expire_in: 1 week
-    when: on_success
 
 # §3.6 nightly LangSmith experiment. Bootstraps the
 # `clinical-copilot-uc1-golden-v1` dataset (idempotent) and runs the
@@ -242,7 +240,7 @@ cache-prune:
     when: manual
     allow_failure: true
   script:
-  - docker volume rm -f openemr-ci-vendor openemr-ci-phpstan-cache openemr-ci-node-modules openemr-ci-dashboard-node-modules
+  - docker volume rm -f openemr-ci-vendor openemr-ci-phpstan-cache openemr-ci-node-modules openemr-ci-dashboard-node-modules openemr-ci-dashboard-dist
   - docker volume ls --filter name=openemr-ci-
 
 # Manual button on master to bootstrap the LangSmith golden dataset
