@@ -41,6 +41,9 @@ import {
     type ConversationalGraphCaseId,
     type ConversationalGraphCaseRunResult,
 } from './conversationalGraphTarget.js';
+import { documentRetrievalCases } from './conversationalGraphCases/documentRetrieval.js';
+import { guidelineRetrievalCases } from './conversationalGraphCases/guidelineRetrieval.js';
+import { judgmentMixedCases } from './conversationalGraphCases/judgmentMixed.js';
 import {
     buildEvidenceRetrieverDepsFromEnv,
     uploadDatasetGeneric,
@@ -50,10 +53,10 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-conversational-graph-v3';
+export const DATASET_NAME = 'clinical-copilot-conversational-graph-v4';
 
 const DATASET_DESCRIPTION =
-    'Conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type, multi-retriever sequencing, iteration-cap backstop). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI.';
+    "Conversational-graph evals — the suite that exercises the supervisor's judgment and retriever coordination on realistic family-medicine encounters. Includes 5 structural-invariant cases (each retriever, verification, multi-retriever, cap-hit), 5 refusal cases (off-topic + cross-patient), 8 document-retrieval happy paths (recent labs, intake forms, imaging, consult letters, ED summaries), 8 guideline-retrieval happy paths (CRC, statin, GDM, mammography, bone density, HTN target, ASA primary prevention, tobacco cessation), 4 multi-retriever scenarios needing both document AND guideline, 4 chart-only edge cases, and 2 redaction cases (cross-patient + hidden off-schema SSN) preserving end-to-end behavioral coverage.";
 
 interface ConversationalGraphInputs {
     readonly group: ConversationalGraphCaseId;
@@ -170,6 +173,35 @@ const EXAMPLES: readonly EvalExample<
         outputs: { expectedGate: 'refusal' },
         metadata: { group: 'refusal-cross-patient' },
     },
+    // Realistic clinic-encounter cases — fixtures live in
+    // ./conversationalGraphCases/*. Each entry is auto-generated from
+    // the case map's `description` + `expectedGate` so the EXAMPLES
+    // array stays in lockstep with the fixture without hand-maintaining
+    // two copies.
+    ...Object.entries(documentRetrievalCases).map(([id, spec]) => ({
+        inputs: {
+            group: id as ConversationalGraphCaseId,
+            description: spec.description,
+        },
+        outputs: { expectedGate: spec.expectedGate },
+        metadata: { group: id as ConversationalGraphCaseId },
+    })),
+    ...Object.entries(guidelineRetrievalCases).map(([id, spec]) => ({
+        inputs: {
+            group: id as ConversationalGraphCaseId,
+            description: spec.description,
+        },
+        outputs: { expectedGate: spec.expectedGate },
+        metadata: { group: id as ConversationalGraphCaseId },
+    })),
+    ...Object.entries(judgmentMixedCases).map(([id, spec]) => ({
+        inputs: {
+            group: id as ConversationalGraphCaseId,
+            description: spec.description,
+        },
+        outputs: { expectedGate: spec.expectedGate },
+        metadata: { group: id as ConversationalGraphCaseId },
+    })),
 ];
 
 export const buildExamples = (): readonly EvalExample<

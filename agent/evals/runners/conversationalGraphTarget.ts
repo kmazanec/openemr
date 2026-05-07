@@ -52,9 +52,17 @@ import type {
 
 import type { AgentRubricInput, RubricClaim } from '../rubrics/types.js';
 
+import { documentRetrievalCases, type DocumentRetrievalCaseId } from './conversationalGraphCases/documentRetrieval.js';
+import { guidelineRetrievalCases, type GuidelineRetrievalCaseId } from './conversationalGraphCases/guidelineRetrieval.js';
+import { judgmentMixedCases, type JudgmentMixedCaseId } from './conversationalGraphCases/judgmentMixed.js';
 import { buildDatasetSnapshotClient } from './shared.js';
 
-export type ConversationalGraphCaseId =
+/**
+ * Structural-invariant case ids — the original 5 conversational-graph
+ * gates plus the 5 refusal cases. Distinct from the realistic-clinic
+ * batches so the verdict reducer can route by category.
+ */
+type StructuralCaseId =
     | 'document-evidence'
     | 'guidelines'
     | 'verification'
@@ -65,6 +73,12 @@ export type ConversationalGraphCaseId =
     | 'refusal-off-topic-math'
     | 'refusal-off-topic-translate'
     | 'refusal-cross-patient';
+
+export type ConversationalGraphCaseId =
+    | StructuralCaseId
+    | DocumentRetrievalCaseId
+    | GuidelineRetrievalCaseId
+    | JudgmentMixedCaseId;
 
 export type ConversationalGraphVerdict =
     | 'verifier-accepted'
@@ -230,7 +244,42 @@ interface CaseFixture {
     readonly artifacts: readonly ExtractionArtifact[];
 }
 
+const STRUCTURAL_CASE_IDS: ReadonlySet<string> = new Set<StructuralCaseId>([
+    'document-evidence',
+    'guidelines',
+    'verification',
+    'multi-retriever',
+    'cap-hit',
+    'refusal-off-topic-weather',
+    'refusal-off-topic-identity',
+    'refusal-off-topic-math',
+    'refusal-off-topic-translate',
+    'refusal-cross-patient',
+]);
+
+/**
+ * Top-level fixture lookup. Structural-invariant ids dispatch to the
+ * exhaustive switch below; clinic-realistic ids resolve via the per-
+ * batch case maps (`documentRetrievalCases`, etc.) so each batch's
+ * fixtures live in their own self-contained file.
+ */
 const fixtureFor = (group: ConversationalGraphCaseId): CaseFixture => {
+    if (STRUCTURAL_CASE_IDS.has(group)) {
+        return fixtureForStructural(group as StructuralCaseId);
+    }
+    if (group in documentRetrievalCases) {
+        return documentRetrievalCases[group as DocumentRetrievalCaseId].fixture();
+    }
+    if (group in guidelineRetrievalCases) {
+        return guidelineRetrievalCases[group as GuidelineRetrievalCaseId].fixture();
+    }
+    if (group in judgmentMixedCases) {
+        return judgmentMixedCases[group as JudgmentMixedCaseId].fixture();
+    }
+    throw new Error(`fixtureFor: unknown ConversationalGraphCaseId "${group}"`);
+};
+
+const fixtureForStructural = (group: StructuralCaseId): CaseFixture => {
     switch (group) {
         case 'document-evidence':
             return {
