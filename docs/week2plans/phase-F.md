@@ -509,3 +509,57 @@ Pick (1) at F.5e implementation time — the synthesizer-schema bump is small an
 - [ ] Both run in the existing isolated/render test suites.
 
 **Definition of done.** `composer phpunit-isolated -- --filter ObservationLabRoundTripTest` green. New render fixtures committed. Phase F's "Phase definition of done" satisfied.
+
+---
+
+## F.8 Surface `family_history` Tier-3 writes on the Issues panel
+
+**Goal.** F.5e's `lists` rows with `type='family_history'` land correctly in the database but are invisible to the clinician — stock OpenEMR's chart UI surfaces don't render that list type. The Issues panel (`interface/patient_file/summary/stats_full.php` and the small Issues card on the patient summary) iterates `$ISSUE_TYPES`, which is built from rows in the `issue_types` table; stock seeds seven types (`medical_problem`, `health_concern`, `medication`, `allergy`, `medical_device`, `surgery`, `dental`) and `family_history` is not one of them. Adding a single `issue_types` row for `family_history` lights up the existing generic Issues-panel rendering + the existing generic edit form (`add_edit_issue.php` is type-agnostic — no per-type branching needed for a new type) so accepted family-history facts appear alongside Allergies and Medications, matching the clinician's mental model that promoted intake-form facts live in the Issues panel.
+
+**Why this fix not the alternatives considered.**
+- **Switching F.5e's write target to `history_data`** would land rows on the History tab (where stock OpenEMR currently surfaces family history) but breaks F.5e's `(source_document_uuid, normalized_title)` idempotency contract (history_data is one-row-per-patient with free-text columns), loses the FHIR `FamilyMemberHistory` export path, and breaks the architectural symmetry with allergy/medical_problem/medication_statement (all three correctly route through `lists`).
+- **Dual-write to both `lists` and `history_data`** keeps both surfaces lit but introduces conflict-resolution concerns (two sources of truth for the same fact) and roughly doubles the write surface for a feature whose canonical FHIR shape is `FamilyMemberHistory`-backed-by-`lists`.
+- **Adding the `issue_types` row** (this sub-phase) preserves F.5e end-to-end as shipped, lights up the existing generic Issues-panel + edit-form pipeline, and matches the architectural pattern allergy/medical_problem/medication_statement already follow (their `issue_types` rows ship with stock OpenEMR; family_history's just doesn't, an asymmetry stock OpenEMR maintains for historical reasons).
+
+**Why this isn't a F.5e re-do.** F.5e's `FamilyHistoryWriteService` + `DbalFamilyHistoryListsTableWriter` + parser + DTO + agent-side materializer + tests + PolicyGate scope are all correct. The only missing piece is registering the type with the chart UI's panel registry. F.8 is a one-row migration, not a service rewrite.
+
+**Blocked by:** F.5e merged. (Met — F.5e shipped via MR #63.)
+**Unblocks:** Sunday Final gate (Phase F's definition of done says clinician can see promoted facts on the chart; without F.8, that's true for four of five list types but not family_history).
+
+**Refs.**
+- `library/lists.inc.php` — `$ISSUE_TYPES` is built from `SELECT * FROM issue_types WHERE active = 1 AND category = ? ORDER BY ordering`.
+- `interface/patient_file/summary/stats_full.php` (lines 215, 256) — iterates `$ISSUE_TYPES` and runs `SELECT * FROM lists WHERE pid = ? AND type = ?` for each.
+- `interface/patient_file/summary/stats.php` (lines 134, 143) — same iteration for the small Issues card on the patient summary.
+- `interface/patient_file/summary/add_edit_issue.php` — generic edit form; no per-type branching except for `ippf_gcac` (an unrelated specialty type).
+- Stock `issue_types` seeds in `sql/database.sql` lines 3478–3484 (the seven baked-in types).
+- F.1's Doctrine migration pattern (`db/Migrations/Version20260506000001.php`) — namespace `OpenEMR\Core\Migrations`, idempotency-gated INSERT.
+
+**Files touched.**
+- `db/Migrations/Version<timestamp>.php` (new — Doctrine migration that idempotently INSERTs the `issue_types` row).
+- `docs/week2plans/phase-F.md` (this file — flip F.8 checkboxes when complete).
+
+**Checklist.**
+- [ ] **Generate a new Doctrine migration** following the W2 pattern set by `Version20260430000001` / `Version20260502000001` / `Version20260506000001` (F.1). Namespace `OpenEMR\Core\Migrations`. The `up()` method INSERTs one `issue_types` row; the `down()` method DELETEs it.
+- [ ] **Migration is idempotent.** The INSERT is gated on `WHERE NOT EXISTS (SELECT 1 FROM issue_types WHERE category='default' AND type='family_history')` (or `INSERT IGNORE`, but the explicit gate matches F.1's pattern and is portable across MySQL + MariaDB). Re-running the migration on an already-seeded table is a no-op.
+- [ ] **Row values.** Match the shape of stock seeds:
+  - `category` = `'default'`
+  - `type` = `'family_history'`
+  - `plural` = `'Family History'`
+  - `singular` = `'Family History'`
+  - `abbreviation` = `'F'` (chart-tile-letter abbreviation; pick a single letter not already used — A=allergy, P=medical_problem, M=medication, HC=health_concern, I=medical_device, S=surgery, D=dental — `F` is open).
+  - `style` = `0` (no special style; matches medical_problem/medication/allergy/health_concern).
+  - `force_show` = `0` (panel does NOT force this section to render even when the patient has zero rows — leaving it `0` keeps the panel uncluttered for patients without family history; F.5e-promoted patients will see the section because they have rows).
+  - `ordering` = `25` (between allergy=20 and medication=30 — alphabetical fit; pick what the user-track UX review prefers if different).
+  - `aco_spec` = `'patients|med'` (default, same ACL as the other clinical issue types).
+- [ ] **Down-migration deletes the row.** Same gate (`WHERE category='default' AND type='family_history'`) so re-running `down` on an already-deleted row is a no-op.
+- [ ] **Tests:** PHPUnit isolated test under `tests/Tests/Isolated/Modules/ClinicalCopilot/Service/` (or `tests/Tests/Isolated/Migrations/` if such a directory exists) that:
+  - Loads the migration class and verifies its `up()` SQL emits the expected INSERT (string-match on the SQL output).
+  - Asserts the down-migration emits the corresponding DELETE.
+  - **Or** a smaller unit-shape test that just instantiates the migration and confirms the SQL it would run, since running the real migration against an in-memory SQLite isn't representative.
+- [ ] **End-to-end verification (manual, documented in the MR description).** Run the migration against the dev-easy DB (`docker compose exec openemr /root/devtools migrate` or `php cli migrations:migrate`); promote a family-history fact through the agent end-to-end; navigate to the patient's Issues panel; confirm a "Family History" section now appears alongside Allergies/Medications and shows the promoted row. Take a screenshot for the MR description.
+- [ ] **Update the F.5e plan-doc parenthetical.** F.5e's "Definition of done" says "next conversational turn re-cites the family-history with `source_type='chart'`" — confirm in the MR description that this works post-F.8 (the agent's snapshot reads `lists WHERE type='family_history'` regardless of whether the Issues panel renders it; F.8 only affects the chart-UI surface, not the agent's read path). Add a parenthetical note to F.5e: "_(F.8 added the `issue_types` registry row so promoted family-history rows render on the Issues panel.)_".
+- [ ] **Document the architectural decision** in the migration's top-of-file docblock: stock OpenEMR seeds 7 issue_types but omits family_history; this migration registers it so F.5e's writes are clinician-visible. Reference F.5e (commit `0fe687970`) and this sub-phase doc (`docs/week2plans/phase-F.md` §F.8).
+
+**Definition of done.** Migration applied to dev-easy DB. After re-promoting a family-history fact (or with a pre-existing F.5e-promoted row), the patient's Issues panel renders a "Family History" section with the row visible. Clicking the row opens the generic `add_edit_issue.php` form pre-populated with the title (`"{relation} — {condition}"`) and any `comments`. The agent's snapshot continues to re-cite the row with `source_type='chart'` on the next conversational turn.
+
+**Open question for human-track / UX review (optional).** The "Family History" section in the History tab (rendered from the legacy `history_data` table — see `library/report.inc.php` lines 70–75 and the patient `History` tab) remains separate from the Issues panel's new "Family History" section. The two surfaces don't sync; they represent different chart-modeling philosophies (free-text-per-relative vs structured-list-per-fact). For the demo + Sunday Final gate, the Issues panel is the canonical surface for agent-promoted facts. A future cleanup could optionally append a summary blurb to the appropriate `history_data` column (e.g. `history_mother`) when a family-history fact is promoted, so the legacy History tab also reflects the change — but that's additive, not blocking.
