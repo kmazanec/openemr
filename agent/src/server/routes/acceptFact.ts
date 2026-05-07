@@ -74,6 +74,10 @@ export interface AcceptFactRouteDeps {
     readonly promoteClient: OpenEmrPromoteClient;
 }
 
+type Materialized =
+    | { readonly body: Record<string, unknown> }
+    | { readonly error: string };
+
 /**
  * Materialize the F.2 lab promotion body from `schemaJson` +
  * `fieldPath`. The panel cites a single `results[<idx>]` entry from
@@ -87,7 +91,7 @@ export interface AcceptFactRouteDeps {
 const materializeLabPromotionBody = (
     artifact: ExtractionArtifact,
     fieldPath: string,
-): { readonly body: Record<string, unknown> } | { readonly error: string } => {
+): Materialized => {
     if (artifact.docType !== 'lab_pdf') {
         return { error: 'fact_type_mismatch' };
     }
@@ -167,6 +171,74 @@ const materializeLabPromotionBody = (
     };
 };
 
+/**
+ * Materialize the F.5b allergy promotion body from `schemaJson` +
+ * `fieldPath`. The panel cites one `allergies[<idx>]` entry from the
+ * intake-form schema; F.5b's `?type=allergy` endpoint takes a single
+ * allergy (`pid`, `source_document_uuid`, `substance`, optional
+ * `reaction_option_id` / `verification_option_id` / `severity` /
+ * `comments` / `onset_date`) — one accepted fact promotes one row,
+ * idempotent on `(source_document_uuid, lower(trim(substance)))`.
+ *
+ * The intake form's free-text `reaction` and `severity` fields flow
+ * straight through to the body. Mapping free text to OpenEMR's
+ * `list_options` FK columns is deferred — the chart row carries the
+ * agent-supplied text in `lists.reaction` / `severity_al` / etc.
+ * directly, which the chart UI handles fine.
+ */
+const materializeAllergyPromotionBody = (
+    artifact: ExtractionArtifact,
+    fieldPath: string,
+): Materialized => {
+    if (artifact.docType !== 'intake_form') {
+        return { error: 'fact_type_mismatch' };
+    }
+    const schema = artifact.schemaJson;
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+        return { error: 'schema_invalid' };
+    }
+    const schemaRecord = schema as Record<string, unknown>;
+    const allergiesRaw = schemaRecord['allergies'];
+    if (!Array.isArray(allergiesRaw) || allergiesRaw.length === 0) {
+        return { error: 'schema_invalid' };
+    }
+
+    const fieldMatch = /^allergies\.(\d+)/.exec(fieldPath);
+    if (fieldMatch === null) {
+        return { error: 'unsupported_field_path' };
+    }
+    const idx = Number.parseInt(fieldMatch[1] ?? '', 10);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= allergiesRaw.length) {
+        return { error: 'unsupported_field_path' };
+    }
+
+    // `allergiesRaw[idx]` is typed `any` because `allergiesRaw` is an
+    // `unknown[]` from JSON.parse. Pin it to `unknown` first, then
+    // narrow.
+    const row: unknown = allergiesRaw[idx];
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+        return { error: 'schema_invalid' };
+    }
+    const r = row as Record<string, unknown>;
+    const substance = r['substance'];
+    if (typeof substance !== 'string' || substance.trim() === '') {
+        return { error: 'schema_invalid' };
+    }
+
+    const body: Record<string, unknown> = {
+        pid: artifact.pid,
+        source_document_uuid: artifact.documentUuid,
+        substance,
+    };
+    if (typeof r['reaction'] === 'string' && r['reaction'].trim() !== '') {
+        body['reaction_option_id'] = r['reaction'];
+    }
+    if (typeof r['severity'] === 'string' && r['severity'].trim() !== '') {
+        body['severity'] = r['severity'];
+    }
+    return { body };
+};
+
 export const createAcceptFactHandler = (
     deps: AcceptFactRouteDeps,
 ): ((c: Context) => Promise<Response>) => {
@@ -186,19 +258,22 @@ export const createAcceptFactHandler = (
             return c.json({ error: 'artifact_not_found' }, 404);
         }
 
-        // F.5a ships only the lab materializer. The four other fact
-        // types fall through to a typed 501 here so the panel's
-        // accept-button click on a non-lab fact surfaces the same
-        // typed-error toast it would for a direct `promote.php?type=…`
-        // call. F.5b–F.5e flip these branches one at a time.
-        if (factType !== 'lab') {
+        // F.5a shipped the lab materializer; F.5b ships allergy. The
+        // remaining three list-shaped fact types stay 501 here so the
+        // panel surfaces the same typed-error toast it would for a
+        // direct `promote.php?type=…` call. F.5c–F.5e flip them.
+        let materialized: Materialized;
+        if (factType === 'lab') {
+            materialized = materializeLabPromotionBody(artifact, fieldPath);
+        } else if (factType === 'allergy') {
+            materialized = materializeAllergyPromotionBody(artifact, fieldPath);
+        } else {
             return c.json({ error: 'not_yet_implemented' }, 501);
         }
-        const materialized = materializeLabPromotionBody(artifact, fieldPath);
         if ('error' in materialized) {
             logger.warn(
                 { artifactId, fieldPath, factType, reason: materialized.error },
-                'accept_fact: failed to materialize lab promotion body',
+                'accept_fact: failed to materialize promotion body',
             );
             return c.json({ error: materialized.error }, 400);
         }

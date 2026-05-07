@@ -31,6 +31,14 @@ export type PromoteFactType =
 export interface PromoteResult {
     readonly chartRecordUuid: string;
     readonly chartRecordType: string;
+    /**
+     * Lab promotions return one canonical UUID per analyte
+     * (`procedure_result.uuid`). Single-row chart records
+     * (allergy / medication_statement / medical_problem /
+     * family_history) collapse to one `lists.uuid` and don't carry
+     * separate child UUIDs — for those, this field is an empty
+     * array.
+     */
     readonly observationUuids: readonly string[];
     readonly idempotentHit: boolean;
 }
@@ -223,24 +231,31 @@ export const createOpenEmrPromoteClient = (
 
             const chartRecordUuid = decoded['chart_record_uuid'];
             const chartRecordType = decoded['chart_record_type'];
+            // `observation_uuids` is lab-specific. Single-row chart
+            // record types (allergy and friends) omit it; we project
+            // a missing field to an empty array so every consumer
+            // gets the same `observationUuids: readonly string[]`
+            // shape.
             const observationUuidsRaw = decoded['observation_uuids'];
             const idempotentHit = decoded['idempotent_hit'];
             if (
                 typeof chartRecordUuid !== 'string'
                 || typeof chartRecordType !== 'string'
-                || !Array.isArray(observationUuidsRaw)
                 || typeof idempotentHit !== 'boolean'
+                || (observationUuidsRaw !== undefined && !Array.isArray(observationUuidsRaw))
             ) {
                 throw new PromoteMalformedResponseError(JSON.stringify(decoded).slice(0, 256));
             }
             const observationUuids: string[] = [];
-            for (const uuid of observationUuidsRaw) {
-                if (typeof uuid !== 'string') {
-                    throw new PromoteMalformedResponseError(
-                        JSON.stringify(decoded).slice(0, 256),
-                    );
+            if (Array.isArray(observationUuidsRaw)) {
+                for (const uuid of observationUuidsRaw) {
+                    if (typeof uuid !== 'string') {
+                        throw new PromoteMalformedResponseError(
+                            JSON.stringify(decoded).slice(0, 256),
+                        );
+                    }
+                    observationUuids.push(uuid);
                 }
-                observationUuids.push(uuid);
             }
 
             return {
