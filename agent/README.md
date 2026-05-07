@@ -83,6 +83,8 @@ Poppler installed will see the suite as skipped rather than failed.
 | `npm run corpus:extract:cdc`    | Parse cached CDC HTML into committed chunk files under `agent/data/corpus/cdc/`; refreshes `fetch-manifest.json` and `index.json`.                                       |
 | `npm run corpus:fetch:ada`      | Download the ADA Standards of Care in Diabetes—2026 (Introduction + 17 numbered sections) from the open-access PMC mirror to `agent/.corpus-cache/ada/`. Idempotent on `content_sha256`. |
 | `npm run corpus:extract:ada`    | Parse cached PMC HTML into committed chunk files under `agent/data/corpus/ada/`; refreshes `fetch-manifest.json` and `index.json`.                                                       |
+| `npm run corpus:fetch:ags-beers`   | Download the 2023 AGS Beers Criteria from the open-access PMC mirror to `agent/.corpus-cache/ags-beers/`. Idempotent on `content_sha256`.                                            |
+| `npm run corpus:extract:ags-beers` | Parse cached PMC HTML into committed chunk files under `agent/data/corpus/ags-beers/`; refreshes `fetch-manifest.json` and `index.json`.                                             |
 | `npm run evals:reindex-corpus`  | Embed every chunk under `agent/data/corpus/<source>/` and upsert to Pinecone (namespace `guidelines-v1`). No-ops with a warning when corpus env vars are missing.        |
 
 ## Environment variables
@@ -255,17 +257,26 @@ the namespace already holds the corpus before retrieval-eval cases run.
 
 ### Sources currently in the corpus
 
-| Source  | License tier      | Surfaces                                                                                                              |
-| ------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
-| USPSTF  | `public_domain`   | All published preventive-services recommendations (recommendation summary + clinical considerations + practice notes) |
-| CDC     | `public_domain`   | ACIP adult + child/adolescent immunization schedules and notes; 2022 opioid prescribing guideline at-a-glance; STI clinical-guidance sub-pages; CDC High Blood Pressure HCP/PHP pages (Hypertension Management Program toolkit, pharmacists' patient-care process, team-based care, telehealth strategies) and Million Hearts treatment-protocols index |
-| ADA     | `fair_use_cds` ¹  | Standards of Care in Diabetes—2026: Introduction & Methodology + sections 1–17 (Improving Care, Diagnosis, Prevention, Comprehensive Evaluation, Health Behaviors, Glycemic Goals, Technology, Obesity, Pharmacology, Cardiovascular, CKD, Retinopathy/Neuropathy/Foot, Older Adults, Children, Pregnancy, Hospital, Advocacy) |
+| Source    | License tier      | Surfaces                                                                                                              |
+| --------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| USPSTF    | `public_domain`   | All published preventive-services recommendations (recommendation summary + clinical considerations + practice notes) |
+| CDC       | `public_domain`   | ACIP adult + child/adolescent immunization schedules and notes; 2022 opioid prescribing guideline at-a-glance; STI clinical-guidance sub-pages; CDC High Blood Pressure HCP/PHP pages (Hypertension Management Program toolkit, pharmacists' patient-care process, team-based care, telehealth strategies) and Million Hearts treatment-protocols index |
+| ADA       | `fair_use_cds` ¹  | Standards of Care in Diabetes—2026: Introduction & Methodology + sections 1–17 (Improving Care, Diagnosis, Prevention, Comprehensive Evaluation, Health Behaviors, Glycemic Goals, Technology, Obesity, Pharmacology, Cardiovascular, CKD, Retinopathy/Neuropathy/Foot, Older Adults, Children, Pregnancy, Hospital, Advocacy) |
+| AGS-Beers | `fair_use_cds` ²  | American Geriatrics Society 2023 Beers Criteria for Potentially Inappropriate Medication Use in Older Adults (single article; the five criteria tables — main PIM list, drug-disease, drugs-to-use-with-caution, drug-drug, renal-dose adjustments — emerge as one chunk each via the table-figure splitter) |
 
 ¹ The ADA Standards of Care are copyrighted by the American Diabetes
 Association, freely accessible for clinical-decision-support research,
 and **require an explicit ADA license for production deployment**. The
 synthetic-data demo posture is unaffected; production replacement is
 expected before any patient-facing use.
+
+² The AGS Beers Criteria is a single-publication artifact in *J Am
+Geriatr Soc* (2023;71(7):2052-2081, doi:10.1111/jgs.18372). Copyright
+sits with the American Geriatrics Society; the open-access PMC mirror
+is "free to read" but does not relax that copyright. **Production
+deployment requires an explicit AGS license** — license posture is the
+most fragile in the corpus set. The synthetic-data demo posture is
+unaffected.
 
 CDC is added via the same fetch + extract + reindex flow:
 
@@ -290,8 +301,23 @@ npm run corpus:extract:ada     # emit chunks under agent/data/corpus/ada/
 npm run evals:reindex-corpus   # picks up every source under data/corpus/* automatically
 ```
 
+AGS Beers follows the same shape as ADA — also fetched from the
+open-access PMC mirror because the publisher's direct site
+(`agsjournals.onlinelibrary.wiley.com`) is Cloudflare-protected. The
+single article (`PMC12478568`, NIHMS deposit live since 2025-09-30)
+contains the five criteria tables as PMC table-figures inside the
+INTRODUCTION section; the extractor recognizes both `h3.pmc_sec_title`
+and `h3.obj_head` so each table-figure becomes its own chunk
+(retrievable by table caption rather than the bare "TABLE N." stub):
+
+```sh
+npm run corpus:fetch:ags-beers     # cache HTML under agent/.corpus-cache/ags-beers/
+npm run corpus:extract:ags-beers   # emit chunks under agent/data/corpus/ags-beers/
+npm run evals:reindex-corpus       # picks up every source under data/corpus/* automatically
+```
+
 The fetch + extract pipeline is source-agnostic by convention: future
-publishers (AGS Beers, etc.) plug in by adding a new
+publishers plug in by adding a new
 `agent/scripts/fetch-<source>-corpus.ts` + `extract-<source>-corpus.ts`
 pair plus a new `agent/data/corpus/<source>/` directory. The reindex
 script iterates `agent/data/corpus/*/index.json` automatically.

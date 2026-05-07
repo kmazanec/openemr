@@ -210,14 +210,62 @@ ACC/AHA + JACC publishers are deferred until a real path to that source exists (
 
 ## I.4 AGS Beers Criteria (2023)
 
-**Goal.** Add the AGS Beers Criteria to the corpus. License posture is the most fragile in the set — single-publication artifact in *J Am Geriatr Soc*. Conditional on geriatric-prescribing being a featured demo path; defer if not.
+**Goal.** Add the 2023 AGS Beers Criteria for Potentially Inappropriate Medication (PIM) Use in Older Adults to the corpus. The criteria are the canonical reference for geriatric prescribing safety — five tables (PIMs, drug-disease, drugs-to-use-with-caution, drug-drug interactions, renal-dose adjustments) covering ~50 medication classes with explicit "avoid because…" rationale. The supervisor can then issue `evidenceRetriever({source_filter: ['AGS-Beers'], …})` for the `complex_elderly` archetype's polypharmacy review surface.
 
-**Blocked by:** I.1 (template); explicit demo-storytelling decision.
+The single source publication is *J Am Geriatr Soc* 2023;71(7):2052-2081 (DOI `10.1111/jgs.18372`). The publisher's direct site (`agsjournals.onlinelibrary.wiley.com`) is Cloudflare-protected and returns HTTP 403 to scripted fetches. The fetcher targets the open-access PMC mirror (`PMC12478568`, NIHMS deposit live since 2025-09-30) — same posture as ADA in I.2. Chunk frontmatter records both `url` (PMC, what the fetcher used) and `publisher_url` (the canonical DOI link, what citation popovers display). License tier is `fair_use_cds`; PMC's "free to read" doesn't relax AGS's copyright. Per WEEK2-PRESEARCH Q9 the licensing posture is the most fragile in the corpus set — `agent/README.md` carries a stronger production-readiness footnote than ADA: single-publication artifact, explicit AGS license required for production deployment.
+
+**Blocked by:** I.1 (template); I.2 (PMC reference implementation — shape and frontmatter shape both reused).
 **Unblocks:** I.5 eval-validation gate.
 
-**Refs.** `WEEK2-PRESEARCH.md` Q9 (license-risk note).
+**Refs.**
+- `WEEK2-PRESEARCH.md` Q9 (license-risk note, AGS Beers content density).
+- `W2_ARCHITECTURE.md` §"evidenceRetriever" (license_tier metadata).
+- `agent/scripts/fetch-ada-corpus.ts`, `agent/scripts/extract-ada-corpus.ts` — the I.2 reference implementation. AGS Beers mirrors the structure with a single PMC target. The extractor reuses ADA's `pmc-section` h2 walker, with one expansion: the splitter recognizes `h3.obj_head` (PMC's table-figure header class) in addition to `h3.pmc_sec_title`, because the Beers paper's five criteria tables live as table-figures inside the `INTRODUCTION` section's `<section class="tw xbox" id="T*">` wrappers and use `obj_head` rather than `pmc_sec_title`.
+- `agent/scripts/reindex-corpus.ts` — already source-agnostic; AGS Beers plugs in by dropping a `agent/data/corpus/ags-beers/index.json` next to the chunk files.
 
-**Checklist.** _(To be expanded when picked up.)_
+**Files touched.**
+- `agent/scripts/fetch-ags-beers-corpus.ts` (new) — single-target fetcher: typed `{slug, pmc_id, publisher_doi, surface}` constant.
+- `agent/scripts/extract-ags-beers-corpus.ts` (new) — PMC h2-section walker; emits chunks under `agent/data/corpus/ags-beers/`.
+- `agent/data/corpus/ags-beers/{fetch-manifest.json,index.json}` (new — generated, committed).
+- `agent/data/corpus/ags-beers/<slug>--<section>.md` (new — generated, committed; chunk text verbatim from PMC).
+- `agent/package.json` — `corpus:fetch:ags-beers`, `corpus:extract:ags-beers` script aliases.
+- `agent/tests/scripts/extract-ags-beers-corpus.test.ts` (new) — fixture-driven extractor tests.
+- `agent/tests/scripts/fixtures/ags-beers/pmc-section-sample.html` (new) — saved fixture HTML for the PMC AGS Beers shape (h2 sections plus a table-figure under `INTRODUCTION` to exercise the `h3.obj_head` splitter).
+- `agent/README.md` — corpus section gains an AGS Beers row plus a stronger one-line production-readiness footnote.
+
+**Checklist.**
+- [x] Implement `agent/scripts/fetch-ags-beers-corpus.ts`:
+  - Hardcode the typed target list (single entry: AGS Beers 2023 at `PMC12478568`, DOI `10.1111/jgs.18372`) in a top-of-file constant. The Beers Criteria is one PMC article — discovery-by-index doesn't apply, an explicit list is honest about scope.
+  - Polite crawl: 3 second inter-request delay against PMC. Single-threaded. Descriptive `User-Agent` matching the ADA/CDC fetcher shape.
+  - For the target: GET the PMC article URL → write to `agent/.corpus-cache/ags-beers/<slug>.html` → record `{slug, pmc_id, url, publisher_url, surface, fetched_at, content_sha256}`.
+  - Persist `agent/data/corpus/ags-beers/fetch-manifest.json` with `{source: 'ags-beers', fetcher_version, first_run_at, last_run_at, entries[]}`. Re-runs skip when the cached file's sha256 still matches the manifest entry — same recovery story as USPSTF/CDC/ADA (manual cache wipe to force a re-fetch).
+  (First-run fetch took ~2 s for the single PMC article; second run reports 0 fetched / 1 skipped. The `looksLikePmcArticle` smoke test from ADA carries over verbatim and tripped on no responses during the fetch run.)
+- [x] Implement `agent/scripts/extract-ags-beers-corpus.ts`:
+  - Single surface `pmc-section` (same as ADA). Walks every direct h2 in the article body and emits one chunk per topic.
+  - Drop PMC's surrounding chrome by `<section>` class (everything outside `body main-article-body`). Reuse ADA's chrome-label drop set (`References`, `Footnotes`, `Contributor Information`, `Article information`, `Author Contributions`, `Funding Statement`, `Conflict of Interest`, `Acknowledgments`); extend it with AGS-specific labels surfaced during chunk review (`REFERENCES`, `Supplementary Material`, `Associated Data`, `APPENDIX A: PANEL MEMBERS AND AFFILIATIONS`, `ACKNOWLEDGMENTS`, `FUNDING INFORMATION`).
+  - **h3-splitter expansion (the I.4 divergence from I.2).** When an h2 section is over the 24,000-char threshold, look for h3 sub-section boundaries at `h3.pmc_sec_title, h3.obj_head`. The Beers paper's `INTRODUCTION` section is ~42K chars and embeds the five Beers criteria tables (`<section class="tw xbox" id="T2">` … `id="T6">`) whose headers are `<h3 class="obj_head">TABLE N.</h3>`. Without the `h3.obj_head` match, the entire criteria tables would be dropped with an `oversize-no-h3-boundaries` warning. When the h3 text is a bare table label (e.g. "TABLE 2."), use the immediately-following `<div class="caption p">` content as the section label so the chunk is retrievably named ("2023 American Geriatrics Society Beers Criteria® for potentially inappropriate medication use in older adults") rather than "TABLE 2.".
+  - Selectors that fail on a page log a structured warning (`[extract] ags-beers/<slug>: <reason>`) and skip that section. Pages are never given fabricated content.
+  - Each chunk file is markdown with YAML frontmatter `{publication: 'AGS-Beers', title, section, section_label, year, url, publisher_url, license_tier: 'fair_use_cds', slug, surface, fetched_at, content_sha256}`. Frontmatter emitter mirrors `extract-ada-corpus.ts`'s hand-rolled YAML (one new field, `publication`, but the same shape as ADA otherwise).
+  - Regenerate `agent/data/corpus/ags-beers/index.json` from the filesystem (sorted, stable). Shape matches ADA's so `reindex-corpus.ts` reads it without changes.
+  (`splitAtH3Boundaries` selector is `h3.pmc_sec_title, h3.obj_head`. `tableCaptionLabel` reads the `<div class="caption p">` immediately following an `h3.obj_head` and returns its text as the substituted section_label. The h3's own text is still stripped from the body so chunks don't open with "TABLE 2.".)
+- [x] Add scripts to `agent/package.json`: `"corpus:fetch:ags-beers": "tsx scripts/fetch-ags-beers-corpus.ts"`, `"corpus:extract:ags-beers": "tsx scripts/extract-ags-beers-corpus.ts"`.
+- [x] Vitest fixture tests (`agent/tests/scripts/extract-ags-beers-corpus.test.ts`):
+  - Saved PMC HTML fixture under `agent/tests/scripts/fixtures/ags-beers/pmc-section-sample.html` — trimmed-down real article with the canonical PMC shape (a few clinical h2 sections, an `INTRODUCTION` carrying a `<section class="tw xbox">`-wrapped table-figure with `<h3 class="obj_head">`, and PMC chrome). Same posture as ADA's `pmc-section-sample.html`.
+  - Assert: each fixture parses to the expected chunk count + section slugs; the table-figure splits into its own chunk via `h3.obj_head` recognition; recommendation/criteria text appears verbatim in the body (including evidence grades and table headers); missing-body and chrome-only pages log structured warnings and emit zero chunks.
+  (6 vitest cases: pmc-section happy path with chrome dropping + verbatim Beers recommendation text + table-figure inline at default threshold, h3.obj_head splitter under small threshold producing one chunk per table-figure with caption-substituted labels, default-threshold under-cap pass-through, oversize-no-h3-boundaries fallback, missing-article-body, chrome-only.)
+- [x] Run `npm run corpus:fetch:ags-beers && npm run corpus:extract:ags-beers` from `agent/`, review the chunk count and content, commit the resulting `agent/data/corpus/ags-beers/` tree.
+  (Output: 14 chunks across 1 source article — abstract, INTRODUCTION (split into 5 table-figure chunks via `h3.obj_head`: PIM list, drug-disease, drug-drug, drugs-to-use-with-caution, kidney-function), OBJECTIVES, INTENT OF CRITERIA, METHODS, RESULTS, DISCUSSION, CONCLUSION, Key points, Why does this paper matter?. Largest chunk is 20K chars (under the 24K threshold). Bodies inspected and verbatim from PMC DOM, including the canonical Beers recommendation prose ("Highly anticholinergic; clearance reduced with advanced age, and tolerance develops when used as hypnotic; risk of confusion, dry mouth, constipation…"), strength of evidence labels, and strength of recommendation labels. Idempotent re-run reports 0 fetched / 1 skipped.)
+- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert AGS Beers chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as I.1/I.2/I.3 last checkboxes.)
+- [x] Update `agent/README.md` corpus section: add an "AGS Beers Criteria (2023, license_tier: `fair_use_cds`)" row to the sources table, with a stronger one-line production-readiness footnote ("single-publication artifact in *J Am Geriatr Soc*; explicit AGS license required for production deployment"); add an AGS-Beers quick-start mirroring the ADA block.
+  (Sources table now has four rows; AGS-Beers row carries footnote ² explaining the single-publication-artifact posture, and an AGS-Beers-specific quick-start block follows the ADA one — including a one-line rationale for why the fetcher targets PMC over the publisher's direct URL and why the table-figure splitter is needed.)
+
+**Definition of done.**
+- `npm run corpus:fetch:ags-beers && npm run corpus:extract:ags-beers` populates `agent/data/corpus/ags-beers/` with verbatim chunks; re-running is idempotent.
+- `agent/data/corpus/ags-beers/index.json` is shape-identical to ADA's (with `license_tier: 'fair_use_cds'` at the top level) so `reindex-corpus.ts` indexes it with no changes.
+- The five Beers criteria tables (T2–T6) each emerge as their own chunk under `INTRODUCTION` — verifiable by greppping the chunk dir for the table captions.
+- Vitest tests green (full agent suite, not just the extended test file).
+- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts AGS Beers alongside USPSTF/ADA/CDC.
+- `evidenceRetriever({source_filter: ['AGS-Beers']})` returns AGS Beers chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate, same gate as C.2/C.3/I.1/I.2/I.3).
 
 ---
 
