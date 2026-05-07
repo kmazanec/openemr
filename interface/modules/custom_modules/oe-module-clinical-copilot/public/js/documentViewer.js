@@ -306,6 +306,17 @@ const __copilotDocumentViewer = (function () {
     };
 })();
 
+// Cross-script bridge for the browser. `panel.js` reaches the viewer
+// implementation through `globalThis.__copilotDocumentViewer`, but a
+// `const` at script-toplevel does not become a property of the
+// global object — it goes into the script's own lexical environment,
+// which `panel.js` (a separate <script> tag) cannot see. Assign the
+// IIFE's return onto `globalThis` explicitly so the cross-script
+// access works the way the unit tests expect.
+if (typeof globalThis !== 'undefined') {
+    globalThis.__copilotDocumentViewer = __copilotDocumentViewer;
+}
+
 // CommonJS bridge for Jest. The browser-side `<script>` tag has no
 // `module` global, so this branch is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {

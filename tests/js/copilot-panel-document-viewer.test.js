@@ -138,6 +138,33 @@ beforeEach(() => {
     }
 });
 
+describe('Cross-script global bridge', () => {
+    /**
+     * Browser-side, panel.js reaches the viewer through
+     * `globalThis.__copilotDocumentViewer`. The IIFE assigns its
+     * return into a top-level `const`, which is NOT a property of
+     * the global object — it lives in the script's own lexical
+     * environment, invisible to the panel.js `<script>` tag. The
+     * bottom of `documentViewer.js` therefore explicitly assigns
+     * the IIFE's return onto `globalThis`. Pin that contract here so
+     * a future refactor that drops the explicit assignment fails the
+     * test instead of silently breaking the viewer in the browser.
+     */
+    test('exposes __copilotDocumentViewer on globalThis', () => {
+        // The require() at the top of this file ran the script, which
+        // ran the IIFE, which assigned globalThis.__copilotDocumentViewer.
+        expect(globalThis.__copilotDocumentViewer).toBeDefined();
+        expect(typeof globalThis.__copilotDocumentViewer.openDocument).toBe('function');
+        expect(typeof globalThis.__copilotDocumentViewer.closeViewer).toBe('function');
+        expect(typeof globalThis.__copilotDocumentViewer.classifyMime).toBe('function');
+    });
+
+    test('the global reference equals the require() return', () => {
+        const required = require('../../interface/modules/custom_modules/oe-module-clinical-copilot/public/js/documentViewer.js');
+        expect(globalThis.__copilotDocumentViewer).toBe(required);
+    });
+});
+
 describe('classifyMime — MIME → branch dispatch', () => {
     test.each([
         ['application/pdf', 'pdf'],
