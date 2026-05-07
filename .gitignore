@@ -11,6 +11,7 @@ node_modules
 /public/themes/*
 !/public/assets/modified
 /.docs/.out/*
+/.playwright-cli
 
 # ccda service build
 ccdaservice/node_modules
