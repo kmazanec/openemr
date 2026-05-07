@@ -14,7 +14,11 @@ This layout is the legacy login page, a centered box with the logos on top
 
 {% block content %}
 <div class="vh-100 p-5 d-flex flex-column justify-content-center">
-    <form method="POST" id="login_form" autocomplete="off" action="../main/main_screen.php?auth=login&site={{ siteID|attr_url }}" target="_top" name="login_form">
+    {# T3.1: thread the dashboard-V2 opt-in (?v2=1 on the login URL)
+       through the form POST so main_screen.php can route to main_v2.php
+       instead of main.php. Production opt-in is via the
+       OPENEMR_DASHBOARD_V2 env var; this form-level path is a dev aid. #}
+    <form method="POST" id="login_form" autocomplete="off" action="../main/main_screen.php?auth=login&site={{ siteID|attr_url }}{% if dashboardV2 %}&v2=1{% endif %}" target="_top" name="login_form">
         <div class="shadow-lg m-0 my-sm-5 login-row-center">
 
             <div class="py-2 px-2 py-md-3 px-md-5 box d-flex flex-column justify-content-center w-100">

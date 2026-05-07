@@ -27,6 +27,7 @@ use OpenEMR\Common\Session\SessionTracker;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Utils\RandomGenUtils;
 use OpenEMR\Core\Header;
+use OpenEMR\Core\OEEnvBag;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Services\FacilityService;
 use OpenEMR\Services\ListService;
@@ -477,6 +478,20 @@ if ((isset($_POST['appChoice'])) && ($_POST['appChoice'] !== '*OpenEMR')) {
 // Pass a unique token, so main.php script can not be run on its own
 $tokenMainPhp = RandomGenUtils::createUniqueToken();
 $session->set('token_main_php', $tokenMainPhp);
-header('Location: ' . $web_root . "/interface/main/tabs/main.php?token_main=" . urlencode($tokenMainPhp));
+
+// T3.1: route to the dashboard-SPA shell (main_v2.php) when the user
+// opted in via `?v2=1` on the login form, OR when the openemr
+// container has OPENEMR_DASHBOARD_V2 set. The opt-in arrives as a
+// hidden form field that the login template propagates from the
+// initial login URL's query string. Without either signal, route to
+// the legacy main.php exactly as before.
+$v2QueryParam = filter_input(INPUT_GET, 'v2');
+$v2BodyParam = filter_input(INPUT_POST, 'v2');
+$dashboardV2Toggle = OEEnvBag::getInstance()->getBoolean('OPENEMR_DASHBOARD_V2')
+    || $v2QueryParam === '1'
+    || $v2BodyParam === '1';
+$mainScript = $dashboardV2Toggle ? 'main_v2.php' : 'main.php';
+
+header('Location: ' . $web_root . "/interface/main/tabs/" . $mainScript . "?token_main=" . urlencode($tokenMainPhp));
 exit();
 ?>

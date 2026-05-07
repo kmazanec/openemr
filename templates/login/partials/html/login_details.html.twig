@@ -24,7 +24,11 @@ A partial used to build out the login form.
 
 {% include "login/partials/html/login_failure.html.twig" %}
 
-<form method="POST" id="login_form" autocomplete="off" action="../main/main_screen.php?auth=login&site={{ siteID|attr_url }}" target="_top" name="login_form">
+{# T3.1: thread the dashboard-V2 opt-in (?v2=1 on the login URL)
+   through the form POST so main_screen.php can route to main_v2.php
+   instead of main.php. Production opt-in is via the
+   OPENEMR_DASHBOARD_V2 env var; this form-level path is a dev aid. #}
+<form method="POST" id="login_form" autocomplete="off" action="../main/main_screen.php?auth=login&site={{ siteID|attr_url }}{% if dashboardV2 %}&v2=1{% endif %}" target="_top" name="login_form">
     <input type="hidden" name="new_login_session_management" value="1">
     <input type="hidden" name="languageChoice" value="{{ defaultLangID|attr }}">
     {% include "login/partials/input/username.html.twig" %}
