@@ -5,7 +5,9 @@ import type { BriefingRunner } from '../../src/server/briefingRunner.js';
 import type { PipelineRunner } from '../../src/server/routes/extract.js';
 import type { ConversationMessagesStore } from '../../src/state/conversationMessages.js';
 import type { ConversationStore } from '../../src/state/conversationStore.js';
+import type { ExtractionArtifactStore } from '../../src/state/extractionArtifacts.js';
 import type { ScheduleBriefingsLog } from '../../src/state/scheduleBriefings.js';
+import type { OpenEmrPromoteClient } from '../../src/storage/openemrPromoteClient.js';
 import { generateTestKey } from '../auth/testKeys.js';
 import type { Hono } from 'hono';
 import type { KeyLike } from 'jose';
@@ -37,6 +39,10 @@ export interface AuthedAppOptions {
     };
     readonly scheduleBriefingsLog?: ScheduleBriefingsLog;
     readonly pipeline?: PipelineRunner;
+    readonly extractionArtifactStore?: Partial<
+        Pick<ExtractionArtifactStore, 'recordDisposition' | 'findArtifactById'>
+    >;
+    readonly promoteClient?: OpenEmrPromoteClient;
 }
 
 const stubBriefingRunner: BriefingRunner = () => Promise.resolve([]);
@@ -73,6 +79,12 @@ export const buildAuthedApp = async (options: AuthedAppOptions = {}): Promise<Au
                 : {}),
             ...(options.pipeline !== undefined
                 ? { pipeline: options.pipeline }
+                : {}),
+            ...(options.extractionArtifactStore !== undefined
+                ? { extractionArtifactStore: options.extractionArtifactStore }
+                : {}),
+            ...(options.promoteClient !== undefined
+                ? { promoteClient: options.promoteClient }
                 : {}),
         }),
         privateKey,
