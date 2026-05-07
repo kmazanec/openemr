@@ -78,9 +78,15 @@ describe('schema_valid rubric', () => {
         expect(r.key).toBe('schema_valid');
     });
 
-    it('fails when rubricInput is missing entirely', () => {
+    it('skips when rubricInput is missing entirely (target threw — applicability unknowable)', () => {
+        // Skip-on-null: without `kind` we cannot tell whether this case
+        // is pipeline (where schema_valid applies) or non-pipeline
+        // (where it skips). Failing here would generate drift cells on
+        // non-pipeline cases that the baseline correctly doesn't pin.
+        // The upstream regression is captured by `factually_consistent`'s
+        // null-fail branch.
         const r = schemaValid({ run: buildRun(null) });
-        expect(r.score).toBe(0);
+        expect(r.score).toBeUndefined();
         expect(r.comment).toContain('no rubricInput');
     });
 });
@@ -115,6 +121,12 @@ describe('citation_present rubric', () => {
     it('skips pipeline cases', () => {
         const r = citationPresent({ run: buildRun(baseInput({ kind: 'pipeline' })) });
         expect(r.score).toBeUndefined();
+    });
+
+    it('skips when rubricInput is missing entirely (target threw — applicability unknowable)', () => {
+        const r = citationPresent({ run: buildRun(null) });
+        expect(r.score).toBeUndefined();
+        expect(r.comment).toContain('no rubricInput');
     });
 
     it('still scores refusals that produced claims (uncited claims are a bug)', () => {
@@ -230,6 +242,17 @@ describe('factually_consistent rubric', () => {
         const r = factuallyConsistent({ run: buildRun(baseInput({ kind: 'pipeline' })) });
         expect(r.score).toBeUndefined();
     });
+
+    it('fails when rubricInput is missing entirely (canonical "target threw" signal)', () => {
+        // factually_consistent is the rubric that absorbs the upstream
+        // regression when a target throws — the other kind-conditional
+        // rubrics skip on null. This keeps the gate's regression-rate
+        // signal proportional to the failure (one cell flip per thrown
+        // case, not five).
+        const r = factuallyConsistent({ run: buildRun(null) });
+        expect(r.score).toBe(0);
+        expect(r.comment).toContain('no rubricInput');
+    });
 });
 
 describe('safe_refusal rubric', () => {
@@ -269,6 +292,12 @@ describe('safe_refusal rubric', () => {
     it('skips non-refusal cases as N/A', () => {
         const r = safeRefusal({ run: buildRun(baseInput({ kind: 'briefing' })) });
         expect(r.score).toBeUndefined();
+    });
+
+    it('skips when rubricInput is missing entirely (target threw — applicability unknowable)', () => {
+        const r = safeRefusal({ run: buildRun(null) });
+        expect(r.score).toBeUndefined();
+        expect(r.comment).toContain('no rubricInput');
     });
 });
 

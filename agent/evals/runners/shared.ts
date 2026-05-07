@@ -202,7 +202,7 @@ export const buildDatasetSnapshotClient = (snapshot: BriefingSnapshot): Snapshot
 
 /**
  * Boot the Pinecone+Cohere `EvidenceRetrieverDeps` used by the
- * `conversational-graph` and `end-to-end` suites. Returns null when
+ * `conversational-graph` suite. Returns null when
  * any of the required env vars (`OPENAI_API_KEY`, `PINECONE_API_KEY`,
  * `PINECONE_INDEX_NAME`, `COHERE_API_KEY`) is missing — callers run
  * the experiment without the retriever, which surfaces as a verdict

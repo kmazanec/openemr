@@ -22,7 +22,7 @@
  *     to read the per-rubric scores attached to each run.
  *   - Refuses to run when LANGSMITH_API_KEY is missing (exit code 2)
  *     — the script is a deliberate operation, not a CI step.
- *   - Maps each run back to its case id via `run.inputs`. The four
+ *   - Maps each run back to its case id via `run.inputs`. The three
  *     suites encode case ids slightly differently; the case-id
  *     reducer here mirrors how each suite's example uploader builds
  *     its `metadata.caseId` (or equivalent).
@@ -37,7 +37,6 @@ import { Client, type Feedback, type Run } from 'langsmith';
 import { DATASET_NAME as BRIEFING_GRAPH_DATASET_NAME } from '../evals/runners/briefingGraphSuite.js';
 import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from '../evals/runners/conversationalGraphSuite.js';
 import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from '../evals/runners/documentExtractionSuite.js';
-import { DATASET_NAME as END_TO_END_DATASET_NAME } from '../evals/runners/endToEndSuite.js';
 import { RUBRIC_KEYS, type RubricKey } from '../evals/rubrics/types.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -85,7 +84,6 @@ interface BaselineFile {
 const DATASETS = [
     BRIEFING_GRAPH_DATASET_NAME,
     CONVERSATIONAL_GRAPH_DATASET_NAME,
-    END_TO_END_DATASET_NAME,
     DOCUMENT_EXTRACTION_DATASET_NAME,
 ] as const;
 
@@ -93,9 +91,9 @@ const DATASETS = [
  * Reduce a run's `inputs` object back to the case id used in the
  * baseline file. Each suite's example uploader builds `metadata.caseId`
  * (briefing) or stores the case id directly under `inputs.group`
- * (conversational), `inputs.scenario` (end-to-end), or `inputs.caseId`
- * (document-extraction). The reducer mirrors those uploaders so a
- * run-feedback row maps unambiguously to one baseline row.
+ * (conversational) or `inputs.caseId` (document-extraction). The
+ * reducer mirrors those uploaders so a run-feedback row maps
+ * unambiguously to one baseline row.
  */
 export const caseIdFromRun = (datasetName: string, run: Run): string | null => {
     const inputs = (run.inputs ?? {}) as Record<string, unknown>;
@@ -106,10 +104,6 @@ export const caseIdFromRun = (datasetName: string, run: Run): string | null => {
     if (datasetName === CONVERSATIONAL_GRAPH_DATASET_NAME) {
         const group = inputs['group'];
         return typeof group === 'string' ? group : null;
-    }
-    if (datasetName === END_TO_END_DATASET_NAME) {
-        const scenario = inputs['scenario'];
-        return typeof scenario === 'string' ? scenario : null;
     }
     if (datasetName === BRIEFING_GRAPH_DATASET_NAME) {
         const kind = inputs['caseKind'];

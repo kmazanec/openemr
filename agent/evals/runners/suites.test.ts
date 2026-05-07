@@ -12,10 +12,6 @@ import {
 } from './briefingGraphSuite.js';
 import { DATASET_NAME as CONVERSATIONAL_GRAPH_DATASET_NAME } from './conversationalGraphSuite.js';
 import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from './documentExtractionSuite.js';
-import {
-    DATASET_NAME as END_TO_END_DATASET_NAME,
-    buildExamples as buildEndToEndExamples,
-} from './endToEndSuite.js';
 
 /**
  * Suite uploader unit tests. Two branches matter for every suite:
@@ -130,12 +126,17 @@ describe('briefingGraphSuite', () => {
 });
 
 describe('conversationalGraphSuite', () => {
-    it('uses a v3 dataset name (schema-bump contract: rename when shape changes)', () => {
+    it('uses a v4 dataset name (schema-bump contract: rename when shape changes)', () => {
         // Bumped to -v2 when the case-group enum widened to add
         // multi-retriever and cap-hit. Bumped to -v3 (F.5e) when the
         // synthesizer's `ClaimCategory` enum gained a `family_history`
-        // slot.
-        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v3')).toBe(true);
+        // slot. Bumped -v3 → -v4 when the suite absorbed the deleted
+        // end-to-end suite's behavioral coverage and added 26
+        // realistic clinic-encounter cases (8 document-retrieval, 8
+        // guideline-retrieval, 4 multi-retriever, 4 chart-only, 2
+        // redaction). Bump again when the input/output shape changes
+        // so old experiments stay comparable.
+        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v4')).toBe(true);
     });
 });
 
@@ -145,33 +146,6 @@ describe('documentExtractionSuite', () => {
     });
 });
 
-describe('endToEndSuite', () => {
-    it('uses a v3 dataset name (schema-bump contract: rename when shape changes)', () => {
-        // Bumped to -v2 when the redaction cases (cross-patient-leakage,
-        // hidden-off-schema-field) were reclassified from `kind: 'refusal'`
-        // to `kind: 'conversational'` and their `expectedVerdict` enum
-        // shifted from `no-sections-render-redacted` to
-        // `chart-only-redacted` to reflect that the model legitimately
-        // answers the (benign, on-topic) question with chart claims.
-        // Bumped to -v3 (F.5e) when the synthesizer's `ClaimCategory`
-        // enum gained a `family_history` slot.
-        expect(END_TO_END_DATASET_NAME.endsWith('-v3')).toBe(true);
-    });
-
-    it('ships exactly six examples (3 Patel + 3 refusal) — Phase D MVP gate count', () => {
-        const examples = buildEndToEndExamples();
-        expect(examples).toHaveLength(6);
-        const groups = examples.map((e) => e.metadata.group).sort();
-        expect(groups).toEqual([
-            'patel-scenario',
-            'patel-scenario',
-            'patel-scenario',
-            'refusal',
-            'refusal',
-            'refusal',
-        ]);
-    });
-});
 
 /**
  * Standing policy: every eval suite runs against the real model

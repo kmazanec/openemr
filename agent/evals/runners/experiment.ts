@@ -49,14 +49,13 @@ export const runExperiment = async (options: RunOptions = {}): Promise<RunResult
 
     const gitSha = options.gitSha ?? process.env['CI_COMMIT_SHA'] ?? 'local';
 
-    // Run suites sequentially. The langsmith client streams results
-    // back as the experiment runs, so parallelizing across suites
-    // would interleave their progress output — sequential keeps the
-    // logs readable and the cost predictable.
-    const results: ExperimentRunResult[] = [];
-    for (const suite of SUITES) {
-        results.push(await suite.runExperiment({ anthropicApiKey, gitSha }));
-    }
+    // Suites run concurrently — each posts to its own LangSmith
+    // dataset/experiment, so they are independent. CI wall-clock is
+    // dominated by the slowest suite (~3-5 min per W2 architecture
+    // estimate) rather than the sum, which keeps the per-PR gate fast.
+    // Progress logs from `evaluate()` interleave; the structured
+    // results below are the canonical per-suite signal.
+    const results = await Promise.all(SUITES.map((suite) => suite.runExperiment({ anthropicApiKey, gitSha })));
 
     return { ranExperiment: true, results };
 };

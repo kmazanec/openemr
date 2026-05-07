@@ -7,14 +7,14 @@
  * not score rubrics — it pins the file's *shape* against the on-disk
  * case sets so the gate cannot silently drift away from the suites.
  *
- * Three properties are asserted across all four datasets:
+ * Three properties are asserted across all three datasets:
  *
  *   1. Every dataset's on-disk case set (manifest entries / suite
  *      EXAMPLES) is fully covered in the baseline (no untracked
  *      cases).
  *   2. Every baseline case row maps to a real case in its dataset
  *      (no orphans).
- *   3. The four `datasets.*` keys exactly match the four suite
+ *   3. The three `datasets.*` keys exactly match the three suite
  *      `DATASET_NAME` exports — so a future schema-bump rename
  *      (e.g. `-v1` → `-v2`) forces both the suite and the baseline
  *      in lockstep.
@@ -45,10 +45,6 @@ import {
     buildExamples as buildDocumentExtractionExamples,
     DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME,
 } from '../runners/documentExtractionSuite.js';
-import {
-    buildExamples as buildEndToEndExamples,
-    DATASET_NAME as END_TO_END_DATASET_NAME,
-} from '../runners/endToEndSuite.js';
 import { RUBRIC_KEYS, type RubricKey } from '../rubrics/types.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -72,21 +68,17 @@ const briefingGraphCaseIds = (): readonly string[] =>
 const conversationalGraphCaseIds = (): readonly string[] =>
     buildConversationalGraphExamples().map((e) => e.metadata.group);
 
-const endToEndCaseIds = (): readonly string[] =>
-    buildEndToEndExamples().map((e) => e.metadata.scenario);
-
 const documentExtractionCaseIds = async (): Promise<readonly string[]> => {
     const examples = await buildDocumentExtractionExamples();
     return examples.map((e) => e.inputs.caseId);
 };
 
 describe('eval-suite baseline file', () => {
-    it('the four dataset keys exactly match the suite DATASET_NAME exports', async () => {
+    it('the three dataset keys exactly match the suite DATASET_NAME exports', async () => {
         const baseline = await loadBaseline();
         const expected = new Set([
             BRIEFING_GRAPH_DATASET_NAME,
             CONVERSATIONAL_GRAPH_DATASET_NAME,
-            END_TO_END_DATASET_NAME,
             DOCUMENT_EXTRACTION_DATASET_NAME,
         ]);
         expect(new Set(Object.keys(baseline.datasets))).toEqual(expected);
@@ -124,24 +116,6 @@ describe('eval-suite baseline file', () => {
         const baseline = await loadBaseline();
         const onDisk = new Set(conversationalGraphCaseIds());
         const baselined = Object.keys(baseline.datasets[CONVERSATIONAL_GRAPH_DATASET_NAME]!.cases);
-        const orphans = baselined.filter((id) => !onDisk.has(id));
-        expect(orphans).toEqual([]);
-    });
-
-    it('every on-disk end-to-end case is covered by the baseline', async () => {
-        const baseline = await loadBaseline();
-        const onDisk = new Set(endToEndCaseIds());
-        const baselined = new Set(
-            Object.keys(baseline.datasets[END_TO_END_DATASET_NAME]!.cases),
-        );
-        const missing = [...onDisk].filter((id) => !baselined.has(id));
-        expect(missing).toEqual([]);
-    });
-
-    it('every end-to-end baseline row maps to a real case', async () => {
-        const baseline = await loadBaseline();
-        const onDisk = new Set(endToEndCaseIds());
-        const baselined = Object.keys(baseline.datasets[END_TO_END_DATASET_NAME]!.cases);
         const orphans = baselined.filter((id) => !onDisk.has(id));
         expect(orphans).toEqual([]);
     });
