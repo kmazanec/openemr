@@ -322,12 +322,12 @@ Owns OIDC handshake and the FHIR transport. No UI.
   Query is a stretch goal). Returns `{ data, error, loading,
   retry }`.
 - **Acceptance.**
-  - [ ] Test: hook calls `client.request()` once on mount.
-  - [ ] Test: `retry()` re-fetches.
-  - [ ] Test: 401 from fhirclient (refresh token failed) bubbles up
+  - [x] Test: hook calls `client.request()` once on mount.
+  - [x] Test: `retry()` re-fetches.
+  - [x] Test: 401 from fhirclient (refresh token failed) bubbles up
         as a typed `AuthExpiredError` for the auth boundary to
         handle.
-  - [ ] Test: types: `useFhirRequest<Patient>(url)` returns
+  - [x] Test: types: `useFhirRequest<Patient>(url)` returns
         `data: Patient | undefined`.
 - **Blockers.** T2.1, T2.3.
 
