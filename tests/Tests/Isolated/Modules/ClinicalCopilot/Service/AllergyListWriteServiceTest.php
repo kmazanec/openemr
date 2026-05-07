@@ -42,6 +42,9 @@ use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryDisclosureRecorder;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry;
 use OpenEMR\Modules\ClinicalCopilot\Service\ProcedureReportTableWriter;
@@ -62,6 +65,10 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyPromotionRequest.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyListsTableWriter.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemPromotionRequest.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemListsTableWriter.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ProcedureReportTableWriter.php';
 require_once __DIR__
@@ -110,6 +117,7 @@ final class AllergyListWriteServiceTest extends TestCase
 
         require_once self::MODULE_DIR . '/Events/ProcedureReportCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/AllergyListEntryCreatedEvent.php';
+        require_once self::MODULE_DIR . '/Events/MedicalProblemListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Service/ObservationResult.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionResult.php';
@@ -117,12 +125,17 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/PersistedListEntry.php';
         require_once self::MODULE_DIR . '/Service/ProcedureReportTableWriter.php';
         require_once self::MODULE_DIR . '/Service/AllergyListsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/ObservationLabWriteService.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/AllergyListWriteService.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemWriteService.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -402,11 +415,18 @@ final class AllergyListWriteServiceTest extends TestCase
 
         $allergyService = $this->makeService($writer ?? new InMemoryAllergyTableWriter(), null);
 
-        // Lab service is required by the controller's constructor but
-        // not exercised by any allergy test path. A no-op lab writer
-        // satisfies the type without any setup cost.
+        // Lab + medical-problem services are required by the
+        // controller's constructor but not exercised by any allergy
+        // test path. No-op writers satisfy the types without any setup
+        // cost.
         $labService = new ObservationLabWriteService(
             tableWriter: new NoopProcedureReportTableWriter(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
+        $medicalProblemService = new MedicalProblemWriteService(
+            tableWriter: new AllergyTestNoopMedicalProblemTableWriter(),
             eventDispatcher: $dispatcher,
             clock: $this->fixedClock(),
             logger: $logger,
@@ -416,6 +436,7 @@ final class AllergyListWriteServiceTest extends TestCase
             auth: $auth,
             labWriteService: $labService,
             allergyWriteService: $allergyService,
+            medicalProblemWriteService: $medicalProblemService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -570,6 +591,31 @@ final class NoopProcedureReportTableWriter implements ProcedureReportTableWriter
         \DateTimeImmutable $createdAt,
     ): \OpenEMR\Modules\ClinicalCopilot\Service\PersistedProcedureReport {
         throw new \RuntimeException('NoopProcedureReportTableWriter.insertPanel must not be called');
+    }
+}
+
+/**
+ * No-op medical-problem writer for the allergy controller tests. The
+ * controller's constructor needs the medical-problem service for type
+ * signature but no allergy test routes through the medical-problem
+ * branch.
+ */
+final class AllergyTestNoopMedicalProblemTableWriter implements MedicalProblemListsTableWriter
+{
+    public function findExistingMedicalProblem(
+        string $sourceDocumentUuid,
+        string $normalizedTitle,
+    ): ?PersistedListEntry {
+        return null;
+    }
+
+    public function insertMedicalProblem(
+        MedicalProblemPromotionRequest $request,
+        \DateTimeImmutable $createdAt,
+    ): PersistedListEntry {
+        throw new \RuntimeException(
+            'AllergyTestNoopMedicalProblemTableWriter.insertMedicalProblem must not be called',
+        );
     }
 }
 
