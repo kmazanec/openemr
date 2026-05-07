@@ -17,7 +17,33 @@ the story-by-story build plan lives in
 
 ## Commands
 
-Run from this directory.
+The default workflow runs the build inside a docker container —
+no host Node toolchain required. The `dashboard` service in
+`docker/development-easy/docker-compose.yml` runs `vite build --watch`
+in the background and writes `dist/` to the bind-mounted host tree;
+the openemr container's docroot picks it up and Apache serves
+`/dashboard/*` (T1.6).
+
+```sh
+# Once: start the dev stack (builds the dashboard image on first run).
+cd docker/development-easy && docker compose up -d
+
+# Tail the watcher's rebuild logs.
+docker compose logs -f dashboard
+
+# Hit the SPA via openemr's Apache.
+open http://localhost:8300/dashboard/
+
+# Ad-hoc commands inside the dashboard container.
+docker compose run --rm dashboard npm test
+docker compose run --rm dashboard npm run lint
+docker compose run --rm dashboard npm run typecheck
+```
+
+Host-side commands also still work if you have Node 22+ installed
+locally (`cd dashboard && npm install && npm run …`); the docker
+service is the recommended path for day-to-day work because it
+matches what CI and the production deploy do.
 
 | Command            | What it does                                                |
 | ------------------ | ----------------------------------------------------------- |
