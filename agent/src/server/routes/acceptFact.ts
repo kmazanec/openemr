@@ -272,6 +272,84 @@ const normalizeOnsetYear = (raw: unknown): string | null => {
 };
 
 /**
+ * Materialize the F.5c medication-statement promotion body from
+ * `schemaJson` + `fieldPath`. The panel cites one
+ * `current_medications[<idx>]` entry from the intake-form schema;
+ * F.5c's `?type=medication_statement` endpoint takes a single
+ * patient-reported medication (`pid`, `source_document_uuid`,
+ * `drug_name`, optional `dosage_instructions` / `usage_category` /
+ * `request_intent` / `comments` / `onset_date`) — one accepted fact
+ * promotes one `lists` row + sibling `lists_medication` row,
+ * idempotent on `(source_document_uuid, lower(trim(drug_name)))`.
+ *
+ * The intake form's free-text `dose` / `frequency` / `route` /
+ * `notes` fields compose into a single free-text
+ * `dosage_instructions` string. The PHP-side parser supplies sensible
+ * defaults for `usage_category` and `request_intent` if the body
+ * omits them, so the middleman can stay minimal here.
+ */
+const materializeMedicationStatementPromotionBody = (
+    artifact: ExtractionArtifact,
+    fieldPath: string,
+): Materialized => {
+    if (artifact.docType !== 'intake_form') {
+        return { error: 'fact_type_mismatch' };
+    }
+    const schema = artifact.schemaJson;
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+        return { error: 'schema_invalid' };
+    }
+    const schemaRecord = schema as Record<string, unknown>;
+    const medsRaw = schemaRecord['current_medications'];
+    if (!Array.isArray(medsRaw) || medsRaw.length === 0) {
+        return { error: 'schema_invalid' };
+    }
+
+    const fieldMatch = /^current_medications\.(\d+)/.exec(fieldPath);
+    if (fieldMatch === null) {
+        return { error: 'unsupported_field_path' };
+    }
+    const idx = Number.parseInt(fieldMatch[1] ?? '', 10);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= medsRaw.length) {
+        return { error: 'unsupported_field_path' };
+    }
+
+    const row: unknown = medsRaw[idx];
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+        return { error: 'schema_invalid' };
+    }
+    const r = row as Record<string, unknown>;
+    const name = r['name'];
+    if (typeof name !== 'string' || name.trim() === '') {
+        return { error: 'schema_invalid' };
+    }
+
+    // Compose dose / frequency / route / notes into a single
+    // free-text dosage instructions string. The chart UI displays
+    // `lists_medication.drug_dosage_instructions` verbatim, so this
+    // matches what the patient wrote on the intake form (e.g.
+    // "10mg once daily PO — patient reports good adherence").
+    const parts: string[] = [];
+    for (const key of ['dose', 'frequency', 'route', 'notes']) {
+        const v = r[key];
+        if (typeof v === 'string' && v.trim() !== '') {
+            parts.push(v.trim());
+        }
+    }
+    const dosageInstructions = parts.length > 0 ? parts.join(' ') : null;
+
+    const body: Record<string, unknown> = {
+        pid: artifact.pid,
+        source_document_uuid: artifact.documentUuid,
+        drug_name: name,
+    };
+    if (dosageInstructions !== null) {
+        body['dosage_instructions'] = dosageInstructions;
+    }
+    return { body };
+};
+
+/**
  * Materialize the F.5b allergy promotion body from `schemaJson` +
  * `fieldPath`. The panel cites one `allergies[<idx>]` entry from the
  * intake-form schema; F.5b's `?type=allergy` endpoint takes a single
@@ -358,16 +436,18 @@ export const createAcceptFactHandler = (
             return c.json({ error: 'artifact_not_found' }, 404);
         }
 
-        // F.5a shipped the lab materializer; F.5b ships allergy; F.5d
-        // ships past_medical_history. The remaining two list-shaped
-        // fact types stay 501 here so the panel surfaces the same
-        // typed-error toast it would for a direct `promote.php?type=…`
-        // call. F.5c / F.5e flip them.
+        // F.5a shipped the lab materializer; F.5b ships allergy; F.5c
+        // ships medication_statement; F.5d ships past_medical_history.
+        // The remaining list-shaped fact type (`family_history`) stays
+        // 501 here so the panel surfaces the same typed-error toast it
+        // would for a direct `promote.php?type=…` call. F.5e flips it.
         let materialized: Materialized;
         if (factType === 'lab') {
             materialized = materializeLabPromotionBody(artifact, fieldPath);
         } else if (factType === 'allergy') {
             materialized = materializeAllergyPromotionBody(artifact, fieldPath);
+        } else if (factType === 'medication_statement') {
+            materialized = materializeMedicationStatementPromotionBody(artifact, fieldPath);
         } else if (factType === 'past_medical_history') {
             materialized = materializeMedicalProblemPromotionBody(artifact, fieldPath);
         } else {

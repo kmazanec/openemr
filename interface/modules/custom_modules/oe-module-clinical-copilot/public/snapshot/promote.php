@@ -41,9 +41,11 @@ use OpenEMR\Modules\ClinicalCopilot\Controller\PromoteController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalAllergyListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicalProblemListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicationStatementListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalProcedureReportTableWriter;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -95,11 +97,19 @@ $medicalProblemWriteService = new MedicalProblemWriteService(
     logger: $logger,
 );
 
+$medicationStatementWriteService = new MedicationStatementWriteService(
+    tableWriter: new DbalMedicationStatementListsTableWriter($connection),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
+    logger: $logger,
+);
+
 $controller = new PromoteController(
     auth: new AgentEndpointAuth($verifier, new SqlAgentActorResolver(), $logger, $parsed->siteId),
     labWriteService: $labWriteService,
     allergyWriteService: $allergyWriteService,
     medicalProblemWriteService: $medicalProblemWriteService,
+    medicationStatementWriteService: $medicationStatementWriteService,
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $parsed->siteId,

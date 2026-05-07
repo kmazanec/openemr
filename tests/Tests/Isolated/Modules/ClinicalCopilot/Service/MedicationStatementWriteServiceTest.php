@@ -1,13 +1,13 @@
 <?php
 
 /**
- * Isolated tests for {@see MedicalProblemWriteService}, the
- * `?type=past_medical_history` branch of {@see PromoteController}, and
- * the {@see MedicalProblemPromotionRequestParser}. The service uses an
- * in-memory {@see MedicalProblemListsTableWriter} so the unit boundary
- * stays free of DBAL.
+ * Isolated tests for {@see MedicationStatementWriteService}, the
+ * `?type=medication_statement` branch of {@see PromoteController}, and
+ * the {@see MedicationStatementPromotionRequestParser}. The service
+ * uses an in-memory {@see MedicationStatementListsTableWriter} so the
+ * unit boundary stays free of DBAL.
  *
- * Mirrors the structural layout of {@see AllergyListWriteServiceTest}:
+ * Mirrors the structural layout of `AllergyListWriteServiceTest`:
  * service-level tests (round-trip, idempotency, error path,
  * DTO-rejects-bad-inputs); controller-level tests (happy path,
  * idempotency through the dispatcher, every error envelope).
@@ -34,7 +34,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\OpenEmrJwtVerifier;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedAgentActor;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedFhirUser;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PromoteController;
-use OpenEMR\Modules\ClinicalCopilot\Events\MedicalProblemListEntryCreatedEvent;
+use OpenEMR\Modules\ClinicalCopilot\Events\MedicationStatementListEntryCreatedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosureListener;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryAgentRequestLogRecorder;
@@ -69,17 +69,15 @@ require_once __DIR__
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyListsTableWriter.php';
 require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemPromotionRequest.php';
-require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemListsTableWriter.php';
-require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ProcedureReportTableWriter.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PersistedProcedureReport.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ObservationResult.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementListsTableWriter.php';
 
-final class MedicalProblemWriteServiceTest extends TestCase
+final class MedicationStatementWriteServiceTest extends TestCase
 {
     private const MODULE_DIR = __DIR__
         . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src';
@@ -87,7 +85,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
     public const ISSUER = 'https://emr.example.test/oauth2/default';
     public const FHIR_BASE = 'https://emr.example.test/apis/default/fhir';
     public const FIXED_NOW = '2026-05-08T12:00:00+00:00';
-    public const FIXED_JTI = 'test-jti-medical-problem';
+    public const FIXED_JTI = 'test-jti-medication';
 
     /** @var array{private: string, public: string}|null */
     private static ?array $keypair = null;
@@ -156,37 +154,38 @@ final class MedicalProblemWriteServiceTest extends TestCase
     // Service-level tests — round-trip, idempotency, error path, DTO
     // ------------------------------------------------------------------
 
-    public function testWritePersistsMedicalProblemAndDispatchesEvent(): void
+    public function testWritePersistsMedicationAndDispatchesEvent(): void
     {
-        $writer = new InMemoryMedicalProblemTableWriter();
-        $events = new MedicalProblemRecordingEventDispatcher();
+        $writer = new InMemoryMedicationTableWriter();
+        $events = new MedicationRecordingEventDispatcher();
         $service = $this->makeService($writer, $events);
 
         $request = $this->buildRequest();
         $result = $service->write($request);
 
         $this->assertFalse($result->idempotentHit);
-        $this->assertSame(InMemoryMedicalProblemTableWriter::LIST_UUID, $result->listUuid);
+        $this->assertSame(InMemoryMedicationTableWriter::LIST_UUID, $result->listUuid);
 
-        $this->assertCount(1, $writer->insertedProblems);
-        $persisted = $writer->insertedProblems[0];
+        $this->assertCount(1, $writer->insertedMedications);
+        $persisted = $writer->insertedMedications[0];
         $this->assertSame(4242, $persisted->pid);
-        $this->assertSame('Type 2 diabetes', $persisted->title);
-        $this->assertSame('ICD10:E11.9', $persisted->diagnosis);
-        $this->assertSame('confirmed', $persisted->verificationOptionId);
+        $this->assertSame('lisinopril 10mg', $persisted->drugName);
+        $this->assertSame('1 tablet daily', $persisted->dosageInstructions);
+        $this->assertSame('community', $persisted->usageCategory);
+        $this->assertSame('plan', $persisted->requestIntent);
 
         $this->assertCount(1, $events->dispatched);
         $event = $events->dispatched[0];
-        $this->assertInstanceOf(MedicalProblemListEntryCreatedEvent::class, $event);
-        $this->assertSame(InMemoryMedicalProblemTableWriter::LIST_UUID, $event->listUuid);
+        $this->assertInstanceOf(MedicationStatementListEntryCreatedEvent::class, $event);
+        $this->assertSame(InMemoryMedicationTableWriter::LIST_UUID, $event->listUuid);
         $this->assertSame(4242, $event->pid);
-        $this->assertSame('Type 2 diabetes', $event->title);
+        $this->assertSame('lisinopril 10mg', $event->drugName);
     }
 
     public function testWriteIsIdempotentOnReCall(): void
     {
-        $writer = new InMemoryMedicalProblemTableWriter();
-        $events = new MedicalProblemRecordingEventDispatcher();
+        $writer = new InMemoryMedicationTableWriter();
+        $events = new MedicationRecordingEventDispatcher();
         $service = $this->makeService($writer, $events);
 
         $first = $service->write($this->buildRequest());
@@ -195,28 +194,28 @@ final class MedicalProblemWriteServiceTest extends TestCase
         $this->assertFalse($first->idempotentHit);
         $this->assertTrue($second->idempotentHit);
         $this->assertSame($first->listUuid, $second->listUuid);
-        $this->assertCount(1, $writer->insertedProblems, 're-call must not insert again');
+        $this->assertCount(1, $writer->insertedMedications, 're-call must not insert again');
         $this->assertCount(1, $events->dispatched, 're-call must not re-fire the event');
     }
 
     public function testWriteIsIdempotentAcrossCaseAndWhitespaceVariants(): void
     {
-        $writer = new InMemoryMedicalProblemTableWriter();
+        $writer = new InMemoryMedicationTableWriter();
         $service = $this->makeService($writer);
 
-        $service->write($this->buildRequest(title: 'Type 2 diabetes'));
-        $second = $service->write($this->buildRequest(title: '  TYPE 2 DIABETES  '));
+        $service->write($this->buildRequest(drugName: 'lisinopril 10mg'));
+        $second = $service->write($this->buildRequest(drugName: '  Lisinopril 10mg  '));
 
         $this->assertTrue(
             $second->idempotentHit,
             'normalization must collapse case + trim differences',
         );
-        $this->assertCount(1, $writer->insertedProblems);
+        $this->assertCount(1, $writer->insertedMedications);
     }
 
     public function testWriteWrapsTableWriterFailureAsRuntimeException(): void
     {
-        $writer = new InMemoryMedicalProblemTableWriter(failOnInsert: true);
+        $writer = new InMemoryMedicationTableWriter(failOnInsert: true);
         $service = $this->makeService($writer);
 
         $this->expectException(\RuntimeException::class);
@@ -226,12 +225,15 @@ final class MedicalProblemWriteServiceTest extends TestCase
     public function testDtoRejectsEmptyRequiredFields(): void
     {
         $this->expectException(DomainException::class);
-        new MedicalProblemPromotionRequest(
+        new MedicationStatementPromotionRequest(
             pid: 4242,
             sourceDocumentUuid: 'doc-1',
-            title: '', // empty — invalid
-            diagnosis: null,
-            verificationOptionId: null,
+            drugName: '', // empty — invalid
+            dosageInstructions: null,
+            usageCategory: 'community',
+            usageCategoryTitle: 'Home/Community',
+            requestIntent: 'plan',
+            requestIntentTitle: 'Plan',
             comments: null,
             onsetDate: null,
             promotedByUserId: 7,
@@ -242,30 +244,44 @@ final class MedicalProblemWriteServiceTest extends TestCase
     // Controller-level tests — dispatch, type-routing, auth, parsing
     // ------------------------------------------------------------------
 
-    public function testControllerMedicalProblemHappyPath(): void
+    public function testControllerMedicationHappyPath(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_MEDICAL_PROBLEM]);
-        [$status, $body, $disclosures] = $this->dispatchController($token, 'past_medical_history', $this->validBody());
+        $token = $this->mintToken([PromoteController::SCOPE_MEDICATION_STATEMENT]);
+        [$status, $body, $disclosures] = $this->dispatchController(
+            $token,
+            'medication_statement',
+            $this->validBody(),
+        );
 
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
-        $this->assertSame(InMemoryMedicalProblemTableWriter::LIST_UUID, $body['chart_record_uuid']);
-        $this->assertSame('list_medical_problem', $body['chart_record_type']);
+        $this->assertSame(InMemoryMedicationTableWriter::LIST_UUID, $body['chart_record_uuid']);
+        $this->assertSame('list_medication_statement', $body['chart_record_type']);
         $this->assertFalse($body['idempotent_hit']);
 
         $this->assertCount(1, $disclosures);
         $this->assertSame('tier3_promotion', $disclosures[0]->action);
-        $this->assertSame(['past_medical_history'], $disclosures[0]->categories);
+        $this->assertSame(['medication_statement'], $disclosures[0]->categories);
         $this->assertSame(4242, $disclosures[0]->patientPid);
     }
 
-    public function testControllerMedicalProblemIdempotentReCallReturnsSameId(): void
+    public function testControllerMedicationIdempotentReCallReturnsSameId(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_MEDICAL_PROBLEM]);
-        $writer = new InMemoryMedicalProblemTableWriter();
+        $token = $this->mintToken([PromoteController::SCOPE_MEDICATION_STATEMENT]);
+        $writer = new InMemoryMedicationTableWriter();
 
-        [$status1, $body1] = $this->dispatchController($token, 'past_medical_history', $this->validBody(), $writer);
-        [$status2, $body2] = $this->dispatchController($token, 'past_medical_history', $this->validBody(), $writer);
+        [$status1, $body1] = $this->dispatchController(
+            $token,
+            'medication_statement',
+            $this->validBody(),
+            $writer,
+        );
+        [$status2, $body2] = $this->dispatchController(
+            $token,
+            'medication_statement',
+            $this->validBody(),
+            $writer,
+        );
 
         $this->assertSame(200, $status1);
         $this->assertSame(200, $status2);
@@ -276,62 +292,74 @@ final class MedicalProblemWriteServiceTest extends TestCase
         $this->assertTrue($body2['idempotent_hit']);
     }
 
-    public function testControllerMedicalProblemRejectsTokenLackingScope(): void
+    public function testControllerMedicationRejectsTokenLackingScope(): void
     {
         $token = $this->mintToken(['user/Patient.rs']);
-        [$status, $body] = $this->dispatchController($token, 'past_medical_history', $this->validBody());
+        [$status, $body] = $this->dispatchController(
+            $token,
+            'medication_statement',
+            $this->validBody(),
+        );
 
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
     }
 
-    public function testControllerMedicalProblemRejectsMissingBearer(): void
+    public function testControllerMedicationRejectsMissingBearer(): void
     {
-        [$status, $body] = $this->dispatchController(null, 'past_medical_history', $this->validBody());
+        [$status, $body] = $this->dispatchController(null, 'medication_statement', $this->validBody());
 
         $this->assertSame(401, $status);
         $this->assertSame(['error' => 'missing_token'], $body);
     }
 
-    public function testControllerMedicalProblemRejectsMissingBody(): void
+    public function testControllerMedicationRejectsMissingBody(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_MEDICAL_PROBLEM]);
-        [$status, $body] = $this->dispatchController($token, 'past_medical_history', null);
+        $token = $this->mintToken([PromoteController::SCOPE_MEDICATION_STATEMENT]);
+        [$status, $body] = $this->dispatchController($token, 'medication_statement', null);
 
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'invalid_body'], $body);
     }
 
-    public function testControllerMedicalProblemRejectsMalformedBody(): void
+    public function testControllerMedicationRejectsMalformedBody(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_MEDICAL_PROBLEM]);
-        // Missing required `title`.
+        $token = $this->mintToken([PromoteController::SCOPE_MEDICATION_STATEMENT]);
+        // Missing required `drug_name`.
         $body = $this->validBody();
-        unset($body['title']);
-        [$status, $decoded] = $this->dispatchController($token, 'past_medical_history', $body);
+        unset($body['drug_name']);
+        [$status, $decoded] = $this->dispatchController($token, 'medication_statement', $body);
 
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'invalid_body'], $decoded);
     }
 
-    public function testControllerMedicalProblemWrapsServiceFailureAs503(): void
+    public function testControllerMedicationWrapsServiceFailureAs503(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_MEDICAL_PROBLEM]);
-        $writer = new InMemoryMedicalProblemTableWriter(failOnInsert: true);
-        [$status, $body] = $this->dispatchController($token, 'past_medical_history', $this->validBody(), $writer);
+        $token = $this->mintToken([PromoteController::SCOPE_MEDICATION_STATEMENT]);
+        $writer = new InMemoryMedicationTableWriter(failOnInsert: true);
+        [$status, $body] = $this->dispatchController(
+            $token,
+            'medication_statement',
+            $this->validBody(),
+            $writer,
+        );
 
         $this->assertSame(503, $status);
         $this->assertSame(['error' => 'write_unavailable'], $body);
     }
 
-    public function testControllerLabScopeCannotPromoteMedicalProblem(): void
+    public function testControllerLabScopeCannotPromoteMedication(): void
     {
         // An over-broadly minted lab token (with `user/DiagnosticReport.cs` only)
-        // must not be able to write a past-medical-history entry. The
-        // dispatchMedicalProblem branch demands SCOPE_MEDICAL_PROBLEM
-        // explicitly.
+        // must not be able to write a medication statement. The
+        // dispatchMedicationStatement branch demands SCOPE_MEDICATION_STATEMENT.
         $token = $this->mintToken([PromoteController::SCOPE_LAB]);
-        [$status, $body] = $this->dispatchController($token, 'past_medical_history', $this->validBody());
+        [$status, $body] = $this->dispatchController(
+            $token,
+            'medication_statement',
+            $this->validBody(),
+        );
 
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
@@ -341,16 +369,19 @@ final class MedicalProblemWriteServiceTest extends TestCase
     // Helpers
     // ------------------------------------------------------------------
 
-    private function buildRequest(string $title = 'Type 2 diabetes'): MedicalProblemPromotionRequest
+    private function buildRequest(string $drugName = 'lisinopril 10mg'): MedicationStatementPromotionRequest
     {
-        return new MedicalProblemPromotionRequest(
+        return new MedicationStatementPromotionRequest(
             pid: 4242,
             sourceDocumentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-            title: $title,
-            diagnosis: 'ICD10:E11.9',
-            verificationOptionId: 'confirmed',
-            comments: 'patient-reported on intake form',
-            onsetDate: '2014-06-01',
+            drugName: $drugName,
+            dosageInstructions: '1 tablet daily',
+            usageCategory: 'community',
+            usageCategoryTitle: 'Home/Community',
+            requestIntent: 'plan',
+            requestIntentTitle: 'Plan',
+            comments: 'patient reports good adherence',
+            onsetDate: '2024-06-01',
             promotedByUserId: 7,
         );
     }
@@ -363,21 +394,20 @@ final class MedicalProblemWriteServiceTest extends TestCase
         return [
             'pid' => 4242,
             'source_document_uuid' => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-            'title' => 'Type 2 diabetes',
-            'diagnosis' => 'ICD10:E11.9',
-            'verification_option_id' => 'confirmed',
-            'comments' => 'patient-reported on intake form',
-            'onset_date' => '2014-06-01',
+            'drug_name' => 'lisinopril 10mg',
+            'dosage_instructions' => '1 tablet daily',
+            'comments' => 'patient reports good adherence',
+            'onset_date' => '2024-06-01',
         ];
     }
 
     private function makeService(
-        InMemoryMedicalProblemTableWriter $writer,
-        ?MedicalProblemRecordingEventDispatcher $events = null,
-    ): MedicalProblemWriteService {
-        return new MedicalProblemWriteService(
+        InMemoryMedicationTableWriter $writer,
+        ?MedicationRecordingEventDispatcher $events = null,
+    ): MedicationStatementWriteService {
+        return new MedicationStatementWriteService(
             tableWriter: $writer,
-            eventDispatcher: $events ?? new MedicalProblemRecordingEventDispatcher(),
+            eventDispatcher: $events ?? new MedicationRecordingEventDispatcher(),
             clock: $this->fixedClock(),
             logger: new NullLogger(),
         );
@@ -391,7 +421,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
         ?string $token,
         ?string $type,
         ?array $body,
-        ?InMemoryMedicalProblemTableWriter $writer = null,
+        ?InMemoryMedicationTableWriter $writer = null,
     ): array {
         $logger = new NullLogger();
         $disclosureSink = new InMemoryDisclosureRecorder();
@@ -402,7 +432,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
             new AgentDisclosureListener($disclosureSink, $requestLogSink, $logger),
         );
 
-        $resolver = new MedicalProblemStubResolver(
+        $resolver = new MedicationStubResolver(
             new ResolvedAgentActor(7, 'patel', $this->actorUuid()),
             true,
         );
@@ -419,27 +449,29 @@ final class MedicalProblemWriteServiceTest extends TestCase
             'default',
         );
 
-        $medicalProblemService = $this->makeService($writer ?? new InMemoryMedicalProblemTableWriter(), null);
+        $medicationService = $this->makeService(
+            $writer ?? new InMemoryMedicationTableWriter(),
+            null,
+        );
 
-        // The lab + allergy + medication-statement services are
-        // required by the controller's constructor but no
-        // past-medical-history test path routes through any of those
-        // branches. No-op writers satisfy the type signature without
-        // setup cost.
+        // Lab + allergy + medical-problem services are required by the
+        // controller's constructor but not exercised by any medication
+        // test path. No-op writers satisfy the type without any setup
+        // cost.
         $labService = new ObservationLabWriteService(
-            tableWriter: new MedicalProblemNoopProcedureReportTableWriter(),
+            tableWriter: new MedicationNoopProcedureReportTableWriter(),
             eventDispatcher: $dispatcher,
             clock: $this->fixedClock(),
             logger: $logger,
         );
         $allergyService = new AllergyListWriteService(
-            tableWriter: new MedicalProblemNoopAllergyTableWriter(),
+            tableWriter: new MedicationNoopAllergyTableWriter(),
             eventDispatcher: $dispatcher,
             clock: $this->fixedClock(),
             logger: $logger,
         );
-        $medicationService = new MedicationStatementWriteService(
-            tableWriter: new MedicalProblemNoopMedicationStatementTableWriter(),
+        $medicalProblemService = new MedicalProblemWriteService(
+            tableWriter: new MedicationNoopMedicalProblemTableWriter(),
             eventDispatcher: $dispatcher,
             clock: $this->fixedClock(),
             logger: $logger,
@@ -484,7 +516,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
 
     private function fixedClock(): ClockInterface
     {
-        return new MedicalProblemFixedClock(new DateTimeImmutable(self::FIXED_NOW));
+        return new MedicationFixedClock(new DateTimeImmutable(self::FIXED_NOW));
     }
 
     private function actorUuid(): string
@@ -498,7 +530,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
         $minter = new AgentTokenMinter(
             new AgentSigningKey(self::keypair()['private'], self::keypair()['public'], null),
             $this->fixedClock(),
-            new MedicalProblemFixedJti(self::FIXED_JTI),
+            new MedicationFixedJti(self::FIXED_JTI),
         );
         return $minter->mint(
             new ResolvedFhirUser(
@@ -535,25 +567,25 @@ final class MedicalProblemWriteServiceTest extends TestCase
     }
 }
 
-final class InMemoryMedicalProblemTableWriter implements MedicalProblemListsTableWriter
+final class InMemoryMedicationTableWriter implements MedicationStatementListsTableWriter
 {
-    public const LIST_UUID = 'aaaaaaaa-1111-2222-3333-444444444444';
+    public const LIST_UUID = 'aaaaaaaa-1111-2222-3333-555555555555';
 
-    /** @var list<MedicalProblemPromotionRequest> */
-    public array $insertedProblems = [];
+    /** @var list<MedicationStatementPromotionRequest> */
+    public array $insertedMedications = [];
 
     public function __construct(private readonly bool $failOnInsert = false)
     {
     }
 
-    public function findExistingMedicalProblem(
+    public function findExistingMedication(
         string $sourceDocumentUuid,
-        string $normalizedTitle,
+        string $normalizedDrugName,
     ): ?PersistedListEntry {
-        foreach ($this->insertedProblems as $idx => $req) {
+        foreach ($this->insertedMedications as $idx => $req) {
             if (
                 $req->sourceDocumentUuid === $sourceDocumentUuid
-                && $req->normalizedTitle() === $normalizedTitle
+                && $req->normalizedDrugName() === $normalizedDrugName
             ) {
                 return new PersistedListEntry(
                     listUuid: self::LIST_UUID,
@@ -564,15 +596,15 @@ final class InMemoryMedicalProblemTableWriter implements MedicalProblemListsTabl
         return null;
     }
 
-    public function insertMedicalProblem(
-        MedicalProblemPromotionRequest $request,
+    public function insertMedication(
+        MedicationStatementPromotionRequest $request,
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
         if ($this->failOnInsert) {
             throw new \RuntimeException('simulated DBAL failure');
         }
-        $idx = count($this->insertedProblems);
-        $this->insertedProblems[] = $request;
+        $idx = count($this->insertedMedications);
+        $this->insertedMedications[] = $request;
         return new PersistedListEntry(
             listUuid: self::LIST_UUID,
             listRowId: $idx + 1,
@@ -581,11 +613,11 @@ final class InMemoryMedicalProblemTableWriter implements MedicalProblemListsTabl
 }
 
 /**
- * No-op procedure-report writer for the medical-problem controller
- * tests. The controller's constructor needs the lab service for type
- * signature but no medical-problem test routes through the lab branch.
+ * No-op procedure-report writer for the medication controller tests.
+ * The controller's constructor needs the lab service for type
+ * signature but no medication test routes through the lab branch.
  */
-final class MedicalProblemNoopProcedureReportTableWriter implements ProcedureReportTableWriter
+final class MedicationNoopProcedureReportTableWriter implements ProcedureReportTableWriter
 {
     public function findExistingPanel(
         string $sourceDocumentUuid,
@@ -604,17 +636,14 @@ final class MedicalProblemNoopProcedureReportTableWriter implements ProcedureRep
         int $promotedByUserId,
         \DateTimeImmutable $createdAt,
     ): \OpenEMR\Modules\ClinicalCopilot\Service\PersistedProcedureReport {
-        throw new \RuntimeException('MedicalProblemNoopProcedureReportTableWriter.insertPanel must not be called');
+        throw new \RuntimeException('MedicationNoopProcedureReportTableWriter.insertPanel must not be called');
     }
 }
 
 /**
- * No-op allergy table writer for the medical-problem controller tests.
- * The controller's constructor needs the allergy service for type
- * signature but no medical-problem test routes through the allergy
- * branch.
+ * No-op allergy writer for the medication controller tests.
  */
-final class MedicalProblemNoopAllergyTableWriter implements AllergyListsTableWriter
+final class MedicationNoopAllergyTableWriter implements AllergyListsTableWriter
 {
     public function findExistingAllergy(
         string $sourceDocumentUuid,
@@ -627,36 +656,33 @@ final class MedicalProblemNoopAllergyTableWriter implements AllergyListsTableWri
         AllergyPromotionRequest $request,
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
-        throw new \RuntimeException('MedicalProblemNoopAllergyTableWriter.insertAllergy must not be called');
+        throw new \RuntimeException('MedicationNoopAllergyTableWriter.insertAllergy must not be called');
     }
 }
 
 /**
- * No-op medication-statement table writer for the medical-problem
- * controller tests. The controller's constructor needs the
- * medication-statement service for type signature but no
- * medical-problem test routes through the medication-statement branch.
+ * No-op medical-problem writer for the medication controller tests.
  */
-final class MedicalProblemNoopMedicationStatementTableWriter implements MedicationStatementListsTableWriter
+final class MedicationNoopMedicalProblemTableWriter implements MedicalProblemListsTableWriter
 {
-    public function findExistingMedication(
+    public function findExistingMedicalProblem(
         string $sourceDocumentUuid,
-        string $normalizedDrugName,
+        string $normalizedTitle,
     ): ?PersistedListEntry {
         return null;
     }
 
-    public function insertMedication(
-        MedicationStatementPromotionRequest $request,
+    public function insertMedicalProblem(
+        MedicalProblemPromotionRequest $request,
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
         throw new \RuntimeException(
-            'MedicalProblemNoopMedicationStatementTableWriter.insertMedication must not be called',
+            'MedicationNoopMedicalProblemTableWriter.insertMedicalProblem must not be called',
         );
     }
 }
 
-final class MedicalProblemRecordingEventDispatcher implements \Symfony\Component\EventDispatcher\EventDispatcherInterface
+final class MedicationRecordingEventDispatcher implements \Symfony\Component\EventDispatcher\EventDispatcherInterface
 {
     /** @var list<object> */
     public array $dispatched = [];
@@ -700,7 +726,7 @@ final class MedicalProblemRecordingEventDispatcher implements \Symfony\Component
     }
 }
 
-final readonly class MedicalProblemFixedClock implements ClockInterface
+final readonly class MedicationFixedClock implements ClockInterface
 {
     public function __construct(private DateTimeImmutable $now)
     {
@@ -712,7 +738,7 @@ final readonly class MedicalProblemFixedClock implements ClockInterface
     }
 }
 
-final readonly class MedicalProblemFixedJti implements JtiGenerator
+final readonly class MedicationFixedJti implements JtiGenerator
 {
     public function __construct(private string $jti)
     {
@@ -724,7 +750,7 @@ final readonly class MedicalProblemFixedJti implements JtiGenerator
     }
 }
 
-final readonly class MedicalProblemStubResolver implements \OpenEMR\Modules\ClinicalCopilot\Auth\AgentActorResolver
+final readonly class MedicationStubResolver implements \OpenEMR\Modules\ClinicalCopilot\Auth\AgentActorResolver
 {
     public function __construct(
         private ?ResolvedAgentActor $actor,
