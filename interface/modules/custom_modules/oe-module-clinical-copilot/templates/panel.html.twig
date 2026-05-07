@@ -15,7 +15,11 @@
     <link rel="stylesheet" href="{{ cssUrl }}" />
 </head>
 <body>
-    <main class="copilot-panel" data-pid="{{ pid }}" data-site-id="{{ siteId }}" data-proxy-url="{{ proxyUrl }}">
+    <main class="copilot-panel"
+          data-pid="{{ pid }}"
+          data-site-id="{{ siteId }}"
+          data-proxy-url="{{ proxyUrl }}"
+          data-document-view-url="{{ documentViewUrlBase }}">
         {# §4.7: history sidebar lists this clinician's prior conversations
            on the active patient. Click → force-resume that thread; the
            composer rebinds to the resumed conversationId so follow-ups
@@ -81,8 +85,29 @@
                         data-role="submit">{{ 'Ask'|xlt }}</button>
             </form>
         </section>
+        {# F.4 side-by-side document viewer. Hidden by default; `panel.js`
+           un-hides the aside on extracted_document chip click and
+           `documentViewer.js` (loaded below) mounts the rendered
+           document inside `[data-role="document-viewer"]`. Above
+           1200px the aside takes the right half of the flex row;
+           below the breakpoint, the layout stacks (see panel.css
+           `@media (max-width: 1199px)` rule). #}
+        <aside class="copilot-doc-viewer"
+               data-role="document-viewer-pane"
+               hidden>
+            <header class="copilot-doc-viewer__header">
+                <h2 class="copilot-doc-viewer__title">{{ 'Document'|xlt }}</h2>
+                <button class="copilot-doc-viewer__close"
+                        type="button"
+                        data-role="document-viewer-close"
+                        aria-label="{{ 'Close document viewer'|xlt }}"
+                        title="{{ 'Close document viewer'|xlt }}">×</button>
+            </header>
+            <div class="copilot-doc-viewer__body" data-role="document-viewer"></div>
+        </aside>
     </main>
 
+    <script src="{{ documentViewerJsUrl }}" defer></script>
     <script src="{{ jsUrl }}" defer></script>
 </body>
 </html>

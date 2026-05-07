@@ -83,6 +83,10 @@ echo $twig->render('panel.html.twig', [
         . '/interface/modules/custom_modules/oe-module-clinical-copilot/public/css/panel.css',
     'jsUrl' => $webroot
         . '/interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js',
+    'documentViewerJsUrl' => $webroot
+        . '/interface/modules/custom_modules/oe-module-clinical-copilot/public/js/documentViewer.js',
+    'documentViewUrlBase' => $webroot
+        . '/interface/modules/custom_modules/oe-module-clinical-copilot/public/document_view.php',
     'proxyUrl' => $proxyUrl,
     'pid' => $pid,
     'siteId' => $siteId,

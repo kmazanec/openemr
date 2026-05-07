@@ -61,12 +61,25 @@ test:php-isolated:
       -e COMPOSER_HOME=/tmp/composer-home \
       openemr/openemr:flex \
       sh -c '
-        # pdo_sqlite is required by the clinical-copilot DBAL isolated tests
-        # (in-memory SQLite). The flex image ships pdo_mysql only. Install
-        # the matching version against whatever PHP the image happens to
-        # ship (currently 8.5; tracks upstream).
+        # Runtime apk additions:
+        #   php-${php_ver}-pdo_sqlite: clinical-copilot DBAL isolated
+        #     tests use in-memory SQLite. The flex image ships
+        #     pdo_mysql only. Install the matching extension against
+        #     whatever PHP the image happens to ship (currently 8.5;
+        #     tracks upstream).
+        #   imagemagick-tiff: Alpine subpackage that registers
+        #     ImageMagick s libtiff delegate. Without it, ext-imagick
+        #     loads, but Imagick::queryFormats(TIFF) returns [] and
+        #     readImageBlob on TIFF bytes throws "no decode delegate".
+        #     Alpine splits ImageMagick s format support across
+        #     subpackages; installing libtiff (apk add tiff) alone
+        #     does not help because the ImageMagick package is
+        #     compiled without TIFF support. Production also adds
+        #     imagemagick-tiff via docker/digitalocean/openemr/Dockerfile.
         php_ver=$(php --version | head -1 | awk "{print \$2}" | cut -d. -f1-2 | tr -d .) && \
-        apk add --no-cache "php${php_ver}-pdo_sqlite" && \
+        apk add --no-cache \
+          "php${php_ver}-pdo_sqlite" \
+          imagemagick-tiff && \
         composer install --no-interaction --no-progress --prefer-dist && \
         composer phpunit-isolated
       '

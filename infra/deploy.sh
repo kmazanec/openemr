@@ -98,8 +98,15 @@ if (( agent_healthy == 0 )); then
     exit 1
 fi
 
-log "recreating openemr container"
-docker compose up --detach --no-deps --force-recreate openemr
+log "rebuilding and recreating openemr container"
+# `--build` rebuilds the thin derived image
+# (docker/digitalocean/openemr/Dockerfile) which adds the `tiff` Alpine
+# package to upstream `openemr/openemr:flex` so ext-imagick has the
+# libtiff delegate F.4b's session-side TIFF -> PNG decode depends on.
+# Without --build, compose would skip the local build step and reuse a
+# stale derived image (or worse, fall through to the upstream image
+# without the delegate).
+docker compose up --detach --no-deps --build --force-recreate openemr
 
 # ---------------------------------------------------------------------
 # 3. Make dependency installs deterministic.
