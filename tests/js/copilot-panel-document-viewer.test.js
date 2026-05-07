@@ -99,6 +99,17 @@ class FakeElement {
 class FakeDocument {
     createElement(tagName) {
         const el = new FakeElement(tagName, this);
+        if (tagName.toLowerCase() === 'img') {
+            // Stand in for the browser's <img> behavior. The viewer
+            // attaches the overlay on `load`, but in tests we want the
+            // overlay attached synchronously so assertions can fire
+            // without an event loop. Mark the image as already-loaded
+            // with sensible natural dimensions so the synthesized
+            // fallback path in renderImage fires.
+            el.complete = true;
+            el.naturalWidth = 1700;
+            el.naturalHeight = 2200;
+        }
         return el;
     }
 }
@@ -239,6 +250,28 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
         expect(renderBboxOverlay(null, [1, 2, 3, 4])).toBeNull();
         expect(renderBboxOverlay({}, [1, 2, 3, 4])).toBeNull();
     });
+
+    test('with a naturalSize, positions the overlay in percentages so it scales with the rendered image', () => {
+        // Bbox cites a region at (170, 220) of size 170×220 in a
+        // 1700×2200 source. Expressed as percentages of the natural
+        // dimensions: left 10%, top 10%, width 10%, height 10%.
+        const mount = fakeMount();
+        const overlay = renderBboxOverlay(mount, [170, 220, 170, 220], { width: 1700, height: 2200 });
+        expect(overlay).not.toBeNull();
+        expect(overlay.style.left).toBe('10%');
+        expect(overlay.style.top).toBe('10%');
+        expect(overlay.style.width).toBe('10%');
+        expect(overlay.style.height).toBe('10%');
+    });
+
+    test('with a naturalSize whose dimensions are zero, falls back to absolute pixels', () => {
+        // Defensive — an `<img>` whose `load` never fires has
+        // naturalWidth 0; the percentage math would divide by zero.
+        const mount = fakeMount();
+        const overlay = renderBboxOverlay(mount, [10, 20, 100, 50], { width: 0, height: 0 });
+        expect(overlay.style.left).toBe('10px');
+        expect(overlay.style.top).toBe('20px');
+    });
 });
 
 describe('openDocument — branch dispatch by Content-Type', () => {
@@ -263,7 +296,14 @@ describe('openDocument — branch dispatch by Content-Type', () => {
         const overlay = wrapper.children.find((c) => c.dataset.role === 'bbox-overlay');
         expect(img).toBeDefined();
         expect(overlay).toBeDefined();
-        expect(overlay.style.left).toBe('5px');
+        // Overlay positions are percentages of the image's natural
+        // dimensions (FakeDocument's stand-in <img> uses 1700×2200).
+        // The bbox `[5, 6, 7, 8]` maps to 5/1700 ≈ 0.294%, etc.
+        const pct = (n, of) => `${(n / of) * 100}%`;
+        expect(overlay.style.left).toBe(pct(5, 1700));
+        expect(overlay.style.top).toBe(pct(6, 2200));
+        expect(overlay.style.width).toBe(pct(7, 1700));
+        expect(overlay.style.height).toBe(pct(8, 2200));
     });
 
     test('JPEG response mounts an <img> wrapper (same branch as PNG)', async () => {
