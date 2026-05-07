@@ -92,6 +92,14 @@ export interface ExtractionArtifactStore {
         documentHash: string,
         extractorVersion: string,
     ) => Promise<ExtractionArtifact | null>;
+    /**
+     * F.5a read helper for the `accept_fact` middleman route.
+     * Returns the canonical artifact row (incl. `schemaJson`) so the
+     * route can materialize the per-type promotion payload without
+     * paying for a `searchArtifacts` scan. Returns null on miss; the
+     * route surfaces that as 404 to the panel.
+     */
+    readonly findArtifactById: (artifactId: string) => Promise<ExtractionArtifact | null>;
     readonly insertArtifact: (
         artifact: NewExtractionArtifact,
     ) => Promise<ExtractionArtifact>;
@@ -231,6 +239,26 @@ const FIND_BY_HASH_SQL = `
         confirmed_by_user
     FROM extraction_artifacts
     WHERE document_hash = $1 AND extractor_version = $2
+    LIMIT 1
+`;
+
+const FIND_BY_ID_SQL = `
+    SELECT
+        artifact_id,
+        document_uuid,
+        pid,
+        doc_type,
+        extractor_version,
+        schema_json,
+        deltas_json,
+        confidence_signal,
+        status,
+        document_hash,
+        created_at,
+        confirmed_at,
+        confirmed_by_user
+    FROM extraction_artifacts
+    WHERE artifact_id = $1
     LIMIT 1
 `;
 
@@ -568,6 +596,15 @@ export const createExtractionArtifactStoreFromPool = (
         return rowToArtifact(row as unknown as ArtifactRow);
     };
 
+    const findArtifactById = async (
+        artifactId: string,
+    ): Promise<ExtractionArtifact | null> => {
+        const result = await pool.query(FIND_BY_ID_SQL, [artifactId]);
+        const row = result.rows[0];
+        if (row === undefined) return null;
+        return rowToArtifact(row as unknown as ArtifactRow);
+    };
+
     const insertArtifact = async (
         artifact: NewExtractionArtifact,
     ): Promise<ExtractionArtifact> => {
@@ -777,6 +814,7 @@ export const createExtractionArtifactStoreFromPool = (
     return {
         claimDocumentLock,
         findArtifactByDocumentHash,
+        findArtifactById,
         insertArtifact,
         updateArtifactStatus,
         searchArtifacts,

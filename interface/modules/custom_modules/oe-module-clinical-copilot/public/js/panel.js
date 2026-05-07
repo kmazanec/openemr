@@ -561,18 +561,95 @@ const __copilotPanel = (function () {
                       aria-label="Source: ${escapeText(tooltip)}">[source]</span>`;
     };
 
-    const renderClaimWithChips = (claim) => {
+    /**
+     * F.5a — map a claim's verifier `category` to the `factType` the
+     * `accept_fact` route expects on its body. Mostly 1:1, with the
+     * caveat that `diagnosis` claims from extracted documents map to
+     * `past_medical_history` (the synthesizer's category enum lacks a
+     * `family_history` slot, so until that lands the panel always
+     * picks `past_medical_history` for diagnosis-shaped doc claims).
+     * Returns `null` for categories the panel does not promote
+     * (identity, appointment, encounter, etc.) — callers skip the
+     * action-button render in that case.
+     */
+    const factTypeForClaimCategory = (category) => {
+        switch (category) {
+            case 'lab':
+                return 'lab';
+            case 'allergy':
+                return 'allergy';
+            case 'medication_statement':
+                return 'medication_statement';
+            case 'diagnosis':
+                return 'past_medical_history';
+            default:
+                return null;
+        }
+    };
+
+    /**
+     * F.5a — pull the `(artifactId, fieldPath)` pair off the claim's
+     * primary `extracted_document` source reference. The agent emits
+     * the artifactId as `source_id` and the in-artifact path as
+     * `locator.field`; both are required by the `accept_fact` body.
+     * Returns `null` when the claim has no extracted_document
+     * primary, in which case the action buttons don't render.
+     */
+    const docPromotionTargetForClaim = (claim) => {
+        if (!claim) return null;
+        const refs = Array.isArray(claim.sourceReferences) ? claim.sourceReferences : [];
+        const primary = refs.find((r) => r && r.source_type === 'extracted_document');
+        if (!primary) return null;
+        const artifactId = typeof primary.source_id === 'string' ? primary.source_id : '';
+        const fieldPath = primary.locator && typeof primary.locator.field === 'string'
+            ? primary.locator.field
+            : '';
+        if (artifactId.length === 0 || fieldPath.length === 0) return null;
+        const factType = factTypeForClaimCategory(claim.category);
+        if (factType === null) return null;
+        return { artifactId, fieldPath, factType };
+    };
+
+    /**
+     * F.5a — accept/reject button group rendered inline-right of each
+     * extracted-document fact. The two buttons carry the data-* attrs
+     * the click handler needs to POST `?action=accept_fact` (chart
+     * write + disposition round-trip) or `/v1/agent/dispositions`
+     * (reject; disposition only). Per F.0 the layout is inline-right
+     * + ephemeral toast + animated chip swap, so the buttons themselves
+     * are unstyled-by-default and the click handler owns the post-
+     * submit class shuffling.
+     */
+    const renderFactActions = (target) => {
+        if (target === null) return '';
+        return `<span class="copilot-fact-actions" data-role="fact-actions"
+                       data-artifact-id="${escapeText(target.artifactId)}"
+                       data-field-path="${escapeText(target.fieldPath)}"
+                       data-fact-type="${escapeText(target.factType)}">
+            <button type="button" class="copilot-fact-actions__btn copilot-fact-actions__btn--accept"
+                    data-role="fact-accept">Accept</button>
+            <button type="button" class="copilot-fact-actions__btn copilot-fact-actions__btn--reject"
+                    data-role="fact-reject">Reject</button>
+        </span>`;
+    };
+
+    const renderClaimWithChips = (claim, options = {}) => {
         const text = formatDatesInText(escapeText(claim.text || ''));
         const refs = Array.isArray(claim.sourceReferences) ? claim.sourceReferences : [];
         const chips = refs.map((ref) => renderSectionChip(ref)).join(' ');
-        return `<li class="copilot-claim-groups__claim">${text}${chips ? ' ' + chips : ''}</li>`;
+        const actions = options.withActions === true
+            ? renderFactActions(docPromotionTargetForClaim(claim))
+            : '';
+        return `<li class="copilot-claim-groups__claim">${text}${chips ? ' ' + chips : ''}${actions}</li>`;
     };
 
     const renderDocumentCard = (card) => {
         const uuidLabel = typeof card.documentUuid === 'string' && card.documentUuid.length > 0
             ? `Document ${escapeText(card.documentUuid.slice(0, 8))}`
             : 'Document';
-        const claims = (card.claims || []).map(renderClaimWithChips).join('');
+        const claims = (card.claims || [])
+            .map((claim) => renderClaimWithChips(claim, { withActions: true }))
+            .join('');
         return `<section class="copilot-claim-groups__doc-card"
                          data-document-uuid="${escapeText(card.documentUuid || '')}">
             <h4 class="copilot-claim-groups__subheading">${uuidLabel}</h4>
@@ -1507,6 +1584,26 @@ const __copilotPanel = (function () {
         threadEl.addEventListener('click', (e) => {
             const target = e.target;
             if (!(target instanceof HTMLElement)) return;
+            // F.5a accept/reject buttons. Render-side puts them on each
+            // extracted-document fact in the "From documents" section;
+            // we delegate from `threadEl` so a click on the button (or
+            // its child) routes through the same listener as the chip
+            // clicks below. Order matters: this must run BEFORE the
+            // chip dispatch — neither button is a chip, so they would
+            // fall through, but the explicit check is cheaper than a
+            // closest() chain that hits nothing.
+            const acceptBtn = target.closest('[data-role="fact-accept"]');
+            if (acceptBtn) {
+                e.preventDefault();
+                handleFactAccept(acceptBtn);
+                return;
+            }
+            const rejectBtn = target.closest('[data-role="fact-reject"]');
+            if (rejectBtn) {
+                e.preventDefault();
+                handleFactReject(rejectBtn);
+                return;
+            }
             const unverifiedChip = target.closest('[data-role="unverified-chip"]');
             if (unverifiedChip) {
                 e.preventDefault();
@@ -1730,6 +1827,234 @@ const __copilotPanel = (function () {
 
     const documentUploadUrl = () => siblingProxyUrl('document_upload.php', '/document_upload.php');
     const extractEndpointUrl = () => siblingProxyUrl('extract.php', '/extract.php');
+
+    /**
+     * F.5a — toast utilities. Ephemeral, ~3s, fade-in/fade-out via CSS
+     * transition. Stacks vertically when multiple fire in sequence.
+     * The toast container is mounted lazily on first use so a panel
+     * that never accepts/rejects pays no DOM cost.
+     */
+    let toastContainerEl = null;
+    const TOAST_TIMEOUT_MS = 3000;
+
+    const ensureToastContainer = () => {
+        if (toastContainerEl !== null) return toastContainerEl;
+        if (typeof document === 'undefined') return null;
+        toastContainerEl = document.createElement('div');
+        toastContainerEl.className = 'copilot-toast-container';
+        toastContainerEl.setAttribute('role', 'status');
+        toastContainerEl.setAttribute('aria-live', 'polite');
+        document.body.appendChild(toastContainerEl);
+        return toastContainerEl;
+    };
+
+    const showToast = (variant, message) => {
+        const container = ensureToastContainer();
+        if (container === null) return;
+        const toast = document.createElement('div');
+        toast.className = `copilot-toast copilot-toast--${variant}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        // Force a reflow so the fade-in transition fires from the
+        // `opacity: 0` initial state instead of skipping straight to
+        // the post-transition `opacity: 1`.
+        // eslint-disable-next-line no-unused-expressions -- intentional reflow
+        toast.offsetHeight;
+        toast.classList.add('copilot-toast--visible');
+        setTimeout(() => {
+            toast.classList.remove('copilot-toast--visible');
+            toast.classList.add('copilot-toast--leaving');
+            setTimeout(() => {
+                toast.remove();
+            }, 250);
+        }, TOAST_TIMEOUT_MS);
+    };
+
+    /**
+     * F.5a — POST a fact-accept request to the proxy. The proxy mints
+     * an `accept_fact`-scoped JWT (PolicyGate's accept_fact entry) and
+     * forwards to the agent middleman, which materializes the
+     * promotion body, calls `promote.php`, and records the
+     * disposition. Returns a discriminated-union result so the click
+     * handler doesn't have to introspect status + body twice.
+     */
+    const acceptFactUrl = () => `${proxyUrl}?action=accept_fact${pid ? `&pid=${encodeURIComponent(pid)}` : ''}`;
+    const dispositionsUrl = () => `${proxyUrl}?action=dispositions${pid ? `&pid=${encodeURIComponent(pid)}` : ''}`;
+
+    /**
+     * F.5a — POST a fact-action request (accept or reject) and parse a
+     * typed result envelope. The agent's `accept_fact` route and the
+     * `dispositions` route share the same JSON-error shape (`{error}`)
+     * and the same network/malformed failure modes; one helper covers
+     * both with a `transportLabel` for the console-log line. Pure-
+     * function shape (caller injects `fetchFn`) so the Jest test can
+     * drive the request/response cycle without jsdom.
+     */
+    const postFactAction = async ({ fetchFn, url, body, transportLabel }) => {
+        let response;
+        try {
+            response = await fetchFn(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+        } catch (err) {
+            console.error(`copilot: ${transportLabel} transport failed`, err);
+            return { ok: false, code: 'network_error' };
+        }
+        let parsed = null;
+        try {
+            parsed = await response.json();
+        } catch {
+            return { ok: false, code: 'malformed_response' };
+        }
+        if (response.ok) {
+            return { ok: true, body: parsed };
+        }
+        const errCode = (parsed && typeof parsed.error === 'string') ? parsed.error : 'unknown';
+        return { ok: false, code: errCode, status: response.status };
+    };
+
+    // Accept and reject both go through `postFactAction`; the named
+    // wrappers are kept for the test surface and so the call sites
+    // read at the right semantic level. Both forward to the shared
+    // helper above unchanged.
+    const postAcceptFact = ({ fetchFn, url, body }) =>
+        postFactAction({ fetchFn, url, body, transportLabel: 'accept_fact' });
+    const postReject = ({ fetchFn, url, body }) =>
+        postFactAction({ fetchFn, url, body, transportLabel: 'dispositions' });
+
+    /**
+     * F.5a — typed messages for accept/reject error envelopes.
+     * Codes mirror the agent's `accept_fact` route + the proxy's
+     * pre-stream errors.
+     */
+    const FACT_ACTION_ERROR_MESSAGES = {
+        not_yet_implemented: 'This fact type is not yet promotable to the chart.',
+        artifact_not_found: 'This document is no longer available for promotion.',
+        fact_type_mismatch: 'This fact does not match the expected document type.',
+        unsupported_field_path: 'This part of the document cannot be promoted.',
+        schema_invalid: 'This document is missing data needed to promote.',
+        promote_failed: 'OpenEMR could not write the chart record. Please try again.',
+        promote_unreachable: 'OpenEMR is temporarily unreachable. Please try again.',
+        promote_malformed: 'OpenEMR returned an unexpected response.',
+        accept_fact_unavailable: 'The promotion service is offline. Please try again later.',
+        dispositions_unavailable: 'The disposition service is offline. Please try again later.',
+        invalid_body: 'This action could not be completed (invalid request).',
+        network_error: 'Could not reach the agent. Please try again.',
+        malformed_response: 'The agent returned an unexpected response.',
+        unknown: 'Something went wrong. Please try again.',
+    };
+    const messageForFactActionCode = (code) =>
+        FACT_ACTION_ERROR_MESSAGES[code] || FACT_ACTION_ERROR_MESSAGES.unknown;
+
+    /**
+     * F.5a — disable a button group while its request is in flight,
+     * re-enable on failure, and lock the relevant button into
+     * "Accepted"/"Rejected" state on success. The button-group
+     * element is the one carrying `data-role="fact-actions"`.
+     */
+    const setFactActionsBusy = (groupEl, busy) => {
+        if (!groupEl) return;
+        const buttons = groupEl.querySelectorAll('button');
+        buttons.forEach((b) => {
+            b.disabled = busy;
+        });
+    };
+
+    const finalizeAccept = (groupEl) => {
+        if (!groupEl) return;
+        groupEl.classList.add('copilot-fact-actions--accepted');
+        const buttons = groupEl.querySelectorAll('button');
+        buttons.forEach((b) => {
+            b.disabled = true;
+        });
+        const acceptBtn = groupEl.querySelector('[data-role="fact-accept"]');
+        if (acceptBtn) acceptBtn.textContent = 'Accepted';
+        // F.5a — animated chip swap. The claim's `[source]` chip
+        // currently carries the `copilot-source--document` variant;
+        // we recolor it in place via the `--chart` variant by adding
+        // `copilot-source--chart` and removing `copilot-source--document`.
+        // The CSS transition on `background-color` + `border-color`
+        // owns the visual recoloring.
+        const claimEl = groupEl.closest('.copilot-claim-groups__claim');
+        if (claimEl) {
+            const docChips = claimEl.querySelectorAll('.copilot-source--document');
+            docChips.forEach((chip) => {
+                chip.classList.remove('copilot-source--document');
+                chip.classList.add('copilot-source--chart');
+            });
+        }
+    };
+
+    const finalizeReject = (groupEl) => {
+        if (!groupEl) return;
+        const claimEl = groupEl.closest('.copilot-claim-groups__claim');
+        if (!claimEl) return;
+        claimEl.classList.add('copilot-claim-groups__claim--rejected');
+        const buttons = groupEl.querySelectorAll('button');
+        buttons.forEach((b) => {
+            b.disabled = true;
+        });
+    };
+
+    const handleFactAccept = async (button) => {
+        const groupEl = button.closest('[data-role="fact-actions"]');
+        if (!groupEl) return;
+        const artifactId = groupEl.dataset.artifactId || '';
+        const fieldPath = groupEl.dataset.fieldPath || '';
+        const factType = groupEl.dataset.factType || '';
+        if (artifactId.length === 0 || fieldPath.length === 0 || factType.length === 0) return;
+        if (groupEl.classList.contains('copilot-fact-actions--accepted')) return;
+        setFactActionsBusy(groupEl, true);
+        const body = {
+            artifactId,
+            fieldPath,
+            factType,
+            ...(conversationId ? { conversationId } : {}),
+        };
+        const result = await postAcceptFact({
+            fetchFn: fetch,
+            url: acceptFactUrl(),
+            body,
+        });
+        if (result.ok) {
+            finalizeAccept(groupEl);
+            const idempotent = result.body && result.body.idempotentHit === true;
+            showToast(
+                'success',
+                idempotent ? 'Already in chart.' : 'Promoted to chart.',
+            );
+            return;
+        }
+        setFactActionsBusy(groupEl, false);
+        showToast('error', messageForFactActionCode(result.code));
+    };
+
+    const handleFactReject = async (button) => {
+        const groupEl = button.closest('[data-role="fact-actions"]');
+        if (!groupEl) return;
+        const artifactId = groupEl.dataset.artifactId || '';
+        const fieldPath = groupEl.dataset.fieldPath || '';
+        if (artifactId.length === 0 || fieldPath.length === 0) return;
+        const claimEl = groupEl.closest('.copilot-claim-groups__claim');
+        if (claimEl && claimEl.classList.contains('copilot-claim-groups__claim--rejected')) return;
+        setFactActionsBusy(groupEl, true);
+        const body = { artifactId, fieldPath, status: 'rejected' };
+        const result = await postReject({
+            fetchFn: fetch,
+            url: dispositionsUrl(),
+            body,
+        });
+        if (result.ok) {
+            finalizeReject(groupEl);
+            showToast('success', 'Fact rejected.');
+            return;
+        }
+        setFactActionsBusy(groupEl, false);
+        showToast('error', messageForFactActionCode(result.code));
+    };
 
     /**
      * §D.1 pure upload round-trip. Posts the file as multipart to the
@@ -2316,6 +2641,14 @@ const __copilotPanel = (function () {
         // `tests/js/copilot-panel-document-viewer.test.js`.
         viewerArgsFromSource,
         sectionChipViewerArgs,
+        // F.5a accept/reject helpers, exposed for
+        // `tests/js/copilot-panel-fact-actions.test.js`.
+        factTypeForClaimCategory,
+        docPromotionTargetForClaim,
+        renderFactActions,
+        postAcceptFact,
+        postReject,
+        messageForFactActionCode,
     };
 })();
 

@@ -93,6 +93,7 @@ const stubArtifactStore = (
             calls.findCalls += 1;
             return Promise.resolve(null);
         }),
+        findArtifactById: vi.fn(() => Promise.resolve(null)),
         insertArtifact: vi.fn((a: NewExtractionArtifact) => {
             calls.insertCalls.push(a);
             return Promise.resolve(toExtractionArtifact(a));

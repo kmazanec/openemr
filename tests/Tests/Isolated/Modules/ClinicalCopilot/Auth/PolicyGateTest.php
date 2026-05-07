@@ -418,6 +418,55 @@ final class PolicyGateTest extends TestCase
         $this->assertSame(PolicyDenyReason::PatientMismatch, $decision->reason);
     }
 
+    public function testAcceptFactActionAllowsTier3WriteScopes(): void
+    {
+        $gate = new PolicyGate();
+        $session = new SessionContext(
+            authUserId: '42',
+            authUser: 'admin',
+            siteId: 'default',
+            patientPid: '4242',
+            fhirUser: $this->stubFhirUser(),
+        );
+        $request = new AgentRequest(
+            action: 'accept_fact',
+            siteId: 'default',
+            requestedPatientPid: '4242',
+            requestedScopes: $gate->defaultScopesFor('accept_fact'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertTrue($decision->allowed);
+        $scopes = $gate->defaultScopesFor('accept_fact');
+        // F.5a ships with the lab write scope active; F.5b–F.5e flip
+        // the matching agent-side branches as their write services
+        // land. The proxy mints all four up front so the panel does
+        // not have to round-trip to expand the token after each new
+        // type ships.
+        $this->assertContains('user/DiagnosticReport.cs', $scopes);
+        $this->assertContains('user/AllergyIntolerance.cs', $scopes);
+        $this->assertContains('user/MedicationStatement.cs', $scopes);
+        $this->assertContains('user/Condition.cs', $scopes);
+    }
+
+    public function testAcceptFactActionDeniesAcrossPatients(): void
+    {
+        $gate = new PolicyGate();
+        $session = new SessionContext('42', 'admin', 'default', '101', $this->stubFhirUser());
+        $request = new AgentRequest(
+            action: 'accept_fact',
+            siteId: 'default',
+            requestedPatientPid: '4242',
+            requestedScopes: $gate->defaultScopesFor('accept_fact'),
+        );
+
+        $decision = $gate->evaluate($session, $request);
+
+        $this->assertFalse($decision->allowed);
+        $this->assertSame(PolicyDenyReason::PatientMismatch, $decision->reason);
+    }
+
     private function stubFhirUser(): ResolvedFhirUser
     {
         return new ResolvedFhirUser(
