@@ -230,9 +230,9 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
     // CSS percentages with a small symmetric pad (also in grid units)
     // on every side.
     const GRID = 1000;
-    const PAD_X = 5;
-    const PAD_TOP = 5;
-    const PAD_BOTTOM = 5;
+    const PAD_X = 2;
+    const PAD_TOP = 2;
+    const PAD_BOTTOM = 2;
 
     test('produces an absolute-positioned div with percentage left/top/width/height', () => {
         const mount = fakeMount();
@@ -296,9 +296,9 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
 describe('openDocument — branch dispatch by Content-Type', () => {
     test('PNG response mounts an <img> wrapper with bbox overlay', async () => {
         const GRID = 1000;
-        const PAD_X = 5;
-        const PAD_TOP = 5;
-        const PAD_BOTTOM = 5;
+        const PAD_X = 2;
+        const PAD_TOP = 2;
+        const PAD_BOTTOM = 2;
         const mount = fakeMount();
         const fetcher = jest.fn().mockResolvedValue(okResponse('image/png'));
         const result = await openDocument(

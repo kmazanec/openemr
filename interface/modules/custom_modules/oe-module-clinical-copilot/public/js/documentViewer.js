@@ -109,16 +109,17 @@ const __copilotDocumentViewer = (function () {
 
     /**
      * Bbox padding (in 0..1000 grid units, i.e. thousandths of the
-     * page) applied before rendering, to absorb residual model
-     * imprecision around the row boundary. Modest values: the
-     * normalized integer bbox is much closer to the cited row than the
-     * legacy pixel-space output was, so we don't need the asymmetric
-     * "half a row above, one and a half rows below" cushion the old
-     * denominator math demanded.
+     * page) applied before rendering. The 0..1000-grid bboxes from
+     * the vision model are precise enough that the overlay should
+     * trace the cited row rather than smear upward and downward to
+     * absorb fudge factors. Two grid units (0.2% of page = ~3px on
+     * a 1456-tall image) on each side absorbs sub-pixel float drift
+     * after the percent → CSS conversion without making the
+     * highlight noticeably wider or taller than the row itself.
      */
-    const BBOX_PAD_X = 5;
-    const BBOX_PAD_TOP = 5;
-    const BBOX_PAD_BOTTOM = 5;
+    const BBOX_PAD_X = 2;
+    const BBOX_PAD_TOP = 2;
+    const BBOX_PAD_BOTTOM = 2;
 
     /**
      * Render the bbox as a translucent overlay rectangle on top of the

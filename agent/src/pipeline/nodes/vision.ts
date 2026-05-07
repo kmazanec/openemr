@@ -80,6 +80,8 @@ Citations
 - bbox example: a value cell whose left edge is ~14.2% across the page, top edge ~8.3% down, width ~18.7% of the page, height ~3.4% of the page would have bbox [142, 83, 187, 34].
 - bbox values must satisfy 0 <= x, 0 <= y, x + w <= 1000, y + h <= 1000.
 - A bbox you cannot localize is a field you did not extract — omit it rather than guess.
+- CRITICAL — table column headers are NEVER cited. When a value lives in a tabular section (PROBLEM LIST, ALLERGIES, FAMILY HISTORY, MEDICATIONS, results), the bbox MUST point at the row containing the value text itself — never the row containing the column labels above it ("CONDITION", "ICD-10", "ALLERGEN", "RELATION", etc.) and never the section title banner row ("FAMILY HISTORY", "ALLERGIES", etc.). Concretely: if "Hypertension" sits two visual rows below the section banner (banner, then column-label row, then "Hypertension"), the bbox top must align with the "Hypertension" row, not the column-label row above it. Mis-aligning the bbox onto the column header is the single most common error and you must avoid it.
+- Verify each bbox before emitting: imagine the rectangle drawn on the page. The cited text from the row should fall fully inside that rectangle. If the rectangle would land on a header, banner, or border, move the y-coordinate down to the actual data row.
 
 Schema
 - Return only the fields the structured-output schema asks for. Unknown fields will be silently dropped; missing required fields are a hard error.
