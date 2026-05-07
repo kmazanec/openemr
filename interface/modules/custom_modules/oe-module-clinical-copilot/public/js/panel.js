@@ -511,9 +511,14 @@ const __copilotPanel = (function () {
      *
      *   - chart → real `<a href>` to the OpenEMR record page (W1
      *     carry-forward; no popover).
-     *   - extracted_document → inert button with the variant tooltip
-     *     ("page N · document <uuid-prefix>"). The Layer-1 PDF.js bbox
-     *     overlay defers to Phase F.
+     *   - extracted_document → button with the viewer args encoded on
+     *     `data-*` attributes; the click handler in
+     *     `wireSourceChipClicks` opens the F.4 side-by-side document
+     *     viewer for the cited document/page/bbox. Section chips
+     *     don't carry the bubble/segment/claim indices the inline
+     *     chips use, so we embed `(documentUuid, page, bbox, mime)`
+     *     directly on the chip's data-* attributes — viewerArgsFromSource
+     *     would need a thread lookup we don't have here.
      *   - guideline → inert button with the variant tooltip
      *     ("<publication> · <section>"). The Layer-2 popover defers
      *     to Phase F.
@@ -529,6 +534,26 @@ const __copilotPanel = (function () {
                        href="${escapeText(url)}"
                        title="${escapeText(tooltip)}"
                        aria-label="Source: ${escapeText(tooltip)}">[source]</a>`;
+        }
+        if (source.source_type === 'extracted_document') {
+            const args = viewerArgsFromSource(source);
+            if (args !== null) {
+                // The chip becomes a real <button>: same look as the
+                // inert variant, but `data-role="section-document-chip"`
+                // routes through the click handler that opens the
+                // viewer pane. data-* attributes carry the viewer args
+                // so the handler doesn't need to look up the source
+                // reference from `thread[]`.
+                const bboxAttr = Array.isArray(args.bbox) ? JSON.stringify(args.bbox) : '';
+                return `<button type="button" class="copilot-source${variant}"
+                                data-role="section-document-chip"
+                                data-document-uuid="${escapeText(args.documentUuid)}"
+                                data-page="${args.page !== null ? String(args.page) : ''}"
+                                data-bbox="${escapeText(bboxAttr)}"
+                                data-mime="${escapeText(args.mime || '')}"
+                                title="${escapeText(tooltip)}"
+                                aria-label="Source: ${escapeText(tooltip)}">[source]</button>`;
+            }
         }
         return `<span class="copilot-source${variant} copilot-source--inert"
                       data-role="section-source-tooltip"
@@ -1342,15 +1367,20 @@ const __copilotPanel = (function () {
         return { documentUuid, page, bbox, mime };
     };
 
-    const openDocumentForChip = (chip, source) => {
+    /**
+     * Mount the side-by-side viewer for a `(documentUuid, page, bbox,
+     * mime)` tuple. Both the inline-source-chip path and the section-
+     * chip path land here — they each derive their own `args` shape
+     * and hand it off; viewer state (active chip, pane visibility)
+     * stays in this function.
+     */
+    const openDocumentWithArgs = (chip, args) => {
         if (root === null) return;
         if (ensureViewerEls() === null || viewerMountEl === null) return;
         const impl = documentViewerImpl();
         if (impl === null) return;
         const urlBase = documentViewUrlBase();
         if (urlBase === null) return;
-        const args = viewerArgsFromSource(source);
-        if (args === null) return;
         viewerPaneEl.hidden = false;
         viewerActiveChip = chip;
         // Fire-and-forget — the openDocument promise mounts the new
@@ -1359,6 +1389,12 @@ const __copilotPanel = (function () {
         impl.openDocument(viewerMountEl, { ...args, urlBase }).catch(() => {
             /* mount placeholder already rendered; no further action. */
         });
+    };
+
+    const openDocumentForChip = (chip, source) => {
+        const args = viewerArgsFromSource(source);
+        if (args === null) return;
+        openDocumentWithArgs(chip, args);
     };
 
     const wireDocumentViewerControls = () => {
@@ -1377,6 +1413,46 @@ const __copilotPanel = (function () {
         });
     };
 
+    /**
+     * Decode a section-document-chip's data-* attributes back into the
+     * shape `documentViewer.openDocument` expects. Section chips don't
+     * carry the bubble/segment/claim indices the inline chips use, so
+     * we encode the viewer args on the chip itself at render time and
+     * read them back here. Returns null when any required attribute
+     * is missing or malformed (a defensive parse for `data-bbox`'s
+     * JSON contents).
+     */
+    const sectionChipViewerArgs = (chip) => {
+        const documentUuid = chip.dataset.documentUuid;
+        if (typeof documentUuid !== 'string' || documentUuid.length === 0) return null;
+        const pageRaw = chip.dataset.page;
+        const page = (typeof pageRaw === 'string' && pageRaw.length > 0)
+            ? Number.parseInt(pageRaw, 10)
+            : null;
+        let bbox = null;
+        const bboxRaw = chip.dataset.bbox;
+        if (typeof bboxRaw === 'string' && bboxRaw.length > 0) {
+            try {
+                const parsed = JSON.parse(bboxRaw);
+                if (Array.isArray(parsed) && parsed.length === 4
+                    && parsed.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+                    bbox = parsed;
+                }
+            } catch {
+                bbox = null;
+            }
+        }
+        const mime = typeof chip.dataset.mime === 'string' && chip.dataset.mime.length > 0
+            ? chip.dataset.mime
+            : null;
+        return {
+            documentUuid,
+            page: Number.isInteger(page) ? page : null,
+            bbox,
+            mime,
+        };
+    };
+
     const wireSourceChipClicks = () => {
         if (!threadEl) return;
         threadEl.addEventListener('click', (e) => {
@@ -1392,6 +1468,28 @@ const __copilotPanel = (function () {
                     return;
                 }
                 openUnverifiedPopover(unverifiedChip, count);
+                return;
+            }
+            // Section-chip dispatch (the "From documents" / "Evidence"
+            // chips in the rolled-up section, distinct from the inline-
+            // prose chips handled below). For an extracted_document
+            // section chip, the viewer args are encoded on the chip's
+            // data-* attributes at render time, so we don't need to
+            // resolve a SourceReference from `thread[]` here.
+            const sectionDocChip = target.closest('[data-role="section-document-chip"]');
+            if (sectionDocChip) {
+                e.preventDefault();
+                const viewerOpen = viewerPaneEl !== null && !viewerPaneEl.hidden;
+                if (viewerOpen && viewerActiveChip === sectionDocChip) {
+                    closeDocumentViewer();
+                    return;
+                }
+                const args = sectionChipViewerArgs(sectionDocChip);
+                if (args === null) return;
+                if (popoverEl !== null && !popoverEl.hidden) {
+                    closePopover();
+                }
+                openDocumentWithArgs(sectionDocChip, args);
                 return;
             }
             const chip = target.closest('[data-role="source-chip"]');
@@ -2168,6 +2266,7 @@ const __copilotPanel = (function () {
         // F.4 viewer-args extractor, exposed for
         // `tests/js/copilot-panel-document-viewer.test.js`.
         viewerArgsFromSource,
+        sectionChipViewerArgs,
     };
 })();
 

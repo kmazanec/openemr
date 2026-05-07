@@ -489,3 +489,79 @@ describe('Viewer-args extraction from a SourceReference', () => {
         });
     });
 });
+
+describe('Viewer-args extraction from a section chip\'s data-* attributes', () => {
+    const { sectionChipViewerArgs } = require('../../interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js');
+
+    /**
+     * Section chips ("From documents" / "Evidence" rolled-up surface)
+     * don't have access to the `thread[bubbleIdx].message.segments[…]`
+     * lookup the inline chips use, so they encode the viewer args
+     * directly on the chip's data-* attributes at render time. The
+     * click handler reads them back via `sectionChipViewerArgs`.
+     */
+    const fakeChipDataset = (overrides) => ({
+        dataset: {
+            documentUuid: 'doc-uuid-1',
+            page: '2',
+            bbox: '[1,2,3,4]',
+            mime: 'application/pdf',
+            ...overrides,
+        },
+    });
+
+    test('decodes uuid + page + bbox + mime back into the openDocument args shape', () => {
+        const chip = fakeChipDataset();
+        expect(sectionChipViewerArgs(chip)).toEqual({
+            documentUuid: 'doc-uuid-1',
+            page: 2,
+            bbox: [1, 2, 3, 4],
+            mime: 'application/pdf',
+        });
+    });
+
+    test('returns null when the document UUID is missing', () => {
+        const chip = fakeChipDataset({ documentUuid: undefined });
+        expect(sectionChipViewerArgs(chip)).toBeNull();
+    });
+
+    test('returns null when the document UUID is empty string', () => {
+        const chip = fakeChipDataset({ documentUuid: '' });
+        expect(sectionChipViewerArgs(chip)).toBeNull();
+    });
+
+    test('tolerates missing page / bbox / mime', () => {
+        const chip = fakeChipDataset({ page: '', bbox: '', mime: '' });
+        expect(sectionChipViewerArgs(chip)).toEqual({
+            documentUuid: 'doc-uuid-1',
+            page: null,
+            bbox: null,
+            mime: null,
+        });
+    });
+
+    test('rejects malformed bbox JSON without throwing', () => {
+        const chip = fakeChipDataset({ bbox: 'not[json' });
+        const args = sectionChipViewerArgs(chip);
+        expect(args).not.toBeNull();
+        expect(args.bbox).toBeNull();
+    });
+
+    test('rejects bbox with the wrong arity (defensive parse)', () => {
+        const chip = fakeChipDataset({ bbox: '[1,2,3]' });
+        const args = sectionChipViewerArgs(chip);
+        expect(args.bbox).toBeNull();
+    });
+
+    test('rejects bbox with non-numeric entries', () => {
+        const chip = fakeChipDataset({ bbox: '[1,2,3,"four"]' });
+        const args = sectionChipViewerArgs(chip);
+        expect(args.bbox).toBeNull();
+    });
+
+    test('parses page as integer; non-integer page yields null', () => {
+        const chip = fakeChipDataset({ page: 'abc' });
+        const args = sectionChipViewerArgs(chip);
+        expect(args.page).toBeNull();
+    });
+});
