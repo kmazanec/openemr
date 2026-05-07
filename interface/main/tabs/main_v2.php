@@ -478,21 +478,25 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
         white-space: nowrap;        /* prevents multi-line wrapping */
         min-width: max-content;     /* expands to fit the widest item */
       }
-      /* Dashboard-SPA layout: #mainBox fills the viewport and #dashboard-root
-         takes up the remainder below the top nav. Without this, the SPA shell
-         renders at zero height and the legacy iframes (which use absolute
-         positioning relative to their wrapper) collapse to nothing. */
-      #mainBox {
-        display: flex;
-        flex-direction: column;
+      /* Dashboard-SPA layout: #mainBox fills the viewport and
+         #dashboard-root takes up the remainder below the top nav.
+         Without this, the SPA shell renders at zero height and the
+         legacy iframes (which use absolute positioning relative to
+         their wrapper) collapse to nothing.
+         The !important here overrides interface/themes/tabs_style_full
+         (the primary theme), whose `#mainBox > div { flex: 0 1 auto }`
+         rule beats `#dashboard-root` on selector specificity. */
+      body #mainBox {
+        display: flex !important;
+        flex-direction: column !important;
         height: 100vh;
         width: 100vw;
       }
-      #mainBox > nav {
-        flex: 0 0 auto;
+      body #mainBox > nav {
+        flex: 0 0 auto !important;
       }
-      #dashboard-root {
-        flex: 1 1 auto;
+      body #mainBox > #dashboard-root {
+        flex: 1 1 auto !important;
         position: relative;
         min-height: 0;
         width: 100%;

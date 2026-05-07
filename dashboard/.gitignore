@@ -15,3 +15,6 @@ coverage
 # the bundle reaches production without the diff churn of a
 # committed build. Run `npm run build` locally for dev parity.
 dist
+
+# Ad-hoc debug screenshots produced by scripts/debug-iframe.mjs.
+debug-*.png
