@@ -445,14 +445,14 @@ Pick (1) at F.5e implementation time — the synthesizer-schema bump is small an
 - Optionally: `agent/tests/server/acceptFact.roundTrip.test.ts` — a thin vitest that asserts the middleman's full `promote.php → recordDisposition` chain for each type using a fake `OpenEmrPromoteClient` plus a fake artifact store. The PHPUnit test covers the PHP-side write services; the vitest covers the agent-side materializer fan-out. Decide at implementation time whether the cross-language coverage is worth the second test file.
 
 **Checklist.**
-- [ ] One test method per fact type covering the round-trip + idempotency + disclosure (PHP side).
-- [ ] All five test methods pass against the in-memory writers; the production DBAL writers are exercised by their own focused tests in F.5a–F.5e.
-- [ ] Cross-type assertion helper that takes a per-type fixture and runs the same round-trip shape (idempotent re-call returns same UUID; disclosure event fires once with the right category; the second call's chart write is a no-op).
-- [ ] (Optional) agent-side vitest mirror.
+- [x] One test method per fact type covering the round-trip + idempotency + disclosure (PHP side). *(`testRoundTripLab`, `testRoundTripAllergy`, `testRoundTripMedicationStatement`, `testRoundTripPastMedicalHistory`, `testRoundTripFamilyHistory` — 5 methods, 170 assertions, all passing.)*
+- [x] All five test methods pass against the in-memory writers; the production DBAL writers are exercised by their own focused tests in F.5a–F.5e. *(All 5 use `Tier3RoundTrip<Type>Writer` in-memory doubles; production `Dbal*` writers are untouched.)*
+- [x] Cross-type assertion helper that takes a per-type fixture and runs the same round-trip shape. *(Three helpers: `runRoundTrip()` drives the two-call sequence; `assertFirstCallShape()` pins 200/UUID/`idempotent_hit=false`/source_document_uuid populated/disclosure-fired-once; `assertIdempotentSecondCall()` pins same UUID, no duplicate row, idempotent_hit=true. Lab's asymmetric `observation_uuids` projection is handled with a single `if ($writer instanceof Tier3RoundTripProcedureReportWriter)` branch in each helper.)*
+- [x] (Optional) agent-side vitest mirror. *(Skipped. `agent/tests/server/acceptFact.test.ts` is already 1,296 lines covering each fact type's materializer + promote-client interaction; a cross-language round-trip vitest mirror would not fit the <100-line bar the task description set, and the per-type vitest cases shipped in F.5a–F.5e already cover the materializer fan-out. The PHP integration test is the cross-type capstone; the vitest layer is exercised at the per-type level.)*
+
+**Disclosure-event idempotency — gap surfaced by F.5f.** F.5f's checklist phrasing says "disclosure event fires once with the right category" across an idempotent re-call, but the production controller's `dispatch<Type>()` invokes `fireDisclosure()` unconditionally on every successful response. The write-service's entity-creation event (e.g. `AllergyListEntryCreatedEvent`) IS gated on `$result->idempotentHit` — but `tier3_promotion` `AgentDisclosedEvent` is not. F.5f pins the existing production behavior (cumulative disclosure count = 2 across two identical calls; both rows carry the same per-type category) so the test reflects what ships; production-side fix (gating `fireDisclosure()` on `!$result->idempotentHit`) was out of scope per "do not touch files outside F.5f's scope" and is captured in the test's docblock for the user/reviewer to action separately.
 
 **Definition of done.** `composer phpunit-isolated -- --filter Tier3PromotionRoundTripTest` green; every fact type covered; idempotent re-call returns same IDs without duplicate rows; disclosure events recorded with the right per-type category.
-
-**Definition of done.** `composer phpunit-isolated -- --filter Tier3PromotionRoundTripTest` green; every fact type covered; idempotent re-call returns same IDs without duplicate rows.
 
 ---
 
