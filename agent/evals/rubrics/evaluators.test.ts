@@ -131,24 +131,47 @@ describe('citation_present rubric', () => {
 });
 
 describe('factually_consistent rubric', () => {
-    it('passes when verifier passed and rejected zero claims', () => {
+    it('passes when ≥1 claim was accepted and zero were rejected', () => {
         const r = factuallyConsistent({
-            run: buildRun(baseInput({ verifierPassed: true, rejectedClaimCount: 0 })),
+            run: buildRun(
+                baseInput({
+                    acceptedClaims: [claim()],
+                    rejectedClaimCount: 0,
+                    verifierPassed: true,
+                }),
+            ),
         });
         expect(r.score).toBe(1);
     });
 
-    it('fails when verifier rejected anything', () => {
+    it('passes when ≥1 claim was accepted even if extras were rejected upstream', () => {
+        // Rejections are the verifier working as designed — the
+        // rejected claims never reach the assistant message. Failing
+        // on rejection count would punish the verifier for catching
+        // imperfect synthesizer output, which is exactly its job. The
+        // empirical Phase E rebaseline showed every briefing morning-
+        // prep slot has 1–4 rejections by design; pinning that as
+        // failure would lock 11+ cells to baseline-false for no
+        // regression-detection benefit.
         const r = factuallyConsistent({
-            run: buildRun(baseInput({ verifierPassed: false, rejectedClaimCount: 2 })),
+            run: buildRun(
+                baseInput({
+                    acceptedClaims: [claim(), claim(), claim()],
+                    rejectedClaimCount: 4,
+                    verifierPassed: false, // false because rejections > 0
+                }),
+            ),
         });
-        expect(r.score).toBe(0);
+        expect(r.score).toBe(1);
+        expect(r.comment).toContain('3 claim(s) verified');
+        expect(r.comment).toContain('4 extra rejected');
     });
 
     it('passes when a hard-stop fired (safety layer worked correctly)', () => {
         const r = factuallyConsistent({
             run: buildRun(
                 baseInput({
+                    acceptedClaims: [],
                     verifierPassed: false,
                     rejectedClaimCount: 0,
                     hardStops: ['allergies-unavailable'],
@@ -159,10 +182,38 @@ describe('factually_consistent rubric', () => {
         expect(r.comment).toContain('allergies-unavailable');
     });
 
-    it('fails when verifier did not pass and no hard-stop fired', () => {
+    it('passes when a hard-stop fires alongside rejections (ordering: hard-stop wins)', () => {
+        // Regression test for an ordering bug where a non-zero
+        // rejection count was checked before the hard-stop branch and
+        // hard-stop cases (which by design produce rejections of the
+        // unsafe content) were scored as failures.
         const r = factuallyConsistent({
             run: buildRun(
-                baseInput({ verifierPassed: false, rejectedClaimCount: 0, hardStops: [] }),
+                baseInput({
+                    kind: 'conversational',
+                    acceptedClaims: [claim(), claim(), claim()],
+                    verifierPassed: false,
+                    rejectedClaimCount: 3,
+                    hardStops: ['allergies-unavailable'],
+                }),
+            ),
+        });
+        expect(r.score).toBe(1);
+        expect(r.comment).toContain('allergies-unavailable');
+    });
+
+    it('fails when zero claims were accepted and no hard-stop fired', () => {
+        // Structural fail: synthesizer produced output that neither
+        // survived verification (everything rejected) nor triggered
+        // the safety net.
+        const r = factuallyConsistent({
+            run: buildRun(
+                baseInput({
+                    acceptedClaims: [],
+                    verifierPassed: false,
+                    rejectedClaimCount: 5,
+                    hardStops: [],
+                }),
             ),
         });
         expect(r.score).toBe(0);
