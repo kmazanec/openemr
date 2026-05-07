@@ -107,6 +107,27 @@ const __copilotDocumentViewer = (function () {
     };
 
     /**
+     * Bbox padding applied before rendering, to absorb known
+     * vision-model imprecision.
+     *
+     * Empirically the model's bbox is reliably *near* the cited
+     * content but biased upward — the y-coordinate lands roughly one
+     * row above the actual cell (sometimes citing the section header
+     * directly above the value rather than the value's row). The
+     * y-padding is therefore asymmetric: more downward than upward,
+     * so the highlight reliably catches the cited row even when the
+     * model's y is shifted up. Empirical row height in the model's
+     * output coordinate space is ~25-35 units; the values below
+     * cover ~half a row above and ~one and a half rows below.
+     *
+     * X is padded modestly on both sides in case the model
+     * undersized the column extent.
+     */
+    const BBOX_PAD_X = 8;
+    const BBOX_PAD_TOP = 10;
+    const BBOX_PAD_BOTTOM = 40;
+
+    /**
      * Render the bbox as a translucent overlay rectangle on top of the
      * page element. The shared primitive — same code path for PDF page
      * canvases and `<img>` elements, since both establish a
@@ -134,18 +155,27 @@ const __copilotDocumentViewer = (function () {
         overlay.className = 'copilot-doc-viewer__bbox';
         overlay.dataset.role = 'bbox-overlay';
         overlay.style.position = 'absolute';
+        // Pad the rectangle to absorb the vision model's known
+        // imprecision. Floor at 0 so a bbox near the page edges does
+        // not produce negative offsets. Y-padding is asymmetric (more
+        // downward than upward) to compensate for the model's
+        // upward y-bias.
+        const paddedX = Math.max(0, x - BBOX_PAD_X);
+        const paddedY = Math.max(0, y - BBOX_PAD_TOP);
+        const paddedW = w + 2 * BBOX_PAD_X;
+        const paddedH = h + BBOX_PAD_TOP + BBOX_PAD_BOTTOM;
         if (naturalSize
             && typeof naturalSize.width === 'number' && naturalSize.width > 0
             && typeof naturalSize.height === 'number' && naturalSize.height > 0) {
-            overlay.style.left = `${(x / naturalSize.width) * 100}%`;
-            overlay.style.top = `${(y / naturalSize.height) * 100}%`;
-            overlay.style.width = `${(w / naturalSize.width) * 100}%`;
-            overlay.style.height = `${(h / naturalSize.height) * 100}%`;
+            overlay.style.left = `${(paddedX / naturalSize.width) * 100}%`;
+            overlay.style.top = `${(paddedY / naturalSize.height) * 100}%`;
+            overlay.style.width = `${(paddedW / naturalSize.width) * 100}%`;
+            overlay.style.height = `${(paddedH / naturalSize.height) * 100}%`;
         } else {
-            overlay.style.left = `${x}px`;
-            overlay.style.top = `${y}px`;
-            overlay.style.width = `${w}px`;
-            overlay.style.height = `${h}px`;
+            overlay.style.left = `${paddedX}px`;
+            overlay.style.top = `${paddedY}px`;
+            overlay.style.width = `${paddedW}px`;
+            overlay.style.height = `${paddedH}px`;
         }
         return overlay;
     };
@@ -230,7 +260,14 @@ const __copilotDocumentViewer = (function () {
                 width: img.naturalWidth,
                 height: img.naturalHeight,
             });
-            if (overlay !== null) wrapper.appendChild(overlay);
+            if (overlay !== null) {
+                wrapper.appendChild(overlay);
+                // Center the cited region in the drawer viewport. The
+                // model's bbox is approximate so a `block: 'center'`
+                // scroll keeps both the highlight and a row of
+                // surrounding context visible.
+                overlay.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
         };
         img.addEventListener('load', onLoad, { once: true });
         img.addEventListener('error', release, { once: true });
@@ -282,13 +319,19 @@ const __copilotDocumentViewer = (function () {
         const overlay = renderBboxOverlay(wrapper, bbox, naturalSize);
         if (overlay !== null) wrapper.appendChild(overlay);
         mountEl.appendChild(wrapper);
-        // Pre-scroll the viewer container to the rendered page. With a
-        // single-page render that's the top of the wrapper; if a
-        // future iteration renders multiple pages, the same scrollIntoView
-        // call on the targeted page wrapper is the right mechanic.
-        wrapper.scrollIntoView({ block: 'start' });
         if (ctx) {
             await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+        }
+        // Center the cited region in the drawer viewport once the
+        // canvas has finished rendering — pre-render scrolls would
+        // land on a blank canvas. The model's bbox is approximate so
+        // `block: 'center'` keeps the highlight + a row of
+        // surrounding context visible, which gives the clinician
+        // enough to confirm the citation by eye.
+        if (overlay !== null) {
+            overlay.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } else {
+            wrapper.scrollIntoView({ block: 'start' });
         }
         return wrapper;
     };

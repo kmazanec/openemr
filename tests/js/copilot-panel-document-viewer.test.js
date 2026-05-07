@@ -226,17 +226,36 @@ describe('buildDocumentUrl — URL composition', () => {
 });
 
 describe('renderBboxOverlay — shared overlay primitive', () => {
-    test('produces an absolute-positioned div with the bbox tuple as styles', () => {
+    // The overlay pads the model's bbox to absorb known vision-model
+    // imprecision. Y-padding is asymmetric (more downward than upward)
+    // because empirically the model's bbox y is biased one row above
+    // the actual cited cell. The pad values are intentionally not
+    // exported — these tests pin the same constants the
+    // implementation uses.
+    const PAD_X = 8;
+    const PAD_TOP = 10;
+    const PAD_BOTTOM = 40;
+
+    test('produces an absolute-positioned div padded asymmetrically in y', () => {
         const mount = fakeMount();
-        const overlay = renderBboxOverlay(mount, [10, 20, 100, 50]);
+        const overlay = renderBboxOverlay(mount, [50, 100, 100, 50]);
         expect(overlay).not.toBeNull();
         expect(overlay.tagName).toBe('DIV');
         expect(overlay.dataset.role).toBe('bbox-overlay');
         expect(overlay.style.position).toBe('absolute');
-        expect(overlay.style.left).toBe('10px');
-        expect(overlay.style.top).toBe('20px');
-        expect(overlay.style.width).toBe('100px');
-        expect(overlay.style.height).toBe('50px');
+        // bbox grown by (PAD_X each side, PAD_TOP up, PAD_BOTTOM down).
+        expect(overlay.style.left).toBe(`${50 - PAD_X}px`);
+        expect(overlay.style.top).toBe(`${100 - PAD_TOP}px`);
+        expect(overlay.style.width).toBe(`${100 + 2 * PAD_X}px`);
+        expect(overlay.style.height).toBe(`${50 + PAD_TOP + PAD_BOTTOM}px`);
+    });
+
+    test('clamps padded x and y at zero so a near-edge bbox does not produce negative offsets', () => {
+        const mount = fakeMount();
+        // bbox with x=2, y=5 — both less than the pad; expect left=0, top=0.
+        const overlay = renderBboxOverlay(mount, [2, 5, 10, 10]);
+        expect(overlay.style.left).toBe('0px');
+        expect(overlay.style.top).toBe('0px');
     });
 
     test('refuses non-array or wrong-arity bbox', () => {
@@ -251,36 +270,36 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
         expect(renderBboxOverlay({}, [1, 2, 3, 4])).toBeNull();
     });
 
-    test('with a naturalSize, positions the overlay in percentages so it scales with the rendered image', () => {
-        // Bbox cites a region at (170, 220) of size 170×220 in a
-        // 1700×2200 source. Expressed as percentages of the natural
-        // dimensions: left 10%, top 10%, width 10%, height 10%.
+    test('with a naturalSize, positions the padded overlay in percentages of the natural dimensions', () => {
         const mount = fakeMount();
         const overlay = renderBboxOverlay(mount, [170, 220, 170, 220], { width: 1700, height: 2200 });
         expect(overlay).not.toBeNull();
-        expect(overlay.style.left).toBe('10%');
-        expect(overlay.style.top).toBe('10%');
-        expect(overlay.style.width).toBe('10%');
-        expect(overlay.style.height).toBe('10%');
+        expect(overlay.style.left).toBe(`${(170 - PAD_X) / 1700 * 100}%`);
+        expect(overlay.style.top).toBe(`${(220 - PAD_TOP) / 2200 * 100}%`);
+        expect(overlay.style.width).toBe(`${(170 + 2 * PAD_X) / 1700 * 100}%`);
+        expect(overlay.style.height).toBe(`${(220 + PAD_TOP + PAD_BOTTOM) / 2200 * 100}%`);
     });
 
     test('with a naturalSize whose dimensions are zero, falls back to absolute pixels', () => {
         // Defensive — an `<img>` whose `load` never fires has
         // naturalWidth 0; the percentage math would divide by zero.
         const mount = fakeMount();
-        const overlay = renderBboxOverlay(mount, [10, 20, 100, 50], { width: 0, height: 0 });
-        expect(overlay.style.left).toBe('10px');
-        expect(overlay.style.top).toBe('20px');
+        const overlay = renderBboxOverlay(mount, [50, 100, 100, 50], { width: 0, height: 0 });
+        expect(overlay.style.left).toBe(`${50 - PAD_X}px`);
+        expect(overlay.style.top).toBe(`${100 - PAD_TOP}px`);
     });
 });
 
 describe('openDocument — branch dispatch by Content-Type', () => {
     test('PNG response mounts an <img> wrapper with bbox overlay', async () => {
+        const PAD_X = 8;
+        const PAD_TOP = 10;
+        const PAD_BOTTOM = 40;
         const mount = fakeMount();
         const fetcher = jest.fn().mockResolvedValue(okResponse('image/png'));
         const result = await openDocument(
             mount,
-            { documentUuid: 'doc-1', page: 1, bbox: [5, 6, 7, 8], mime: 'image/png', urlBase: '/svc/x' },
+            { documentUuid: 'doc-1', page: 1, bbox: [200, 300, 100, 50], mime: 'image/png', urlBase: '/svc/x' },
             { fetcher },
         );
         expect(result.branch).toBe('image');
@@ -297,13 +316,14 @@ describe('openDocument — branch dispatch by Content-Type', () => {
         expect(img).toBeDefined();
         expect(overlay).toBeDefined();
         // Overlay positions are percentages of the image's natural
-        // dimensions (FakeDocument's stand-in <img> uses 1700×2200).
-        // The bbox `[5, 6, 7, 8]` maps to 5/1700 ≈ 0.294%, etc.
+        // dimensions (FakeDocument's stand-in <img> uses 1700×2200),
+        // with the bbox padded asymmetrically to absorb known
+        // vision-model imprecision.
         const pct = (n, of) => `${(n / of) * 100}%`;
-        expect(overlay.style.left).toBe(pct(5, 1700));
-        expect(overlay.style.top).toBe(pct(6, 2200));
-        expect(overlay.style.width).toBe(pct(7, 1700));
-        expect(overlay.style.height).toBe(pct(8, 2200));
+        expect(overlay.style.left).toBe(pct(200 - PAD_X, 1700));
+        expect(overlay.style.top).toBe(pct(300 - PAD_TOP, 2200));
+        expect(overlay.style.width).toBe(pct(100 + 2 * PAD_X, 1700));
+        expect(overlay.style.height).toBe(pct(50 + PAD_TOP + PAD_BOTTOM, 2200));
     });
 
     test('JPEG response mounts an <img> wrapper (same branch as PNG)', async () => {

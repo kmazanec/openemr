@@ -968,13 +968,43 @@
 }
 
 .copilot-doc-viewer__bbox {
-    /* Translucent rectangle overlay. The yellow-ish tone is chosen for
-     * contrast against typical document backgrounds (white / off-white)
-     * without obscuring the cited content underneath. */
+    /* Translucent overlay marking the cited region. Vision bboxes are
+     * not pixel-precise, so the overlay is padded vertically (in
+     * documentViewer.js) and styled as a soft spotlight rather than a
+     * tight box: the diffuse fill and inset shadow read as "the cited
+     * content is somewhere in this band" while still narrowing the
+     * gaze to a useful region of the page. */
     position: absolute;
-    background: rgba(255, 215, 64, 0.32);
-    border: 2px solid rgba(220, 165, 0, 0.9);
+    background: rgba(255, 217, 102, 0.28);
+    border: 1px solid rgba(220, 165, 0, 0.55);
+    border-radius: 4px;
+    box-shadow: 0 0 0 4px rgba(255, 217, 102, 0.12),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.4);
     pointer-events: none;
+    /* Gentle pulse on first render to draw the eye to the highlight
+     * without the overlay being visually noisy after orientation. */
+    animation: copilot-doc-viewer-pulse 1.4s ease-out 1;
+}
+
+@keyframes copilot-doc-viewer-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 217, 102, 0.6),
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 12px rgba(255, 217, 102, 0),
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    }
+    100% {
+        box-shadow: 0 0 0 4px rgba(255, 217, 102, 0.12),
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .copilot-doc-viewer__bbox {
+        animation: none;
+    }
 }
 
 .copilot-doc-viewer__placeholder {
