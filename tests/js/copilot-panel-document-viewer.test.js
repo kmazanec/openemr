@@ -226,36 +226,58 @@ describe('buildDocumentUrl — URL composition', () => {
 });
 
 describe('renderBboxOverlay — shared overlay primitive', () => {
-    // The overlay pads the model's bbox to absorb known vision-model
-    // imprecision. Y-padding is asymmetric (more downward than upward)
-    // because empirically the model's bbox y is biased one row above
-    // the actual cited cell. The pad values are intentionally not
-    // exported — these tests pin the same constants the
-    // implementation uses.
-    const PAD_X = 8;
-    const PAD_TOP = 10;
-    const PAD_BOTTOM = 40;
+    // Bbox is normalized on a 0..1000 grid; the overlay positions in
+    // CSS percentages with a small symmetric pad (also in grid units)
+    // on every side.
+    const GRID = 1000;
+    const PAD_X = 5;
+    const PAD_TOP = 5;
+    const PAD_BOTTOM = 5;
 
-    test('produces an absolute-positioned div padded asymmetrically in y', () => {
+    test('produces an absolute-positioned div with percentage left/top/width/height', () => {
         const mount = fakeMount();
-        const overlay = renderBboxOverlay(mount, [50, 100, 100, 50]);
+        const overlay = renderBboxOverlay(mount, [100, 200, 300, 50]);
         expect(overlay).not.toBeNull();
         expect(overlay.tagName).toBe('DIV');
         expect(overlay.dataset.role).toBe('bbox-overlay');
         expect(overlay.style.position).toBe('absolute');
-        // bbox grown by (PAD_X each side, PAD_TOP up, PAD_BOTTOM down).
-        expect(overlay.style.left).toBe(`${50 - PAD_X}px`);
-        expect(overlay.style.top).toBe(`${100 - PAD_TOP}px`);
-        expect(overlay.style.width).toBe(`${100 + 2 * PAD_X}px`);
-        expect(overlay.style.height).toBe(`${50 + PAD_TOP + PAD_BOTTOM}px`);
+        expect(overlay.style.left).toBe(`${((100 - PAD_X) / GRID) * 100}%`);
+        expect(overlay.style.top).toBe(`${((200 - PAD_TOP) / GRID) * 100}%`);
+        expect(overlay.style.width).toBe(`${((300 + 2 * PAD_X) / GRID) * 100}%`);
+        expect(overlay.style.height).toBe(`${((50 + PAD_TOP + PAD_BOTTOM) / GRID) * 100}%`);
     });
 
-    test('clamps padded x and y at zero so a near-edge bbox does not produce negative offsets', () => {
+    test('clamps padded x and y at zero for a top-left near-edge bbox', () => {
         const mount = fakeMount();
-        // bbox with x=2, y=5 — both less than the pad; expect left=0, top=0.
-        const overlay = renderBboxOverlay(mount, [2, 5, 10, 10]);
-        expect(overlay.style.left).toBe('0px');
-        expect(overlay.style.top).toBe('0px');
+        // x=0, y=0 — both less than the pad; expect left=0%, top=0%.
+        const overlay = renderBboxOverlay(mount, [0, 0, 200, 100]);
+        expect(overlay.style.left).toBe('0%');
+        expect(overlay.style.top).toBe('0%');
+    });
+
+    test('clamps padded width/height so a wide bbox cannot exceed 100%', () => {
+        const mount = fakeMount();
+        // x=0, w=1000 — already full-width. Padding would push w past
+        // the grid bound; the overlay must clamp so paddedX + paddedW
+        // <= GRID.
+        const overlay = renderBboxOverlay(mount, [0, 100, 1000, 50]);
+        const widthPct = parseFloat(overlay.style.width);
+        expect(widthPct).toBeLessThanOrEqual(100);
+    });
+
+    test('legacy pixel-space bbox falls back to absolute pixel positioning', () => {
+        const mount = fakeMount();
+        // Pre-normalization snapshots had bboxes in raw pixel space,
+        // e.g. [55, 228, 820, 38] where x+w=875 exceeds the 1000-grid
+        // when y+h does too. The renderer keeps those overlays at
+        // absolute pixel coords (without padding) so old conversations
+        // still render a defensible region.
+        const overlay = renderBboxOverlay(mount, [55, 1228, 820, 38]);
+        expect(overlay).not.toBeNull();
+        expect(overlay.style.left).toBe('55px');
+        expect(overlay.style.top).toBe('1228px');
+        expect(overlay.style.width).toBe('820px');
+        expect(overlay.style.height).toBe('38px');
     });
 
     test('refuses non-array or wrong-arity bbox', () => {
@@ -266,40 +288,22 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
     });
 
     test('refuses non-element page anchor', () => {
-        expect(renderBboxOverlay(null, [1, 2, 3, 4])).toBeNull();
-        expect(renderBboxOverlay({}, [1, 2, 3, 4])).toBeNull();
-    });
-
-    test('with a naturalSize, positions the padded overlay in percentages of the natural dimensions', () => {
-        const mount = fakeMount();
-        const overlay = renderBboxOverlay(mount, [170, 220, 170, 220], { width: 1700, height: 2200 });
-        expect(overlay).not.toBeNull();
-        expect(overlay.style.left).toBe(`${(170 - PAD_X) / 1700 * 100}%`);
-        expect(overlay.style.top).toBe(`${(220 - PAD_TOP) / 2200 * 100}%`);
-        expect(overlay.style.width).toBe(`${(170 + 2 * PAD_X) / 1700 * 100}%`);
-        expect(overlay.style.height).toBe(`${(220 + PAD_TOP + PAD_BOTTOM) / 2200 * 100}%`);
-    });
-
-    test('with a naturalSize whose dimensions are zero, falls back to absolute pixels', () => {
-        // Defensive — an `<img>` whose `load` never fires has
-        // naturalWidth 0; the percentage math would divide by zero.
-        const mount = fakeMount();
-        const overlay = renderBboxOverlay(mount, [50, 100, 100, 50], { width: 0, height: 0 });
-        expect(overlay.style.left).toBe(`${50 - PAD_X}px`);
-        expect(overlay.style.top).toBe(`${100 - PAD_TOP}px`);
+        expect(renderBboxOverlay(null, [100, 200, 300, 50])).toBeNull();
+        expect(renderBboxOverlay({}, [100, 200, 300, 50])).toBeNull();
     });
 });
 
 describe('openDocument — branch dispatch by Content-Type', () => {
     test('PNG response mounts an <img> wrapper with bbox overlay', async () => {
-        const PAD_X = 8;
-        const PAD_TOP = 10;
-        const PAD_BOTTOM = 40;
+        const GRID = 1000;
+        const PAD_X = 5;
+        const PAD_TOP = 5;
+        const PAD_BOTTOM = 5;
         const mount = fakeMount();
         const fetcher = jest.fn().mockResolvedValue(okResponse('image/png'));
         const result = await openDocument(
             mount,
-            { documentUuid: 'doc-1', page: 1, bbox: [200, 300, 100, 50], mime: 'image/png', urlBase: '/svc/x' },
+            { documentUuid: 'doc-1', page: 1, bbox: [120, 140, 60, 30], mime: 'image/png', urlBase: '/svc/x' },
             { fetcher },
         );
         expect(result.branch).toBe('image');
@@ -310,20 +314,16 @@ describe('openDocument — branch dispatch by Content-Type', () => {
         expect(mount.children.length).toBe(1);
         const wrapper = mount.children[0];
         expect(wrapper.dataset.role).toBe('viewer-page');
-        // wrapper holds the <img> + the overlay
         const img = wrapper.children.find((c) => c.dataset.role === 'viewer-image');
         const overlay = wrapper.children.find((c) => c.dataset.role === 'bbox-overlay');
         expect(img).toBeDefined();
         expect(overlay).toBeDefined();
-        // Overlay positions are percentages of the image's natural
-        // dimensions (FakeDocument's stand-in <img> uses 1700×2200),
-        // with the bbox padded asymmetrically to absorb known
-        // vision-model imprecision.
-        const pct = (n, of) => `${(n / of) * 100}%`;
-        expect(overlay.style.left).toBe(pct(200 - PAD_X, 1700));
-        expect(overlay.style.top).toBe(pct(300 - PAD_TOP, 2200));
-        expect(overlay.style.width).toBe(pct(100 + 2 * PAD_X, 1700));
-        expect(overlay.style.height).toBe(pct(50 + PAD_TOP + PAD_BOTTOM, 2200));
+        // Overlay positions divide grid coords by 1000 to get a CSS
+        // percentage — independent of the image's natural dimensions.
+        expect(overlay.style.left).toBe(`${((120 - PAD_X) / GRID) * 100}%`);
+        expect(overlay.style.top).toBe(`${((140 - PAD_TOP) / GRID) * 100}%`);
+        expect(overlay.style.width).toBe(`${((60 + 2 * PAD_X) / GRID) * 100}%`);
+        expect(overlay.style.height).toBe(`${((30 + PAD_TOP + PAD_BOTTOM) / GRID) * 100}%`);
     });
 
     test('JPEG response mounts an <img> wrapper (same branch as PNG)', async () => {

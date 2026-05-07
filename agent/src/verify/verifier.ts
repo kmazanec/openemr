@@ -816,6 +816,28 @@ const resolveExtractedDocument = (
 };
 
 /**
+ * Copy artifact identity onto an accepted extracted_document claim's
+ * primary ref. The synthesizer only emits artifactId (as `source_id`)
+ * + locator + quote; the panel's document drawer needs `meta.document_uuid`
+ * to construct the document fetch URL. Returns a new claim with the
+ * primary ref's `meta` extended.
+ */
+const enrichExtractedDocClaim = (claim: Claim, snippet: ExtractedFactSnippet): Claim => {
+    const refs = claim.sourceReferences;
+    if (refs.length === 0) return claim;
+    const primary = refs[0]!;
+    const enrichedMeta = {
+        ...(primary.meta ?? {}),
+        document_uuid: snippet.documentUuid,
+        ...(primary.meta?.extractor_version === undefined
+            ? { extractor_version: snippet.extractorVersion }
+            : {}),
+    };
+    const enrichedPrimary: SourceReference = { ...primary, meta: enrichedMeta };
+    return { ...claim, sourceReferences: [enrichedPrimary, ...refs.slice(1)] };
+};
+
+/**
  * Copy publication metadata from the matched `EvidenceSnippet` onto
  * the accepted claim's primary guideline ref. The synthesizer only
  * emits chunkId + section + quote; the snippet carries the rest of the
@@ -1026,7 +1048,13 @@ export const verifyLedger = (
                 rejected.push({ claim, reason: REJECT_HARD_STOP });
                 continue;
             }
-            accepted.push(claim);
+            // Enrich the accepted claim's primary ref with the snippet's
+            // documentUuid + extractorVersion. The synthesizer only emits
+            // (artifactId, locator, quote); the panel's document drawer
+            // and the format step's "From documents" grouping both need
+            // `meta.document_uuid` to resolve the artifact back to its
+            // source document.
+            accepted.push(enrichExtractedDocClaim(claim, result.snippet));
             continue;
         }
 
