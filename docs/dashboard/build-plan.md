@@ -1,0 +1,774 @@
+# Patient Dashboard — Build Plan
+
+> Implementation breakdown for the W2 dashboard port. Each story is
+> sized to be completable by one person or agent in one sitting. Tests
+> are an implementation requirement of every story — write the failing
+> test first, then make it pass. Cross-track blockers are called out so
+> independent tracks can run in parallel.
+>
+> **Defended in:** [`PATIENT_DASHBOARD_MIGRATION.md`](../../PATIENT_DASHBOARD_MIGRATION.md)
+> **Audit context in:** [`docs/dashboard-audit/`](../dashboard-audit/)
+
+## How to use this doc
+
+- **Tracks** are independent workstreams. Stories within a track are
+  ordered by dependency.
+- **Story IDs** look like `T1.4` — track 1, story 4. Use them in
+  commit messages and PR titles.
+- **Blockers** are listed inline. A story can start as soon as its
+  blockers are done, regardless of which track they're on.
+- **Acceptance** lists what "done" means. Every box must check before
+  the story closes.
+- **Open question** items must be answered before the story starts.
+  Bring them to the user in the kickoff conversation for that story.
+
+## Tracks at a glance
+
+| Track | Theme | Story count | Blocks |
+|---|---|---|---|
+| **T0** | Pre-flight (open questions, dev environment) | 4 | T1, T2, T3, T4 |
+| **T1** | Project scaffold + tooling | 7 | T2, T3, T4, T5 |
+| **T2** | Auth + FHIR client | 4 | T4 |
+| **T3** | Integration glue with legacy `main.php` | 5 | T6 |
+| **T4** | Patient header + clinical cards (the FHIR data layer) | 7 | T6 |
+| **T5** | Tab strip + legacy iframe hosting | 4 | T6 |
+| **T6** | Polish, error handling, deploy | 5 | — |
+| **T7** | Stretch goals (post-MVP) | 6 | — |
+
+Total: 36 stories pre-stretch (30) + 6 stretch.
+
+---
+
+## Open questions (T0) — answer before building
+
+These need the user's call before T1 can start. None of them are
+research items I can resolve myself.
+
+### T0.1 — OpenEMR install for dev — **RESOLVED**
+
+- **Resolution.** Develop against the standard
+  `docker/development-easy/` Docker Compose environment.
+- **Resolution.** For the initial pass, the SPA shell is mounted
+  at a **separate top-level path** (e.g. `main_v2.php` — a copy of
+  `main.php` with the SPA mount swapped in). The legacy
+  `main.php` is left alone. A top-level toggle (env var, or a
+  manual menu link) lets us switch between the legacy shell and
+  the new shell during development.
+- **Resolution.** Once the new shell is stable, T3 (or a later
+  story) flips the toggle so `main.php` itself uses the SPA. Until
+  then, T3.1 targets the *copy* file, not the original.
+- **Implication for the plan.** T3.1 is updated below: the work is
+  to create `interface/main/tabs/main_v2.php` (or similar) as a
+  copy and swap the SPA mount in there. The legacy `main.php` is
+  not modified yet.
+
+### T0.2 — OAuth2 client registration — **RESOLVED**
+
+- **Resolution.** Manual registration via
+  `POST /oauth2/{site}/registration` against the dev install. The
+  returned `client_id` is dropped into `dashboard/.env.local` for
+  dev, and into the production env for prod.
+- **Resolution.** This **is** going to production, so production
+  setup is in scope. We need:
+  - A documented one-time registration step in
+    `dashboard/README.md` (admin runs this against the prod
+    OpenEMR install to register the dashboard client).
+  - A `dashboard/.env.production.example` showing every var that
+    needs to be set at deploy time.
+  - The redirect URI is the production dashboard URL,
+    e.g. `https://prod-host/dashboard/auth/callback`.
+- **Implication for the plan.** Adds a small story to T6 (deploy)
+  for production env documentation and verification.
+
+### T0.3 — Squad-ACL FHIR enforcement — **DEFERRED**
+
+- **Resolution.** Defer to T6.4 (the dedicated story for it). T1-T5
+  can build without knowing the answer. T6.4 verifies before merge;
+  if the FHIR layer leaks, we file upstream and decide on the
+  ship/no-ship there.
+- **Why it doesn't block.** The FHIR data the new dashboard reads
+  is the same the legacy `demographics.php` page-level check would
+  have hidden. Confirming the API enforces it is a one-test
+  exercise; not knowing the answer doesn't change the build, only
+  whether we ship.
+
+### T0.4 — Tab inventory — **RESOLVED**
+
+- **Resolution.** Don't pre-declare the inventory. The new SPA's
+  tab strip is **menu-driven**: whatever the legacy menu fires via
+  `loadFrame(id, name, url)` (intercepted by our shim, T3.3) opens
+  as a tab. T5.3 already builds this.
+- **Resolution.** All ~13 named tabs (`pat`, `enc`, `rev`, `pop`,
+  `fin`, `cal`, `msg`, `gdg`, `gfn`, `por`, `msc`, `fax`, `sms`)
+  should be **supported** if the menu opens them. Until we have
+  real renderers per tab, each unknown name is a generic
+  legacy-iframe shim — same `<LegacyIframeTab>` rendering whatever
+  URL the menu passed.
+- **Implication for the plan.** T5.1-T5.4 remain as-is. No
+  hardcoded tab map; menu-driven.
+
+---
+
+## T1 — Project scaffold + tooling
+
+Foundational; everything else depends on it.
+
+### T1.1 — Initialize Vite + React + TS at `dashboard/`
+
+- **What.** Create `dashboard/` at the repo root. Set up
+  `package.json`, `vite.config.ts`, `tsconfig.json` (strict +
+  `noUncheckedIndexedAccess`), `index.html`, `src/main.tsx`,
+  `src/App.tsx` rendering "Hello dashboard".
+- **Acceptance.**
+  - [ ] `cd dashboard && npm install && npm run dev` boots Vite,
+        prints "Hello dashboard" at `http://localhost:5173/`.
+  - [ ] `npm run build` produces `dist/` with hashed JS/CSS bundles.
+  - [ ] TypeScript config has `strict: true` and
+        `noUncheckedIndexedAccess: true`. A test asserts a typed
+        array index returns `T | undefined` (proves the flag is on).
+  - [ ] `dashboard/README.md` lists `npm install`, `dev`, `build`,
+        `test`, `e2e` commands.
+- **Blockers.** T0.1.
+
+### T1.2 — Wire Vitest + React Testing Library
+
+- **What.** Add Vitest config and one passing component test for
+  the `App` placeholder. Use Vite's native plugin path.
+- **Acceptance.**
+  - [ ] `npm test` runs `App.test.tsx` and passes.
+  - [ ] `App.test.tsx` uses RTL's `render` and `screen.getByText`.
+  - [ ] CI script in `package.json` runs `tsc --noEmit && vitest run`.
+- **Blockers.** T1.1.
+
+### T1.3 — Wire ESLint + Prettier
+
+- **What.** Standard React + TS ESLint config. Prettier for
+  formatting. Hook them into `prek` so `git commit` runs them on
+  staged `dashboard/` files only.
+- **Acceptance.**
+  - [ ] `npm run lint` exits 0 on a clean tree.
+  - [ ] `npm run lint` fails on a deliberate violation
+        (e.g. unused import).
+  - [ ] `prek run` on a staged `dashboard/` file runs ESLint.
+  - [ ] We do not lint files outside `dashboard/`
+        (per the no-repo-wide-reformat convention).
+- **Blockers.** T1.1.
+
+### T1.4 — Wire Playwright for E2E smoke
+
+- **What.** Install Playwright, set up `playwright.config.ts`. One
+  smoke test that loads `http://localhost:5173/` and asserts the
+  body renders. No browser auth flow yet — that comes in T2.
+- **Acceptance.**
+  - [ ] `npm run e2e` runs the smoke test against a Vite dev server,
+        passes.
+  - [ ] Test screenshots / traces on failure go to
+        `dashboard/test-results/`, gitignored.
+- **Blockers.** T1.1.
+
+### T1.5 — `dashboard/dist/` vendoring + GitLab CI build job
+
+- **Context.** The repo's GitLab CI (`.gitlab-ci.yml`) runs on a
+  shell-executor on the production Droplet (concurrency 1, 2GB RAM —
+  see header in `.gitlab-ci.yml` for constraints). Existing test
+  jobs run inside Docker containers via the
+  `docker run -v openemr-ci-*-modules:...` pattern with named volumes
+  for cache reuse. The `test:agent` job is the closest precedent —
+  same shape we follow.
+- **What.** Vendor `dashboard/dist/` into git. Add a new
+  `test:dashboard` job to `.gitlab-ci.yml` that mirrors `test:agent`:
+  runs `node:22-alpine` against `/work-root/dashboard`, named volume
+  for `node_modules`, runs `npm ci && npm run lint && npm run
+  typecheck && npm test && npm run build`, then asserts
+  `git diff --exit-code dashboard/dist/` to fail if the committed
+  bundle is stale. Add a local `prek` hook that runs the same check
+  on staged files.
+- **Acceptance.**
+  - [ ] `dashboard/dist/` is committed.
+  - [ ] `.gitlab-ci.yml` has a `test:dashboard` job that follows the
+        existing `test:agent` pattern (named volume, runs in a
+        `node:22-alpine` container, gated by the `.test-rules`
+        anchor — runs on MRs and on push to master).
+  - [ ] The job fails if `dashboard/dist/` is stale (committed
+        bundle doesn't match what `npm run build` produces).
+  - [ ] A new named volume `openemr-ci-dashboard-node-modules` is
+        added to the `cache-prune` job's nuke list.
+  - [ ] Local `prek` hook runs the same diff check on staged files
+        — if `dashboard/src/` is staged but `dashboard/dist/` isn't,
+        the commit blocks with a "run npm run build" message.
+  - [ ] `dashboard/README.md` documents the workflow.
+- **Blockers.** T1.1.
+
+### T1.5b — Verify `infra/deploy.sh` ships the dashboard correctly
+
+- **Context.** Production deploy is scripted in `infra/deploy.sh`,
+  invoked by GitLab CI's `deploy` stage via `runner-bootstrap.sh`.
+  The script's step 3 already runs `npm install && npm run build`
+  inside the openemr container — but that's the **legacy** OpenEMR
+  top-level npm/gulp build, not our `dashboard/`. Because we're
+  vendoring `dashboard/dist/` into git (T1.5), the static bundle
+  rides along with the release tree as part of step 1's `rsync`
+  and is served straight off disk by Apache. **No deploy-script
+  changes should be needed**, but this story exists to confirm
+  that and to add any missing pieces.
+- **What.** Trace exactly how the dashboard bundle reaches a
+  served URL on production.
+  1. The flex image's docroot is
+     `/var/www/localhost/htdocs/openemr` inside the openemr
+     container, bind-mounted from the release tree.
+  2. The release tree is the symlink target of
+     `/srv/openemr/current`, populated by `runner-bootstrap.sh`
+     from the GitLab artifact (post-CI git checkout).
+  3. So `dashboard/dist/` lands at
+     `/var/www/localhost/htdocs/openemr/dashboard/dist/` inside
+     the container.
+  4. Apache serves whatever `mod_rewrite` rules T1.6 lays down.
+- **Acceptance.**
+  - [ ] Trace the path above against the actual production setup
+        (read `docker/digitalocean/docker-compose.yml`,
+        `docker/digitalocean/openemr/Dockerfile`, the flex image
+        bind-mount config). Confirm `dashboard/dist/` ends up in
+        the container's docroot.
+  - [ ] If anything's missing (e.g. the flex image's `.dockerignore`
+        excludes our path), patch the relevant Dockerfile or compose
+        config so it doesn't.
+  - [ ] If the deploy script needs *any* change (add a step? echo
+        a verification line?), make it small and additive.
+  - [ ] Document the production deploy flow for the dashboard
+        in `dashboard/README.md`: "git push to master → CI runs
+        `test:dashboard` → CI's `deploy` stage runs
+        `runner-bootstrap.sh` → `infra/deploy.sh` rsyncs the new
+        release → Apache picks up the new `dashboard/dist/`."
+  - [ ] Manual smoke after a real deploy: visit
+        `https://emr.biograph.dev/dashboard/` and confirm the
+        bundle loads. (T2 will make this a real flow; for now the
+        Hello-dashboard page is enough.)
+- **Blockers.** T1.5, T1.6.
+
+### T1.6 — Web-server config: SPA routing + CSP
+
+- **Context.** Production has **two** layers in front of OpenEMR:
+  Caddy at the public edge (TLS, security headers — see
+  `docker/digitalocean/Caddyfile`) and Apache inside the openemr
+  container. Dev (`docker/development-easy/`) is Apache only. We
+  need the SPA-fallback rewrite at the Apache layer (it's the
+  one that knows the filesystem) and the CSP at the Apache layer
+  too (so it works in dev where Caddy doesn't exist; Caddy will
+  pass it through unchanged in prod).
+- **What.** Add the SPA-fallback rewrite + CSP header for
+  `/dashboard/*` to OpenEMR's existing Apache config. Find the
+  right include path — likely an `.htaccess` at the docroot or
+  a config snippet picked up by the flex image. CSP starts as
+  `Content-Security-Policy-Report-Only` per the migration doc;
+  T6.5 flips to enforced after the integration cycle.
+- **Acceptance.**
+  - [ ] In the dev Docker Compose env, hit
+        `http://localhost:8300/dashboard/anything` — gets
+        `dashboard/dist/index.html`. Static assets under
+        `/dashboard/assets/...` are served directly (rewrite must
+        skip files that exist).
+  - [ ] Response includes `Content-Security-Policy-Report-Only`
+        header with the policy from
+        `PATIENT_DASHBOARD_MIGRATION.md`.
+  - [ ] In prod, the Caddy → Apache hop preserves the header. (We
+        verify this in T1.5b's manual smoke, after we have
+        something at `/dashboard/` to load.)
+  - [ ] No CSP `report-uri` configured yet — note in the doc that
+        T6 may add one.
+  - [ ] The change is **additive only**. We don't touch existing
+        Apache rules for legacy paths.
+- **Blockers.** T0.1, T1.5.
+
+---
+
+## T2 — Auth + FHIR client
+
+Owns OIDC handshake and the FHIR transport. No UI.
+
+### T2.1 — Bootstrap fhirclient
+
+- **What.** Install `fhirclient`. Create `src/lib/fhir.ts` exporting
+  a single `client` getter that reads OIDC config from
+  `import.meta.env` (`VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID`,
+  `VITE_OIDC_REDIRECT_URI`, `VITE_OIDC_SCOPE`).
+- **Acceptance.**
+  - [ ] Test: importing `client` with missing env vars throws a
+        descriptive error, not silently returns `undefined`.
+  - [ ] Test: with env set, `client` returns a configured fhirclient
+        instance.
+  - [ ] `dashboard/.env.example` lists the required vars.
+- **Blockers.** T1.1, T0.2.
+
+### T2.2 — Implement OIDC login + callback routes
+
+- **What.** Two routes: `/login` initiates the auth code + PKCE flow
+  via `FHIR.oauth2.authorize(...)`. `/auth/callback` handles the
+  redirect via `FHIR.oauth2.ready()`. After successful auth, redirect
+  to `/dashboard/patient/$pid` (pid from the SMART context).
+- **Acceptance.**
+  - [ ] Test: visiting `/login` calls `FHIR.oauth2.authorize` with
+        the right scopes.
+  - [ ] Test: visiting `/auth/callback` with mock fhirclient
+        completion redirects to the patient route.
+  - [ ] Test: when the SMART token response includes a `patient`
+        field, that pid lands in the URL.
+  - [ ] Manual smoke (Playwright): log in against the dev OpenEMR
+        install, end on the dashboard with the pid in the URL.
+- **Blockers.** T2.1, T0.2.
+
+### T2.3 — `useFhir()` hook
+
+- **What.** A React hook that returns the authenticated fhirclient
+  instance, or throws if not authenticated (caught by the global
+  error boundary, redirects to `/login`).
+- **Acceptance.**
+  - [ ] Test: hook returns the client when fhirclient has a session.
+  - [ ] Test: hook throws a `NotAuthenticatedError` when no session.
+  - [ ] Test: error boundary catches `NotAuthenticatedError` and
+        renders a "redirecting to login" UI.
+- **Blockers.** T2.1.
+
+### T2.4 — `useFhirRequest` hook (no cache)
+
+- **What.** A small hook around `client.request()` that handles
+  loading/error states. No caching layer (per the doc — TanStack
+  Query is a stretch goal). Returns `{ data, error, loading,
+  retry }`.
+- **Acceptance.**
+  - [ ] Test: hook calls `client.request()` once on mount.
+  - [ ] Test: `retry()` re-fetches.
+  - [ ] Test: 401 from fhirclient (refresh token failed) bubbles up
+        as a typed `AuthExpiredError` for the auth boundary to
+        handle.
+  - [ ] Test: types: `useFhirRequest<Patient>(url)` returns
+        `data: Patient | undefined`.
+- **Blockers.** T2.1, T2.3.
+
+---
+
+## T3 — Integration glue with legacy `main.php`
+
+The cross-frame contract — shims for `top.*`, `left_nav.*`,
+`dlgopen`. This is the *risky* track; do not ship without manual
+integration testing.
+
+### T3.1 — Create `main_v2.php` shell that mounts the SPA below the menu
+
+- **What.** **Copy** `interface/main/tabs/main.php` to
+  `interface/main/tabs/main_v2.php`. In the copy, replace the
+  existing `attendantData` strip, tabs strip, and frames-display
+  block (audit lines ~517-521) with `<div id="dashboard-root"></div>`
+  plus the SPA's hashed bundle tags read from the Vite manifest.
+  The copy keeps the menu, search, user dropdown, and notification
+  dropdowns intact. The legacy `main.php` is **not modified** in
+  this story.
+- **What also.** Wire the OpenEMR login flow to redirect to
+  `main_v2.php?token_main=...` instead of `main.php?token_main=...`
+  when a `?v2=1` query string or a `OPENEMR_DASHBOARD_V2` env var is
+  set. This is the "top-level toggle" between legacy and new shells.
+  Until the toggle is set, OpenEMR keeps using `main.php` exactly as
+  before.
+- **Acceptance.**
+  - [ ] `interface/main/tabs/main_v2.php` exists, is a near-copy of
+        `main.php` with the SPA mount swapped in.
+  - [ ] `main_v2.php` reads `dashboard/dist/.vite/manifest.json` and
+        injects the right `<script type="module" src="...">` and
+        `<link rel="stylesheet" href="...">` tags.
+  - [ ] PHPStan passes on `main_v2.php`.
+  - [ ] Toggle: `?v2=1` (or env var) routes login to `main_v2.php`;
+        absent, login still goes to `main.php`.
+  - [ ] Manual: with `?v2=1`, load the OpenEMR site, see the menu
+        plus a blank SPA root. Without, the legacy dashboard
+        renders normally.
+  - [ ] Audit B16 (mutating `default_open_tabs` while iterating)
+        is left alone — we don't fix unrelated legacy bugs in this
+        change.
+- **Blockers.** T1.5, T1.6.
+- **Future story (post-MVP).** Once T2-T6 are stable, a follow-up
+  story in T6 (or T7) flips the default by editing `main.php`
+  itself (or by deleting it and renaming `main_v2.php` →
+  `main.php`). Until then, `main_v2.php` lives as a sibling.
+
+### T3.2 — Implement `top.*` shims
+
+- **What.** `src/lib/shims.ts` installs shims on `window` at SPA
+  mount. Methods: `top.restoreSession`, `top.set_pid`,
+  `top.clearPatient`. Each wires into the SPA's router.
+- **Acceptance.**
+  - [ ] Test: calling `window.top.set_pid(123)` triggers a router
+        navigation to `/patient/123`.
+  - [ ] Test: `window.top.clearPatient()` navigates to `/dashboard`
+        and clears patient state.
+  - [ ] Test: `window.top.restoreSession()` POSTs to
+        `/library/restoreSession.php` and resolves.
+  - [ ] Globals (`csrf_token_js`, `webroot_url`, `site_id_js`,
+        `api_csrf_token_js`) are exposed on `window` from values
+        injected by `main.php`.
+- **Blockers.** T1.1.
+
+### T3.3 — Implement `left_nav.*` shims
+
+- **What.** Same module, more shims:
+  `left_nav.setPatient(name, pid, pubpid, frname, dob)`,
+  `setEncounter`, `setPatientEncounter`, `clearEncounter`,
+  `loadFrame`, `loadFrame2`, `RTop.setLocation`. No-ops:
+  `syncRadios`, `removeOptionSelected`.
+- **Acceptance.**
+  - [ ] Test: each method exists on `window.left_nav` (or on
+        `window` directly, matching legacy callers' lookups).
+  - [ ] Test: `setPatient` updates the URL via the router.
+  - [ ] Test: `loadFrame(id, name, url)` navigates the SPA to
+        `/dashboard/legacy/$name?url=...`.
+  - [ ] Test: `RTop.setLocation(url)` matches `loadFrame` semantics.
+  - [ ] Test: no-op methods don't throw.
+- **Blockers.** T3.2.
+
+### T3.4 — Implement `dlgopen` shim
+
+- **What.** Replace the legacy `dlgopen` with a Bootstrap-5-modal
+  implementation that hosts an iframe of the requested URL. Match
+  the legacy signature: `(url, target, w, h, modal, title, opts)`.
+  Honor `opts.dialogId`, `opts.allowResize`, `opts.allowDrag`,
+  `opts.onClosed`, `opts.type === 'iframe'`.
+- **Acceptance.**
+  - [ ] Test: `top.dlgopen('http://...', '_blank', 800, 500)` opens
+        a Bootstrap modal containing an iframe.
+  - [ ] Test: `opts.onClosed` (string or function) fires on modal
+        close.
+  - [ ] Test: `opts.dialogId` sets the modal's id.
+  - [ ] Test: closing the modal via Escape or backdrop click fires
+        `onClosed`.
+  - [ ] Manual: an existing legacy page (e.g. an encounter form)
+        opens its own modals via `top.dlgopen` correctly.
+- **Blockers.** T3.2.
+
+### T3.5 — Patient context flow end-to-end
+
+- **What.** Hook the shimmed `left_nav.setPatient` to the URL.
+  Verify the patient finder's existing flow lands on the new
+  dashboard with the right pid.
+- **Acceptance.**
+  - [ ] Manual: search a patient in the legacy patient finder, click
+        the result, end on `/dashboard/patient/$pid` with that pid
+        rendered in the dashboard's identity bar.
+  - [ ] Test (Playwright): same flow scripted.
+  - [ ] Bookmark: copy the URL, open in a new tab, the same patient
+        loads.
+- **Blockers.** T3.3, T4.1, T5.1.
+
+---
+
+## T4 — Patient header + clinical cards
+
+The FHIR data UI. Each card is a story.
+
+### T4.1 — `<PatientHeader />` (the persistent identity bar)
+
+- **What.** Card-shape component pinned at the top of the dashboard.
+  Reads `Patient` via `useFhirRequest`. Renders name, DOB + age,
+  sex, MRN, active-status badge.
+- **Acceptance.**
+  - [ ] Tests written before the implementation, using
+        `@medplum/fhirtypes` `Patient` mocks. Cover: full data,
+        missing optional fields, deceased patient, inactive patient.
+  - [ ] Renders all five fields the W2 brief calls out.
+  - [ ] Loading state is a skeleton placeholder, not a spinner that
+        shifts layout.
+  - [ ] Error state shows "Couldn't load patient — Retry" with a
+        retry button that calls the hook's `retry()`.
+  - [ ] Bootstrap 5 classes; no `react-bootstrap`.
+  - [ ] Stays visible regardless of which tab is active.
+- **Blockers.** T2.4.
+
+### T4.2 — `<AllergiesCard />`
+
+- **What.** Reads `AllergyIntolerance?patient={id}&clinical-status=active`.
+  Renders allergen, severity, reaction, verification status. "View
+  all" link to the legacy `stats_full.php?category=allergy`.
+- **Acceptance.**
+  - [ ] Tests first, using fixture FHIR Bundles. Cover: empty,
+        single allergy, multiple, missing fields.
+  - [ ] Title bar matches legacy "Allergies".
+  - [ ] Link to legacy edit page is plain `<a href>` — no router
+        navigation.
+  - [ ] Per-card error boundary catches FHIR errors without blanking
+        the dashboard.
+- **Blockers.** T2.4, T4.1.
+
+### T4.3 — `<ProblemListCard />`
+
+- **What.** Reads `Condition?patient={id}&category=problem-list-item`.
+  Renders title, ICD/SNOMED code, onset date, status. "View all"
+  link to `stats_full.php?category=medical_problem`.
+- **Acceptance.**
+  - [ ] Tests first. Fixture with active + resolved + multiple
+        conditions; only active should render.
+  - [ ] Coding column shows the SNOMED display when present, falls
+        back to ICD-10, falls back to text.
+  - [ ] Link to legacy edit page works.
+- **Blockers.** T2.4, T4.1.
+
+### T4.4 — `<MedicationsCard />`
+
+- **What.** Reads `MedicationStatement?patient={id}&status=active`.
+  Renders drug, dose, route, frequency. Link to legacy med-issue
+  edit page.
+- **Acceptance.**
+  - [ ] Tests first. Fixtures cover dosed/undosed, with/without
+        route.
+  - [ ] Display matches the legacy issue-card column ordering.
+- **Blockers.** T2.4, T4.1.
+
+### T4.5 — `<PrescriptionsCard />`
+
+- **What.** Reads `MedicationRequest?patient={id}&status=active`.
+  Renders prescription details. "Add" / "Edit" links go to
+  `eRx.php?page=compose` if eRx is enabled, else to the legacy
+  `controller.php?prescription&list&id=$pid` (matches the legacy
+  conditional). The `erx_enable` flag is read from
+  `window.erx_enable`, set by `main_v2.php` in the same
+  `<script>` block that already injects `csrf_token_js`,
+  `webroot_url`, etc. (T3.2 owns adding it to that block.)
+- **Acceptance.**
+  - [ ] Tests first. Fixtures cover eRx-on (link → `eRx.php`)
+        and eRx-off (link → `controller.php?prescription`).
+  - [ ] `main_v2.php` injects `window.erx_enable` from
+        `OEGlobalsBag`. (Add to T3.1's globals injection or a
+        small follow-up here — coordinate.)
+  - [ ] Card has a typed config helper that reads
+        `window.erx_enable` once at module load and exposes it
+        as a strongly-typed boolean.
+- **Blockers.** T2.4, T4.1, T3.1 (for the globals injection).
+
+### T4.6 — `<CareTeamCard />`
+
+- **What.** Reads `CareTeam?patient={id}&status=active`. Renders
+  participant name, role.
+- **Acceptance.**
+  - [ ] Tests first. Fixtures cover multi-participant teams,
+        missing role displays, inactive participants.
+  - [ ] Practitioner names resolve from the participant references
+        (use `_include=CareTeam:participant` if the API supports it,
+        else N+1 fetches; flag the perf cost).
+- **Blockers.** T2.4, T4.1.
+
+### T4.7 — `<EncountersCard />` — the guaranteed +1
+
+- **What.** Reads `Encounter?patient={id}&_sort=-date&_count=10`.
+  Renders date, type, provider, reason. No click-through (legacy
+  encounter open is out of scope for W2).
+- **Acceptance.**
+  - [ ] Tests first. Fixtures cover empty, recent encounters,
+        multi-page (`_count` truncated).
+  - [ ] Empty state ("No recent encounters") visually matches the
+        empty state used by other cards.
+- **Blockers.** T2.4, T4.1.
+
+---
+
+## T5 — Tab strip + legacy iframe hosting
+
+The SPA's chrome below the patient header. Owns navigation between
+the new dashboard tab and the legacy-iframe tabs.
+
+### T5.1 — `<TabStrip />` component
+
+- **What.** Renders a Bootstrap-5 tabs strip. Tabs are driven by
+  router state. The dashboard tab is special-cased; everything else
+  is a legacy URL. **No cap on simultaneous tabs** (matches legacy
+  behavior).
+- **Acceptance.**
+  - [ ] Tests first. Cover: dashboard tab active, legacy tab active,
+        switching tabs updates the URL.
+  - [ ] Tabs keep their iframes mounted while inactive (so reopening
+        is instant) but visually hidden via `display: none`. Trade
+        the memory cost for the UX.
+  - [ ] No cap on number of open tabs. (If memory becomes an issue
+        in real-world use, revisit as a follow-up — out of W2 scope.)
+- **Blockers.** T1.1, T3.3.
+
+### T5.2 — `<LegacyIframeTab />` component
+
+- **What.** Component that hosts a legacy URL in a sandboxed iframe.
+  Sized to fill the tab content area. **The SPA owns
+  `document.title`** — legacy iframes that try to set
+  `top.document.title` are routed through a shim (T3.2 owns this)
+  that updates SPA-managed title state instead. Title format
+  follows the legacy `WindowTitleAddPatient` pattern: when a
+  patient is active, `"<Patient Name> - <Base Title>"`; otherwise
+  just the base title.
+- **Acceptance.**
+  - [ ] Tests first. Cover: renders an iframe with the right `src`,
+        re-renders when URL prop changes.
+  - [ ] Iframe inherits the parent's session (same-origin).
+  - [ ] iframe `sandbox` attribute allows same-origin and forms
+        but not popups (popups are handled by `dlgopen` shim).
+  - [ ] `top.document.title = ...` from inside a legacy iframe is
+        intercepted by the shim (T3.2) and routed to the SPA's
+        title manager. A test covers this.
+  - [ ] When the patient changes, the title updates within one
+        render cycle.
+- **Blockers.** T5.1, T3.2.
+
+### T5.3 — Tab registry from `loadFrame` interception
+
+- **What.** Don't hardcode the tab→URL map. Let the legacy menu's
+  `loadFrame(id, name, url)` calls populate it. The `loadFrame`
+  shim (T3.3) routes the SPA to `/dashboard/legacy/$name?url=$url`.
+- **Acceptance.**
+  - [ ] Tests first. Cover: `loadFrame('framecal', 'cal',
+        '/interface/main/calendar/index.php')` opens the calendar
+        tab with that URL.
+  - [ ] If the same `name` is loaded twice with different URLs, the
+        existing iframe navigates rather than rebuilding.
+  - [ ] First load of a name registers the tab in the strip; tabs
+        persist across navigations until closed.
+- **Blockers.** T3.3, T5.1, T5.2.
+
+### T5.4 — Tab close + active-tab default
+
+- **What.** "✕" on each tab closes it. Closing the active tab
+  activates the next (or the dashboard if none). Closing the
+  dashboard tab is a no-op (the dashboard is always present).
+  **No persistence** of the open-tabs list across page reloads —
+  legacy `default_open_tabs` (audit B16) is out of W2 scope and
+  lives as a stretch story (T7.5).
+- **Acceptance.**
+  - [ ] Tests first.
+  - [ ] Closing a tab destroys its iframe (frees memory).
+  - [ ] Page reload starts with only the dashboard tab open
+        (current patient context preserved via the URL).
+- **Blockers.** T5.1.
+
+---
+
+## T6 — Polish, error handling, deploy
+
+Pre-merge work. Don't ship without these.
+
+### T6.1 — Global + per-card error boundaries
+
+- **What.** `<ErrorBoundary />` at the SPA root for unrecoverable
+  errors (renders "Something went wrong, refresh"). `<CardError />`
+  wrapper used by every card so a single failed FHIR call doesn't
+  blank the page.
+- **Acceptance.**
+  - [ ] Tests first. Cover: a child throws synchronously; child
+        throws on render; FHIR error in a child.
+  - [ ] Errors are logged via `lib/logger.ts`.
+  - [ ] Recovery: per-card "Retry" calls back into the hook's
+        retry function.
+- **Blockers.** T2.4, T4.1.
+
+### T6.2 — Auth-expiration redirect
+
+- **What.** When fhirclient's silent refresh fails, catch
+  `AuthExpiredError`, log out cleanly, redirect to `/login`.
+- **Acceptance.**
+  - [ ] Tests first. Mock fhirclient to reject refresh.
+  - [ ] User sees a brief "session expired" toast, then is on
+        `/login`.
+  - [ ] Tokens are cleared from sessionStorage.
+- **Blockers.** T2.2, T6.1.
+
+### T6.3 — Logger module
+
+- **What.** `src/lib/logger.ts` exports `logger.error/warn/info`,
+  each emitting structured JSON to console. Single dependency
+  point so we can swap to a real sink later.
+- **Acceptance.**
+  - [ ] Tests first. Cover: `logger.error(eventName, ctx)` calls
+        `console.error` once with a JSON-shaped object.
+  - [ ] No raw `console.*` calls anywhere else in `src/` (ESLint
+        rule).
+- **Blockers.** T1.1.
+
+### T6.4 — Squad-ACL FHIR enforcement check (resolves T0.3)
+
+- **What.** Manual + automated test that confirms the FHIR layer
+  enforces patient-squad ACL the same way the legacy dashboard
+  did. If it doesn't, file an upstream issue and decide whether to
+  ship.
+- **Acceptance.**
+  - [ ] Test patient with a `squad` field set; user without that
+        squad ACL.
+  - [ ] FHIR `GET /fhir/Patient/$pid` returns 403 or 404 (not 200).
+  - [ ] Documented finding in `docs/dashboard-audit/05-bug-catalog.md`
+        B17 entry — promoted from "needs verification" to "verified
+        OK" or "verified leak, upstream issue #X filed".
+- **Blockers.** T2.1.
+
+### T6.5 — CSP report-only → enforced flip
+
+- **What.** Once T1-T5 are all integrated and tested, watch the
+  CSP-report-only logs for unexpected violations from fhirclient,
+  TanStack Router, or Bootstrap 5. Triage; flip to enforced.
+- **Acceptance.**
+  - [ ] One full integration test cycle with no unresolved
+        report-only violations.
+  - [ ] Apache config switched from
+        `Content-Security-Policy-Report-Only` to
+        `Content-Security-Policy`.
+  - [ ] A regression test triggers the CSP and confirms a violation
+        blocks rendering (proves enforcement is on).
+- **Blockers.** T1.6, T6.1, all of T4 and T5.
+
+---
+
+## T7 — Stretch goals (post-MVP)
+
+Built only after T0-T6 are green. Each is a story; same TDD rule.
+
+### T7.1 — TanStack Query as a cache layer
+
+- **What.** Wrap `useFhirRequest` in TanStack Query. Resource-keyed
+  cache, background refetch, per-card invalidation via query keys.
+- **Acceptance.** Cards refetch on focus regain; modal-driven edits
+  invalidate the relevant cache key; no double-fetching on
+  re-render.
+- **Blockers.** T2.4.
+
+### T7.2 — Lab Results card (`<LabsCard />`)
+
+- Same shape as `EncountersCard`; reads
+  `DiagnosticReport?patient={id}&category=LAB&_sort=-date&_count=10`.
+
+### T7.3 — Vitals card (`<VitalsCard />`)
+
+- Reads `Observation?patient={id}&category=vital-signs&_sort=-date`.
+  Flattens into a row-per-encounter view.
+
+### T7.4 — Immunizations card (`<ImmunizationsCard />`)
+
+- Reads `Immunization?patient={id}&_sort=-date`. Renders date,
+  vaccine code, status.
+
+### T7.5 — Persistent open-tabs (`default_open_tabs` parity)
+
+- The legacy SPA persists each user's open tabs across logins
+  (audit B16). Match that, or skip if the convention is unloved.
+
+### T7.6 — Promote auth model to a BFF (security upgrade path)
+
+- The migration doc commits to bearer-in-browser with strict CSP.
+  If a future review asks for token isolation, this is the upgrade
+  path: a thin PHP module that does the OIDC dance server-side and
+  proxies FHIR. Out of scope for W2; documented here so the
+  abstractions stay sized for it.
+
+---
+
+## Working agreements (cross-cutting)
+
+- **TDD.** Every story's first commit is the failing test.
+- **Type safety.** No `any` without an inline justification comment.
+  Prefer `unknown` + type narrowing.
+- **Bundle hygiene.** No new runtime dependency without a sentence
+  in the PR description on why.
+- **No repo-wide reformat.** Lint/format only files the story is
+  already touching (per the project convention).
+- **Commits.** Conventional Commits, scope `dashboard`. Story ID in
+  the body: `Story: T4.2`.
+- **Multi-commit work goes in a worktree** on a `feat/...` branch,
+  not on master directly.
+- **CSP report-only stays on** until T6.5 explicitly flips it.
