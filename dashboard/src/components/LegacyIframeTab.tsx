@@ -16,11 +16,16 @@ export interface LegacyIframeTabProps {
 // adds the global error/title boundary; this component only owns the
 // iframe DOM.
 export function LegacyIframeTab({ name, url, active }: LegacyIframeTabProps): ReactElement {
+  // Absolute-positioned so each tab pane stacks in the same area of
+  // the AppShell tab-content region; only the active one is visible.
+  // `hidden` removes it from the layout but keeps the iframe DOM
+  // node alive, preserving its session and any in-flight form state.
   return (
     <div
       data-testid="legacy-iframe-wrapper"
       hidden={!active}
-      className="legacy-iframe-tab h-100"
+      className="legacy-iframe-tab"
+      style={{ position: 'absolute', inset: 0 }}
     >
       <iframe
         title={`legacy-tab-${name}`}

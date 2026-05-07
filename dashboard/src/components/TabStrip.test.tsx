@@ -4,12 +4,10 @@ import { createTabsStore, DASHBOARD_TAB_ID } from '../lib/tabsStore';
 import { TabStrip } from './TabStrip';
 
 describe('TabStrip', () => {
-  it('renders the dashboard tab as active when no legacy tabs are open', () => {
+  it('renders nothing when there are no tabs (no patient, no seeded tabs)', () => {
     const store = createTabsStore();
     render(<TabStrip store={store} />);
-
-    const dashboardTab = screen.getByRole('tab', { name: /Dashboard/ });
-    expect(dashboardTab.getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
   });
 
   it('renders a legacy tab with its label when one is opened', () => {
@@ -23,19 +21,32 @@ describe('TabStrip', () => {
     expect(screen.getByRole('tab', { name: /Calendar/ })).toBeInTheDocument();
   });
 
-  it('switching to a legacy tab updates the store activeId', () => {
+  it('renders the Patient Dashboard tab once a patient is opened', () => {
     const store = createTabsStore();
     act(() => {
       store.openLegacyTab('cal', '/cal', 'Calendar');
+      store.openDashboardTab();
     });
     render(<TabStrip store={store} />);
 
-    const dashboardTab = screen.getByRole('tab', { name: /Dashboard/ });
+    const dashTab = screen.getByRole('tab', { name: /Patient Dashboard/ });
+    expect(dashTab.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('switching tabs updates the store activeId', () => {
+    const store = createTabsStore();
     act(() => {
-      dashboardTab.click();
+      store.openLegacyTab('cal', '/cal', 'Calendar');
+      store.openDashboardTab();
+    });
+    render(<TabStrip store={store} />);
+
+    const calTab = screen.getByRole('tab', { name: /Calendar/ });
+    act(() => {
+      calTab.click();
     });
 
-    expect(store.getState().activeId).toBe(DASHBOARD_TAB_ID);
+    expect(store.getState().activeId).toBe('cal');
   });
 
   it('closes a legacy tab when its ✕ button is clicked', () => {
@@ -53,11 +64,16 @@ describe('TabStrip', () => {
     expect(store.getState().tabs.map((t) => t.id)).not.toContain('cal');
   });
 
-  it('the dashboard tab does not render a close button', () => {
+  it('the Patient Dashboard tab is closable too (mirrors legacy: every tab gets an ✕)', () => {
     const store = createTabsStore();
+    act(() => {
+      store.openDashboardTab();
+    });
     render(<TabStrip store={store} />);
 
-    expect(screen.queryByRole('button', { name: /Close Dashboard/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Close Patient Dashboard/ }),
+    ).toBeInTheDocument();
   });
 
   it('does not cap the number of open tabs', () => {
@@ -66,10 +82,29 @@ describe('TabStrip', () => {
       for (let i = 0; i < 8; i++) {
         store.openLegacyTab(`tab${i}`, `/tab${i}`, `Tab ${i}`);
       }
+      store.openDashboardTab();
     });
     render(<TabStrip store={store} />);
 
-    // Dashboard + 8 legacy tabs.
     expect(screen.getAllByRole('tab').length).toBe(9);
+  });
+
+  it('clicking the Patient Dashboard tab activates it via the store', () => {
+    const store = createTabsStore();
+    act(() => {
+      store.openLegacyTab('cal', '/cal', 'Calendar');
+      store.openDashboardTab();
+    });
+    render(<TabStrip store={store} />);
+
+    act(() => {
+      screen.getByRole('tab', { name: /Calendar/ }).click();
+    });
+    expect(store.getState().activeId).toBe('cal');
+
+    act(() => {
+      screen.getByRole('tab', { name: /Patient Dashboard/ }).click();
+    });
+    expect(store.getState().activeId).toBe(DASHBOARD_TAB_ID);
   });
 });

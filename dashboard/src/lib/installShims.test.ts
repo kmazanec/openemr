@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { installShims } from './bootShims';
-import { createTabsStore } from './tabsStore';
+import { createTabsStore, DASHBOARD_TAB_ID } from './tabsStore';
 
 interface FakeRouter {
   navigate: ReturnType<typeof vi.fn>;
@@ -22,7 +22,7 @@ describe('installShims (boot integration)', () => {
   // calling top.left_nav.setPatient(...) lands the SPA on
   // /patient/$pid. This test pins that contract end-to-end through
   // the install layer (not just the build layer).
-  it('exposes left_nav.setPatient on top after install, and a call routes to /patient/$pid', () => {
+  it('exposes left_nav.setPatient on top after install, and a call routes to /patient/$pid and opens the dashboard tab', () => {
     const router = fakeRouter();
     const tabsStore = createTabsStore();
     const win = fakeWindow();
@@ -48,6 +48,7 @@ describe('installShims (boot integration)', () => {
       to: '/patient/$pid',
       params: { pid: '42' },
     });
+    expect(tabsStore.getState().activeId).toBe(DASHBOARD_TAB_ID);
   });
 
   it('exposes top.set_pid after install', () => {

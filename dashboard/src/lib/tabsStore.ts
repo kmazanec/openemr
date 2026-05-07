@@ -2,12 +2,19 @@
 // useSyncExternalStore (see lib/useTabs.ts). Lives outside React so
 // the shim layer (lib/shims.ts) can drive it from legacy iframe
 // callbacks without going through hooks.
+//
+// The Dashboard tab (our SPA-rendered patient summary) is *not*
+// always present. Mirrors legacy behavior: when no patient is
+// selected, the user sees only the seeded tabs (Calendar, Message
+// Inbox, …) from $session['default_open_tabs']. The Dashboard tab is
+// inserted on demand the first time a patient is opened (top.set_pid
+// or PatientRoute mount).
 
 export const DASHBOARD_TAB_ID = '__dashboard';
 
 export interface DashboardTab {
   id: typeof DASHBOARD_TAB_ID;
-  label: 'Dashboard';
+  label: 'Patient Dashboard';
 }
 
 export interface LegacyTab {
@@ -20,23 +27,24 @@ export type Tab = DashboardTab | LegacyTab;
 
 export interface TabsState {
   tabs: Tab[];
-  activeId: string;
+  activeId: string | null;
 }
 
 export interface TabsStore {
   getState(): TabsState;
   subscribe(listener: () => void): () => void;
   openLegacyTab(name: string, url: string, label?: string): void;
+  openDashboardTab(): void;
   setActive(id: string): void;
   closeTab(id: string): void;
 }
 
-const DASHBOARD_TAB: DashboardTab = { id: DASHBOARD_TAB_ID, label: 'Dashboard' };
+const DASHBOARD_TAB: DashboardTab = { id: DASHBOARD_TAB_ID, label: 'Patient Dashboard' };
 
 export function createTabsStore(): TabsStore {
   let state: TabsState = {
-    tabs: [DASHBOARD_TAB],
-    activeId: DASHBOARD_TAB_ID,
+    tabs: [],
+    activeId: null,
   };
   const listeners = new Set<() => void>();
 
@@ -79,6 +87,18 @@ export function createTabsStore(): TabsStore {
       });
     },
 
+    openDashboardTab() {
+      const existing = state.tabs.find((t) => t.id === DASHBOARD_TAB_ID);
+      if (existing !== undefined) {
+        setState({ ...state, activeId: DASHBOARD_TAB_ID });
+        return;
+      }
+      setState({
+        tabs: [DASHBOARD_TAB, ...state.tabs],
+        activeId: DASHBOARD_TAB_ID,
+      });
+    },
+
     setActive(id) {
       if (state.tabs.some((t) => t.id === id)) {
         setState({ ...state, activeId: id });
@@ -86,18 +106,15 @@ export function createTabsStore(): TabsStore {
     },
 
     closeTab(id) {
-      // The dashboard tab is always present.
-      if (id === DASHBOARD_TAB_ID) return;
       const idx = state.tabs.findIndex((t) => t.id === id);
       if (idx === -1) return;
       const remaining = state.tabs.filter((t) => t.id !== id);
       let nextActive = state.activeId;
       if (state.activeId === id) {
-        // Activate the previous tab when the active one is closed;
-        // fall through to dashboard if we just closed the only legacy
-        // tab.
-        const fallback = remaining[idx - 1] ?? remaining[remaining.length - 1] ?? DASHBOARD_TAB;
-        nextActive = fallback.id;
+        // Activate the previous tab when the active one is closed; if
+        // we just closed the last tab, no tab is active.
+        const fallback = remaining[idx - 1] ?? remaining[0] ?? null;
+        nextActive = fallback === null ? null : fallback.id;
       }
       setState({ tabs: remaining, activeId: nextActive });
     },

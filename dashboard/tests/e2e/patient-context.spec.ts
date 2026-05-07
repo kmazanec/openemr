@@ -3,21 +3,25 @@ import { expect, test } from '@playwright/test';
 // T3.5 — Patient context flow end-to-end.
 //
 // Simulates a legacy iframe calling top.left_nav.setPatient(...) once
-// the SPA is mounted. The shim, installed at boot, should route the
-// router to /patient/$pid. We don't drive the real OpenEMR patient
-// finder here — that flow requires the dev compose stack and a live
-// session. Instead, this test pins what the legacy contract is going
-// to invoke: the call shape the patient finder uses today.
-//
-// The manual-smoke acceptance (search → click → land) lives in the
-// MR description; this test is the automated complement.
-test('left_nav.setPatient navigates the SPA to /patient/$pid', async ({ page }) => {
+// the SPA is mounted. The shim, installed at boot, should activate
+// the Patient Dashboard tab in the SPA's tabs store. We don't drive
+// the real OpenEMR patient finder here — that flow requires the dev
+// compose stack and a live session. The cards' FHIR session also
+// fails in this standalone Vite environment (no /metadata server),
+// which sends the router to /login. To keep this test focused on
+// the shim → tabs-store contract (which is what T3.5 is about), we
+// assert the store state directly via window.__OE_DASHBOARD_TABS__.
+test('left_nav.setPatient activates the Patient Dashboard tab', async ({ page }) => {
   await page.goto('/');
 
-  // The shim is installed in App's useEffect; wait for it.
   await page.waitForFunction(() => {
-    const w = window as unknown as { left_nav?: { setPatient?: unknown } };
-    return typeof w.left_nav?.setPatient === 'function';
+    const w = window as unknown as {
+      left_nav?: { setPatient?: unknown };
+      __OE_DASHBOARD_TABS__?: unknown;
+    };
+    return (
+      typeof w.left_nav?.setPatient === 'function' && w.__OE_DASHBOARD_TABS__ !== undefined
+    );
   });
 
   await page.evaluate(() => {
@@ -35,6 +39,12 @@ test('left_nav.setPatient navigates the SPA to /patient/$pid', async ({ page }) 
     w.left_nav.setPatient('Robert Kowalski', 42, '12345', 'main', '1971-06-08');
   });
 
-  await page.waitForURL(/\/patient\/42$/);
-  expect(page.url()).toMatch(/\/patient\/42$/);
+  const activeId = await page.evaluate(() => {
+    const w = window as unknown as {
+      __OE_DASHBOARD_TABS__: { getState: () => { activeId: string | null } };
+    };
+    return w.__OE_DASHBOARD_TABS__.getState().activeId;
+  });
+
+  expect(activeId).toBe('__dashboard');
 });

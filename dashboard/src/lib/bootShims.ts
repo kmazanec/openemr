@@ -28,6 +28,13 @@ export interface ShimRouterDeps {
 export function buildShimRouter({ router, tabsStore }: ShimRouterDeps): ShimRouter {
   return {
     navigateToPatient(pid) {
+      // Picking a patient (e.g. via the legacy Finder iframe calling
+      // top.set_pid or left_nav.setPatient) surfaces the Patient
+      // Dashboard tab and switches to it. Mirrors the legacy shell's
+      // behavior of opening the patient summary on patient pick, but
+      // leaves the previously seeded tabs (Calendar, Message Inbox,
+      // …) intact so the user can flip back.
+      tabsStore.openDashboardTab();
       void router.navigate({ to: '/patient/$pid', params: { pid } });
     },
     navigateToDashboardRoot() {
@@ -53,6 +60,29 @@ export function buildShimRouter({ router, tabsStore }: ShimRouterDeps): ShimRout
       // Same as above.
     },
   };
+}
+
+// Shape main_v2.php emits as window.OE_DEFAULT_TABS.
+export interface InitialTab {
+  id: string;
+  label: string;
+  url: string;
+}
+
+// Seed the tabs store from main_v2.php's window.OE_DEFAULT_TABS.
+// First valid entry becomes the active tab (typical case: Calendar).
+// No-ops on an empty/missing list.
+export function hydrateInitialTabs(
+  tabsStore: TabsStore,
+  initialTabs: ReadonlyArray<InitialTab>,
+): void {
+  let firstId: string | null = null;
+  for (const tab of initialTabs) {
+    if (tab.id.length === 0 || tab.url.length === 0) continue;
+    tabsStore.openLegacyTab(tab.id, tab.url, tab.label);
+    if (firstId === null) firstId = tab.id;
+  }
+  if (firstId !== null) tabsStore.setActive(firstId);
 }
 
 export interface InstallShimsDeps extends ShimRouterDeps {

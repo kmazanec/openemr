@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { appTabsStore, DASHBOARD_TAB_ID, type Tab, type TabsStore } from '../lib/tabsStore';
+import { appTabsStore, type Tab, type TabsStore } from '../lib/tabsStore';
 import { useTabs } from '../lib/useTabs';
 
 export interface TabStripProps {
@@ -33,7 +33,6 @@ function TabItem({
   active: boolean;
   store: TabsStore;
 }): ReactElement {
-  const closable = tab.id !== DASHBOARD_TAB_ID;
   return (
     <li className="nav-item d-flex align-items-center" role="presentation">
       <button
@@ -47,18 +46,16 @@ function TabItem({
       >
         {tab.label}
       </button>
-      {closable && (
-        <button
-          type="button"
-          className="btn btn-sm btn-link text-decoration-none px-1 py-0"
-          aria-label={`Close ${tab.label}`}
-          onClick={() => {
-            store.closeTab(tab.id);
-          }}
-        >
-          &times;
-        </button>
-      )}
+      <button
+        type="button"
+        className="btn btn-sm btn-link text-decoration-none px-1 py-0"
+        aria-label={`Close ${tab.label}`}
+        onClick={() => {
+          store.closeTab(tab.id);
+        }}
+      >
+        &times;
+      </button>
     </li>
   );
 }

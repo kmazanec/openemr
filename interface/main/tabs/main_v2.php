@@ -430,26 +430,37 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
 
     <script>
         <?php
-        if ($session->get('default_open_tabs')) :
-            // For now, only the first tab is visible, this could be improved upon by further customizing the list options in a future feature request
-            $visible = "true";
-            $default_open_tabs = $session->get('default_open_tabs');
-            foreach ($default_open_tabs as $i => $tab) :
-                $_unsafe_url = preg_replace('/(\?.*)/m', '', Path::canonicalize($fileroot . DIRECTORY_SEPARATOR . $tab['notes']));
-                if (realpath($_unsafe_url) === false || !str_starts_with($_unsafe_url, (string) $fileroot)) {
-                    unset($default_open_tabs[$i]);
-                    $session->set('default_open_tabs', $default_open_tabs);
+        // Build the default open-tabs list for the SPA. Same source of
+        // truth as the legacy main.php block above (`default_open_tabs`
+        // list_options seeded by main_screen.php), but emitted as a
+        // window-scoped JSON array that the SPA reads at boot. The
+        // legacy Knockout `tabsList.push(...)` calls are skipped — the
+        // SPA owns the tab strip in this shell.
+        $oeDefaultTabs = [];
+        $defaultOpenTabsRaw = $session->get('default_open_tabs');
+        if (is_array($defaultOpenTabsRaw)) {
+            foreach ($defaultOpenTabsRaw as $i => $tab) {
+                if (!is_array($tab) || !isset($tab['notes'])) {
                     continue;
                 }
-                $url = json_encode($webroot . "/" . $tab['notes']);
-                $target = json_encode($tab['option_id']);
-                $label = json_encode(xl("Loading") . " " . $tab['title']);
-                $loading = xlj("Loading");
-                echo "app_view_model.application_data.tabs.tabsList.push(new tabStatus($label, $url, $target, $loading, true, $visible, false));\n";
-                $visible = "false";
-            endforeach;
-        endif;
+                $_unsafe_url = preg_replace('/(\?.*)/m', '', Path::canonicalize($fileroot . DIRECTORY_SEPARATOR . $tab['notes']));
+                if (realpath($_unsafe_url) === false || !str_starts_with($_unsafe_url, (string) $fileroot)) {
+                    unset($defaultOpenTabsRaw[$i]);
+                    $session->set('default_open_tabs', $defaultOpenTabsRaw);
+                    continue;
+                }
+                $oeDefaultTabs[] = [
+                    'id' => (string) ($tab['option_id'] ?? ''),
+                    'label' => (string) xl((string) ($tab['title'] ?? '')),
+                    'url' => $webroot . '/' . (string) $tab['notes'],
+                ];
+            }
+        }
         ?>
+        // Default tabs the SPA should open at boot. Mirrors what the
+        // legacy shell would have rendered from $session['default_open_tabs'].
+        // The first entry becomes the active tab — typically Calendar.
+        window.OE_DEFAULT_TABS = <?php echo json_encode($oeDefaultTabs, JSON_UNESCAPED_SLASHES); ?>;
 
         app_view_model.application_data.user(new user_data_view_model(<?php echo json_encode($session->get("authUser"))
             . ',' . json_encode($userQuery['fname'])
@@ -466,6 +477,25 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
       #userdropdown.dropdown-menu {
         white-space: nowrap;        /* prevents multi-line wrapping */
         min-width: max-content;     /* expands to fit the widest item */
+      }
+      /* Dashboard-SPA layout: #mainBox fills the viewport and #dashboard-root
+         takes up the remainder below the top nav. Without this, the SPA shell
+         renders at zero height and the legacy iframes (which use absolute
+         positioning relative to their wrapper) collapse to nothing. */
+      #mainBox {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+      }
+      #mainBox > nav {
+        flex: 0 0 auto;
+      }
+      #dashboard-root {
+        flex: 1 1 auto;
+        position: relative;
+        min-height: 0;
+        width: 100%;
       }
     </style>
 </head>
