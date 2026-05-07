@@ -149,6 +149,17 @@ repos:
     files: ^(composer\.json|.*\.php)$
     pass_filenames: false
 
+  - id: dashboard-eslint
+    name: Dashboard ESLint
+    # prek passes the staged file list as args (repo-relative paths
+    # like `dashboard/src/App.tsx`). Strip the `dashboard/` prefix
+    # before invoking ESLint from inside that dir, so only files
+    # under `dashboard/` are linted (the no-repo-wide-reformat
+    # convention).
+    entry: bash -c 'set -e; files=(); for f in "$@"; do files+=("${f#dashboard/}"); done; cd dashboard && npx --no-install eslint --no-warn-ignored "${files[@]}"' --
+    language: system
+    files: ^dashboard/.*\.(ts|tsx)$
+
   - id: conventional-commits
     name: Conventional Commits
     entry: bash -c 'composer conventional-commits:check -- "$(<"$1")"' --
