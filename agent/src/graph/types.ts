@@ -280,12 +280,14 @@ export type DocumentEvidenceArgs = z.infer<typeof DocumentEvidenceArgsSchema>;
  * §C.3 closed enumeration of guideline publishers the supervisor may
  * filter on. MVP ships USPSTF only; the architecture (§"evidenceRetriever")
  * pre-declares the full set so adding a new publisher in a later phase is
- * a corpus-ingest change, not a schema change.
+ * a corpus-ingest change, not a schema change. `'ACC-AHA'` is omitted
+ * because no ingest path exists — AHA Journals + JACC are
+ * Cloudflare-protected and the 2017 guideline isn't in PMC; phase I.3
+ * pivots to the CDC HBP / Million Hearts pages instead.
  */
 export const EVIDENCE_SOURCE_FILTERS = [
     'USPSTF',
     'ADA',
-    'ACC-AHA',
     'AGS-Beers',
     'CDC',
 ] as const;

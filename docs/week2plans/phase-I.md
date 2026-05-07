@@ -150,16 +150,61 @@ The publisher's direct site (`diabetesjournals.org`) returns a Cloudflare JS-cha
 
 ---
 
-## I.3 ACC/AHA Hypertension (2017 + 2023 update)
+## I.3 CDC High Blood Pressure + Million Hearts hypertension content
 
-**Goal.** Add the ACC/AHA hypertension guideline to the corpus. License is `fair_use_cds`. `hypertensive` is a core W1 archetype; cross-cutting cardiovascular comorbidity in `diabetic_uncontrolled` and `complex_elderly`.
+**Goal.** Five clinician-facing CDC HBP and Million Hearts pages are fetched verbatim from the publisher, parsed by the existing `cdc-clinical-guidance` extractor, and committed under `agent/data/corpus/cdc/` alongside the I.1 ACIP/opioid/STI chunks. License is `public_domain` across all five (federal-government works). The pages cover the core implementation surface a primary-care team needs for the `hypertensive` archetype — a CDC-published management toolkit, the pharmacist's patient-care process guide, the team-based-care evidence brief, telehealth-strategies evaluations, and the Million Hearts treatment-protocols index (cholesterol management, tobacco cessation, hypertension treatment). The supervisor can then issue `evidenceRetriever({source_filter: ['CDC'], …})` and surface hypertension-specific chunks; absent a filter, the new chunks compete with USPSTF and the existing CDC corpus on hybrid score.
 
-**Blocked by:** I.1 (template).
+This sub-phase originally targeted the 2017 ACC/AHA Hypertension Guideline (Whelton et al.). After the upstream survey (probed `ahajournals.org`, `jacc.org`, NICE, NHLBI, VA/DoD, AHRQ EPC, Million Hearts, AAFP, Cleveland Clinic, Mayo Clinic), AHA Journals + JACC turned out to be Cloudflare-protected with no PMC mirror, while patient-ed sites (Cleveland Clinic, Mayo, NHLBI consumer pages) are "all rights reserved" and content-thin. CDC HBP / Million Hearts emerged as the only candidate that both **scrapes cleanly with our existing CDC fetcher** and carries clinician-grade content (drug-class first-line recommendations, titration intervals, team-based-care evidence) — so the sub-phase is repointed there. The architecture's "publisher-at-a-time" rule still holds; this just deepens the existing CDC corpus rather than spinning up a new publisher.
+
+The five new pages are:
+1. **HMP Toolkit** — `/high-blood-pressure/hcp/hmp-toolkit/index.html` (CDC's Hypertension Management Program clinician toolkit).
+2. **Pharmacists' Patient-Care Process Approach Guide** — `/high-blood-pressure/hcp/data-research/pharmacists-patient-care/index.html`.
+3. **Team-Based Care to Improve Blood Pressure Control** — `/high-blood-pressure/php/data-research/team-based-care/index.html`.
+4. **Rapid Evaluations of Telehealth Strategies to Address Hypertension** — `/high-blood-pressure/php/data-research/telehealth-strategies/index.html`.
+5. **Million Hearts Treatment Protocols** — `https://millionhearts.hhs.gov/tools-protocols/protocols.html` (cholesterol management, tobacco cessation, hypertension treatment protocols index).
+
+ACC/AHA + JACC publishers are deferred until a real path to that source exists (Playwright/headless-browser fetcher, an explicit license arrangement, or a PMC deposit). The `'ACC-AHA'` member is removed from `EVIDENCE_SOURCE_FILTERS` since no ingest path exists; `'ADA'` and `'AGS-Beers'` stay (still in scope per I.2 / I.4).
+
+**Blocked by:** I.1 (template — `cdc-clinical-guidance` shape reuses the I.1 generic-h2 walker).
 **Unblocks:** I.5 eval-validation gate.
 
-**Refs.** `WEEK2-PRESEARCH.md` Q9.
+**Refs.**
+- `W2_ARCHITECTURE.md` §"evidenceRetriever" (corpus curation rules; publisher-at-a-time, no model-authored chunks).
+- `agent/scripts/fetch-cdc-corpus.ts`, `agent/scripts/extract-cdc-corpus.ts` — the I.1 reference implementation. The new `cdc-clinical-guidance` surface adds five fetch targets and one switch arm; no new files, no new dependencies. The new surface reuses the existing `extractGenericH2Sections` walker.
+- `agent/scripts/reindex-corpus.ts` — source-agnostic; existing `cdc` corpus dir picks up the new chunk files automatically.
 
-**Checklist.** _(To be expanded when picked up.)_
+**Files touched.**
+- `agent/scripts/fetch-cdc-corpus.ts` — extends `CdcSurface` with `'cdc-clinical-guidance'`; appends five new entries to `FETCH_TARGETS`.
+- `agent/scripts/extract-cdc-corpus.ts` — adds `'cdc-clinical-guidance'` to the surface dispatch (reuses the existing `extractGenericH2Sections`); extends `SKIP_SECTION_LABELS` with Million Hearts chrome (`Subscribe.`, `Connect.`, `Explore.`, `Take Action.`) and CDC HBP chrome (`Additional content`, `Related resources`, `Related Webpages`, `Tools and Resources`).
+- `agent/data/corpus/cdc/{fetch-manifest.json,index.json}` — five new entries appended.
+- `agent/data/corpus/cdc/{hbp-*,million-hearts-*}--<section>.md` — 20 new chunk files.
+- `agent/tests/scripts/extract-cdc-corpus.test.ts` — adds a `cdc-clinical-guidance` describe block with two cases (CDC HBP page + Million Hearts protocols page).
+- `agent/tests/scripts/fixtures/cdc/cdc-clinical-guidance-{hbp,million-hearts}-sample.html` — two new fixtures.
+- `agent/src/graph/types.ts` — drops `'ACC-AHA'` from `EVIDENCE_SOURCE_FILTERS` (no ingest path).
+- `agent/README.md` — extends the CDC line in the sources table to mention the new HBP/Million Hearts surfaces.
+
+**Checklist.**
+- [x] Extend `agent/scripts/fetch-cdc-corpus.ts`:
+  - Add `'cdc-clinical-guidance'` to the `CdcSurface` union.
+  - Append five entries to `FETCH_TARGETS` (slugs `hbp-hmp-toolkit`, `hbp-pharmacists-patient-care`, `hbp-team-based-care`, `hbp-telehealth-strategies`, `million-hearts-protocols`).
+- [x] Extend `agent/scripts/extract-cdc-corpus.ts`:
+  - Add `extractCdcClinicalGuidance` (delegates to existing `extractGenericH2Sections`); dispatch from `extractFromHtml` switch.
+  - Extend `SKIP_SECTION_LABELS` with the Million Hearts boilerplate four (`Subscribe.`, `Connect.`, `Explore.`, `Take Action.`) and CDC HBP footer chrome (`Additional content`, `Related resources`, `Related Webpages`, `Tools and Resources`).
+- [x] Vitest fixture tests (`agent/tests/scripts/extract-cdc-corpus.test.ts`):
+  - Two new fixtures under `agent/tests/scripts/fixtures/cdc/cdc-clinical-guidance-*-sample.html` (CDC HBP HMP-toolkit shape + Million Hearts protocols shape).
+  - Two new cases asserting expected sections, verbatim body content, and chrome dropping.
+- [x] Run `npm run corpus:fetch:cdc && npm run corpus:extract:cdc` from `agent/`, review the new 20 chunks, commit only the new chunk files + the appended index.json/fetch-manifest.json entries (preserve old entries' timestamps).
+  (Output: 20 new chunks across 5 source pages — 4 hbp-hmp-toolkit + 3 hbp-pharmacists-patient-care + 5 hbp-team-based-care + 5 hbp-telehealth-strategies + 3 million-hearts-protocols. Old chunk timestamps preserved via selective `git checkout`; index.json + fetch-manifest.json patched surgically rather than fully regenerated.)
+- [x] Drop `'ACC-AHA'` from `EVIDENCE_SOURCE_FILTERS` in `agent/src/graph/types.ts` (no ingest path; `'ADA'` and `'AGS-Beers'` stay for I.2/I.4).
+- [x] Update `agent/README.md` corpus section: extend the CDC row with the HBP/Million Hearts surface line item.
+- [ ] When the user has Pinecone credentials populated, run `npm run evals:reindex-corpus` to upsert the new chunks into namespace `guidelines-v1`. The reindex script is already source-agnostic; no code changes there. (Deferred to user — same gate as C.2/C.3/I.1 partial DoDs.)
+
+**Definition of done.**
+- `npm run corpus:fetch:cdc && npm run corpus:extract:cdc` produces 20 new chunks under `agent/data/corpus/cdc/` (5 pages × ~4 sections each); re-running is idempotent.
+- Vitest tests green (full agent suite, not just the extended test file).
+- `EVIDENCE_SOURCE_FILTERS` no longer contains `'ACC-AHA'`.
+- When the user has Pinecone credentials, `npm run evals:reindex-corpus` upserts the new CDC chunks alongside the existing CDC + USPSTF corpora.
+- `evidenceRetriever({source_filter: ['CDC']})` returns hypertension-management chunks (validated structurally now; end-to-end against real vendors deferred to I.5 eval-validation gate, same gate as C.2/C.3/I.1).
 
 ---
 

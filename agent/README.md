@@ -258,7 +258,7 @@ the namespace already holds the corpus before retrieval-eval cases run.
 | Source  | License tier      | Surfaces                                                                                                              |
 | ------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
 | USPSTF  | `public_domain`   | All published preventive-services recommendations (recommendation summary + clinical considerations + practice notes) |
-| CDC     | `public_domain`   | ACIP adult + child/adolescent immunization schedules and notes; 2022 opioid prescribing guideline at-a-glance; STI clinical-guidance sub-pages |
+| CDC     | `public_domain`   | ACIP adult + child/adolescent immunization schedules and notes; 2022 opioid prescribing guideline at-a-glance; STI clinical-guidance sub-pages; CDC High Blood Pressure HCP/PHP pages (Hypertension Management Program toolkit, pharmacists' patient-care process, team-based care, telehealth strategies) and Million Hearts treatment-protocols index |
 | ADA     | `fair_use_cds` ¹  | Standards of Care in Diabetes—2026: Introduction & Methodology + sections 1–17 (Improving Care, Diagnosis, Prevention, Comprehensive Evaluation, Health Behaviors, Glycemic Goals, Technology, Obesity, Pharmacology, Cardiovascular, CKD, Retinopathy/Neuropathy/Foot, Older Adults, Children, Pregnancy, Hospital, Advocacy) |
 
 ¹ The ADA Standards of Care are copyrighted by the American Diabetes
@@ -291,7 +291,7 @@ npm run evals:reindex-corpus   # picks up every source under data/corpus/* autom
 ```
 
 The fetch + extract pipeline is source-agnostic by convention: future
-publishers (ACC/AHA, AGS Beers, etc.) plug in by adding a new
+publishers (AGS Beers, etc.) plug in by adding a new
 `agent/scripts/fetch-<source>-corpus.ts` + `extract-<source>-corpus.ts`
 pair plus a new `agent/data/corpus/<source>/` directory. The reindex
 script iterates `agent/data/corpus/*/index.json` automatically.
