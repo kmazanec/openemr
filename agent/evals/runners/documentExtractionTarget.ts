@@ -407,8 +407,6 @@ export interface CaseRunResult {
     readonly demographicsChanges: readonly string[];
 }
 
-const DEFAULT_BUCKET = 'fixture.bucket';
-
 const canonicalExtFor = (entry: ManifestEntry): string => {
     if (entry.mime === 'application/pdf') return 'pdf';
     if (entry.mime === 'image/png') return 'png';
@@ -501,7 +499,6 @@ export const runDocumentExtractionCase = async (
             canonicalExt: canonicalExtFor(entry),
             openemrToken: 'eval-token',
             openemrSiteId: 'default',
-            bucketName: DEFAULT_BUCKET,
         },
         emitDeltas: {
             artifactStore: storeContext.store,

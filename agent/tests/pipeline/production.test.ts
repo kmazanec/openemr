@@ -99,7 +99,6 @@ const buildDeps = (): {
         buildFetchChartDemographics,
         buildFetchChartSnapshot,
         transientPrefix: 'transient',
-        bucketName: 'cdn.test.dev',
         artifactIdGenerator: () => 'artifact-test',
         logger: noopLogger,
     };

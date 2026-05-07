@@ -139,7 +139,6 @@ const buildDeps = (
         canonicalExt: 'pdf',
         openemrToken: 'JWT',
         openemrSiteId: 'default',
-        bucketName: 'cdn.test.dev',
         ...overrides,
     };
 };
@@ -372,7 +371,7 @@ describe('persist node', () => {
         expect(calls.lockReleases).toBe(1); // released even on failure
     });
 
-    it('builds the s3:// URL using bucket + canonical key', async () => {
+    it('passes the placeholder uuid through to the confirm RPC', async () => {
         const canonical = Buffer.from('canonical pdf bytes');
         const rpc = stubRpc('canonical-uuid-1');
         await persist(
@@ -380,13 +379,11 @@ describe('persist node', () => {
             buildDeps({
                 openemrSpaces: stubSpaces(canonical),
                 documentReferenceClient: rpc,
-                bucketName: 'cdn.biograph.dev',
             }),
         );
         expect(rpc.writeDocumentReference).toHaveBeenCalledWith(
             expect.objectContaining({
-                spacesUrl: 's3://cdn.biograph.dev/7/placeholder-XYZ.pdf',
-                mimeType: 'application/pdf',
+                documentUuid: 'placeholder-XYZ',
                 docType: 'lab_pdf',
                 pid: 7,
                 token: 'JWT',

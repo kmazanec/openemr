@@ -60,19 +60,10 @@ export interface PersistDeps {
     readonly artifactIdGenerator: () => string;
     /**
      * The file extension of the canonical object as stored in Spaces.
-     * Same value `rasterize` keyed off — passed through here so the
-     * Tier-1 endpoint can record the right `mime_type` on the
-     * DocumentReference.
+     * Same value `rasterize` keyed off — used here to resolve the
+     * Spaces key when re-reading the canonical bytes for hashing.
      */
     readonly canonicalExt: string;
-    /**
-     * Spaces bucket name — recorded as `s3://<bucket>/<key>` on the
-     * Tier-1 DocumentReference. The Spaces client's bucket is not
-     * exposed as part of its public surface (intentionally — kept off
-     * the API surface to keep presigned-URL forging out of caller
-     * scope), so callers thread the bucket through as a separate dep.
-     */
-    readonly bucketName: string;
     /**
      * Per-call OpenEMR JWT (the agent threads inbound tokens to its
      * outbound callbacks) and site id. Both come from the supervisor's
@@ -96,20 +87,6 @@ const fail = (state: PipelineState, error: PipelineError): Partial<PipelineState
 
 const sha256Hex = (bytes: Buffer): string =>
     createHash('sha256').update(bytes).digest('hex');
-
-const mimeTypeForExt = (ext: string): string => {
-    const e = ext.replace(/^\.+/, '').toLowerCase();
-    if (e === 'pdf') return 'application/pdf';
-    if (e === 'png') return 'image/png';
-    if (e === 'jpg' || e === 'jpeg') return 'image/jpeg';
-    if (e === 'tif' || e === 'tiff') return 'image/tiff';
-    return 'application/octet-stream';
-};
-
-const filenameFor = (placeholderUuid: string, ext: string): string => {
-    const cleanExt = ext.replace(/^\.+/, '').toLowerCase();
-    return `${placeholderUuid}.${cleanExt}`;
-};
 
 export const persist = async (
     state: PipelineState,
@@ -241,9 +218,7 @@ export const persist = async (
             const result = await documentReferenceClient.writeDocumentReference({
                 pid: state.pid,
                 docType: state.docType,
-                spacesUrl: `s3://${deps.bucketName}/${canonicalKey}`,
-                mimeType: mimeTypeForExt(deps.canonicalExt),
-                filename: filenameFor(placeholderUuid, deps.canonicalExt),
+                documentUuid: placeholderUuid,
                 token: deps.openemrToken,
                 siteId: deps.openemrSiteId,
                 ...(deps.conversationId !== undefined ? { conversationId: deps.conversationId } : {}),
