@@ -314,11 +314,11 @@ describe('POST /v1/agent/accept_fact — happy path (lab)', () => {
 });
 
 describe('POST /v1/agent/accept_fact — non-lab fact types stay 501 until their write services land', () => {
-    // F.5a shipped lab; F.5b shipped allergy. The remaining three
-    // list-shaped fact types stay 501 until F.5c–F.5e flip them.
+    // F.5a shipped lab; F.5b shipped allergy; F.5d shipped
+    // past_medical_history. The remaining two list-shaped fact types
+    // stay 501 until F.5c / F.5e flip them.
     it.each([
         ['medication_statement'],
-        ['past_medical_history'],
         ['family_history'],
     ])('returns 501 not_yet_implemented for factType=%s', async (factType) => {
         const deps = makeDeps();
@@ -521,6 +521,203 @@ describe('POST /v1/agent/accept_fact — happy path (allergy)', () => {
         });
         expect(res.status).toBe(400);
         expect(await res.json()).toEqual({ error: 'unsupported_field_path' });
+    });
+});
+
+describe('POST /v1/agent/accept_fact — happy path (past_medical_history)', () => {
+    const baseMedicalProblemArtifact = (
+        overrides: Partial<ExtractionArtifact> = {},
+    ): ExtractionArtifact => ({
+        artifactId: 'artifact-pmh-1',
+        documentUuid: 'doc-uuid-pmh',
+        pid: 4242,
+        docType: 'intake_form',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            allergies: [],
+            current_medications: [],
+            past_medical_history: [
+                {
+                    condition: 'Type 2 diabetes',
+                    onset_year: '2014',
+                    notes: 'patient-reported on intake form',
+                    page: 1,
+                    bbox: [40, 200, 380, 220],
+                    quote: 'T2DM since 2014',
+                    confidence: 0.9,
+                },
+            ],
+            family_history: [],
+            patient_demographics: {},
+        },
+        deltasJson: null,
+        confidenceSignal: null,
+        status: 'pending_confirmation',
+        documentHash: 'hash',
+        createdAt: '2026-05-04T12:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+        ...overrides,
+    });
+
+    it('reads intake_form artifact, posts past_medical_history promote.php, records accepted disposition', async () => {
+        const deps = makeDeps({
+            artifact: baseMedicalProblemArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'chart-pmh-1',
+                chartRecordType: 'list_medical_problem',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-pmh-1',
+                fieldPath: 'past_medical_history.0',
+                factType: 'past_medical_history',
+            }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            chartRecordUuid: string;
+            chartRecordType: string;
+            observationUuids: readonly string[];
+        };
+        expect(body.chartRecordUuid).toBe('chart-pmh-1');
+        expect(body.chartRecordType).toBe('list_medical_problem');
+        expect(body.observationUuids).toEqual([]);
+
+        // Promote.php was called with the materialized medical-problem
+        // body. `onset_year='2014'` normalized to `'2014-01-01'`.
+        expect(deps.promoteCalls).toHaveLength(1);
+        const promoteCall = deps.promoteCalls[0]!;
+        expect(promoteCall.type).toBe('past_medical_history');
+        expect(promoteCall.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-pmh',
+            title: 'Type 2 diabetes',
+            comments: 'patient-reported on intake form',
+            onset_date: '2014-01-01',
+        });
+
+        // Disposition recorded as accepted with the JWT subject.
+        expect(deps.dispositionCalls).toHaveLength(1);
+        expect(deps.dispositionCalls[0]).toMatchObject({
+            artifactId: 'artifact-pmh-1',
+            fieldPath: 'past_medical_history.0',
+            status: 'accepted',
+            userId: 'Practitioner/dr-patel',
+        });
+    });
+
+    it('omits optional fields (notes, onset_year) when the intake row lacks them', async () => {
+        const minimal = baseMedicalProblemArtifact({
+            schemaJson: {
+                allergies: [],
+                current_medications: [],
+                past_medical_history: [
+                    {
+                        condition: 'Hypertension',
+                        page: 2,
+                        bbox: [10, 10, 100, 20],
+                        quote: 'HTN',
+                        confidence: 0.85,
+                    },
+                ],
+                family_history: [],
+                patient_demographics: {},
+            },
+        });
+        const deps = makeDeps({
+            artifact: minimal,
+            promoteResponse: {
+                chartRecordUuid: 'chart-pmh-2',
+                chartRecordType: 'list_medical_problem',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-pmh-1',
+                fieldPath: 'past_medical_history.0',
+                factType: 'past_medical_history',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-pmh',
+            title: 'Hypertension',
+        });
+    });
+
+    it('returns 400 fact_type_mismatch when factType=past_medical_history but artifact is lab_pdf, and 400 unsupported_field_path for paths outside past_medical_history[]', async () => {
+        // Two materialization-error sub-cases for past_medical_history
+        // bundled in one vitest case (matches the F.5b allergy block's
+        // pair-of-error-modes shape and keeps the new-cases count at
+        // the F.5d checklist's stated three).
+
+        // 1. fact_type_mismatch: artifact is lab_pdf.
+        const mismatchDeps = makeDeps({
+            artifact: baseMedicalProblemArtifact({ docType: 'lab_pdf' }),
+        });
+        const mismatchApp = await buildAuthedApp({
+            extractionArtifactStore: mismatchDeps.store,
+            promoteClient: mismatchDeps.promoteClient,
+        });
+        const mismatchToken = await issueToken(mismatchApp.privateKey);
+        const mismatchRes = await mismatchApp.app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${mismatchToken}`,
+            },
+            body: JSON.stringify({
+                artifactId: 'artifact-pmh-1',
+                fieldPath: 'past_medical_history.0',
+                factType: 'past_medical_history',
+            }),
+        });
+        expect(mismatchRes.status).toBe(400);
+        expect(await mismatchRes.json()).toEqual({ error: 'fact_type_mismatch' });
+
+        // 2. unsupported_field_path: fieldPath points outside
+        // past_medical_history[].
+        const pathDeps = makeDeps({ artifact: baseMedicalProblemArtifact() });
+        const pathApp = await buildAuthedApp({
+            extractionArtifactStore: pathDeps.store,
+            promoteClient: pathDeps.promoteClient,
+        });
+        const pathToken = await issueToken(pathApp.privateKey);
+        const pathRes = await pathApp.app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${pathToken}`,
+            },
+            body: JSON.stringify({
+                artifactId: 'artifact-pmh-1',
+                fieldPath: 'patient_demographics.name',
+                factType: 'past_medical_history',
+            }),
+        });
+        expect(pathRes.status).toBe(400);
+        expect(await pathRes.json()).toEqual({ error: 'unsupported_field_path' });
     });
 });
 

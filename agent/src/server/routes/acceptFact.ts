@@ -172,6 +172,106 @@ const materializeLabPromotionBody = (
 };
 
 /**
+ * Materialize the F.5d past-medical-history promotion body from
+ * `schemaJson` + `fieldPath`. The panel cites one
+ * `past_medical_history[<idx>]` entry from the intake-form schema;
+ * F.5d's `?type=past_medical_history` endpoint takes a single condition
+ * (`pid`, `source_document_uuid`, `title`, optional `diagnosis` /
+ * `verification_option_id` / `comments` / `onset_date`) — one accepted
+ * fact promotes one row, idempotent on
+ * `(source_document_uuid, lower(trim(title)))`.
+ *
+ * The intake-form schema (see `pipeline/schemas/intakeForm.ts`) carries
+ * a free-text `condition` string (mapped to `title`), an optional
+ * `onset_year` (mapped to `onset_date` as `YYYY-01-01`), and optional
+ * `notes` (mapped to `comments`). The agent does not currently extract
+ * ICD/SNOMED codes from intake forms, so `diagnosis` is omitted; the
+ * PHP service treats the column as nullable / empty by default.
+ *
+ * `onset_year` normalization: an intake form's "Year of onset: 2014"
+ * becomes `onset_date: '2014-01-01'`. We accept any 4-digit year that
+ * reasonably could be a real year of onset (1900..currentYear+1, where
+ * the +1 accounts for clock skew across timezones). Anything else is
+ * silently dropped from the body (the PHP DTO accepts `onset_date` as
+ * optional), so a malformed `onset_year` doesn't fail the whole
+ * promotion — the rest of the row still lands.
+ */
+const materializeMedicalProblemPromotionBody = (
+    artifact: ExtractionArtifact,
+    fieldPath: string,
+): Materialized => {
+    if (artifact.docType !== 'intake_form') {
+        return { error: 'fact_type_mismatch' };
+    }
+    const schema = artifact.schemaJson;
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+        return { error: 'schema_invalid' };
+    }
+    const schemaRecord = schema as Record<string, unknown>;
+    const entriesRaw = schemaRecord['past_medical_history'];
+    if (!Array.isArray(entriesRaw) || entriesRaw.length === 0) {
+        return { error: 'schema_invalid' };
+    }
+
+    const fieldMatch = /^past_medical_history\.(\d+)/.exec(fieldPath);
+    if (fieldMatch === null) {
+        return { error: 'unsupported_field_path' };
+    }
+    const idx = Number.parseInt(fieldMatch[1] ?? '', 10);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= entriesRaw.length) {
+        return { error: 'unsupported_field_path' };
+    }
+
+    const row: unknown = entriesRaw[idx];
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+        return { error: 'schema_invalid' };
+    }
+    const r = row as Record<string, unknown>;
+    const condition = r['condition'];
+    if (typeof condition !== 'string' || condition.trim() === '') {
+        return { error: 'schema_invalid' };
+    }
+
+    const body: Record<string, unknown> = {
+        pid: artifact.pid,
+        source_document_uuid: artifact.documentUuid,
+        title: condition,
+    };
+    if (typeof r['notes'] === 'string' && r['notes'].trim() !== '') {
+        body['comments'] = r['notes'];
+    }
+    const normalizedOnset = normalizeOnsetYear(r['onset_year']);
+    if (normalizedOnset !== null) {
+        body['onset_date'] = normalizedOnset;
+    }
+    return { body };
+};
+
+/**
+ * Convert intake-form `onset_year` (a free-text 4-digit year) into the
+ * `lists.begdate` shape the PHP writer expects. The intake schema only
+ * carries the year, so we anchor it to Jan 1: "2014" → "2014-01-01".
+ * Returns null for any value that isn't a plausible 4-digit year, which
+ * causes the body to omit `onset_date` entirely (the PHP DTO accepts
+ * the field as optional).
+ */
+const normalizeOnsetYear = (raw: unknown): string | null => {
+    if (typeof raw !== 'string') {
+        return null;
+    }
+    const trimmed = raw.trim();
+    if (!/^\d{4}$/.test(trimmed)) {
+        return null;
+    }
+    const year = Number.parseInt(trimmed, 10);
+    const currentYear = new Date().getUTCFullYear();
+    if (year < 1900 || year > currentYear + 1) {
+        return null;
+    }
+    return `${trimmed}-01-01`;
+};
+
+/**
  * Materialize the F.5b allergy promotion body from `schemaJson` +
  * `fieldPath`. The panel cites one `allergies[<idx>]` entry from the
  * intake-form schema; F.5b's `?type=allergy` endpoint takes a single
@@ -258,15 +358,18 @@ export const createAcceptFactHandler = (
             return c.json({ error: 'artifact_not_found' }, 404);
         }
 
-        // F.5a shipped the lab materializer; F.5b ships allergy. The
-        // remaining three list-shaped fact types stay 501 here so the
-        // panel surfaces the same typed-error toast it would for a
-        // direct `promote.php?type=…` call. F.5c–F.5e flip them.
+        // F.5a shipped the lab materializer; F.5b ships allergy; F.5d
+        // ships past_medical_history. The remaining two list-shaped
+        // fact types stay 501 here so the panel surfaces the same
+        // typed-error toast it would for a direct `promote.php?type=…`
+        // call. F.5c / F.5e flip them.
         let materialized: Materialized;
         if (factType === 'lab') {
             materialized = materializeLabPromotionBody(artifact, fieldPath);
         } else if (factType === 'allergy') {
             materialized = materializeAllergyPromotionBody(artifact, fieldPath);
+        } else if (factType === 'past_medical_history') {
+            materialized = materializeMedicalProblemPromotionBody(artifact, fieldPath);
         } else {
             return c.json({ error: 'not_yet_implemented' }, 501);
         }
