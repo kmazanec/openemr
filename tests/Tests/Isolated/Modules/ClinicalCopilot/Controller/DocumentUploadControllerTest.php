@@ -26,8 +26,11 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ClockInterface;
 use OpenEMR\Modules\ClinicalCopilot\Controller\DocumentUploadController;
+use OpenEMR\Modules\ClinicalCopilot\Service\DocumentReferenceWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\DocumentTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\DocumentUuidGenerator;
 use OpenEMR\Modules\ClinicalCopilot\Service\GeneratedDocumentUuid;
+use OpenEMR\Modules\ClinicalCopilot\Service\LocalDocumentStore;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\SigV4SpacesUploadService;
 use OpenEMR\Modules\ClinicalCopilot\Service\SpacesConfig;
 use OpenEMR\Modules\ClinicalCopilot\Service\SpacesUploadService;
@@ -35,6 +38,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Psr\Log\NullLogger;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Auth/ClockInterface.php';
@@ -44,6 +48,14 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/SpacesUploadService.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/SpacesConfig.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/LocalDocumentStore.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/DocumentTableWriter.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/DocumentReferenceWriteService.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Events/DocumentReferenceCreatedEvent.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/Production/SigV4SpacesUploadService.php';
 require_once __DIR__
@@ -58,8 +70,12 @@ final class DocumentUploadControllerTest extends TestCase
     public function testHappyPathReturnsUuidAndDocTypeGuess(): void
     {
         $upload = new InMemorySpacesUploadService();
+        $localStore = new InMemoryLocalDocumentStore();
+        $writer = new RecordingDocumentTableWriter();
         [$status, $body] = $this->dispatch(
             uploadService: $upload,
+            localStore: $localStore,
+            tableWriter: $writer,
             pid: 4242,
             originalFilename: 'cdc-cbc-2026-05-01.pdf',
             detectedMime: 'application/pdf',
@@ -80,6 +96,21 @@ final class DocumentUploadControllerTest extends TestCase
         $this->assertSame(self::FIXED_UUID, $upload->uploads[0]['documentUuid']);
         $this->assertSame('pdf', $upload->uploads[0]['extension']);
         $this->assertSame('application/pdf', $upload->uploads[0]['contentType']);
+
+        // Local-disk persistence path: bytes mirrored to disk + row
+        // pre-written so the legacy Documents-tab viewer can render it.
+        $this->assertCount(1, $localStore->stored);
+        $this->assertSame(4242, $localStore->stored[0]['pid']);
+        $this->assertSame('cdc-cbc-2026-05-01.pdf', $localStore->stored[0]['filename']);
+        $this->assertCount(1, $writer->insertedRows);
+        $row = $writer->insertedRows[0];
+        $this->assertSame(4242, $row['pid']);
+        $this->assertStringStartsWith('file://', $row['url']);
+        $this->assertStringContainsString('cdc-cbc-2026-05-01.pdf', $row['url']);
+        $this->assertSame('cdc-cbc-2026-05-01.pdf', $row['filename']);
+        $this->assertSame('application/pdf', $row['mimeType']);
+        $this->assertNotSame('', $row['hash']);
+        $this->assertGreaterThan(0, $row['size']);
     }
 
     public function testIntakeFormGuessFromFilename(): void
@@ -191,6 +222,47 @@ final class DocumentUploadControllerTest extends TestCase
 
         $this->assertSame(503, $status);
         $this->assertSame(['error' => 'upload_unavailable'], $body);
+    }
+
+    public function testReturns503WhenLocalDiskWriteFails(): void
+    {
+        // Spaces succeeded, but the local-disk mirror failed. The
+        // user's chart row is missing, so we must fail the request
+        // rather than let the panel attach a phantom upload.
+        $upload = new InMemorySpacesUploadService();
+        $localStore = new InMemoryLocalDocumentStore(failOnStore: true);
+        [$status, $body] = $this->dispatch(
+            uploadService: $upload,
+            localStore: $localStore,
+            pid: 4242,
+            originalFilename: 'cdc-cbc.pdf',
+            detectedMime: 'application/pdf',
+            bytes: $this->fakePdfBytes(),
+        );
+
+        $this->assertSame(503, $status);
+        $this->assertSame(['error' => 'persist_unavailable'], $body);
+        // Spaces was attempted (and succeeded) before we discovered the
+        // local-disk failure; orphan is tolerable per the
+        // architecture decision.
+        $this->assertCount(1, $upload->uploads);
+    }
+
+    public function testReturns503WhenRowInsertFails(): void
+    {
+        $upload = new InMemorySpacesUploadService();
+        $writer = new RecordingDocumentTableWriter(failOnInsert: true);
+        [$status, $body] = $this->dispatch(
+            uploadService: $upload,
+            tableWriter: $writer,
+            pid: 4242,
+            originalFilename: 'cdc-cbc.pdf',
+            detectedMime: 'application/pdf',
+            bytes: $this->fakePdfBytes(),
+        );
+
+        $this->assertSame(503, $status);
+        $this->assertSame(['error' => 'persist_unavailable'], $body);
     }
 
     public function testJpegMimeMapsToJpgExtension(): void
@@ -398,9 +470,22 @@ final class DocumentUploadControllerTest extends TestCase
         ?string $originalFilename,
         ?string $detectedMime,
         ?string $bytes,
+        ?LocalDocumentStore $localStore = null,
+        ?DocumentTableWriter $tableWriter = null,
     ): array {
+        $localStore ??= new InMemoryLocalDocumentStore();
+        $tableWriter ??= new RecordingDocumentTableWriter();
+        $writeService = new DocumentReferenceWriteService(
+            tableWriter: $tableWriter,
+            uuidGenerator: new FixedDocumentUploadUuid(self::FIXED_UUID),
+            eventDispatcher: new EventDispatcher(),
+            clock: new FixedClock(new DateTimeImmutable(self::FIXED_NOW)),
+            logger: new NullLogger(),
+        );
         $controller = new DocumentUploadController(
             uploadService: $uploadService,
+            localStore: $localStore,
+            writeService: $writeService,
             uuidGenerator: new FixedDocumentUploadUuid(self::FIXED_UUID),
             logger: new NullLogger(),
         );
@@ -484,6 +569,14 @@ final readonly class FixedDocumentUploadUuid implements DocumentUuidGenerator
             binary: hex2bin(str_replace('-', '', $this->canonical)) ?: '',
         );
     }
+
+    public function fromCanonical(string $canonical): GeneratedDocumentUuid
+    {
+        return new GeneratedDocumentUuid(
+            canonical: $canonical,
+            binary: hex2bin(str_replace('-', '', $canonical)) ?: '',
+        );
+    }
 }
 
 final readonly class FixedClock implements ClockInterface
@@ -495,5 +588,114 @@ final readonly class FixedClock implements ClockInterface
     public function now(): DateTimeImmutable
     {
         return $this->now;
+    }
+}
+
+final class InMemoryLocalDocumentStore implements LocalDocumentStore
+{
+    /** @var list<array{pid: int, filename: string, bytes: string, hash: string, size: int}> */
+    public array $stored = [];
+
+    public function __construct(private readonly bool $failOnStore = false)
+    {
+    }
+
+    public function store(int $pid, string $originalFilename, string $bytes): array
+    {
+        if ($this->failOnStore) {
+            throw new \RuntimeException('simulated disk failure');
+        }
+        $hash = hash('sha3-512', $bytes);
+        $size = strlen($bytes);
+        $this->stored[] = [
+            'pid' => $pid,
+            'filename' => $originalFilename,
+            'bytes' => $bytes,
+            'hash' => $hash,
+            'size' => $size,
+        ];
+        return [
+            'filename' => $originalFilename,
+            'absolutePath' => '/test/documents/' . $pid . '/' . $originalFilename,
+            'hash' => $hash,
+            'size' => $size,
+        ];
+    }
+}
+
+final class RecordingDocumentTableWriter implements DocumentTableWriter
+{
+    /** @var list<array{pid: int, url: string, mimeType: string, filename: string, hash: string, size: int, categoryId: int, uuidBinary: string}> */
+    public array $insertedRows = [];
+
+    /** @var array<string, int> doc_type → category id */
+    private array $categoryByDocType = [];
+
+    private int $nextCategoryId = 100;
+    private int $nextDocumentId = 1;
+
+    public function __construct(private readonly bool $failOnInsert = false)
+    {
+    }
+
+    public function ensureCategory(string $docType): int
+    {
+        if (!isset($this->categoryByDocType[$docType])) {
+            $this->categoryByDocType[$docType] = $this->nextCategoryId++;
+        }
+        return $this->categoryByDocType[$docType];
+    }
+
+    public function insertDocumentReferenceRow(
+        int $pid,
+        string $uuidBinary,
+        string $url,
+        string $mimeType,
+        string $filename,
+        string $hash,
+        int $size,
+        \DateTimeImmutable $createdAt,
+        int $categoryId,
+    ): int {
+        if ($this->failOnInsert) {
+            throw new \RuntimeException('simulated DBAL failure');
+        }
+        $rowId = $this->nextDocumentId++;
+        $this->insertedRows[] = [
+            'pid' => $pid,
+            'url' => $url,
+            'mimeType' => $mimeType,
+            'filename' => $filename,
+            'hash' => $hash,
+            'size' => $size,
+            'categoryId' => $categoryId,
+            'uuidBinary' => $uuidBinary,
+        ];
+        return $rowId;
+    }
+
+    public function findRowIdByUuid(string $uuidBinary): ?int
+    {
+        foreach ($this->insertedRows as $idx => $row) {
+            if ($row['uuidBinary'] === $uuidBinary) {
+                return $idx + 1;
+            }
+        }
+        return null;
+    }
+
+    public function findRowByUuid(string $uuidBinary): ?array
+    {
+        foreach ($this->insertedRows as $idx => $row) {
+            if ($row['uuidBinary'] === $uuidBinary) {
+                $docType = array_search($row['categoryId'], $this->categoryByDocType, strict: true);
+                return [
+                    'rowId' => $idx + 1,
+                    'pid' => $row['pid'],
+                    'docType' => is_string($docType) ? $docType : '',
+                ];
+            }
+        }
+        return null;
     }
 }

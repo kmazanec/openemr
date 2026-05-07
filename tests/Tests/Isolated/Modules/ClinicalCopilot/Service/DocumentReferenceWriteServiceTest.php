@@ -120,16 +120,18 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         $uuid = $service->write(
             pid: 4242,
             docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
-            spacesUrl: 's3://bucket/4242/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.pdf',
+            url: 'file:///site/documents/4242/cdc-a1c-2026-05-01.pdf',
             mimeType: 'application/pdf',
             filename: 'cdc-a1c-2026-05-01.pdf',
+            hash: hash('sha3-512', 'pdf-bytes'),
+            size: 4242,
         );
 
         $this->assertSame(self::FIXED_UUID_CANONICAL, $uuid);
         $this->assertCount(1, $writer->insertedRows);
         $row = $writer->insertedRows[0];
         $this->assertSame(4242, $row['pid']);
-        $this->assertSame('s3://bucket/4242/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.pdf', $row['url']);
+        $this->assertSame('file:///site/documents/4242/cdc-a1c-2026-05-01.pdf', $row['url']);
         $this->assertSame('application/pdf', $row['mimeType']);
         $this->assertSame('cdc-a1c-2026-05-01.pdf', $row['filename']);
 
@@ -145,28 +147,47 @@ final class DocumentReferenceWriteServiceTest extends TestCase
     public function testWriteEnsuresLeafCategoryPerDocType(): void
     {
         $writer = new InMemoryDocumentTableWriter();
-        $service = $this->makeService($writer);
+        // Use a sequence generator so each write gets a unique UUID —
+        // otherwise the idempotency probe short-circuits the second
+        // and third write, defeating the assertion below.
+        $service = new DocumentReferenceWriteService(
+            tableWriter: $writer,
+            uuidGenerator: new SequenceDocumentUuidGenerator([
+                'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+                'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeef',
+                'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeef0',
+            ]),
+            eventDispatcher: new EventDispatcher(),
+            clock: $this->fixedClock(),
+            logger: new NullLogger(),
+        );
 
         $service->write(
             pid: 4242,
             docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
-            spacesUrl: 's3://bucket/4242/a.pdf',
+            url: 'file:///site/documents/4242/a.pdf',
             mimeType: 'application/pdf',
             filename: 'a.pdf',
+            hash: 'h',
+            size: 1,
         );
         $service->write(
             pid: 4243,
             docType: DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM,
-            spacesUrl: 's3://bucket/4243/b.pdf',
+            url: 'file:///site/documents/4243/b.pdf',
             mimeType: 'application/pdf',
             filename: 'b.pdf',
+            hash: 'h',
+            size: 1,
         );
         $service->write(
             pid: 4244,
             docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
-            spacesUrl: 's3://bucket/4244/c.pdf',
+            url: 'file:///site/documents/4244/c.pdf',
             mimeType: 'application/pdf',
             filename: 'c.pdf',
+            hash: 'h',
+            size: 1,
         );
 
         // Two leaf categories — Lab PDF reused on the third write.
@@ -180,6 +201,47 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         )));
     }
 
+    public function testWriteIsIdempotentOnUuid(): void
+    {
+        $writer = new InMemoryDocumentTableWriter();
+        $events = new RecordingEventDispatcher();
+        $service = new DocumentReferenceWriteService(
+            tableWriter: $writer,
+            uuidGenerator: new FixedDocumentUuidGenerator(self::FIXED_UUID_CANONICAL),
+            eventDispatcher: $events,
+            clock: $this->fixedClock(),
+            logger: new NullLogger(),
+        );
+
+        $uuid1 = $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/a.pdf',
+            mimeType: 'application/pdf',
+            filename: 'a.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+        $uuid2 = $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/a.pdf',
+            mimeType: 'application/pdf',
+            filename: 'a.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+
+        $this->assertSame(self::FIXED_UUID_CANONICAL, $uuid1);
+        $this->assertSame(self::FIXED_UUID_CANONICAL, $uuid2);
+        // Second call short-circuits — only one row inserted, only one
+        // event dispatched.
+        $this->assertCount(1, $writer->insertedRows);
+        $this->assertCount(1, $events->dispatched);
+    }
+
     public function testWriteRejectsInvalidPid(): void
     {
         $service = $this->makeService(new InMemoryDocumentTableWriter());
@@ -187,9 +249,11 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         $service->write(
             pid: 0,
             docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
-            spacesUrl: 's3://bucket/x.pdf',
+            url: 'file:///x.pdf',
             mimeType: 'application/pdf',
             filename: 'x.pdf',
+            hash: 'h',
+            size: 1,
         );
     }
 
@@ -200,9 +264,11 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         $service->write(
             pid: 1,
             docType: 'mystery',
-            spacesUrl: 's3://bucket/x.pdf',
+            url: 'file:///x.pdf',
             mimeType: 'application/pdf',
             filename: 'x.pdf',
+            hash: 'h',
+            size: 1,
         );
     }
 
@@ -214,9 +280,99 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         $service->write(
             pid: 1,
             docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
-            spacesUrl: 's3://bucket/x.pdf',
+            url: 'file:///x.pdf',
             mimeType: 'application/pdf',
             filename: 'x.pdf',
+            hash: 'h',
+            size: 1,
+        );
+    }
+
+    public function testConfirmExistingHappyPath(): void
+    {
+        $writer = new InMemoryDocumentTableWriter();
+        $service = $this->makeService($writer);
+
+        // Pre-write a row with the canonical UUID, simulating the
+        // chat-upload controller's pre-write step.
+        $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/a.pdf',
+            mimeType: 'application/pdf',
+            filename: 'a.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+
+        $confirmed = $service->confirmExisting(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+        $this->assertSame(self::FIXED_UUID_CANONICAL, $confirmed);
+    }
+
+    public function testConfirmExistingThrowsWhenRowMissing(): void
+    {
+        $service = $this->makeService(new InMemoryDocumentTableWriter());
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('document_not_pre_written');
+        $service->confirmExisting(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+    }
+
+    public function testConfirmExistingRejectsPidMismatch(): void
+    {
+        $writer = new InMemoryDocumentTableWriter();
+        $service = $this->makeService($writer);
+
+        $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/a.pdf',
+            mimeType: 'application/pdf',
+            filename: 'a.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('pid_mismatch');
+        $service->confirmExisting(
+            pid: 9999,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+    }
+
+    public function testConfirmExistingRejectsDocTypeMismatch(): void
+    {
+        $writer = new InMemoryDocumentTableWriter();
+        $service = $this->makeService($writer);
+
+        $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/a.pdf',
+            mimeType: 'application/pdf',
+            filename: 'a.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('doc_type_mismatch');
+        $service->confirmExisting(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM,
+            documentUuid: self::FIXED_UUID_CANONICAL,
         );
     }
 
@@ -224,16 +380,28 @@ final class DocumentReferenceWriteServiceTest extends TestCase
     // Controller-level tests
     // ------------------------------------------------------------------
 
-    public function testControllerHappyPathReturnsUuidAndDispatchesDisclosure(): void
+    public function testControllerHappyPathConfirmsPreWrittenRow(): void
     {
+        $writer = new InMemoryDocumentTableWriter();
+        $service = $this->makeService($writer);
+        // Simulate the chat-upload controller's pre-write.
+        $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/cdc-a1c.pdf',
+            mimeType: 'application/pdf',
+            filename: 'cdc-a1c.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+
         $token = $this->mintToken([DocumentReferenceController::REQUIRED_SCOPE]);
         [$status, $body, $disclosures] = $this->dispatchController($token, [
             'pid' => 4242,
             'doc_type' => 'lab_pdf',
-            'spaces_url' => 's3://bucket/4242/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.pdf',
-            'mime_type' => 'application/pdf',
-            'filename' => 'cdc-a1c.pdf',
-        ]);
+            'document_uuid' => self::FIXED_UUID_CANONICAL,
+        ], $service);
 
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
@@ -244,15 +412,25 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         $this->assertSame(4242, $disclosures[0]->patientPid);
     }
 
+    public function testControllerReturns409WhenRowNotPreWritten(): void
+    {
+        $token = $this->mintToken([DocumentReferenceController::REQUIRED_SCOPE]);
+        [$status, $body] = $this->dispatchController($token, [
+            'pid' => 4242,
+            'doc_type' => 'lab_pdf',
+            'document_uuid' => self::FIXED_UUID_CANONICAL,
+        ]);
+        $this->assertSame(409, $status);
+        $this->assertSame(['error' => 'document_not_pre_written'], $body);
+    }
+
     public function testControllerRejectsTokenLackingScope(): void
     {
         $token = $this->mintToken(['user/Patient.rs']);
         [$status, $body] = $this->dispatchController($token, [
             'pid' => 4242,
             'doc_type' => 'lab_pdf',
-            'spaces_url' => 's3://bucket/x.pdf',
-            'mime_type' => 'application/pdf',
-            'filename' => 'x.pdf',
+            'document_uuid' => self::FIXED_UUID_CANONICAL,
         ]);
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
@@ -263,9 +441,7 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         $token = $this->mintToken([DocumentReferenceController::REQUIRED_SCOPE]);
         [$status, $body] = $this->dispatchController($token, [
             'doc_type' => 'lab_pdf',
-            'spaces_url' => 's3://bucket/x.pdf',
-            'mime_type' => 'application/pdf',
-            'filename' => 'x.pdf',
+            'document_uuid' => self::FIXED_UUID_CANONICAL,
         ]);
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'missing_pid'], $body);
@@ -277,26 +453,46 @@ final class DocumentReferenceWriteServiceTest extends TestCase
         [$status, $body] = $this->dispatchController($token, [
             'pid' => 4242,
             'doc_type' => 'mystery',
-            'spaces_url' => 's3://bucket/x.pdf',
-            'mime_type' => 'application/pdf',
-            'filename' => 'x.pdf',
+            'document_uuid' => self::FIXED_UUID_CANONICAL,
         ]);
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'invalid_doc_type'], $body);
     }
 
-    public function testControllerRejectsNonS3SpacesUrl(): void
+    public function testControllerRejectsMissingDocumentUuid(): void
     {
         $token = $this->mintToken([DocumentReferenceController::REQUIRED_SCOPE]);
         [$status, $body] = $this->dispatchController($token, [
             'pid' => 4242,
             'doc_type' => 'lab_pdf',
-            'spaces_url' => 'http://evil.example/x.pdf',
-            'mime_type' => 'application/pdf',
-            'filename' => 'x.pdf',
         ]);
         $this->assertSame(400, $status);
-        $this->assertSame(['error' => 'invalid_spaces_url'], $body);
+        $this->assertSame(['error' => 'missing_document_uuid'], $body);
+    }
+
+    public function testControllerRejectsPidMismatch(): void
+    {
+        $writer = new InMemoryDocumentTableWriter();
+        $service = $this->makeService($writer);
+        $service->write(
+            pid: 4242,
+            docType: DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            url: 'file:///site/documents/4242/x.pdf',
+            mimeType: 'application/pdf',
+            filename: 'x.pdf',
+            hash: 'h',
+            size: 1,
+            documentUuid: self::FIXED_UUID_CANONICAL,
+        );
+
+        $token = $this->mintToken([DocumentReferenceController::REQUIRED_SCOPE]);
+        [$status, $body] = $this->dispatchController($token, [
+            'pid' => 9999,
+            'doc_type' => 'lab_pdf',
+            'document_uuid' => self::FIXED_UUID_CANONICAL,
+        ], $service);
+        $this->assertSame(400, $status);
+        $this->assertSame(['error' => 'identity_mismatch'], $body);
     }
 
     public function testControllerRejectsMissingBody(): void
@@ -311,8 +507,11 @@ final class DocumentReferenceWriteServiceTest extends TestCase
      * @param array<string, mixed>|null $body
      * @return array{0: int, 1: ?array<string, mixed>, 2: list<\OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure>}
      */
-    private function dispatchController(?string $token, ?array $body): array
-    {
+    private function dispatchController(
+        ?string $token,
+        ?array $body,
+        ?DocumentReferenceWriteService $serviceOverride = null,
+    ): array {
         $logger = new NullLogger();
         $disclosureSink = new InMemoryDisclosureRecorder();
         $requestLogSink = new InMemoryAgentRequestLogRecorder();
@@ -339,7 +538,7 @@ final class DocumentReferenceWriteServiceTest extends TestCase
             'default',
         );
 
-        $service = $this->makeService(new InMemoryDocumentTableWriter());
+        $service = $serviceOverride ?? $this->makeService(new InMemoryDocumentTableWriter());
 
         $controller = new DocumentReferenceController(
             auth: $auth,
@@ -446,7 +645,7 @@ final class DocumentReferenceWriteServiceTest extends TestCase
 
 final class InMemoryDocumentTableWriter implements DocumentTableWriter
 {
-    /** @var list<array{pid: int, url: string, mimeType: string, filename: string, docType: string, categoryId: int, uuidBinary: string}> */
+    /** @var list<array{pid: int, url: string, mimeType: string, filename: string, hash: string, size: int, docType: string, categoryId: int, uuidBinary: string}> */
     public array $insertedRows = [];
 
     /** @var array<string, int> doc_type → category id */
@@ -473,6 +672,8 @@ final class InMemoryDocumentTableWriter implements DocumentTableWriter
         string $url,
         string $mimeType,
         string $filename,
+        string $hash,
+        int $size,
         \DateTimeImmutable $createdAt,
         int $categoryId,
     ): int {
@@ -489,11 +690,37 @@ final class InMemoryDocumentTableWriter implements DocumentTableWriter
             'url' => $url,
             'mimeType' => $mimeType,
             'filename' => $filename,
+            'hash' => $hash,
+            'size' => $size,
             'docType' => $docType,
             'categoryId' => $categoryId,
             'uuidBinary' => $uuidBinary,
         ];
         return $rowId;
+    }
+
+    public function findRowIdByUuid(string $uuidBinary): ?int
+    {
+        foreach ($this->insertedRows as $idx => $row) {
+            if ($row['uuidBinary'] === $uuidBinary) {
+                return $idx + 1;
+            }
+        }
+        return null;
+    }
+
+    public function findRowByUuid(string $uuidBinary): ?array
+    {
+        foreach ($this->insertedRows as $idx => $row) {
+            if ($row['uuidBinary'] === $uuidBinary) {
+                return [
+                    'rowId' => $idx + 1,
+                    'pid' => $row['pid'],
+                    'docType' => $row['docType'],
+                ];
+            }
+        }
+        return null;
     }
 }
 
@@ -508,6 +735,42 @@ final readonly class FixedDocumentUuidGenerator implements DocumentUuidGenerator
         return new GeneratedDocumentUuid(
             canonical: $this->canonical,
             binary: hex2bin(str_replace('-', '', $this->canonical)) ?: '',
+        );
+    }
+
+    public function fromCanonical(string $canonical): GeneratedDocumentUuid
+    {
+        return new GeneratedDocumentUuid(
+            canonical: $canonical,
+            binary: hex2bin(str_replace('-', '', $canonical)) ?: '',
+        );
+    }
+}
+
+final class SequenceDocumentUuidGenerator implements DocumentUuidGenerator
+{
+    /** @param list<string> $remaining */
+    public function __construct(private array $remaining)
+    {
+    }
+
+    public function generate(): GeneratedDocumentUuid
+    {
+        $next = array_shift($this->remaining);
+        if ($next === null) {
+            throw new \RuntimeException('SequenceDocumentUuidGenerator exhausted');
+        }
+        return new GeneratedDocumentUuid(
+            canonical: $next,
+            binary: hex2bin(str_replace('-', '', $next)) ?: '',
+        );
+    }
+
+    public function fromCanonical(string $canonical): GeneratedDocumentUuid
+    {
+        return new GeneratedDocumentUuid(
+            canonical: $canonical,
+            binary: hex2bin(str_replace('-', '', $canonical)) ?: '',
         );
     }
 }

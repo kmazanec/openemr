@@ -42,6 +42,12 @@ interface DocumentTableWriter
      * categorize it under `$categoryId`, and return the autoincrement
      * `documents.id`. Implementation owns the transaction.
      *
+     * `$url` is the `file://...` URL of the locally-persisted bytes;
+     * the row is written with `type='file_url'` and `path_depth=1` so
+     * the legacy Documents-tab viewer can render it identically to a
+     * legacy upload. `$hash` is the sha3-512 hex digest matching
+     * {@see \Document::createDocument}.
+     *
      * @param string $uuidBinary 16-byte BINARY(16) value for `documents.uuid`.
      */
     public function insertDocumentReferenceRow(
@@ -50,7 +56,31 @@ interface DocumentTableWriter
         string $url,
         string $mimeType,
         string $filename,
+        string $hash,
+        int $size,
         \DateTimeImmutable $createdAt,
         int $categoryId,
     ): int;
+
+    /**
+     * Idempotency probe: return the existing `documents.id` whose
+     * `uuid` column matches the binary value, or null when no such row
+     * exists. Used by {@see DocumentReferenceWriteService::write} to
+     * skip a re-insert when the chat upload controller has already
+     * pre-written the row.
+     *
+     * @param string $uuidBinary 16-byte BINARY(16) value for `documents.uuid`.
+     */
+    public function findRowIdByUuid(string $uuidBinary): ?int;
+
+    /**
+     * Look up an existing row by UUID and return the patient and
+     * category-derived doc type so callers can validate the
+     * pre-written row's identity matches what they expected. Returns
+     * null when no row exists.
+     *
+     * @param string $uuidBinary 16-byte BINARY(16) value for `documents.uuid`.
+     * @return array{rowId: int, pid: int, docType: string}|null
+     */
+    public function findRowByUuid(string $uuidBinary): ?array;
 }

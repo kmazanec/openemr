@@ -2,9 +2,21 @@
 
 /**
  * Tier-1 endpoint controller — invoked by the agent service after the
- * ingestion pipeline confirms the canonical bytes are in Spaces. The
- * agent posts `{pid, doc_type, spaces_url, mime_type, filename}` and
- * receives `{document_uuid, document_row_id}`.
+ * ingestion pipeline confirms the canonical bytes are in Spaces.
+ *
+ * Contract: chat uploads pre-write the `documents` row at the
+ * {@see DocumentUploadController} boundary so the row is identical-on-
+ * disk to a legacy Documents-tab upload (`type='file_url'`,
+ * `path_depth=1`, `url='file://...'`). The agent posts only enough to
+ * confirm the existing row by UUID:
+ *   `{pid, doc_type, document_uuid}` → `{document_uuid}`
+ *
+ * The endpoint validates the caller's `pid` and `doc_type` claims
+ * against the pre-written row before acknowledging it (security
+ * against a malformed JWT carrying the wrong scope's pid). When no row
+ * exists for the supplied UUID it returns HTTP 409 with
+ * `error: document_not_pre_written`, which the persist node maps to
+ * `persist_failed`.
  *
  * Auth surface mirrors the narrow snapshot controllers (JWT bearer →
  * {@see AgentEndpointAuth}); the required scope is `user/DocumentReference.cs`
@@ -39,9 +51,7 @@ final readonly class DocumentReferenceController
 {
     public const REQUIRED_SCOPE = 'user/DocumentReference.cs';
 
-    private const MAX_FILENAME_LENGTH = 255;
-    private const MAX_URL_LENGTH = 1024;
-    private const MAX_MIME_LENGTH = 100;
+    private const MAX_UUID_LENGTH = 36;
 
     public function __construct(
         private AgentEndpointAuth $auth,
@@ -89,42 +99,37 @@ final readonly class DocumentReferenceController
             return;
         }
 
-        $spacesUrl = $this->parseBoundedString($body['spaces_url'] ?? null, self::MAX_URL_LENGTH);
-        if ($spacesUrl === null || !str_starts_with($spacesUrl, 's3://')) {
-            $this->respondError(400, 'invalid_spaces_url');
-            return;
-        }
-
-        $mimeType = $this->parseBoundedString($body['mime_type'] ?? null, self::MAX_MIME_LENGTH);
-        if ($mimeType === null) {
-            $this->respondError(400, 'invalid_mime_type');
-            return;
-        }
-
-        $filename = $this->parseBoundedString($body['filename'] ?? null, self::MAX_FILENAME_LENGTH);
-        if ($filename === null) {
-            $this->respondError(400, 'invalid_filename');
+        $documentUuid = $this->parseBoundedString($body['document_uuid'] ?? null, self::MAX_UUID_LENGTH);
+        if ($documentUuid === null) {
+            $this->respondError(400, 'missing_document_uuid');
             return;
         }
 
         try {
-            $documentUuid = $this->writeService->write(
+            $confirmed = $this->writeService->confirmExisting(
                 pid: $pid,
                 docType: $docTypeRaw,
-                spacesUrl: $spacesUrl,
-                mimeType: $mimeType,
-                filename: $filename,
+                documentUuid: $documentUuid,
             );
         } catch (\DomainException $e) {
-            $this->logger->warning('Tier-1 endpoint rejected validated input', [
+            $reason = $e->getMessage();
+            $code = match ($reason) {
+                'pid_mismatch', 'doc_type_mismatch' => 'identity_mismatch',
+                default => 'invalid_request',
+            };
+            $this->logger->warning('Tier-1 endpoint refused confirm', [
                 'pid' => $pid,
                 'docType' => $docTypeRaw,
-                'reason' => $e->getMessage(),
+                'reason' => $reason,
             ]);
-            $this->respondError(400, 'invalid_request');
+            $this->respondError(400, $code);
             return;
         } catch (\RuntimeException $e) {
-            $this->logger->error('Tier-1 endpoint failed to write DocumentReference', [
+            if ($e->getMessage() === 'document_not_pre_written') {
+                $this->respondError(409, 'document_not_pre_written');
+                return;
+            }
+            $this->logger->error('Tier-1 endpoint failed to confirm DocumentReference', [
                 'pid' => $pid,
                 'docType' => $docTypeRaw,
                 'exception' => $e,
@@ -160,13 +165,13 @@ final readonly class DocumentReferenceController
             // via the agent_request_log replay path.
             $this->logger->error('Tier-1 disclosure write failed (DocumentReference already persisted)', [
                 'pid' => $pid,
-                'documentUuid' => $documentUuid,
+                'documentUuid' => $confirmed,
                 'exception' => $e,
             ]);
         }
 
         $this->respondJson(200, [
-            'document_uuid' => $documentUuid,
+            'document_uuid' => $confirmed,
         ]);
     }
 
