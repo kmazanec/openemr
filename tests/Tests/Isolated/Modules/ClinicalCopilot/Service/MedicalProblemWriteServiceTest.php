@@ -45,6 +45,9 @@ use OpenEMR\Modules\ClinicalCopilot\Service\AllergyPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry;
 use OpenEMR\Modules\ClinicalCopilot\Service\ProcedureReportTableWriter;
@@ -118,6 +121,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Events/ProcedureReportCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/AllergyListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/MedicalProblemListEntryCreatedEvent.php';
+        require_once self::MODULE_DIR . '/Events/MedicationStatementListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Service/ObservationResult.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionResult.php';
@@ -126,6 +130,7 @@ final class MedicalProblemWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/ProcedureReportTableWriter.php';
         require_once self::MODULE_DIR . '/Service/AllergyListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemListsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/MedicationStatementListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/ObservationLabWriteService.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionResult.php';
@@ -133,9 +138,13 @@ final class MedicalProblemWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemWriteService.php';
+        require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -412,10 +421,11 @@ final class MedicalProblemWriteServiceTest extends TestCase
 
         $medicalProblemService = $this->makeService($writer ?? new InMemoryMedicalProblemTableWriter(), null);
 
-        // The lab + allergy services are required by the controller's
-        // constructor but no past-medical-history test path routes
-        // through either branch. No-op writers satisfy the type
-        // signature without setup cost.
+        // The lab + allergy + medication-statement services are
+        // required by the controller's constructor but no
+        // past-medical-history test path routes through any of those
+        // branches. No-op writers satisfy the type signature without
+        // setup cost.
         $labService = new ObservationLabWriteService(
             tableWriter: new MedicalProblemNoopProcedureReportTableWriter(),
             eventDispatcher: $dispatcher,
@@ -428,12 +438,19 @@ final class MedicalProblemWriteServiceTest extends TestCase
             clock: $this->fixedClock(),
             logger: $logger,
         );
+        $medicationService = new MedicationStatementWriteService(
+            tableWriter: new MedicalProblemNoopMedicationStatementTableWriter(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
 
         $controller = new PromoteController(
             auth: $auth,
             labWriteService: $labService,
             allergyWriteService: $allergyService,
             medicalProblemWriteService: $medicalProblemService,
+            medicationStatementWriteService: $medicationService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -611,6 +628,31 @@ final class MedicalProblemNoopAllergyTableWriter implements AllergyListsTableWri
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
         throw new \RuntimeException('MedicalProblemNoopAllergyTableWriter.insertAllergy must not be called');
+    }
+}
+
+/**
+ * No-op medication-statement table writer for the medical-problem
+ * controller tests. The controller's constructor needs the
+ * medication-statement service for type signature but no
+ * medical-problem test routes through the medication-statement branch.
+ */
+final class MedicalProblemNoopMedicationStatementTableWriter implements MedicationStatementListsTableWriter
+{
+    public function findExistingMedication(
+        string $sourceDocumentUuid,
+        string $normalizedDrugName,
+    ): ?PersistedListEntry {
+        return null;
+    }
+
+    public function insertMedication(
+        MedicationStatementPromotionRequest $request,
+        \DateTimeImmutable $createdAt,
+    ): PersistedListEntry {
+        throw new \RuntimeException(
+            'MedicalProblemNoopMedicationStatementTableWriter.insertMedication must not be called',
+        );
     }
 }
 

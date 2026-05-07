@@ -42,6 +42,9 @@ use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryDisclosureRecorder;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
@@ -115,6 +118,7 @@ final class MedicationStatementWriteServiceTest extends TestCase
 
         require_once self::MODULE_DIR . '/Events/ProcedureReportCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/AllergyListEntryCreatedEvent.php';
+        require_once self::MODULE_DIR . '/Events/MedicalProblemListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/MedicationStatementListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Service/ObservationResult.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionRequest.php';
@@ -123,16 +127,21 @@ final class MedicationStatementWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/PersistedListEntry.php';
         require_once self::MODULE_DIR . '/Service/ProcedureReportTableWriter.php';
         require_once self::MODULE_DIR . '/Service/AllergyListsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/ObservationLabWriteService.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/AllergyListWriteService.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/MedicalProblemWriteService.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
@@ -445,9 +454,10 @@ final class MedicationStatementWriteServiceTest extends TestCase
             null,
         );
 
-        // Lab + allergy services are required by the controller's
-        // constructor but not exercised by any medication test path.
-        // No-op writers satisfy the type without any setup cost.
+        // Lab + allergy + medical-problem services are required by the
+        // controller's constructor but not exercised by any medication
+        // test path. No-op writers satisfy the type without any setup
+        // cost.
         $labService = new ObservationLabWriteService(
             tableWriter: new MedicationNoopProcedureReportTableWriter(),
             eventDispatcher: $dispatcher,
@@ -460,11 +470,18 @@ final class MedicationStatementWriteServiceTest extends TestCase
             clock: $this->fixedClock(),
             logger: $logger,
         );
+        $medicalProblemService = new MedicalProblemWriteService(
+            tableWriter: new MedicationNoopMedicalProblemTableWriter(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
 
         $controller = new PromoteController(
             auth: $auth,
             labWriteService: $labService,
             allergyWriteService: $allergyService,
+            medicalProblemWriteService: $medicalProblemService,
             medicationStatementWriteService: $medicationService,
             eventDispatcher: $dispatcher,
             logger: $logger,
@@ -640,6 +657,28 @@ final class MedicationNoopAllergyTableWriter implements AllergyListsTableWriter
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
         throw new \RuntimeException('MedicationNoopAllergyTableWriter.insertAllergy must not be called');
+    }
+}
+
+/**
+ * No-op medical-problem writer for the medication controller tests.
+ */
+final class MedicationNoopMedicalProblemTableWriter implements MedicalProblemListsTableWriter
+{
+    public function findExistingMedicalProblem(
+        string $sourceDocumentUuid,
+        string $normalizedTitle,
+    ): ?PersistedListEntry {
+        return null;
+    }
+
+    public function insertMedicalProblem(
+        MedicalProblemPromotionRequest $request,
+        \DateTimeImmutable $createdAt,
+    ): PersistedListEntry {
+        throw new \RuntimeException(
+            'MedicationNoopMedicalProblemTableWriter.insertMedicalProblem must not be called',
+        );
     }
 }
 
