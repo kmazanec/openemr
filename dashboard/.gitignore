@@ -1,0 +1,13 @@
+node_modules
+test-results
+playwright-report
+coverage
+.vite
+*.local
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+
+# T1.5 will vendor dist/ into git; until then it's a build artifact.
+dist
