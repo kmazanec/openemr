@@ -56,6 +56,36 @@ if [[ ! -r "${ENV_FILE}" ]]; then
 fi
 
 # ---------------------------------------------------------------------
+# 1.5. Build the patient dashboard SPA bundle.
+# ---------------------------------------------------------------------
+# The dashboard at /dashboard/ (T1 onward) is a Vite-built React SPA.
+# Its build output, dashboard/dist/, is intentionally NOT vendored
+# into git — we build it here, into the release tree, before the
+# openemr container starts.
+#
+# The flex entrypoint rsyncs the bind-mounted /openemr source into
+# the container's writable docroot on boot (with --ignore-existing,
+# which is fine because dist/ doesn't yet exist in the docroot on a
+# fresh recreate). Apache then serves /dashboard/* off dist/ via the
+# T1.6 .htaccess rewrite.
+#
+# Build runs in a one-shot node:22-alpine container:
+#   - Node-on-host avoided: the 2 GB Droplet has no Node toolchain
+#     and we don't want to add one.
+#   - Mounts the *release tree* (not /srv/openemr/current) so a
+#     concurrent symlink swap by a follow-up deploy can't hand us a
+#     half-built workdir.
+#   - Named volume for node_modules so subsequent deploys reuse the
+#     install — first deploy ~30s, repeat deploys ~5s.
+log "building dashboard/dist/ for ${NEW_SHA}"
+docker run --rm \
+    -v "${RELEASE_DIR}:/work-root" \
+    -v openemr-deploy-dashboard-node-modules:/work-root/dashboard/node_modules \
+    -w /work-root/dashboard \
+    node:22-alpine \
+    sh -c 'npm ci --no-audit --no-fund && npm run build'
+
+# ---------------------------------------------------------------------
 # 2. Recreate the openemr container.
 # ---------------------------------------------------------------------
 cd "${CONFIG_DIR}"

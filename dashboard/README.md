@@ -59,10 +59,22 @@ dashboard/
 
 ## Dev environment integration
 
-The SPA is served at `/dashboard/` in production. T1.6 adds the
-Apache rewrite that maps `/dashboard/*` to `dashboard/dist/index.html`
-and the path-scoped CSP. For local iteration, `npm run dev` is the
-canonical loop — the SPA stands alone on `:5173` outside OpenEMR.
+The SPA is served at `/dashboard/` in production. `dashboard/.htaccess`
+(T1.6) handles two things:
+
+- Maps real files under `dashboard/dist/` to clean URLs at
+  `/dashboard/*` (so the bundle's `<script src="/dashboard/assets/...">`
+  resolves without leaking `dist/` into URLs).
+- Falls through to `dashboard/dist/index.html` for any unknown path
+  so TanStack Router can resolve it.
+- Sets `Content-Security-Policy-Report-Only` per the policy in
+  `PATIENT_DASHBOARD_MIGRATION.md`. T6.5 flips report-only to
+  enforced after the integration cycle.
+
+For local iteration, `npm run dev` is the canonical loop — the SPA
+stands alone on `:5173` outside OpenEMR. Vite's `base` is set to
+`/dashboard/` for production builds and to `/` for the dev server
+(via `VITE_BASE=/` in `playwright.config.ts`'s webServer block).
 
 `dashboard/dist/` is **not vendored**. It is built fresh on every
 push and on every deploy:
