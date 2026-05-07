@@ -67,18 +67,21 @@ test:php-isolated:
         #     pdo_mysql only. Install the matching extension against
         #     whatever PHP the image happens to ship (currently 8.5;
         #     tracks upstream).
-        #   tiff: provides the libtiff delegate so ext-imagick can
-        #     decode TIFF inputs. The flex image has ext-imagick
-        #     loaded, but is built without the TIFF delegate; without
-        #     the package, F.4b ImagickTiffDecoderTest skip-gate fires
-        #     and the decoder test silently does not run. Production
-        #     also adds this via docker/digitalocean/openemr/Dockerfile.
+        #   imagemagick-tiff: Alpine subpackage that registers
+        #     ImageMagick s libtiff delegate. Without it, ext-imagick
+        #     loads, but Imagick::queryFormats(TIFF) returns [] and
+        #     readImageBlob on TIFF bytes throws "no decode delegate".
+        #     Alpine splits ImageMagick s format support across
+        #     subpackages; installing libtiff (apk add tiff) alone
+        #     does not help because the ImageMagick package is
+        #     compiled without TIFF support. Production also adds
+        #     imagemagick-tiff via docker/digitalocean/openemr/Dockerfile.
         php_ver=$(php --version | head -1 | awk "{print \$2}" | cut -d. -f1-2 | tr -d .) && \
         apk add --no-cache \
           "php${php_ver}-pdo_sqlite" \
-          tiff && \
+          imagemagick-tiff && \
         composer install --no-interaction --no-progress --prefer-dist && \
-        composer phpunit-isolated -- --display-skipped --display-incomplete
+        composer phpunit-isolated
       '
 
 # Disabled in CI: the 4G memory limit phpstan needs OOM-kills it on
