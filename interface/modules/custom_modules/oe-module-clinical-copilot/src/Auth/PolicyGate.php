@@ -120,6 +120,26 @@ final readonly class PolicyGate
             'user/MedicationStatement.rs',
             'user/DocumentReference.cs',
         ],
+        // F.5a panel-side accept-fact click. Routes through the agent
+        // middleman at `/v1/agent/accept_fact`, which reads the
+        // extracted artifact, materializes the per-type promotion
+        // body, and forwards to `promote.php` with this same token.
+        // Scope set is the union of every Tier-3 write surface F.5a–F.5e
+        // will exercise: lab + the four list-shaped fact types. Holding
+        // the union here (rather than a per-fact-type narrow allowlist)
+        // keeps the panel from having to round-trip the type to the
+        // proxy before clicking accept; the agent middleman is the
+        // type-aware policy point and rejects mismatches there.
+        // F.5b–F.5e flip each non-lab branch from 501 to a real write.
+        'accept_fact' => [
+            'openid',
+            'fhirUser',
+            'api:fhir',
+            'user/DiagnosticReport.cs',
+            'user/AllergyIntolerance.cs',
+            'user/MedicationStatement.cs',
+            'user/Condition.cs',
+        ],
     ];
 
     public function evaluate(SessionContext $session, AgentRequest $request): PolicyDecision

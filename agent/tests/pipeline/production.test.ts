@@ -63,6 +63,7 @@ const buildDeps = (): {
             insertArtifact: vi.fn(),
             updateArtifactStatus: vi.fn(),
             findArtifactByDocumentHash: vi.fn(() => Promise.resolve(null)),
+            findArtifactById: vi.fn(() => Promise.resolve(null)),
             claimDocumentLock: vi.fn(),
             searchArtifacts: vi.fn(() => Promise.resolve([])),
             recordDisposition: vi.fn(),
