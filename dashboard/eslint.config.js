@@ -34,6 +34,17 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       'react/jsx-uses-react': 'off',
       'react/react-in-jsx-scope': 'off',
+      // Allow underscore-prefixed names to opt out of the unused-vars
+      // rule. We use it for params we keep in the signature for
+      // documentation (matching legacy contracts) but don't read.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {

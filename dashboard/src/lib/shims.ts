@@ -20,6 +20,46 @@ export interface ShimRouter {
   navigateToPatient(pid: string): void;
   /** Clear patient context and return to the dashboard root. */
   navigateToDashboardRoot(): void;
+  /**
+   * Open a legacy URL in a tab named `name`. T5 implements the tab
+   * strip; until then a stub adapter just emits the navigation as a
+   * window-level event so anything observing can react.
+   */
+  openLegacyTab(name: string, url: string): void;
+  /** Set the active encounter for the current patient. */
+  setEncounter(eid: string, date?: string, frname?: string): void;
+  /** Clear encounter context (patient stays active). */
+  clearEncounter(): void;
+}
+
+/**
+ * Shape of the legacy `left_nav.*` surface — see audit
+ * 02-dependency-map.md §3 for the full enumeration. Methods
+ * annotated with `this: void` so detached references stay safe
+ * (legacy callers do this often).
+ */
+export interface LeftNavShims {
+  setPatient(this: void, name: string, pid: number | string, pubpid?: string, frname?: string, dob?: string): void;
+  setEncounter(this: void, date: string, eid: number | string, frname?: string): void;
+  setPatientEncounter(
+    this: void,
+    encounterIds: ReadonlyArray<number | string>,
+    encounterDates: readonly string[],
+    calendarCategories: readonly string[],
+  ): void;
+  clearEncounter(this: void): void;
+  /** No-op: the legacy left-nav option list isn't part of our SPA. */
+  removeOptionSelected(this: void, eid: number | string): void;
+  loadFrame(this: void, id: string, name: string, url: string): void;
+  /** Alternate signature kept for compatibility; same behavior as loadFrame. */
+  loadFrame2(this: void, id: string, name: string, url: string): void;
+  /** No-op: the legacy left-nav radio sync isn't part of our SPA. */
+  syncRadios(this: void): void;
+}
+
+/** Subset of the legacy `RTop.*` surface (only setLocation is used). */
+export interface RTopShims {
+  setLocation(this: void, url: string): void;
 }
 
 /**
@@ -138,4 +178,123 @@ function readWebroot(win: Window & typeof globalThis): string {
   // OpenEMR origin) rather than crashing.
   const globals = win as unknown as InjectedGlobals;
   return globals.webroot_url ?? '';
+}
+
+interface LeftNavDeps {
+  router: ShimRouter;
+  win?: Window & typeof globalThis;
+}
+
+/**
+ * Build the `left_nav.*` shims without installing. Uses the same
+ * ShimRouter adapter as buildTopShims so a single router
+ * implementation drives both surfaces.
+ */
+export function buildLeftNavShims(deps: LeftNavDeps): LeftNavShims {
+  const router = deps.router;
+
+  const setPatient: LeftNavShims['setPatient'] = (
+    _name,
+    pid,
+    _pubpid,
+    _frname,
+    _dob,
+  ) => {
+    const normalized = typeof pid === 'number' ? String(pid) : pid;
+    router.navigateToPatient(normalized);
+  };
+
+  const setEncounter: LeftNavShims['setEncounter'] = (date, eid, frname) => {
+    const normalized = typeof eid === 'number' ? String(eid) : eid;
+    router.setEncounter(normalized, date, frname);
+  };
+
+  const setPatientEncounter: LeftNavShims['setPatientEncounter'] = (
+    encounterIds,
+    encounterDates,
+    _calendarCategories,
+  ) => {
+    // Legacy callers pass parallel arrays, where index 0 is the
+    // most-recent encounter to surface. Forward only that one — the
+    // legacy left-nav rendered all of them as an option list, which
+    // we do not.
+    if (encounterIds.length === 0) {
+      return;
+    }
+    const eid = encounterIds[0];
+    const date = encounterDates[0];
+    if (eid === undefined) {
+      return;
+    }
+    const normalized = typeof eid === 'number' ? String(eid) : eid;
+    router.setEncounter(normalized, date);
+  };
+
+  const clearEncounter: LeftNavShims['clearEncounter'] = () => {
+    router.clearEncounter();
+  };
+
+  const removeOptionSelected: LeftNavShims['removeOptionSelected'] = () => {
+    // No-op: the option list this referred to lived in the legacy
+    // left-nav frame, which we don't render.
+  };
+
+  const loadFrame: LeftNavShims['loadFrame'] = (_id, name, url) => {
+    router.openLegacyTab(name, url);
+  };
+
+  const loadFrame2: LeftNavShims['loadFrame2'] = (id, name, url) => {
+    // The legacy alternate signature carried different scroll/sizing
+    // metadata; we only need the URL + name, so loadFrame2 is loadFrame.
+    loadFrame(id, name, url);
+  };
+
+  const syncRadios: LeftNavShims['syncRadios'] = () => {
+    // No-op: tied to the legacy left-nav radio inputs.
+  };
+
+  return {
+    setPatient,
+    setEncounter,
+    setPatientEncounter,
+    clearEncounter,
+    removeOptionSelected,
+    loadFrame,
+    loadFrame2,
+    syncRadios,
+  };
+}
+
+/** Build the `RTop.setLocation` shim. Same router adapter contract. */
+export function buildRTopShims(deps: LeftNavDeps): RTopShims {
+  const router = deps.router;
+
+  const setLocation: RTopShims['setLocation'] = (url) => {
+    // RTop.setLocation matches loadFrame's URL semantics. Legacy
+    // callers pass full URLs without an iframe-name hint, so we
+    // bucket those under a stable name. T5's tab strip can split
+    // them out further later.
+    router.openLegacyTab('RTop', url);
+  };
+
+  return { setLocation };
+}
+
+/**
+ * Install the left_nav and RTop shims on the target window. Legacy
+ * code looks up `left_nav.setPatient(...)` and `RTop.setLocation(...)`
+ * at the top frame, so we expose them as window globals (matching
+ * how the legacy bundle assigned them).
+ */
+export function installLeftNavShims(deps: LeftNavDeps): {
+  leftNav: LeftNavShims;
+  RTop: RTopShims;
+} {
+  const win = deps.win ?? (globalThis as unknown as Window & typeof globalThis);
+  const leftNav = buildLeftNavShims({ ...deps, win });
+  const RTop = buildRTopShims({ ...deps, win });
+  const target = (win.top ?? win) as unknown as Record<string, unknown>;
+  target['left_nav'] = leftNav;
+  target['RTop'] = RTop;
+  return { leftNav, RTop };
 }
