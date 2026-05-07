@@ -4,9 +4,10 @@
  * Coverage:
  *
  *   - `factTypeForClaimCategory` — maps claim.category → factType the
- *     accept_fact route expects, with the documented mismatch on
- *     `diagnosis → past_medical_history` (until the synthesizer
- *     schema gains a family_history slot).
+ *     accept_fact route expects, including the F.5e
+ *     `family_history → family_history` slot and the
+ *     `diagnosis → past_medical_history` carry-over for diagnosis
+ *     claims that aren't hereditary-history.
  *   - `docPromotionTargetForClaim` — pulls (artifactId, fieldPath,
  *     factType) off a claim's primary extracted_document source ref,
  *     returning null when the claim has no doc primary or has a
@@ -40,6 +41,7 @@ describe('factTypeForClaimCategory', () => {
         ['allergy', 'allergy'],
         ['medication_statement', 'medication_statement'],
         ['diagnosis', 'past_medical_history'],
+        ['family_history', 'family_history'],
     ])('%s → %s', (input, expected) => {
         expect(factTypeForClaimCategory(input)).toBe(expected);
     });

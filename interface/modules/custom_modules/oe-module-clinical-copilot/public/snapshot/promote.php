@@ -40,10 +40,12 @@ use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PromoteController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalAllergyListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalFamilyHistoryListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicalProblemListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalMedicationStatementListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\Production\DbalProcedureReportTableWriter;
@@ -104,12 +106,20 @@ $medicationStatementWriteService = new MedicationStatementWriteService(
     logger: $logger,
 );
 
+$familyHistoryWriteService = new FamilyHistoryWriteService(
+    tableWriter: new DbalFamilyHistoryListsTableWriter($connection),
+    eventDispatcher: $dispatcher,
+    clock: $clock,
+    logger: $logger,
+);
+
 $controller = new PromoteController(
     auth: new AgentEndpointAuth($verifier, new SqlAgentActorResolver(), $logger, $parsed->siteId),
     labWriteService: $labWriteService,
     allergyWriteService: $allergyWriteService,
     medicalProblemWriteService: $medicalProblemWriteService,
     medicationStatementWriteService: $medicationStatementWriteService,
+    familyHistoryWriteService: $familyHistoryWriteService,
     eventDispatcher: $dispatcher,
     logger: $logger,
     siteId: $parsed->siteId,

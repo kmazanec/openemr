@@ -448,6 +448,7 @@ final class PolicyGateTest extends TestCase
         $this->assertContains('user/AllergyIntolerance.cs', $scopes);
         $this->assertContains('user/MedicationStatement.cs', $scopes);
         $this->assertContains('user/Condition.cs', $scopes);
+        $this->assertContains('user/FamilyMemberHistory.cs', $scopes);
     }
 
     public function testAcceptFactActionDeniesAcrossPatients(): void

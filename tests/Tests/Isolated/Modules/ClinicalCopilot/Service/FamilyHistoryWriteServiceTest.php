@@ -1,13 +1,14 @@
 <?php
 
 /**
- * Isolated tests for {@see AllergyListWriteService}, the
- * `?type=allergy` branch of {@see PromoteController}, and the
- * {@see AllergyPromotionRequestParser}. The service uses an in-memory
- * {@see AllergyListsTableWriter} so the unit boundary stays free of
- * DBAL.
+ * Isolated tests for {@see FamilyHistoryWriteService}, the
+ * `?type=family_history` branch of {@see PromoteController}, and the
+ * {@see FamilyHistoryPromotionRequestParser}. The service uses an
+ * in-memory {@see FamilyHistoryListsTableWriter} so the unit boundary
+ * stays free of DBAL.
  *
- * Mirrors the structural layout of `ObservationLabWriteServiceTest`:
+ * Mirrors the structural layout of `AllergyListWriteServiceTest` (the
+ * F.5b precedent for single-table list-row Tier-3 writes):
  * service-level tests (round-trip, idempotency, error path,
  * DTO-rejects-bad-inputs); controller-level tests (happy path,
  * idempotency through the dispatcher, every error envelope).
@@ -34,7 +35,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\OpenEmrJwtVerifier;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedAgentActor;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ResolvedFhirUser;
 use OpenEMR\Modules\ClinicalCopilot\Controller\PromoteController;
-use OpenEMR\Modules\ClinicalCopilot\Events\AllergyListEntryCreatedEvent;
+use OpenEMR\Modules\ClinicalCopilot\Events\FamilyHistoryListEntryCreatedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosureListener;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryAgentRequestLogRecorder;
@@ -45,12 +46,6 @@ use OpenEMR\Modules\ClinicalCopilot\Service\AllergyPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemListsTableWriter;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemPromotionRequest;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementListsTableWriter;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementPromotionRequest;
-use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry;
 use OpenEMR\Modules\ClinicalCopilot\Service\ProcedureReportTableWriter;
@@ -74,21 +69,13 @@ require_once __DIR__
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/FamilyHistoryListsTableWriter.php';
 require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemPromotionRequest.php';
-require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemListsTableWriter.php';
-require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementPromotionRequest.php';
-require_once __DIR__
-    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicationStatementListsTableWriter.php';
-require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ProcedureReportTableWriter.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/PersistedProcedureReport.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/ObservationResult.php';
 
-final class AllergyListWriteServiceTest extends TestCase
+final class FamilyHistoryWriteServiceTest extends TestCase
 {
     private const MODULE_DIR = __DIR__
         . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src';
@@ -96,7 +83,7 @@ final class AllergyListWriteServiceTest extends TestCase
     public const ISSUER = 'https://emr.example.test/oauth2/default';
     public const FHIR_BASE = 'https://emr.example.test/apis/default/fhir';
     public const FIXED_NOW = '2026-05-08T12:00:00+00:00';
-    public const FIXED_JTI = 'test-jti-allergy';
+    public const FIXED_JTI = 'test-jti-family-history';
 
     /** @var array{private: string, public: string}|null */
     private static ?array $keypair = null;
@@ -130,8 +117,6 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Events/ProcedureReportCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/AllergyListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/FamilyHistoryListEntryCreatedEvent.php';
-        require_once self::MODULE_DIR . '/Events/MedicalProblemListEntryCreatedEvent.php';
-        require_once self::MODULE_DIR . '/Events/MedicationStatementListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Service/ObservationResult.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/LabPromotionResult.php';
@@ -140,8 +125,6 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/ProcedureReportTableWriter.php';
         require_once self::MODULE_DIR . '/Service/AllergyListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/FamilyHistoryListsTableWriter.php';
-        require_once self::MODULE_DIR . '/Service/MedicalProblemListsTableWriter.php';
-        require_once self::MODULE_DIR . '/Service/MedicationStatementListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/ObservationLabWriteService.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionResult.php';
@@ -149,17 +132,9 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/FamilyHistoryPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/FamilyHistoryPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/FamilyHistoryWriteService.php';
-        require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionRequest.php';
-        require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionResult.php';
-        require_once self::MODULE_DIR . '/Service/MedicalProblemWriteService.php';
-        require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionRequest.php';
-        require_once self::MODULE_DIR . '/Service/MedicationStatementPromotionResult.php';
-        require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
-        require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
-        require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
 
         if (self::$keypair === null) {
@@ -171,38 +146,37 @@ final class AllergyListWriteServiceTest extends TestCase
     // Service-level tests — round-trip, idempotency, error path, DTO
     // ------------------------------------------------------------------
 
-    public function testWritePersistsAllergyAndDispatchesEvent(): void
+    public function testWritePersistsFamilyHistoryAndDispatchesEvent(): void
     {
-        $writer = new InMemoryAllergyTableWriter();
-        $events = new AllergyRecordingEventDispatcher();
+        $writer = new InMemoryFamilyHistoryTableWriter();
+        $events = new FamilyHistoryRecordingEventDispatcher();
         $service = $this->makeService($writer, $events);
 
         $request = $this->buildRequest();
         $result = $service->write($request);
 
         $this->assertFalse($result->idempotentHit);
-        $this->assertSame(InMemoryAllergyTableWriter::LIST_UUID, $result->listUuid);
+        $this->assertSame(InMemoryFamilyHistoryTableWriter::LIST_UUID, $result->listUuid);
 
-        $this->assertCount(1, $writer->insertedAllergies);
-        $persisted = $writer->insertedAllergies[0];
+        $this->assertCount(1, $writer->insertedEntries);
+        $persisted = $writer->insertedEntries[0];
         $this->assertSame(4242, $persisted->pid);
-        $this->assertSame('penicillin', $persisted->substance);
-        $this->assertSame('rash', $persisted->reactionOptionId);
-        $this->assertSame('confirmed', $persisted->verificationOptionId);
-        $this->assertSame('moderate', $persisted->severity);
+        $this->assertSame('Mother', $persisted->relation);
+        $this->assertSame('Type 2 diabetes', $persisted->condition);
+        $this->assertSame('Mother — Type 2 diabetes', $persisted->title());
 
         $this->assertCount(1, $events->dispatched);
         $event = $events->dispatched[0];
-        $this->assertInstanceOf(AllergyListEntryCreatedEvent::class, $event);
-        $this->assertSame(InMemoryAllergyTableWriter::LIST_UUID, $event->listUuid);
+        $this->assertInstanceOf(FamilyHistoryListEntryCreatedEvent::class, $event);
+        $this->assertSame(InMemoryFamilyHistoryTableWriter::LIST_UUID, $event->listUuid);
         $this->assertSame(4242, $event->pid);
-        $this->assertSame('penicillin', $event->substance);
+        $this->assertSame('Mother — Type 2 diabetes', $event->title);
     }
 
     public function testWriteIsIdempotentOnReCall(): void
     {
-        $writer = new InMemoryAllergyTableWriter();
-        $events = new AllergyRecordingEventDispatcher();
+        $writer = new InMemoryFamilyHistoryTableWriter();
+        $events = new FamilyHistoryRecordingEventDispatcher();
         $service = $this->makeService($writer, $events);
 
         $first = $service->write($this->buildRequest());
@@ -211,28 +185,31 @@ final class AllergyListWriteServiceTest extends TestCase
         $this->assertFalse($first->idempotentHit);
         $this->assertTrue($second->idempotentHit);
         $this->assertSame($first->listUuid, $second->listUuid);
-        $this->assertCount(1, $writer->insertedAllergies, 're-call must not insert again');
+        $this->assertCount(1, $writer->insertedEntries, 're-call must not insert again');
         $this->assertCount(1, $events->dispatched, 're-call must not re-fire the event');
     }
 
     public function testWriteIsIdempotentAcrossCaseAndWhitespaceVariants(): void
     {
-        $writer = new InMemoryAllergyTableWriter();
+        $writer = new InMemoryFamilyHistoryTableWriter();
         $service = $this->makeService($writer);
 
-        $service->write($this->buildRequest(substance: 'penicillin'));
-        $second = $service->write($this->buildRequest(substance: '  Penicillin  '));
+        $service->write($this->buildRequest(relation: 'Mother', condition: 'Type 2 diabetes'));
+        $second = $service->write($this->buildRequest(
+            relation: '  MOTHER  ',
+            condition: '  type 2 DIABETES  ',
+        ));
 
         $this->assertTrue(
             $second->idempotentHit,
-            'normalization must collapse case + trim differences',
+            'normalization must collapse case + trim differences across the composite title',
         );
-        $this->assertCount(1, $writer->insertedAllergies);
+        $this->assertCount(1, $writer->insertedEntries);
     }
 
     public function testWriteWrapsTableWriterFailureAsRuntimeException(): void
     {
-        $writer = new InMemoryAllergyTableWriter(failOnInsert: true);
+        $writer = new InMemoryFamilyHistoryTableWriter(failOnInsert: true);
         $service = $this->makeService($writer);
 
         $this->expectException(\RuntimeException::class);
@@ -242,15 +219,13 @@ final class AllergyListWriteServiceTest extends TestCase
     public function testDtoRejectsEmptyRequiredFields(): void
     {
         $this->expectException(DomainException::class);
-        new AllergyPromotionRequest(
+        new FamilyHistoryPromotionRequest(
             pid: 4242,
             sourceDocumentUuid: 'doc-1',
-            substance: '', // empty — invalid
-            reactionOptionId: null,
-            verificationOptionId: null,
-            severity: null,
+            relation: '', // empty — invalid
+            condition: 'Type 2 diabetes',
+            ageOfOnset: null,
             comments: null,
-            onsetDate: null,
             promotedByUserId: 7,
         );
     }
@@ -259,30 +234,44 @@ final class AllergyListWriteServiceTest extends TestCase
     // Controller-level tests — dispatch, type-routing, auth, parsing
     // ------------------------------------------------------------------
 
-    public function testControllerAllergyHappyPath(): void
+    public function testControllerFamilyHistoryHappyPath(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_ALLERGY]);
-        [$status, $body, $disclosures] = $this->dispatchController($token, 'allergy', $this->validBody());
+        $token = $this->mintToken([PromoteController::SCOPE_FAMILY_HISTORY]);
+        [$status, $body, $disclosures] = $this->dispatchController(
+            $token,
+            'family_history',
+            $this->validBody(),
+        );
 
         $this->assertSame(200, $status);
         $this->assertNotNull($body);
-        $this->assertSame(InMemoryAllergyTableWriter::LIST_UUID, $body['chart_record_uuid']);
-        $this->assertSame('list_allergy', $body['chart_record_type']);
+        $this->assertSame(InMemoryFamilyHistoryTableWriter::LIST_UUID, $body['chart_record_uuid']);
+        $this->assertSame('list_family_history', $body['chart_record_type']);
         $this->assertFalse($body['idempotent_hit']);
 
         $this->assertCount(1, $disclosures);
         $this->assertSame('tier3_promotion', $disclosures[0]->action);
-        $this->assertSame(['allergy'], $disclosures[0]->categories);
+        $this->assertSame(['family_history'], $disclosures[0]->categories);
         $this->assertSame(4242, $disclosures[0]->patientPid);
     }
 
-    public function testControllerAllergyIdempotentReCallReturnsSameId(): void
+    public function testControllerFamilyHistoryIdempotentReCallReturnsSameId(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_ALLERGY]);
-        $writer = new InMemoryAllergyTableWriter();
+        $token = $this->mintToken([PromoteController::SCOPE_FAMILY_HISTORY]);
+        $writer = new InMemoryFamilyHistoryTableWriter();
 
-        [$status1, $body1] = $this->dispatchController($token, 'allergy', $this->validBody(), $writer);
-        [$status2, $body2] = $this->dispatchController($token, 'allergy', $this->validBody(), $writer);
+        [$status1, $body1] = $this->dispatchController(
+            $token,
+            'family_history',
+            $this->validBody(),
+            $writer,
+        );
+        [$status2, $body2] = $this->dispatchController(
+            $token,
+            'family_history',
+            $this->validBody(),
+            $writer,
+        );
 
         $this->assertSame(200, $status1);
         $this->assertSame(200, $status2);
@@ -293,61 +282,68 @@ final class AllergyListWriteServiceTest extends TestCase
         $this->assertTrue($body2['idempotent_hit']);
     }
 
-    public function testControllerAllergyRejectsTokenLackingScope(): void
+    public function testControllerFamilyHistoryRejectsTokenLackingScope(): void
     {
         $token = $this->mintToken(['user/Patient.rs']);
-        [$status, $body] = $this->dispatchController($token, 'allergy', $this->validBody());
+        [$status, $body] = $this->dispatchController($token, 'family_history', $this->validBody());
 
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
     }
 
-    public function testControllerAllergyRejectsMissingBearer(): void
+    public function testControllerFamilyHistoryRejectsMissingBearer(): void
     {
-        [$status, $body] = $this->dispatchController(null, 'allergy', $this->validBody());
+        [$status, $body] = $this->dispatchController(null, 'family_history', $this->validBody());
 
         $this->assertSame(401, $status);
         $this->assertSame(['error' => 'missing_token'], $body);
     }
 
-    public function testControllerAllergyRejectsMissingBody(): void
+    public function testControllerFamilyHistoryRejectsMissingBody(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_ALLERGY]);
-        [$status, $body] = $this->dispatchController($token, 'allergy', null);
+        $token = $this->mintToken([PromoteController::SCOPE_FAMILY_HISTORY]);
+        [$status, $body] = $this->dispatchController($token, 'family_history', null);
 
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'invalid_body'], $body);
     }
 
-    public function testControllerAllergyRejectsMalformedBody(): void
+    public function testControllerFamilyHistoryRejectsMalformedBody(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_ALLERGY]);
-        // Missing required `substance`.
+        $token = $this->mintToken([PromoteController::SCOPE_FAMILY_HISTORY]);
+        // Missing required `relation`.
         $body = $this->validBody();
-        unset($body['substance']);
-        [$status, $decoded] = $this->dispatchController($token, 'allergy', $body);
+        unset($body['relation']);
+        [$status, $decoded] = $this->dispatchController($token, 'family_history', $body);
 
         $this->assertSame(400, $status);
         $this->assertSame(['error' => 'invalid_body'], $decoded);
     }
 
-    public function testControllerAllergyWrapsServiceFailureAs503(): void
+    public function testControllerFamilyHistoryWrapsServiceFailureAs503(): void
     {
-        $token = $this->mintToken([PromoteController::SCOPE_ALLERGY]);
-        $writer = new InMemoryAllergyTableWriter(failOnInsert: true);
-        [$status, $body] = $this->dispatchController($token, 'allergy', $this->validBody(), $writer);
+        $token = $this->mintToken([PromoteController::SCOPE_FAMILY_HISTORY]);
+        $writer = new InMemoryFamilyHistoryTableWriter(failOnInsert: true);
+        [$status, $body] = $this->dispatchController(
+            $token,
+            'family_history',
+            $this->validBody(),
+            $writer,
+        );
 
         $this->assertSame(503, $status);
         $this->assertSame(['error' => 'write_unavailable'], $body);
     }
 
-    public function testControllerLabScopeCannotPromoteAllergy(): void
+    public function testControllerLabScopeCannotPromoteFamilyHistory(): void
     {
         // An over-broadly minted lab token (with `user/DiagnosticReport.cs` only)
-        // must not be able to write an allergy. The dispatchAllergy branch
-        // demands SCOPE_ALLERGY explicitly.
+        // must not be able to write family history. The dispatchFamilyHistory
+        // branch demands SCOPE_FAMILY_HISTORY explicitly — a separate FHIR
+        // resource (`FamilyMemberHistory`) so a Condition-level token can't
+        // smuggle through either.
         $token = $this->mintToken([PromoteController::SCOPE_LAB]);
-        [$status, $body] = $this->dispatchController($token, 'allergy', $this->validBody());
+        [$status, $body] = $this->dispatchController($token, 'family_history', $this->validBody());
 
         $this->assertSame(403, $status);
         $this->assertSame(['error' => 'scope_not_permitted'], $body);
@@ -357,17 +353,17 @@ final class AllergyListWriteServiceTest extends TestCase
     // Helpers
     // ------------------------------------------------------------------
 
-    private function buildRequest(string $substance = 'penicillin'): AllergyPromotionRequest
-    {
-        return new AllergyPromotionRequest(
+    private function buildRequest(
+        string $relation = 'Mother',
+        string $condition = 'Type 2 diabetes',
+    ): FamilyHistoryPromotionRequest {
+        return new FamilyHistoryPromotionRequest(
             pid: 4242,
             sourceDocumentUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-            substance: $substance,
-            reactionOptionId: 'rash',
-            verificationOptionId: 'confirmed',
-            severity: 'moderate',
-            comments: 'rash within 30 minutes',
-            onsetDate: '2014-06-01',
+            relation: $relation,
+            condition: $condition,
+            ageOfOnset: '1998-04-01',
+            comments: 'diagnosed in mid-30s',
             promotedByUserId: 7,
         );
     }
@@ -380,22 +376,20 @@ final class AllergyListWriteServiceTest extends TestCase
         return [
             'pid' => 4242,
             'source_document_uuid' => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-            'substance' => 'penicillin',
-            'reaction_option_id' => 'rash',
-            'verification_option_id' => 'confirmed',
-            'severity' => 'moderate',
-            'comments' => 'rash within 30 minutes',
-            'onset_date' => '2014-06-01',
+            'relation' => 'Mother',
+            'condition' => 'Type 2 diabetes',
+            'age_of_onset' => '1998-04-01',
+            'comments' => 'diagnosed in mid-30s',
         ];
     }
 
     private function makeService(
-        InMemoryAllergyTableWriter $writer,
-        ?AllergyRecordingEventDispatcher $events = null,
-    ): AllergyListWriteService {
-        return new AllergyListWriteService(
+        InMemoryFamilyHistoryTableWriter $writer,
+        ?FamilyHistoryRecordingEventDispatcher $events = null,
+    ): FamilyHistoryWriteService {
+        return new FamilyHistoryWriteService(
             tableWriter: $writer,
-            eventDispatcher: $events ?? new AllergyRecordingEventDispatcher(),
+            eventDispatcher: $events ?? new FamilyHistoryRecordingEventDispatcher(),
             clock: $this->fixedClock(),
             logger: new NullLogger(),
         );
@@ -409,7 +403,7 @@ final class AllergyListWriteServiceTest extends TestCase
         ?string $token,
         ?string $type,
         ?array $body,
-        ?InMemoryAllergyTableWriter $writer = null,
+        ?InMemoryFamilyHistoryTableWriter $writer = null,
     ): array {
         $logger = new NullLogger();
         $disclosureSink = new InMemoryDisclosureRecorder();
@@ -420,7 +414,7 @@ final class AllergyListWriteServiceTest extends TestCase
             new AgentDisclosureListener($disclosureSink, $requestLogSink, $logger),
         );
 
-        $resolver = new AllergyStubResolver(
+        $resolver = new FamilyHistoryStubResolver(
             new ResolvedAgentActor(7, 'patel', $this->actorUuid()),
             true,
         );
@@ -437,32 +431,23 @@ final class AllergyListWriteServiceTest extends TestCase
             'default',
         );
 
-        $allergyService = $this->makeService($writer ?? new InMemoryAllergyTableWriter(), null);
+        $familyHistoryService = $this->makeService(
+            $writer ?? new InMemoryFamilyHistoryTableWriter(),
+            null,
+        );
 
-        // Lab + medical-problem + medication-statement + family-history
-        // services are required by the controller's constructor but not
-        // exercised by any allergy test path. No-op writers satisfy the
-        // types without any setup cost.
+        // Lab and allergy services are required by the controller's
+        // constructor for the type signature but no family-history test
+        // routes through their branches. No-op writers satisfy the type
+        // without any setup cost.
         $labService = new ObservationLabWriteService(
-            tableWriter: new NoopProcedureReportTableWriter(),
+            tableWriter: new NoopProcedureReportTableWriterForFamilyHistory(),
             eventDispatcher: $dispatcher,
             clock: $this->fixedClock(),
             logger: $logger,
         );
-        $medicalProblemService = new MedicalProblemWriteService(
-            tableWriter: new AllergyTestNoopMedicalProblemTableWriter(),
-            eventDispatcher: $dispatcher,
-            clock: $this->fixedClock(),
-            logger: $logger,
-        );
-        $medicationService = new \OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService(
-            tableWriter: new NoopMedicationStatementTableWriter(),
-            eventDispatcher: $dispatcher,
-            clock: $this->fixedClock(),
-            logger: $logger,
-        );
-        $familyHistoryService = new FamilyHistoryWriteService(
-            tableWriter: new NoopFamilyHistoryListsTableWriter(),
+        $allergyService = new AllergyListWriteService(
+            tableWriter: new NoopAllergyTableWriterForFamilyHistory(),
             eventDispatcher: $dispatcher,
             clock: $this->fixedClock(),
             logger: $logger,
@@ -472,8 +457,6 @@ final class AllergyListWriteServiceTest extends TestCase
             auth: $auth,
             labWriteService: $labService,
             allergyWriteService: $allergyService,
-            medicalProblemWriteService: $medicalProblemService,
-            medicationStatementWriteService: $medicationService,
             familyHistoryWriteService: $familyHistoryService,
             eventDispatcher: $dispatcher,
             logger: $logger,
@@ -508,7 +491,7 @@ final class AllergyListWriteServiceTest extends TestCase
 
     private function fixedClock(): ClockInterface
     {
-        return new AllergyFixedClock(new DateTimeImmutable(self::FIXED_NOW));
+        return new FamilyHistoryFixedClock(new DateTimeImmutable(self::FIXED_NOW));
     }
 
     private function actorUuid(): string
@@ -522,7 +505,7 @@ final class AllergyListWriteServiceTest extends TestCase
         $minter = new AgentTokenMinter(
             new AgentSigningKey(self::keypair()['private'], self::keypair()['public'], null),
             $this->fixedClock(),
-            new AllergyFixedJti(self::FIXED_JTI),
+            new FamilyHistoryFixedJti(self::FIXED_JTI),
         );
         return $minter->mint(
             new ResolvedFhirUser(
@@ -559,25 +542,25 @@ final class AllergyListWriteServiceTest extends TestCase
     }
 }
 
-final class InMemoryAllergyTableWriter implements AllergyListsTableWriter
+final class InMemoryFamilyHistoryTableWriter implements FamilyHistoryListsTableWriter
 {
-    public const LIST_UUID = 'aaaaaaaa-1111-2222-3333-444444444444';
+    public const LIST_UUID = 'fffffffa-1111-2222-3333-444444444444';
 
-    /** @var list<AllergyPromotionRequest> */
-    public array $insertedAllergies = [];
+    /** @var list<FamilyHistoryPromotionRequest> */
+    public array $insertedEntries = [];
 
     public function __construct(private readonly bool $failOnInsert = false)
     {
     }
 
-    public function findExistingAllergy(
+    public function findExistingFamilyHistory(
         string $sourceDocumentUuid,
-        string $normalizedSubstance,
+        string $normalizedTitle,
     ): ?PersistedListEntry {
-        foreach ($this->insertedAllergies as $idx => $req) {
+        foreach ($this->insertedEntries as $idx => $req) {
             if (
                 $req->sourceDocumentUuid === $sourceDocumentUuid
-                && $req->normalizedSubstance() === $normalizedSubstance
+                && $req->normalizedTitle() === $normalizedTitle
             ) {
                 return new PersistedListEntry(
                     listUuid: self::LIST_UUID,
@@ -588,15 +571,15 @@ final class InMemoryAllergyTableWriter implements AllergyListsTableWriter
         return null;
     }
 
-    public function insertAllergy(
-        AllergyPromotionRequest $request,
+    public function insertFamilyHistory(
+        FamilyHistoryPromotionRequest $request,
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
         if ($this->failOnInsert) {
             throw new \RuntimeException('simulated DBAL failure');
         }
-        $idx = count($this->insertedAllergies);
-        $this->insertedAllergies[] = $request;
+        $idx = count($this->insertedEntries);
+        $this->insertedEntries[] = $request;
         return new PersistedListEntry(
             listUuid: self::LIST_UUID,
             listRowId: $idx + 1,
@@ -605,58 +588,11 @@ final class InMemoryAllergyTableWriter implements AllergyListsTableWriter
 }
 
 /**
- * No-op medication-statement writer for the allergy controller tests.
- * The controller's constructor needs the medication service for type
- * signature but no allergy test routes through the medication branch.
+ * No-op procedure-report writer for the family-history controller
+ * tests. The controller's constructor needs the lab service for type
+ * signature but no family-history test routes through the lab branch.
  */
-final class NoopMedicationStatementTableWriter implements \OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementListsTableWriter
-{
-    public function findExistingMedication(
-        string $sourceDocumentUuid,
-        string $normalizedDrugName,
-    ): ?PersistedListEntry {
-        return null;
-    }
-
-    public function insertMedication(
-        \OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementPromotionRequest $request,
-        \DateTimeImmutable $createdAt,
-    ): PersistedListEntry {
-        throw new \RuntimeException('NoopMedicationStatementTableWriter.insertMedication must not be called');
-    }
-}
-
-/**
- * No-op family-history writer for the allergy controller tests. The
- * controller's constructor needs the family-history service for type
- * signature but no allergy test routes through the family-history
- * branch.
- */
-final class NoopFamilyHistoryListsTableWriter implements FamilyHistoryListsTableWriter
-{
-    public function findExistingFamilyHistory(
-        string $sourceDocumentUuid,
-        string $normalizedTitle,
-    ): ?PersistedListEntry {
-        return null;
-    }
-
-    public function insertFamilyHistory(
-        FamilyHistoryPromotionRequest $request,
-        \DateTimeImmutable $createdAt,
-    ): PersistedListEntry {
-        throw new \RuntimeException(
-            'NoopFamilyHistoryListsTableWriter.insertFamilyHistory must not be called',
-        );
-    }
-}
-
-/**
- * No-op procedure-report writer for the allergy controller tests. The
- * controller's constructor needs the lab service for type signature
- * but no allergy test routes through the lab branch.
- */
-final class NoopProcedureReportTableWriter implements ProcedureReportTableWriter
+final class NoopProcedureReportTableWriterForFamilyHistory implements ProcedureReportTableWriter
 {
     public function findExistingPanel(
         string $sourceDocumentUuid,
@@ -675,36 +611,36 @@ final class NoopProcedureReportTableWriter implements ProcedureReportTableWriter
         int $promotedByUserId,
         \DateTimeImmutable $createdAt,
     ): \OpenEMR\Modules\ClinicalCopilot\Service\PersistedProcedureReport {
-        throw new \RuntimeException('NoopProcedureReportTableWriter.insertPanel must not be called');
-    }
-}
-
-/**
- * No-op medical-problem writer for the allergy controller tests. The
- * controller's constructor needs the medical-problem service for type
- * signature but no allergy test routes through the medical-problem
- * branch.
- */
-final class AllergyTestNoopMedicalProblemTableWriter implements MedicalProblemListsTableWriter
-{
-    public function findExistingMedicalProblem(
-        string $sourceDocumentUuid,
-        string $normalizedTitle,
-    ): ?PersistedListEntry {
-        return null;
-    }
-
-    public function insertMedicalProblem(
-        MedicalProblemPromotionRequest $request,
-        \DateTimeImmutable $createdAt,
-    ): PersistedListEntry {
         throw new \RuntimeException(
-            'AllergyTestNoopMedicalProblemTableWriter.insertMedicalProblem must not be called',
+            'NoopProcedureReportTableWriterForFamilyHistory.insertPanel must not be called',
         );
     }
 }
 
-final class AllergyRecordingEventDispatcher implements \Symfony\Component\EventDispatcher\EventDispatcherInterface
+/**
+ * No-op allergy writer for the family-history controller tests.
+ */
+final class NoopAllergyTableWriterForFamilyHistory implements AllergyListsTableWriter
+{
+    public function findExistingAllergy(
+        string $sourceDocumentUuid,
+        string $normalizedSubstance,
+    ): ?PersistedListEntry {
+        return null;
+    }
+
+    public function insertAllergy(
+        AllergyPromotionRequest $request,
+        \DateTimeImmutable $createdAt,
+    ): PersistedListEntry {
+        throw new \RuntimeException(
+            'NoopAllergyTableWriterForFamilyHistory.insertAllergy must not be called',
+        );
+    }
+}
+
+final class FamilyHistoryRecordingEventDispatcher implements
+    \Symfony\Component\EventDispatcher\EventDispatcherInterface
 {
     /** @var list<object> */
     public array $dispatched = [];
@@ -748,7 +684,7 @@ final class AllergyRecordingEventDispatcher implements \Symfony\Component\EventD
     }
 }
 
-final readonly class AllergyFixedClock implements ClockInterface
+final readonly class FamilyHistoryFixedClock implements ClockInterface
 {
     public function __construct(private DateTimeImmutable $now)
     {
@@ -760,7 +696,7 @@ final readonly class AllergyFixedClock implements ClockInterface
     }
 }
 
-final readonly class AllergyFixedJti implements JtiGenerator
+final readonly class FamilyHistoryFixedJti implements JtiGenerator
 {
     public function __construct(private string $jti)
     {
@@ -772,7 +708,8 @@ final readonly class AllergyFixedJti implements JtiGenerator
     }
 }
 
-final readonly class AllergyStubResolver implements \OpenEMR\Modules\ClinicalCopilot\Auth\AgentActorResolver
+final readonly class FamilyHistoryStubResolver implements
+    \OpenEMR\Modules\ClinicalCopilot\Auth\AgentActorResolver
 {
     public function __construct(
         private ?ResolvedAgentActor $actor,

@@ -50,7 +50,12 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-conversational-graph-v2';
+// v3 (F.5e): synthesizer's `ClaimCategory` enum gained a
+// `family_history` slot. The dataset's input/output shape is
+// unchanged, but bumping per the W2 dataset-version convention so
+// experiments captured before the schema gained the slot stay
+// comparable.
+export const DATASET_NAME = 'clinical-copilot-conversational-graph-v3';
 
 const DATASET_DESCRIPTION =
     'Conversational-graph evals — one example per case group (document-evidence retriever, guidelines retriever, verification per source_type, multi-retriever sequencing, iteration-cap backstop). Inputs encode the scenario; outputs encode the ground-truth gate the verifier should reach. The per-MR Vitest layer at agent/evals/cases/conversational-graph/ asserts the structural invariants over stubbed vendors; the nightly experiment runs the same scenarios against real Anthropic + Pinecone + Cohere + OpenAI.';

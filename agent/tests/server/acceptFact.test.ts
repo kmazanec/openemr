@@ -313,33 +313,6 @@ describe('POST /v1/agent/accept_fact — happy path (lab)', () => {
     });
 });
 
-describe('POST /v1/agent/accept_fact — non-lab fact types stay 501 until their write services land', () => {
-    // F.5a shipped lab; F.5b shipped allergy; F.5c shipped
-    // medication_statement; F.5d shipped past_medical_history. The
-    // remaining list-shaped fact type (`family_history`) stays 501
-    // until F.5e flips it.
-    it.each([
-        ['family_history'],
-    ])('returns 501 not_yet_implemented for factType=%s', async (factType) => {
-        const deps = makeDeps();
-        const { app, privateKey } = await buildAuthedApp({
-            extractionArtifactStore: deps.store,
-            promoteClient: deps.promoteClient,
-        });
-        const token = await issueToken(privateKey);
-        const res = await app.request('/v1/agent/accept_fact', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-            body: JSON.stringify({ artifactId: 'artifact-1', fieldPath: 'a', factType }),
-        });
-        expect(res.status).toBe(501);
-        expect(await res.json()).toEqual({ error: 'not_yet_implemented' });
-        // Does not call promote.php or recordDisposition for unimplemented types.
-        expect(deps.promoteCalls).toHaveLength(0);
-        expect(deps.dispositionCalls).toHaveLength(0);
-    });
-});
-
 describe('POST /v1/agent/accept_fact — happy path (allergy)', () => {
     const baseAllergyArtifact = (
         overrides: Partial<ExtractionArtifact> = {},
@@ -909,6 +882,195 @@ describe('POST /v1/agent/accept_fact — happy path (medication_statement)', () 
             expect(res.status).toBe(400);
             expect(await res.json()).toEqual({ error: 'unsupported_field_path' });
         }
+    });
+});
+
+describe('POST /v1/agent/accept_fact — happy path (family_history)', () => {
+    const baseFamilyHistoryArtifact = (
+        overrides: Partial<ExtractionArtifact> = {},
+    ): ExtractionArtifact => ({
+        artifactId: 'artifact-family-history-1',
+        documentUuid: 'doc-uuid-family-history',
+        pid: 4242,
+        docType: 'intake_form',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            allergies: [],
+            current_medications: [],
+            past_medical_history: [],
+            family_history: [
+                {
+                    relation: 'Mother',
+                    condition: 'Type 2 diabetes',
+                    notes: 'diagnosed in mid-30s',
+                    page: 1,
+                    bbox: [40, 200, 380, 220],
+                    quote: 'Mother — Type 2 diabetes',
+                    confidence: 0.91,
+                },
+            ],
+            patient_demographics: {},
+        },
+        deltasJson: null,
+        confidenceSignal: null,
+        status: 'pending_confirmation',
+        documentHash: 'hash',
+        createdAt: '2026-05-04T12:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+        ...overrides,
+    });
+
+    it('reads intake_form artifact, posts family_history promote.php, records accepted disposition', async () => {
+        const deps = makeDeps({
+            artifact: baseFamilyHistoryArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'chart-family-history-1',
+                chartRecordType: 'list_family_history',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-family-history-1',
+                fieldPath: 'family_history.0',
+                factType: 'family_history',
+            }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            chartRecordUuid: string;
+            chartRecordType: string;
+            observationUuids: readonly string[];
+        };
+        expect(body.chartRecordUuid).toBe('chart-family-history-1');
+        expect(body.chartRecordType).toBe('list_family_history');
+        expect(body.observationUuids).toEqual([]);
+
+        // Promote.php was called with `relation` + `condition` passed
+        // through separately so the PHP service composes the
+        // canonical `title` (em-dash form) and owns the idempotency
+        // normalization.
+        expect(deps.promoteCalls).toHaveLength(1);
+        const promoteCall = deps.promoteCalls[0]!;
+        expect(promoteCall.type).toBe('family_history');
+        expect(promoteCall.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-family-history',
+            relation: 'Mother',
+            condition: 'Type 2 diabetes',
+            comments: 'diagnosed in mid-30s',
+        });
+
+        // Disposition recorded as accepted with the JWT subject.
+        expect(deps.dispositionCalls).toHaveLength(1);
+        expect(deps.dispositionCalls[0]).toMatchObject({
+            artifactId: 'artifact-family-history-1',
+            fieldPath: 'family_history.0',
+            status: 'accepted',
+            userId: 'Practitioner/dr-patel',
+        });
+    });
+
+    it('omits optional fields from the body when the intake row lacks them', async () => {
+        const minimal = baseFamilyHistoryArtifact({
+            schemaJson: {
+                allergies: [],
+                current_medications: [],
+                past_medical_history: [],
+                family_history: [
+                    {
+                        relation: 'Father',
+                        condition: 'Heart disease',
+                        page: 2,
+                        bbox: [10, 10, 100, 20],
+                        quote: 'Father — Heart disease',
+                        confidence: 0.85,
+                    },
+                ],
+                patient_demographics: {},
+            },
+        });
+        const deps = makeDeps({
+            artifact: minimal,
+            promoteResponse: {
+                chartRecordUuid: 'chart-family-history-2',
+                chartRecordType: 'list_family_history',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-family-history-1',
+                fieldPath: 'family_history.0',
+                factType: 'family_history',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-family-history',
+            relation: 'Father',
+            condition: 'Heart disease',
+        });
+    });
+
+    it('returns 400 fact_type_mismatch when factType=family_history but artifact is lab_pdf', async () => {
+        const deps = makeDeps({
+            artifact: baseFamilyHistoryArtifact({ docType: 'lab_pdf' }),
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-family-history-1',
+                fieldPath: 'family_history.0',
+                factType: 'family_history',
+            }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'fact_type_mismatch' });
+    });
+
+    it('returns 400 unsupported_field_path for a fieldPath outside family_history[]', async () => {
+        const deps = makeDeps({ artifact: baseFamilyHistoryArtifact() });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-family-history-1',
+                fieldPath: 'allergies.0',
+                factType: 'family_history',
+            }),
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'unsupported_field_path' });
     });
 });
 

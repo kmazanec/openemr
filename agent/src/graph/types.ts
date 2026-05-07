@@ -518,6 +518,12 @@ export type ClaimCategory =
     | 'lab'
     | 'allergy'
     | 'diagnosis'
+    // F.5e — distinct from `diagnosis` so the panel's
+    // `factTypeForClaimCategory` can route family-history claims to
+    // the dedicated Tier-3 promote branch instead of conflating them
+    // with past-medical-history. The synthesizer's structured-output
+    // schema gains the same slot.
+    | 'family_history'
     | 'encounter'
     | 'appointment'
     | 'identity'

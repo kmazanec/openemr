@@ -65,6 +65,8 @@ require_once __DIR__
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyListsTableWriter.php';
 require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/FamilyHistoryListsTableWriter.php';
+require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemPromotionRequest.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemListsTableWriter.php';
@@ -114,6 +116,7 @@ final class ObservationLabWriteServiceTest extends TestCase
 
         require_once self::MODULE_DIR . '/Events/ProcedureReportCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/AllergyListEntryCreatedEvent.php';
+        require_once self::MODULE_DIR . '/Events/FamilyHistoryListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/MedicalProblemListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/MedicationStatementListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Service/ObservationResult.php';
@@ -123,12 +126,16 @@ final class ObservationLabWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/PersistedListEntry.php';
         require_once self::MODULE_DIR . '/Service/ProcedureReportTableWriter.php';
         require_once self::MODULE_DIR . '/Service/AllergyListsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/ObservationLabWriteService.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/AllergyListWriteService.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryWriteService.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemWriteService.php';
@@ -137,6 +144,7 @@ final class ObservationLabWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
@@ -291,13 +299,12 @@ final class ObservationLabWriteServiceTest extends TestCase
     {
         $token = $this->mintToken([PromoteController::SCOPE_LAB]);
         // F.5b flipped `allergy`, F.5c flipped `medication_statement`,
-        // and F.5d flipped `past_medical_history` from 501 to real
-        // branches — see AllergyListWriteServiceTest,
-        // MedicationStatementWriteServiceTest, and
-        // MedicalProblemWriteServiceTest. The remaining two types stay
-        // 501 until F.5e / F.6 ship.
+        // F.5d flipped `past_medical_history`, and F.5e flipped
+        // `family_history` from 501 to real branches — see the
+        // matching `*WriteServiceTest` files. Only `demographics`
+        // stays 501 until F.6 ships.
         foreach (
-            ['family_history', 'demographics']
+            ['demographics']
             as $type
         ) {
             [$status, $body] = $this->dispatchController($token, $type, $this->validBody());
@@ -499,12 +506,20 @@ final class ObservationLabWriteServiceTest extends TestCase
             logger: $logger,
         );
 
+        $familyHistoryService = new \OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService(
+            tableWriter: new InMemoryFamilyHistoryListsTableWriterForLabTest(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
+
         $controller = new PromoteController(
             auth: $auth,
             labWriteService: $service,
             allergyWriteService: $allergyService,
             medicalProblemWriteService: $medicalProblemService,
             medicationStatementWriteService: $medicationService,
+            familyHistoryWriteService: $familyHistoryService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -875,6 +890,34 @@ final class InMemoryMedicationStatementListsTableWriter implements
         return new \OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry(
             listUuid: self::MEDICATION_UUID,
             listRowId: $idx + 1,
+        );
+    }
+}
+
+/**
+ * Bare-minimum in-memory family-history writer the lab-controller test
+ * needs — every controller test goes through `dispatchController`,
+ * which now requires every Tier-3 write service in the constructor.
+ * The dedicated family-history assertions live in
+ * {@see FamilyHistoryWriteServiceTest}; this stub just needs to satisfy
+ * the type signature for tests that route to the lab branch.
+ */
+final class InMemoryFamilyHistoryListsTableWriterForLabTest implements
+    \OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryListsTableWriter
+{
+    public function findExistingFamilyHistory(
+        string $sourceDocumentUuid,
+        string $normalizedTitle,
+    ): ?\OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry {
+        return null;
+    }
+
+    public function insertFamilyHistory(
+        \OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryPromotionRequest $request,
+        \DateTimeImmutable $createdAt,
+    ): \OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry {
+        throw new \RuntimeException(
+            'InMemoryFamilyHistoryListsTableWriterForLabTest.insertFamilyHistory must not be called',
         );
     }
 }
