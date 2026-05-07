@@ -210,7 +210,7 @@ ACC/AHA + JACC publishers are deferred until a real path to that source exists (
 
 ## I.4 AGS Beers Criteria (2023)
 
-**Goal.** Add the AGS Beers Criteria to the corpus. License posture is the most fragile in the set — single-publication artifact in *J Am Geriatr Soc*; synthetic-data demo is fine, production replacement is likely. Conditional on geriatric-prescribing being a featured demo path; defer if not.
+**Goal.** Add the AGS Beers Criteria to the corpus. License posture is the most fragile in the set — single-publication artifact in *J Am Geriatr Soc*. Conditional on geriatric-prescribing being a featured demo path; defer if not.
 
 **Blocked by:** I.1 (template); explicit demo-storytelling decision.
 **Unblocks:** I.5 eval-validation gate.
