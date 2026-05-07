@@ -90,6 +90,16 @@ export interface SynthesizerUsage {
     readonly model: string;
     readonly inputTokens: number;
     readonly outputTokens: number;
+    /**
+     * Anthropic prompt-cache breakdown, surfaced via LangChain's
+     * `usage_metadata.input_token_details`. Both default to 0 (no cache
+     * activity) for tests and fixtures that don't simulate caching.
+     * `inputTokens` is the LangChain-aggregated total and already
+     * includes these — `costForUsage` splits them back apart for
+     * accurate pricing.
+     */
+    readonly cacheCreationInputTokens?: number;
+    readonly cacheReadInputTokens?: number;
 }
 
 export interface SynthesizerResult {
@@ -177,17 +187,23 @@ export const createSynthesize = (
         });
         if (usage !== undefined) {
             const costUsd = costForUsage(usage);
+            const cacheCreationInputTokens = usage.cacheCreationInputTokens ?? 0;
+            const cacheReadInputTokens = usage.cacheReadInputTokens ?? 0;
             counters.recordModelUsage({
                 model: usage.model,
                 inputTokens: usage.inputTokens,
                 outputTokens: usage.outputTokens,
                 costUsd,
+                cacheCreationInputTokens,
+                cacheReadInputTokens,
             });
             setRunMetadata({
                 model: usage.model,
                 input_tokens: usage.inputTokens,
                 output_tokens: usage.outputTokens,
                 cost_usd: costUsd,
+                cache_creation_input_tokens: cacheCreationInputTokens,
+                cache_read_input_tokens: cacheReadInputTokens,
             });
         }
         return { draft, claimLedger: ledger };
@@ -318,8 +334,22 @@ export const createAnthropicSynthesizer = (options?: {
         const useFollowUpModel = isExtractionFollowUp || isFollowUp;
         const structured = useFollowUpModel ? followUpClient : briefingClient;
         const model = useFollowUpModel ? followUpModel : briefingModel;
+        // Cache the system prompt. All three variants (briefing,
+        // follow-up, extraction follow-up) are constants per build, so
+        // every turn within the 5-minute TTL reads them at ~10% of the
+        // input rate. LangChain forwards a content array on
+        // SystemMessage to Anthropic's `system` field unchanged, so the
+        // `cache_control` marker rides along.
         const result = await structured.invoke([
-            new SystemMessage(systemPrompt),
+            new SystemMessage({
+                content: [
+                    {
+                        type: 'text',
+                        text: systemPrompt,
+                        cache_control: { type: 'ephemeral' },
+                    },
+                ],
+            }),
             new HumanMessage(userMessage),
         ]);
         const parsed = result.parsed;
@@ -337,7 +367,16 @@ export const createAnthropicSynthesizer = (options?: {
             throw structuredOutputParseError('synthesizer', raw);
         }
         const usageMeta = (
-            raw as { usage_metadata?: { input_tokens?: number; output_tokens?: number } }
+            raw as {
+                usage_metadata?: {
+                    input_tokens?: number;
+                    output_tokens?: number;
+                    input_token_details?: {
+                        cache_creation?: number;
+                        cache_read?: number;
+                    };
+                };
+            }
         ).usage_metadata;
         const usage =
             usageMeta !== undefined
@@ -345,6 +384,9 @@ export const createAnthropicSynthesizer = (options?: {
                       model,
                       inputTokens: usageMeta.input_tokens ?? 0,
                       outputTokens: usageMeta.output_tokens ?? 0,
+                      cacheCreationInputTokens:
+                          usageMeta.input_token_details?.cache_creation ?? 0,
+                      cacheReadInputTokens: usageMeta.input_token_details?.cache_read ?? 0,
                   }
                 : undefined;
         return {

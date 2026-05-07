@@ -136,6 +136,15 @@ export interface SupervisorDecisionWithUsage {
         readonly model: string;
         readonly inputTokens: number;
         readonly outputTokens: number;
+        /**
+         * Anthropic prompt-cache breakdown via LangChain's
+         * `usage_metadata.input_token_details`. Optional so existing
+         * test stubs don't have to know about caching; both default to
+         * 0. `inputTokens` already includes these — `costForUsage`
+         * splits them back apart for accurate pricing.
+         */
+        readonly cacheCreationInputTokens?: number;
+        readonly cacheReadInputTokens?: number;
     };
 }
 
@@ -498,12 +507,16 @@ export const createSupervisor = (
         // through the standard cost helper so the supervisor line item
         // shows up in the cost-per-turn rollup.
         const costUsd = usage !== undefined ? costForUsage(usage) : 0;
+        const cacheCreationInputTokens = usage?.cacheCreationInputTokens ?? 0;
+        const cacheReadInputTokens = usage?.cacheReadInputTokens ?? 0;
         if (usage !== undefined) {
             counters.recordModelUsage({
                 model: usage.model,
                 inputTokens: usage.inputTokens,
                 outputTokens: usage.outputTokens,
                 costUsd,
+                cacheCreationInputTokens,
+                cacheReadInputTokens,
             });
         }
         setRunMetadata({
@@ -519,6 +532,8 @@ export const createSupervisor = (
                       supervisor_input_tokens: usage.inputTokens,
                       supervisor_output_tokens: usage.outputTokens,
                       supervisor_dollar_cost: costUsd,
+                      supervisor_cache_creation_input_tokens: cacheCreationInputTokens,
+                      supervisor_cache_read_input_tokens: cacheReadInputTokens,
                   }
                 : {}),
         });
@@ -615,8 +630,22 @@ export const createAnthropicSupervisorDecide = (options?: {
         },
     );
     return async (input) => {
+        // Mark the system prompt as a prompt-cache breakpoint. The
+        // supervisor loops up to SUPERVISOR_ITERATION_CAP times per turn
+        // with this same prompt, so iterations 2..N read it from cache
+        // at ~10% of the normal input rate. LangChain passes a content
+        // array on a SystemMessage straight through to Anthropic's
+        // `system` field, so the `cache_control` marker rides along.
         const result = await structured.invoke([
-            new SystemMessage(SUPERVISOR_SYSTEM_PROMPT),
+            new SystemMessage({
+                content: [
+                    {
+                        type: 'text',
+                        text: SUPERVISOR_SYSTEM_PROMPT,
+                        cache_control: { type: 'ephemeral' },
+                    },
+                ],
+            }),
             new HumanMessage(buildUserPrompt(input)),
         ]);
         const parsed = result.parsed;
@@ -633,7 +662,14 @@ export const createAnthropicSupervisorDecide = (options?: {
         }
         const usageMeta = (
             raw as {
-                usage_metadata?: { input_tokens?: number; output_tokens?: number };
+                usage_metadata?: {
+                    input_tokens?: number;
+                    output_tokens?: number;
+                    input_token_details?: {
+                        cache_creation?: number;
+                        cache_read?: number;
+                    };
+                };
             }
         ).usage_metadata;
         const usage =
@@ -642,6 +678,9 @@ export const createAnthropicSupervisorDecide = (options?: {
                       model,
                       inputTokens: usageMeta.input_tokens ?? 0,
                       outputTokens: usageMeta.output_tokens ?? 0,
+                      cacheCreationInputTokens:
+                          usageMeta.input_token_details?.cache_creation ?? 0,
+                      cacheReadInputTokens: usageMeta.input_token_details?.cache_read ?? 0,
                   }
                 : undefined;
         return {

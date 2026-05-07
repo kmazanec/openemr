@@ -124,6 +124,15 @@ export interface VisionUsage {
     readonly model: string;
     readonly inputTokens: number;
     readonly outputTokens: number;
+    /**
+     * Anthropic prompt-cache breakdown via LangChain's
+     * `usage_metadata.input_token_details`. Optional so existing test
+     * stubs don't have to know about caching; both default to 0.
+     * `inputTokens` already includes these — `costForUsage` splits
+     * them back apart for accurate pricing.
+     */
+    readonly cacheCreationInputTokens?: number;
+    readonly cacheReadInputTokens?: number;
 }
 
 export interface VisionInvocation {
@@ -329,10 +338,14 @@ export const vision = async (
     }
 
     if (result.usage !== undefined) {
+        const cacheCreationInputTokens = result.usage.cacheCreationInputTokens ?? 0;
+        const cacheReadInputTokens = result.usage.cacheReadInputTokens ?? 0;
         const costInput: CostForUsageInput = {
             model: result.usage.model,
             inputTokens: result.usage.inputTokens,
             outputTokens: result.usage.outputTokens,
+            cacheCreationInputTokens,
+            cacheReadInputTokens,
         };
         const costUsd = costForUsage(costInput);
         setRunMetadata({
@@ -343,6 +356,8 @@ export const vision = async (
             vision_input_tokens: result.usage.inputTokens,
             vision_output_tokens: result.usage.outputTokens,
             vision_dollar_cost: costUsd,
+            vision_cache_creation_input_tokens: cacheCreationInputTokens,
+            vision_cache_read_input_tokens: cacheReadInputTokens,
             confidence_distribution: confidenceHistogram(parsed.data),
         });
     }
@@ -427,8 +442,22 @@ export const createAnthropicVisionInvocation = (options?: {
             });
             let result;
             try {
+                // Cache the vision system prompt. Multi-page lab PDFs
+                // re-issue this prompt once per page, so pages 2..N read
+                // from cache at the discounted rate. The marker is on
+                // the system block; LangChain forwards SystemMessage
+                // content arrays to Anthropic's `system` field
+                // unchanged.
                 result = await client.invoke([
-                    new SystemMessage(VISION_SYSTEM_PROMPT),
+                    new SystemMessage({
+                        content: [
+                            {
+                                type: 'text',
+                                text: VISION_SYSTEM_PROMPT,
+                                cache_control: { type: 'ephemeral' },
+                            },
+                        ],
+                    }),
                     userMessage,
                 ]);
             } catch (err) {
@@ -436,7 +465,14 @@ export const createAnthropicVisionInvocation = (options?: {
             }
             const usageMeta = (
                 result.raw as {
-                    usage_metadata?: { input_tokens?: number; output_tokens?: number };
+                    usage_metadata?: {
+                        input_tokens?: number;
+                        output_tokens?: number;
+                        input_token_details?: {
+                            cache_creation?: number;
+                            cache_read?: number;
+                        };
+                    };
                 }
             ).usage_metadata;
             const usage =
@@ -445,6 +481,10 @@ export const createAnthropicVisionInvocation = (options?: {
                           model,
                           inputTokens: usageMeta.input_tokens ?? 0,
                           outputTokens: usageMeta.output_tokens ?? 0,
+                          cacheCreationInputTokens:
+                              usageMeta.input_token_details?.cache_creation ?? 0,
+                          cacheReadInputTokens:
+                              usageMeta.input_token_details?.cache_read ?? 0,
                       }
                     : undefined;
             return {

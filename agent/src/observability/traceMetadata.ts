@@ -31,18 +31,65 @@ export const PRICE_TABLE_USD_PER_MILLION: Readonly<Record<string, PriceEntry>> =
     'claude-haiku-4-5': { input: 0.8, output: 4 },
 };
 
+/**
+ * Anthropic prompt-caching multipliers, applied against `PriceEntry.input`.
+ * Source: Anthropic pricing page (5-minute ephemeral cache).
+ *
+ *   - Cache writes (cache_creation_input_tokens) are billed at 1.25× the
+ *     base input rate — a one-time premium when the prefix is first stored.
+ *   - Cache reads  (cache_read_input_tokens)     are billed at 0.10× the
+ *     base input rate — the 90% discount that makes caching worthwhile.
+ */
+export const CACHE_WRITE_MULTIPLIER = 1.25;
+export const CACHE_READ_MULTIPLIER = 0.1;
+
 export interface CostForUsageInput {
     readonly model: string;
+    /**
+     * Total input tokens reported by LangChain's `usage_metadata`, which
+     * already sums regular + cache_creation + cache_read. The cost calc
+     * splits this back into three buckets and applies the multipliers
+     * above. Callers should pass `usage_metadata.input_tokens` verbatim.
+     */
     readonly inputTokens: number;
     readonly outputTokens: number;
+    /**
+     * From `usage_metadata.input_token_details.cache_creation`. 0 (or
+     * undefined) when caching is off or the request did not write to the
+     * cache. Counted toward `inputTokens`; do not subtract before passing.
+     */
+    readonly cacheCreationInputTokens?: number;
+    /**
+     * From `usage_metadata.input_token_details.cache_read`. 0 (or
+     * undefined) when caching is off or this was a cache miss. Counted
+     * toward `inputTokens`; do not subtract before passing.
+     */
+    readonly cacheReadInputTokens?: number;
 }
 
-export const costForUsage = ({ model, inputTokens, outputTokens }: CostForUsageInput): number => {
+export const costForUsage = ({
+    model,
+    inputTokens,
+    outputTokens,
+    cacheCreationInputTokens = 0,
+    cacheReadInputTokens = 0,
+}: CostForUsageInput): number => {
     const price = PRICE_TABLE_USD_PER_MILLION[model];
     if (price === undefined) {
         return 0;
     }
-    return (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
+    // `inputTokens` from LangChain already contains the cached buckets.
+    // Pull them out so the regular-rate slice is what's left after the
+    // creation + read tokens are accounted for at their own multipliers.
+    const regularInputTokens = Math.max(
+        0,
+        inputTokens - cacheCreationInputTokens - cacheReadInputTokens,
+    );
+    const inputCost =
+        regularInputTokens * price.input
+        + cacheCreationInputTokens * price.input * CACHE_WRITE_MULTIPLIER
+        + cacheReadInputTokens * price.input * CACHE_READ_MULTIPLIER;
+    return (inputCost + outputTokens * price.output) / 1_000_000;
 };
 
 /**

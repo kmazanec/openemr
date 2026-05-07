@@ -25,6 +25,13 @@ export interface RecordModelUsageInput {
     readonly inputTokens: number;
     readonly outputTokens: number;
     readonly costUsd: number;
+    /**
+     * Cached input tokens from this call. Both default to 0 for callers
+     * that haven't been wired through prompt caching yet — the rollup
+     * still works; you just won't see a cache-hit-rate signal.
+     */
+    readonly cacheCreationInputTokens?: number;
+    readonly cacheReadInputTokens?: number;
 }
 
 export interface RecordVerificationInput {
@@ -44,6 +51,8 @@ export interface ModelUsageCounter {
     outputTokens: number;
     costUsd: number;
     calls: number;
+    cacheCreationInputTokens: number;
+    cacheReadInputTokens: number;
 }
 
 export interface VerificationCounter {
@@ -100,17 +109,28 @@ export const createInMemoryCounters = (): Counters => {
             existing.totalLatencyMs += latencyMs;
             state.toolCalls[tool] = existing;
         },
-        recordModelUsage: ({ model, inputTokens, outputTokens, costUsd }) => {
+        recordModelUsage: ({
+            model,
+            inputTokens,
+            outputTokens,
+            costUsd,
+            cacheCreationInputTokens = 0,
+            cacheReadInputTokens = 0,
+        }) => {
             const existing = state.modelUsage[model] ?? {
                 inputTokens: 0,
                 outputTokens: 0,
                 costUsd: 0,
                 calls: 0,
+                cacheCreationInputTokens: 0,
+                cacheReadInputTokens: 0,
             };
             existing.inputTokens += inputTokens;
             existing.outputTokens += outputTokens;
             existing.costUsd += costUsd;
             existing.calls += 1;
+            existing.cacheCreationInputTokens += cacheCreationInputTokens;
+            existing.cacheReadInputTokens += cacheReadInputTokens;
             state.modelUsage[model] = existing;
         },
         recordVerification: ({ passed, accepted, rejected, promptInjections }) => {
