@@ -155,6 +155,58 @@ describe('extract-cdc-corpus', () => {
         });
     });
 
+    describe('cdc-clinical-guidance', () => {
+        it('emits one chunk per top-level h2 on a CDC HBP page, dropping chrome', async () => {
+            const html = await loadFixture('cdc-clinical-guidance-hbp-sample.html');
+            const result = extractFromHtml(
+                'cdc-clinical-guidance',
+                'hbp-hmp-toolkit',
+                html,
+            );
+
+            expect(result.title).toBe('Hypertension Management Program (HMP) Toolkit');
+            expect(result.year).toBe(2024);
+            expect(result.url).toBe(
+                'https://example.test/high-blood-pressure/hcp/hmp-toolkit/index.html',
+            );
+
+            // "At a glance", "Purpose", "Overview" kept;
+            // "Additional content" and "On This Page" dropped.
+            expect(result.chunks.map((c) => c.section)).toEqual([
+                'at-a-glance',
+                'purpose',
+                'overview',
+            ]);
+
+            const purpose = result.chunks.find((c) => c.section === 'purpose');
+            expect(purpose?.body).toContain('evidence-based BP-control protocols');
+            expect(result.warnings).toEqual([]);
+        });
+
+        it('drops Million Hearts Subscribe./Connect./Explore./Take Action. chrome', async () => {
+            const html = await loadFixture(
+                'cdc-clinical-guidance-million-hearts-sample.html',
+            );
+            const result = extractFromHtml(
+                'cdc-clinical-guidance',
+                'million-hearts-protocols',
+                html,
+            );
+
+            expect(result.chunks.map((c) => c.section)).toEqual([
+                'cholesterol-management-protocols',
+                'tobacco-cessation-protocols',
+                'hypertension-treatment-protocols',
+            ]);
+
+            const htn = result.chunks.find(
+                (c) => c.section === 'hypertension-treatment-protocols',
+            );
+            expect(htn?.body).toContain('Standardized hypertension treatment protocols');
+            expect(result.warnings).toEqual([]);
+        });
+    });
+
     describe('failure modes', () => {
         it('emits missing-main when the page has no <main>', () => {
             const result = extractFromHtml(

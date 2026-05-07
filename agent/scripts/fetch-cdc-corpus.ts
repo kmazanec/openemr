@@ -37,7 +37,12 @@ const USER_AGENT =
 
 const FETCHER_VERSION = '1';
 
-export type CdcSurface = 'acip-schedule' | 'acip-notes' | 'opioid-landing' | 'sti-clinical-guidance';
+export type CdcSurface =
+    | 'acip-schedule'
+    | 'acip-notes'
+    | 'opioid-landing'
+    | 'sti-clinical-guidance'
+    | 'cdc-clinical-guidance';
 
 export interface FetchTarget {
     readonly slug: string;
@@ -102,6 +107,43 @@ export const FETCH_TARGETS: readonly FetchTarget[] = [
         slug: 'sti-taking-a-sexual-history',
         url: 'https://www.cdc.gov/sti/hcp/clinical-guidance/taking-a-sexual-history.html',
         surface: 'sti-clinical-guidance',
+    },
+    // CDC High Blood Pressure — clinician-facing HCP/PHP pages. Phase
+    // I.3 originally targeted the 2017 ACC/AHA HBP guideline; AHA
+    // Journals (ahajournals.org / jacc.org) is Cloudflare-protected and
+    // the guideline isn't deposited in PMC, so we substitute with CDC's
+    // public-domain hypertension-management pages — same scraper, same
+    // license tier, signal density appropriate for the `hypertensive`
+    // archetype.
+    {
+        slug: 'hbp-hmp-toolkit',
+        url: 'https://www.cdc.gov/high-blood-pressure/hcp/hmp-toolkit/index.html',
+        surface: 'cdc-clinical-guidance',
+    },
+    {
+        slug: 'hbp-pharmacists-patient-care',
+        url: 'https://www.cdc.gov/high-blood-pressure/hcp/data-research/pharmacists-patient-care/index.html',
+        surface: 'cdc-clinical-guidance',
+    },
+    {
+        slug: 'hbp-team-based-care',
+        url: 'https://www.cdc.gov/high-blood-pressure/php/data-research/team-based-care/index.html',
+        surface: 'cdc-clinical-guidance',
+    },
+    {
+        slug: 'hbp-telehealth-strategies',
+        url: 'https://www.cdc.gov/high-blood-pressure/php/data-research/telehealth-strategies/index.html',
+        surface: 'cdc-clinical-guidance',
+    },
+    // Million Hearts treatment-protocols index — three protocol classes
+    // (cholesterol management, tobacco cessation, hypertension
+    // treatment) with the per-section evidence-based-protocol links.
+    // Same federal-public-domain posture; same h2-walk extractor as the
+    // other clinical-guidance pages.
+    {
+        slug: 'million-hearts-protocols',
+        url: 'https://millionhearts.hhs.gov/tools-protocols/protocols.html',
+        surface: 'cdc-clinical-guidance',
     },
 ];
 

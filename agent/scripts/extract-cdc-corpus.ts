@@ -44,13 +44,25 @@ const ACIP_SCHEDULE_SECTIONS: ReadonlyMap<string, string> = new Map([
 ]);
 
 // Sections we drop from any landing/index page — pure navigation chrome.
+// "Subscribe./Connect./Explore./Take Action." are the four boilerplate
+// h2s every Million Hearts page ends with; "Related resources" /
+// "Related Webpages" / "Tools and Resources" / "Additional content" are
+// CDC HBP page-footer chrome with no clinician-facing narrative.
 const SKIP_SECTION_LABELS = new Set<string>([
     'On This Page',
     'Additional Information',
+    'Additional content',
     'Download the Schedule',
     'Sources',
     'Print',
     'Share',
+    'Subscribe.',
+    'Connect.',
+    'Explore.',
+    'Take Action.',
+    'Related resources',
+    'Related Webpages',
+    'Tools and Resources',
 ]);
 
 interface ChunkFrontmatter {
@@ -469,6 +481,16 @@ export function extractStiClinicalGuidance($: cheerio.CheerioAPI, slug: string):
     return extractGenericH2Sections($, slug);
 }
 
+/**
+ * CDC HBP HCP/PHP pages and Million Hearts protocol pages share the
+ * same h2-sectioned shape as the opioid + STI surfaces — content is
+ * grouped under top-level <h2>s with chrome (Subscribe./Connect./On
+ * This Page) at the tail. Same generic walker, same chrome filter.
+ */
+export function extractCdcClinicalGuidance($: cheerio.CheerioAPI, slug: string): ExtractResult {
+    return extractGenericH2Sections($, slug);
+}
+
 export function extractFromHtml(
     surface: CdcSurface,
     slug: string,
@@ -484,6 +506,8 @@ export function extractFromHtml(
             return extractOpioidLanding($, slug);
         case 'sti-clinical-guidance':
             return extractStiClinicalGuidance($, slug);
+        case 'cdc-clinical-guidance':
+            return extractCdcClinicalGuidance($, slug);
     }
 }
 
