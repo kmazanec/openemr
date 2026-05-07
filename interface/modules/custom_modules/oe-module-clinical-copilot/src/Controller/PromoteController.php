@@ -10,10 +10,11 @@
  * through {@see AllergyListWriteService}; F.5c adds the
  * `medication_statement` path (patient-reported medications) through
  * {@see MedicationStatementWriteService}; F.5d adds the
- * `past_medical_history` path through {@see MedicalProblemWriteService}.
- * The remaining fact types (`family_history`, `demographics`) are
- * accepted by the dispatcher but reject with HTTP 501 until F.5e / F.6
- * land. The 501 is deliberately structural: the agent should not
+ * `past_medical_history` path through {@see MedicalProblemWriteService};
+ * F.5e adds the `family_history` path through
+ * {@see FamilyHistoryWriteService}. The `demographics` fact type is
+ * accepted by the dispatcher but rejects with HTTP 501 until F.6
+ * lands. The 501 is deliberately structural: the agent should not
  * silently route a Tier-3 promotion of an unimplemented type as if
  * it succeeded.
  *
@@ -22,7 +23,8 @@
  * (`user/DiagnosticReport.cs` for `lab`,
  * `user/AllergyIntolerance.cs` for `allergy`,
  * `user/MedicationStatement.cs` for `medication_statement`,
- * `user/Condition.cs` for `past_medical_history`); future fact-type
+ * `user/Condition.cs` for `past_medical_history`,
+ * `user/FamilyMemberHistory.cs` for `family_history`); future fact-type
  * branches will require their own scopes (architecture's "Repeat
  * explicit checks at agent endpoints"). The single-controller
  * approach is deliberate per the F.2 checklist — one entry, one
@@ -32,9 +34,9 @@
  *
  * Disclosure shape: every promotion fires
  * {@see AgentDisclosedEvent} with `action='tier3_promotion'` and a
- * type-specific data category (`['lab']`, `['allergy']`, …) so
- * compliance reviewers can see "lab was promoted to chart from
- * source document X."
+ * type-specific data category (`['lab']`, `['allergy']`,
+ * `['family_history']`, …) so compliance reviewers can see "lab was
+ * promoted to chart from source document X."
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -52,6 +54,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\ClockInterface;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosure;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
@@ -71,12 +74,19 @@ final readonly class PromoteController
     public const SCOPE_ALLERGY = 'user/AllergyIntolerance.cs';
     public const SCOPE_MEDICAL_PROBLEM = 'user/Condition.cs';
     public const SCOPE_MEDICATION_STATEMENT = 'user/MedicationStatement.cs';
+    // F.5e — family-history Tier-3 writes use the dedicated
+    // `FamilyMemberHistory` FHIR scope (vs reusing `Condition.cs`)
+    // so an over-broadly minted Condition token (which the
+    // past-medical-history branch uses) cannot smuggle through and
+    // write a family-history row.
+    public const SCOPE_FAMILY_HISTORY = 'user/FamilyMemberHistory.cs';
 
     private const ACTION = 'tier3_promotion';
     private const CHART_RECORD_TYPE_DIAGNOSTIC_REPORT = 'diagnostic_report';
     private const CHART_RECORD_TYPE_LIST_ALLERGY = 'list_allergy';
     private const CHART_RECORD_TYPE_LIST_MEDICAL_PROBLEM = 'list_medical_problem';
     private const CHART_RECORD_TYPE_LIST_MEDICATION_STATEMENT = 'list_medication_statement';
+    private const CHART_RECORD_TYPE_LIST_FAMILY_HISTORY = 'list_family_history';
 
     private const VALID_TYPES = [
         self::TYPE_LAB,
@@ -88,7 +98,6 @@ final readonly class PromoteController
     ];
 
     private const NOT_YET_IMPLEMENTED_TYPES = [
-        self::TYPE_FAMILY_HISTORY,
         self::TYPE_DEMOGRAPHICS,
     ];
 
@@ -98,6 +107,7 @@ final readonly class PromoteController
         private AllergyListWriteService $allergyWriteService,
         private MedicalProblemWriteService $medicalProblemWriteService,
         private MedicationStatementWriteService $medicationStatementWriteService,
+        private FamilyHistoryWriteService $familyHistoryWriteService,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
         private string $siteId,
@@ -150,6 +160,11 @@ final readonly class PromoteController
                 $conversationId,
             ),
             self::TYPE_PAST_MEDICAL_HISTORY => $this->dispatchMedicalProblem(
+                $bearerToken,
+                $body,
+                $conversationId,
+            ),
+            self::TYPE_FAMILY_HISTORY => $this->dispatchFamilyHistory(
                 $bearerToken,
                 $body,
                 $conversationId,
@@ -381,6 +396,65 @@ final readonly class PromoteController
         $this->respondJson(200, [
             'chart_record_uuid' => $result->listUuid,
             'chart_record_type' => self::CHART_RECORD_TYPE_LIST_MEDICAL_PROBLEM,
+            'idempotent_hit' => $result->idempotentHit,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     */
+    private function dispatchFamilyHistory(
+        ?string $bearerToken,
+        ?array $body,
+        ?string $conversationId,
+    ): void {
+        $request = $this->auth->authorize($bearerToken, self::SCOPE_FAMILY_HISTORY);
+        if ($request === null) {
+            return;
+        }
+
+        if ($body === null) {
+            $this->respondError(400, 'invalid_body');
+            return;
+        }
+
+        try {
+            $promotion = FamilyHistoryPromotionRequestParser::parse(
+                $body,
+                $request->actor->userId,
+            );
+        } catch (\DomainException $e) {
+            $this->logger->warning('Tier-3 family-history promotion rejected at parse', [
+                'reason' => $e->getMessage(),
+            ]);
+            $this->respondError(400, 'invalid_body');
+            return;
+        }
+
+        try {
+            $result = $this->familyHistoryWriteService->write($promotion);
+        } catch (\RuntimeException $e) {
+            $this->logger->error('Tier-3 family-history promotion failed', [
+                'pid' => $promotion->pid,
+                'sourceDocumentUuid' => $promotion->sourceDocumentUuid,
+                'exception' => $e,
+            ]);
+            $this->respondError(503, 'write_unavailable');
+            return;
+        }
+
+        $this->fireDisclosure(
+            request: $request,
+            pid: $promotion->pid,
+            conversationId: $conversationId,
+            categories: ['family_history'],
+            chartRecordUuid: $result->listUuid,
+            chartRecordTypeForLog: self::CHART_RECORD_TYPE_LIST_FAMILY_HISTORY,
+        );
+
+        $this->respondJson(200, [
+            'chart_record_uuid' => $result->listUuid,
+            'chart_record_type' => self::CHART_RECORD_TYPE_LIST_FAMILY_HISTORY,
             'idempotent_hit' => $result->idempotentHit,
         ]);
     }

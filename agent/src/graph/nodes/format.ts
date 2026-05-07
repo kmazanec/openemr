@@ -119,12 +119,17 @@ const CHART_CATEGORY_RANK: Record<ClaimCategory, number> = {
     appointment: 1,
     encounter: 2,
     diagnosis: 3,
-    prescription: 4,
-    prescription_change: 5,
-    medication_statement: 6,
-    allergy: 7,
-    lab: 8,
-    reminder: 9,
+    // F.5e — slotted directly after `diagnosis` so the chart panel
+    // renders past-medical-history and family-history adjacently
+    // (clinicians read them together when reasoning about hereditary
+    // risk).
+    family_history: 4,
+    prescription: 5,
+    prescription_change: 6,
+    medication_statement: 7,
+    allergy: 8,
+    lab: 9,
+    reminder: 10,
 };
 
 /**

@@ -41,13 +41,14 @@ const stubClient = (overrides: Partial<Client>): Client =>
     }) as unknown as Client;
 
 describe('briefingGraphSuite', () => {
-    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
-        // Merged-suite v1 — the predecessor archetypes-v4, lab-trends-v2,
-        // and morning-prep-v2 datasets are deprecated. Bump to -v2 if
-        // any of the case-kind input shapes change so prior experiments
-        // stay comparable.
-        expect(BRIEFING_GRAPH_DATASET_NAME.endsWith('-v1')).toBe(true);
-        expect(BRIEFING_GRAPH_DATASET_NAME).toBe('clinical-copilot-briefing-graph-v1');
+    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+        // Merged-suite v1 was the predecessor archetypes-v4 +
+        // lab-trends-v2 + morning-prep-v2 consolidation. Bumped to v2
+        // (F.5e) when the synthesizer's `ClaimCategory` enum gained a
+        // `family_history` slot — older experiments captured before
+        // the slot landed are no longer directly comparable.
+        expect(BRIEFING_GRAPH_DATASET_NAME.endsWith('-v2')).toBe(true);
+        expect(BRIEFING_GRAPH_DATASET_NAME).toBe('clinical-copilot-briefing-graph-v2');
     });
 
     it('skips when LANGSMITH_API_KEY is unset', async () => {
@@ -129,11 +130,12 @@ describe('briefingGraphSuite', () => {
 });
 
 describe('conversationalGraphSuite', () => {
-    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+    it('uses a v3 dataset name (schema-bump contract: rename when shape changes)', () => {
         // Bumped to -v2 when the case-group enum widened to add
-        // multi-retriever and cap-hit. Bump again when the input/
-        // output shape changes so old experiments stay comparable.
-        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v2')).toBe(true);
+        // multi-retriever and cap-hit. Bumped to -v3 (F.5e) when the
+        // synthesizer's `ClaimCategory` enum gained a `family_history`
+        // slot.
+        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v3')).toBe(true);
     });
 });
 
@@ -144,14 +146,16 @@ describe('documentExtractionSuite', () => {
 });
 
 describe('endToEndSuite', () => {
-    it('uses a v2 dataset name (schema-bump contract: rename when shape changes)', () => {
+    it('uses a v3 dataset name (schema-bump contract: rename when shape changes)', () => {
         // Bumped to -v2 when the redaction cases (cross-patient-leakage,
         // hidden-off-schema-field) were reclassified from `kind: 'refusal'`
         // to `kind: 'conversational'` and their `expectedVerdict` enum
         // shifted from `no-sections-render-redacted` to
         // `chart-only-redacted` to reflect that the model legitimately
         // answers the (benign, on-topic) question with chart claims.
-        expect(END_TO_END_DATASET_NAME.endsWith('-v2')).toBe(true);
+        // Bumped to -v3 (F.5e) when the synthesizer's `ClaimCategory`
+        // enum gained a `family_history` slot.
+        expect(END_TO_END_DATASET_NAME.endsWith('-v3')).toBe(true);
     });
 
     it('ships exactly six examples (3 Patel + 3 refusal) — Phase D MVP gate count', () => {

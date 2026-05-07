@@ -350,6 +350,79 @@ const materializeMedicationStatementPromotionBody = (
 };
 
 /**
+ * Materialize the F.5e family-history promotion body from
+ * `schemaJson` + `fieldPath`. The panel cites one
+ * `family_history[<idx>]` entry from the intake-form schema;
+ * F.5e's `?type=family_history` endpoint takes a single entry
+ * (`pid`, `source_document_uuid`, `relation`, `condition`, optional
+ * `comments`) — one accepted fact promotes one row, idempotent on
+ * `(source_document_uuid, lower(trim("{relation} — {condition}")))`.
+ *
+ * `relation` and `condition` are passed through as separate fields
+ * (rather than pre-composed into a `title`) so the PHP service owns
+ * the canonical em-dash form. That keeps idempotency consistent
+ * across re-promotes that vary only in whitespace or case.
+ *
+ * The intake-form schema has no `age_of_onset` field today, so the
+ * middleman omits `onset_date`. The DTO accepts it as optional for
+ * forward-compatibility once the schema gains the slot.
+ */
+const materializeFamilyHistoryPromotionBody = (
+    artifact: ExtractionArtifact,
+    fieldPath: string,
+): Materialized => {
+    if (artifact.docType !== 'intake_form') {
+        return { error: 'fact_type_mismatch' };
+    }
+    const schema = artifact.schemaJson;
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+        return { error: 'schema_invalid' };
+    }
+    const schemaRecord = schema as Record<string, unknown>;
+    const familyHistoryRaw = schemaRecord['family_history'];
+    if (!Array.isArray(familyHistoryRaw) || familyHistoryRaw.length === 0) {
+        return { error: 'schema_invalid' };
+    }
+
+    const fieldMatch = /^family_history\.(\d+)/.exec(fieldPath);
+    if (fieldMatch === null) {
+        return { error: 'unsupported_field_path' };
+    }
+    const idx = Number.parseInt(fieldMatch[1] ?? '', 10);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= familyHistoryRaw.length) {
+        return { error: 'unsupported_field_path' };
+    }
+
+    const row: unknown = familyHistoryRaw[idx];
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+        return { error: 'schema_invalid' };
+    }
+    const r = row as Record<string, unknown>;
+    const relation = r['relation'];
+    const condition = r['condition'];
+    if (typeof relation !== 'string' || relation.trim() === '') {
+        return { error: 'schema_invalid' };
+    }
+    if (typeof condition !== 'string' || condition.trim() === '') {
+        return { error: 'schema_invalid' };
+    }
+
+    const body: Record<string, unknown> = {
+        pid: artifact.pid,
+        source_document_uuid: artifact.documentUuid,
+        relation,
+        condition,
+    };
+    // The intake-form schema's only optional free-text slot today is
+    // `notes`; map it to `comments` (the chart-side column) so the
+    // family-history widget displays the agent's extracted context.
+    if (typeof r['notes'] === 'string' && r['notes'].trim() !== '') {
+        body['comments'] = r['notes'];
+    }
+    return { body };
+};
+
+/**
  * Materialize the F.5b allergy promotion body from `schemaJson` +
  * `fieldPath`. The panel cites one `allergies[<idx>]` entry from the
  * intake-form schema; F.5b's `?type=allergy` endpoint takes a single
@@ -437,10 +510,9 @@ export const createAcceptFactHandler = (
         }
 
         // F.5a shipped the lab materializer; F.5b ships allergy; F.5c
-        // ships medication_statement; F.5d ships past_medical_history.
-        // The remaining list-shaped fact type (`family_history`) stays
-        // 501 here so the panel surfaces the same typed-error toast it
-        // would for a direct `promote.php?type=…` call. F.5e flips it.
+        // ships medication_statement; F.5d ships past_medical_history;
+        // F.5e ships family_history. All five list-shaped fact types
+        // are now wired; only `demographics` stays 501 (F.6).
         let materialized: Materialized;
         if (factType === 'lab') {
             materialized = materializeLabPromotionBody(artifact, fieldPath);
@@ -450,6 +522,8 @@ export const createAcceptFactHandler = (
             materialized = materializeMedicationStatementPromotionBody(artifact, fieldPath);
         } else if (factType === 'past_medical_history') {
             materialized = materializeMedicalProblemPromotionBody(artifact, fieldPath);
+        } else if (factType === 'family_history') {
+            materialized = materializeFamilyHistoryPromotionBody(artifact, fieldPath);
         } else {
             return c.json({ error: 'not_yet_implemented' }, 501);
         }

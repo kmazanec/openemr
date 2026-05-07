@@ -55,7 +55,7 @@ describe('caseIdFromRun', () => {
 
     it('conversational-graph: pulls inputs.group verbatim', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-conversational-graph-v2',
+            'clinical-copilot-conversational-graph-v3',
             stubRun({ group: 'multi-retriever' }),
         );
         expect(id).toBe('multi-retriever');
@@ -63,7 +63,7 @@ describe('caseIdFromRun', () => {
 
     it('end-to-end: pulls inputs.scenario verbatim', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-end-to-end-v2',
+            'clinical-copilot-end-to-end-v3',
             stubRun({ scenario: 'lab-plus-chart' }),
         );
         expect(id).toBe('lab-plus-chart');
@@ -71,7 +71,7 @@ describe('caseIdFromRun', () => {
 
     it('briefing-graph: archetype:<key> for archetype kind', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'archetype', archetype: 'diabetic' }),
         );
         expect(id).toBe('archetype:diabetic');
@@ -79,7 +79,7 @@ describe('caseIdFromRun', () => {
 
     it('briefing-graph: lab-trend:<key> for lab-trend kind', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'lab-trend', scenario: 'a1c_trend_up' }),
         );
         expect(id).toBe('lab-trend:a1c_trend_up');
@@ -87,7 +87,7 @@ describe('caseIdFromRun', () => {
 
     it('briefing-graph: morning-prep:<id> for morning-prep kind', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'morning-prep', appointmentId: 'apt-uc5-12' }),
         );
         expect(id).toBe('morning-prep:apt-uc5-12');
@@ -95,7 +95,7 @@ describe('caseIdFromRun', () => {
 
     it('returns null when the run has no recognizable case id', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-briefing-graph-v1',
+            'clinical-copilot-briefing-graph-v2',
             stubRun({ caseKind: 'archetype' }),
         );
         expect(id).toBeNull();
@@ -159,17 +159,17 @@ describe('sortCases', () => {
 describe('sortDatasets', () => {
     it('sorts dataset-name keys alphabetically', () => {
         const input = {
-            'clinical-copilot-end-to-end-v2': { cases: {} },
-            'clinical-copilot-briefing-graph-v1': { cases: {} },
+            'clinical-copilot-end-to-end-v3': { cases: {} },
+            'clinical-copilot-briefing-graph-v2': { cases: {} },
             'clinical-copilot-document-extraction-v1': { cases: {} },
-            'clinical-copilot-conversational-graph-v2': { cases: {} },
+            'clinical-copilot-conversational-graph-v3': { cases: {} },
         };
         const sorted = sortDatasets(input);
         expect(Object.keys(sorted)).toEqual([
-            'clinical-copilot-briefing-graph-v1',
-            'clinical-copilot-conversational-graph-v2',
+            'clinical-copilot-briefing-graph-v2',
+            'clinical-copilot-conversational-graph-v3',
             'clinical-copilot-document-extraction-v1',
-            'clinical-copilot-end-to-end-v2',
+            'clinical-copilot-end-to-end-v3',
         ]);
     });
 
@@ -178,10 +178,10 @@ describe('sortDatasets', () => {
             'archetype:diabetic': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
         };
         const input = {
-            'clinical-copilot-end-to-end-v2': { cases: {} },
-            'clinical-copilot-briefing-graph-v1': { cases },
+            'clinical-copilot-end-to-end-v3': { cases: {} },
+            'clinical-copilot-briefing-graph-v2': { cases },
         };
         const sorted = sortDatasets(input);
-        expect(sorted['clinical-copilot-briefing-graph-v1']?.cases).toBe(cases);
+        expect(sorted['clinical-copilot-briefing-graph-v2']?.cases).toBe(cases);
     });
 });

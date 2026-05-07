@@ -131,6 +131,10 @@ final readonly class PolicyGate
         // proxy before clicking accept; the agent middleman is the
         // type-aware policy point and rejects mismatches there.
         // F.5b–F.5e flip each non-lab branch from 501 to a real write.
+        // F.5e adds `user/FamilyMemberHistory.cs` so a `Condition`
+        // token (which the past-medical-history branch will require
+        // once F.5d lands) cannot smuggle through and write a
+        // family-history row, and vice-versa.
         'accept_fact' => [
             'openid',
             'fhirUser',
@@ -139,6 +143,7 @@ final readonly class PolicyGate
             'user/AllergyIntolerance.cs',
             'user/MedicationStatement.cs',
             'user/Condition.cs',
+            'user/FamilyMemberHistory.cs',
         ],
     ];
 

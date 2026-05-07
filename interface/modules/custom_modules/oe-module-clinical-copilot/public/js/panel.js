@@ -582,14 +582,15 @@ const __copilotPanel = (function () {
 
     /**
      * F.5a — map a claim's verifier `category` to the `factType` the
-     * `accept_fact` route expects on its body. Mostly 1:1, with the
-     * caveat that `diagnosis` claims from extracted documents map to
-     * `past_medical_history` (the synthesizer's category enum lacks a
-     * `family_history` slot, so until that lands the panel always
-     * picks `past_medical_history` for diagnosis-shaped doc claims).
-     * Returns `null` for categories the panel does not promote
-     * (identity, appointment, encounter, etc.) — callers skip the
-     * action-button render in that case.
+     * `accept_fact` route expects on its body. Mostly 1:1; `diagnosis`
+     * claims from extracted documents map to `past_medical_history`
+     * (since both ride the same chart-side widget). F.5e adds the
+     * dedicated `family_history` slot to `ClaimCategory`, so the
+     * synthesizer can now disambiguate hereditary-history claims from
+     * the patient's own past-medical-history — those map straight to
+     * `family_history`. Returns `null` for categories the panel does
+     * not promote (identity, appointment, encounter, etc.) — callers
+     * skip the action-button render in that case.
      */
     const factTypeForClaimCategory = (category) => {
         switch (category) {
@@ -601,6 +602,8 @@ const __copilotPanel = (function () {
                 return 'medication_statement';
             case 'diagnosis':
                 return 'past_medical_history';
+            case 'family_history':
+                return 'family_history';
             default:
                 return null;
         }

@@ -588,6 +588,17 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
         resolves: (ref, idx) => idx.diagnoses.has(ref.source_id),
         contentMatches: matchesDiagnosis,
     },
+    family_history: {
+        // F.5e — family_history claims primarily come from
+        // `extracted_document` source_type (the briefing snapshot has
+        // no chart-side family-history map today). The chart-source
+        // path runs through this `resolves` and always returns false:
+        // the snapshot has no `idx.familyHistory.*` to look against,
+        // so a chart-typed family_history claim is treated as
+        // unresolved (REJECT_UNRESOLVED). The extracted_document path
+        // bypasses CHECKS entirely.
+        resolves: () => false,
+    },
     encounter: {
         resolves: (ref, idx) => idx.encounters.has(ref.source_id),
         contentMatches: matchesEncounter,

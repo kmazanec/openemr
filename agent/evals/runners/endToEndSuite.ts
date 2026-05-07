@@ -51,7 +51,12 @@ import {
 
 import type { Client } from 'langsmith';
 
-export const DATASET_NAME = 'clinical-copilot-end-to-end-v2';
+// v3 (F.5e): synthesizer's `ClaimCategory` enum gained a
+// `family_history` slot. The dataset's input/output shape is
+// unchanged, but bumping per the W2 dataset-version convention so
+// experiments captured before the schema gained the slot stay
+// comparable.
+export const DATASET_NAME = 'clinical-copilot-end-to-end-v3';
 
 const DATASET_DESCRIPTION =
     'End-to-end Phase D MVP thin-slice evals — 6 cases (3 Mrs. Patel scenario + 3 refusal). Inputs encode the scenario; outputs encode the structural verdict (chart+document+guideline grouping for Patel; refusal-shaped/empty-claimGroups for refusal). The per-MR Vitest layer at agent/evals/cases/end-to-end/ asserts the structural invariants over hand-rolled drafts; the experiment runs the same scenarios against the real briefingGraph backed by Anthropic Sonnet 4.x (and Pinecone+Cohere when wired).';

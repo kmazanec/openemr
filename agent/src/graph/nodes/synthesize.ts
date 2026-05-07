@@ -55,6 +55,11 @@ const claimSchema = z.object({
         'lab',
         'allergy',
         'diagnosis',
+        // F.5e — distinguish family-history claims from
+        // past-medical-history (`diagnosis`) so the panel can route
+        // accept clicks to the dedicated Tier-3 family-history promote
+        // branch.
+        'family_history',
         'encounter',
         'appointment',
         'identity',

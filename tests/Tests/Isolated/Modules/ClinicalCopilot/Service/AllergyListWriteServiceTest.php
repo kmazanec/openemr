@@ -42,9 +42,15 @@ use OpenEMR\Modules\ClinicalCopilot\RequestLog\InMemoryDisclosureRecorder;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyListWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\AllergyPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\FamilyHistoryWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemListsTableWriter;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemPromotionRequest;
 use OpenEMR\Modules\ClinicalCopilot\Service\MedicalProblemWriteService;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementListsTableWriter;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementPromotionRequest;
+use OpenEMR\Modules\ClinicalCopilot\Service\MedicationStatementWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\ObservationLabWriteService;
 use OpenEMR\Modules\ClinicalCopilot\Service\PersistedListEntry;
 use OpenEMR\Modules\ClinicalCopilot\Service\ProcedureReportTableWriter;
@@ -65,6 +71,8 @@ require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyPromotionRequest.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/AllergyListsTableWriter.php';
+require_once __DIR__
+    . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/FamilyHistoryListsTableWriter.php';
 require_once __DIR__
     . '/../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Service/MedicalProblemPromotionRequest.php';
 require_once __DIR__
@@ -121,6 +129,7 @@ final class AllergyListWriteServiceTest extends TestCase
 
         require_once self::MODULE_DIR . '/Events/ProcedureReportCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/AllergyListEntryCreatedEvent.php';
+        require_once self::MODULE_DIR . '/Events/FamilyHistoryListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/MedicalProblemListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Events/MedicationStatementListEntryCreatedEvent.php';
         require_once self::MODULE_DIR . '/Service/ObservationResult.php';
@@ -130,12 +139,16 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/PersistedListEntry.php';
         require_once self::MODULE_DIR . '/Service/ProcedureReportTableWriter.php';
         require_once self::MODULE_DIR . '/Service/AllergyListsTableWriter.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/MedicationStatementListsTableWriter.php';
         require_once self::MODULE_DIR . '/Service/ObservationLabWriteService.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/AllergyPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/AllergyListWriteService.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryPromotionRequest.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryPromotionResult.php';
+        require_once self::MODULE_DIR . '/Service/FamilyHistoryWriteService.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionRequest.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemPromotionResult.php';
         require_once self::MODULE_DIR . '/Service/MedicalProblemWriteService.php';
@@ -144,6 +157,7 @@ final class AllergyListWriteServiceTest extends TestCase
         require_once self::MODULE_DIR . '/Service/MedicationStatementWriteService.php';
         require_once self::MODULE_DIR . '/Controller/LabPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/AllergyPromotionRequestParser.php';
+        require_once self::MODULE_DIR . '/Controller/FamilyHistoryPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicalProblemPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/MedicationStatementPromotionRequestParser.php';
         require_once self::MODULE_DIR . '/Controller/PromoteController.php';
@@ -425,10 +439,10 @@ final class AllergyListWriteServiceTest extends TestCase
 
         $allergyService = $this->makeService($writer ?? new InMemoryAllergyTableWriter(), null);
 
-        // Lab + medical-problem + medication-statement services are
-        // required by the controller's constructor but not exercised by
-        // any allergy test path. No-op writers satisfy the types
-        // without any setup cost.
+        // Lab + medical-problem + medication-statement + family-history
+        // services are required by the controller's constructor but not
+        // exercised by any allergy test path. No-op writers satisfy the
+        // types without any setup cost.
         $labService = new ObservationLabWriteService(
             tableWriter: new NoopProcedureReportTableWriter(),
             eventDispatcher: $dispatcher,
@@ -447,6 +461,12 @@ final class AllergyListWriteServiceTest extends TestCase
             clock: $this->fixedClock(),
             logger: $logger,
         );
+        $familyHistoryService = new FamilyHistoryWriteService(
+            tableWriter: new NoopFamilyHistoryListsTableWriter(),
+            eventDispatcher: $dispatcher,
+            clock: $this->fixedClock(),
+            logger: $logger,
+        );
 
         $controller = new PromoteController(
             auth: $auth,
@@ -454,6 +474,7 @@ final class AllergyListWriteServiceTest extends TestCase
             allergyWriteService: $allergyService,
             medicalProblemWriteService: $medicalProblemService,
             medicationStatementWriteService: $medicationService,
+            familyHistoryWriteService: $familyHistoryService,
             eventDispatcher: $dispatcher,
             logger: $logger,
             siteId: 'default',
@@ -602,6 +623,31 @@ final class NoopMedicationStatementTableWriter implements \OpenEMR\Modules\Clini
         \DateTimeImmutable $createdAt,
     ): PersistedListEntry {
         throw new \RuntimeException('NoopMedicationStatementTableWriter.insertMedication must not be called');
+    }
+}
+
+/**
+ * No-op family-history writer for the allergy controller tests. The
+ * controller's constructor needs the family-history service for type
+ * signature but no allergy test routes through the family-history
+ * branch.
+ */
+final class NoopFamilyHistoryListsTableWriter implements FamilyHistoryListsTableWriter
+{
+    public function findExistingFamilyHistory(
+        string $sourceDocumentUuid,
+        string $normalizedTitle,
+    ): ?PersistedListEntry {
+        return null;
+    }
+
+    public function insertFamilyHistory(
+        FamilyHistoryPromotionRequest $request,
+        \DateTimeImmutable $createdAt,
+    ): PersistedListEntry {
+        throw new \RuntimeException(
+            'NoopFamilyHistoryListsTableWriter.insertFamilyHistory must not be called',
+        );
     }
 }
 
