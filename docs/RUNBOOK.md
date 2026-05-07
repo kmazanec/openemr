@@ -363,6 +363,164 @@ module is available for one-off scripts that need fixed targets).
 
 ---
 
+## Eval-gate CI job (per-MR)
+
+The `test:agent-evals-gate` job in `.gitlab-ci.yml` runs every suite's
+experiment against real models on every MR that touches `agent/**` or
+`.gitlab-ci.yml`, compares the resulting per-(case, rubric) booleans
+against `agent/evals/baselines/eval-suite.json`, and fails the
+pipeline when more than 5% of scored cells flip from `true` to
+`false`. Suites run concurrently in-process (Promise.all in
+`runExperiment`); wall-clock is dominated by the slowest suite.
+
+The job posts a markdown comment to the MR with the regression rate,
+the list of flipped cells, the cost estimate, and any vendor-outage
+skips. The post uses `CI_JOB_TOKEN` against the Notes API — no extra
+auth setup.
+
+**What "down" means for vendor-outage skip.** The
+`evals:vendor-health` step GETs each vendor's public status-summary
+endpoint (Anthropic, OpenAI, Cohere, Pinecone, LangSmith). Any of the
+following marks a vendor `degraded`:
+
+- HTTP non-2xx response from the status page.
+- Connection error (DNS failure, TLS error, refused connection).
+- Hard timeout at 8 seconds.
+
+The status page body is intentionally not parsed — vendors change
+their incident schemas. A reachable, 2xx-responding status page is a
+sufficient proxy for "the vendor is up enough to run our gate." Cases
+on degraded vendors are excluded from the regression-rate denominator
+and surfaced separately on the MR comment instead of failing the
+gate. If you want stricter checking (parse the status body for active
+incidents), extend `agent/scripts/vendor-health-check.ts`.
+
+If `evals:check-cost` aborts the job with an estimate over $5, either
+trim a suite's case count or document a justified bump in
+`W2_ARCHITECTURE.md` and update `HARD_CAP_USD` in
+`agent/scripts/check-cost-cap.ts` — the cap is the architecture's
+locked decision, not a default.
+
+---
+
+## Regression-injection drill
+
+The W2 PDF requires a documented procedure that demonstrates the eval
+gate catches a deliberate regression. The drill below weakens the
+verifier's bbox-equality check on a throwaway branch, watches CI go
+red, then reverts. The whole exercise should take ~10 minutes.
+
+**Run this drill once before submission**, and once per quarter
+afterward to keep the procedure current. If the procedure stops
+working (e.g. the line being weakened moves, or the test asserting
+the invariant gets renamed), update this section before merging the
+breaking change.
+
+### What the drill weakens
+
+`agent/src/verify/verifier.ts` has a bbox-equality check on every
+`extracted_document` claim's locator:
+
+```ts
+if (!arraysEqual(ref.locator.bbox, snippet.bbox)) {
+    return { ok: false, reason: REJECT_CONTENT };
+}
+```
+
+(See `agent/src/verify/verifier.ts:781-782` at the time of writing —
+search for `arraysEqual(ref.locator.bbox` if the line numbers have
+moved.)
+
+This check ensures a synthesizer can't fabricate a citation by
+combining a real document id with an arbitrary bbox — the bbox must
+match the snippet the retriever returned. Removing it lets fabricated
+bboxes through, which is exactly the kind of regression the gate
+needs to catch.
+
+### Two failure signals you should see
+
+1. **Vitest gate (deterministic, fast).** The case
+   `agent/evals/cases/conversational-graph/verification/verification.test.ts`
+   `"extracted-document claim with a fabricated bbox is rejected even
+   when the artifact id resolves"` flips red immediately when the
+   weakening lands. This is the proof that the weakening took effect.
+2. **CI eval gate (real-model, slow).** The live experiments now
+   accept `extracted_document` claims that previously rejected on
+   bbox mismatch, which flips multiple `factually_consistent` and
+   `citation_present` cells across the conversational-graph and
+   end-to-end datasets. The flipped-cell count exceeds 5% of scored
+   cells, so `npm run evals:gate` exits non-zero and the
+   `test:agent-evals-gate` job fails. This is the proof that the
+   *gate* caught the regression.
+
+### Procedure
+
+1. Create a branch from `master`:
+   ```sh
+   git checkout -b drill/regression-injection-N
+   ```
+   where `N` is the iteration number (1 for the first drill).
+
+2. Apply the weakening. Comment out lines 781-782 of
+   `agent/src/verify/verifier.ts`:
+   ```ts
+   // DRILL: bbox-equality check disabled to validate eval gate
+   // if (!arraysEqual(ref.locator.bbox, snippet.bbox)) {
+   //     return { ok: false, reason: REJECT_CONTENT };
+   // }
+   ```
+   Make a single commit with message
+   `chore(drill): regression-injection #N — disable bbox equality`.
+
+3. Push and open an MR against `master`:
+   ```sh
+   git push -u origin drill/regression-injection-N
+   glab mr create --title "DRILL #N — regression injection" \
+     --description "Drill: bbox-equality weakening to validate the eval gate. Do NOT merge."
+   ```
+   Tag the MR with the `drill` label so reviewers know not to merge.
+
+4. Wait for the pipeline. Two jobs should fail:
+   - `test:agent` — Vitest gate flips on the bbox case.
+   - `test:agent-evals-gate` — eval gate flips multiple
+     `factually_consistent` / `citation_present` cells, regression
+     rate exceeds 5%.
+
+5. Capture the evidence for this section's audit log:
+   - Pipeline URL.
+   - The Vitest failure output (the "fabricated bbox" assertion).
+   - The eval gate's MR comment with the flipped-cell list.
+
+6. Close the MR without merging. Delete the branch:
+   ```sh
+   git push origin --delete drill/regression-injection-N
+   ```
+
+### How to revert if the weakening accidentally lands on master
+
+If a drill commit somehow merges (it shouldn't — drill MRs are tagged
+and not merged), revert with a fresh commit:
+
+```sh
+git revert <weakening-commit-sha>
+git push origin master
+```
+
+Confirm the next MR pipeline runs `test:agent-evals-gate` clean
+before declaring the rollback complete.
+
+### Drill execution log
+
+| # | Date | Branch | Pipeline URL | Outcome |
+|---|------|--------|--------------|---------|
+| 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+
+(Append a row each time the drill runs. The first row stays `pending`
+until the engineer who runs the drill before W2 submission fills it
+in.)
+
+---
+
 ## Pre-deploy checklist
 
 Quick sanity sweep before pushing to master. Most are automated by the
