@@ -45,6 +45,30 @@ const __copilotDocumentViewer = (function () {
     const PDFJS_CDN_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.min.mjs`;
     const PDFJS_WORKER_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.mjs`;
 
+    /**
+     * Vision-pipeline bbox coordinate space.
+     *
+     * The agent rasterizes PDFs at 150 DPI (see
+     * `agent/src/pipeline/rasterizer.ts` — `RENDER_DPI`), but
+     * Anthropic's vision API internally downscales images to 1024px
+     * longest-edge for processing and returns bboxes in *that*
+     * resized space — not the rasterizer's pixel space we sent.
+     * Empirically confirmed by the bbox magnitudes returned for
+     * 8.5×11 inputs: x ranges up to ~875, y ranges up to ~1024.
+     *
+     * For overlay positioning we therefore need the page's
+     * vision-space denominator: (long-edge: 1024, short-edge:
+     * 1024 × short_pt / long_pt). PDF.js's native viewport gives us
+     * the PDF point dimensions to compute the short-edge ratio.
+     *
+     * If a future agent revision changes Anthropic's resize behavior
+     * (e.g. higher-resolution vision, or a different SDK option) the
+     * denominator here needs to track. The synthesizer prompt should
+     * eventually emit the natural-size denominator alongside the
+     * bbox so the panel doesn't have to guess.
+     */
+    const VISION_LONGEST_EDGE_PX = 1024;
+
     const PDF_MIME = 'application/pdf';
     const IMAGE_MIMES = new Set(['image/png', 'image/jpeg']);
     const TIFF_MIME = 'image/tiff';
@@ -228,6 +252,20 @@ const __copilotDocumentViewer = (function () {
         const pageNumber = Number.isInteger(page) && page > 0 ? Math.min(page, pdf.numPages) : 1;
         const pdfPage = await pdf.getPage(pageNumber);
         const viewport = pdfPage.getViewport({ scale: 1.5 });
+        // Bboxes come back from Anthropic vision in 1024-longest-edge
+        // pixel space (the API's internal resize), not the rasterizer's
+        // 150 DPI pixel space. Compute the vision-space dimensions for
+        // this page from the PDF's native aspect ratio so
+        // renderBboxOverlay can position the overlay in percentages —
+        // independent of the PDF.js render scale we choose for display.
+        const nativeViewport = pdfPage.getViewport({ scale: 1 });
+        const longEdge = Math.max(nativeViewport.width, nativeViewport.height);
+        const shortEdge = Math.min(nativeViewport.width, nativeViewport.height);
+        const visionLong = VISION_LONGEST_EDGE_PX;
+        const visionShort = visionLong * (shortEdge / longEdge);
+        const naturalSize = nativeViewport.width >= nativeViewport.height
+            ? { width: visionLong, height: visionShort }
+            : { width: visionShort, height: visionLong };
         const wrapper = mountEl.ownerDocument.createElement('div');
         wrapper.className = 'copilot-doc-viewer__page';
         wrapper.dataset.role = 'viewer-page';
@@ -241,7 +279,7 @@ const __copilotDocumentViewer = (function () {
         canvas.height = viewport.height;
         const ctx = canvas.getContext('2d');
         wrapper.appendChild(canvas);
-        const overlay = renderBboxOverlay(wrapper, bbox);
+        const overlay = renderBboxOverlay(wrapper, bbox, naturalSize);
         if (overlay !== null) wrapper.appendChild(overlay);
         mountEl.appendChild(wrapper);
         // Pre-scroll the viewer container to the rendered page. With a
