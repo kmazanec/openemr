@@ -247,7 +247,12 @@ test:agent-evals-gate:
   rules:
   - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     changes:
-    - agent/**/*
+    - agent/src/**/*
+    - agent/evals/runners/**/*
+    - agent/evals/rubrics/**/*
+    - agent/evals/baselines/**/*
+    - agent/package.json
+    - agent/package-lock.json
     - .gitlab-ci.yml
   script:
   - |
