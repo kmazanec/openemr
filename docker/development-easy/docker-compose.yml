@@ -177,6 +177,14 @@ services:
       NODE_ENV: development
       PORT: '8080'
       DATABASE_URL: postgresql://agent:agent@agent-postgres:5432/agent
+      # macOS bind mounts don't propagate inotify events into Linux
+      # containers, so `tsx watch`'s default fsevents-backed watcher
+      # silently misses host-side edits. chokidar (which tsx bundles)
+      # reads these env vars and falls back to polling — pick a 500 ms
+      # cadence so the host doesn't see noticeable I/O while still
+      # restarting the server within ~1 s of a save.
+      CHOKIDAR_USEPOLLING: 'true'
+      CHOKIDAR_INTERVAL: '500'
       # Dev-only: keep rasterized page PNGs in the Spaces transient
       # prefix so an operator can click the signed URL from the
       # rasterize log and inspect exactly what the vision model saw.
