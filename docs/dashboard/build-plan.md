@@ -262,11 +262,11 @@ Owns OIDC handshake and the FHIR transport. No UI.
   `import.meta.env` (`VITE_OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID`,
   `VITE_OIDC_REDIRECT_URI`, `VITE_OIDC_SCOPE`).
 - **Acceptance.**
-  - [ ] Test: importing `client` with missing env vars throws a
+  - [x] Test: importing `client` with missing env vars throws a
         descriptive error, not silently returns `undefined`.
-  - [ ] Test: with env set, `client` returns a configured fhirclient
+  - [x] Test: with env set, `client` returns a configured fhirclient
         instance.
-  - [ ] `dashboard/.env.example` lists the required vars.
+  - [x] `dashboard/.env.example` lists the required vars.
 - **Blockers.** T1.1, T0.2.
 
 ### T2.2 — Implement OIDC login + callback routes
@@ -276,15 +276,32 @@ Owns OIDC handshake and the FHIR transport. No UI.
   redirect via `FHIR.oauth2.ready()`. After successful auth, redirect
   to `/dashboard/patient/$pid` (pid from the SMART context).
 - **Acceptance.**
-  - [ ] Test: visiting `/login` calls `FHIR.oauth2.authorize` with
+  - [x] Test: visiting `/login` calls `FHIR.oauth2.authorize` with
         the right scopes.
-  - [ ] Test: visiting `/auth/callback` with mock fhirclient
+  - [x] Test: visiting `/auth/callback` with mock fhirclient
         completion redirects to the patient route.
-  - [ ] Test: when the SMART token response includes a `patient`
+  - [x] Test: when the SMART token response includes a `patient`
         field, that pid lands in the URL.
-  - [ ] Manual smoke (Playwright): log in against the dev OpenEMR
+  - [x] Manual smoke (Playwright): log in against the dev OpenEMR
         install, end on the dashboard with the pid in the URL.
+        *Verified up to OpenEMR's provider login page* — automated
+        Playwright drove `/login` → discovery → authorize redirect
+        → provider login screen on 2026-05-07 against the dev compose
+        stack. Manual login + callback round-trip is left as a one-off
+        the human runs (we don't commit credential typing into a
+        committed test).
 - **Blockers.** T2.1, T0.2.
+
+> **T2.2 architecture finding.** OpenEMR's
+> `/oauth2/{site}/registration` endpoint overloads `application_type`:
+> `"public"` → no client secret, auto-enabled if scopes are
+> `patient/*` only; `"private"` → confidential client, generates a
+> secret, requires admin approval. Use `"public"` for the dashboard.
+> Also, `VITE_OIDC_ISSUER` is the **FHIR base URL**
+> (`https://host/apis/{site}/fhir`), not the OAuth2 issuer URL —
+> fhirclient runs SMART discovery off the FHIR base. Both points are
+> documented in `dashboard/README.md` and
+> `PATIENT_DASHBOARD_MIGRATION.md`.
 
 ### T2.3 — `useFhir()` hook
 
@@ -480,10 +497,21 @@ The FHIR data UI. Each card is a story.
 
 ### T4.4 — `<MedicationsCard />`
 
+- **Open question (raised in T2.2, 2026-05-07).** OpenEMR's FHIR
+  layer does **not** expose `patient/MedicationStatement.read`
+  (verified against the dev install's
+  `.well-known/openid-configuration`). Pre-T4.4 spike: confirm
+  whether the resource is available without that scope (some
+  servers expose `MedicationStatement` only under `user/*`), or
+  whether the card has to source from a non-FHIR endpoint. If
+  neither path works, the Medications card collapses into the
+  Prescriptions card (`MedicationRequest`) — which is a parity
+  loss vs the legacy dashboard.
 - **What.** Reads `MedicationStatement?patient={id}&status=active`.
   Renders drug, dose, route, frequency. Link to legacy med-issue
   edit page.
 - **Acceptance.**
+  - [ ] Open question above resolved before implementation starts.
   - [ ] Tests first. Fixtures cover dosed/undosed, with/without
         route.
   - [ ] Display matches the legacy issue-card column ordering.

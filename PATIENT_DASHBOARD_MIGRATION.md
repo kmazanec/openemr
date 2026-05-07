@@ -333,7 +333,15 @@ capabilities directly against the source.
   mandates this; OpenEMR follows.
 - **Public client.** The dashboard registers with no client secret.
   OpenEMR treats `client_secret` empty as `is_confidential = 0`,
-  which is the correct shape for a SPA.
+  which is the correct shape for a SPA. **Use
+  `application_type: "public"` in the registration payload** —
+  OpenEMR's `application_type` field overloads the public/confidential
+  distinction (`"public"` → no secret, auto-enabled when scopes are
+  `patient/*` only; `"private"` → confidential client, secret
+  generated, requires admin approval). The
+  `token_endpoint_auth_method` field is for confidential clients
+  only and must be omitted for public clients (verified against
+  `AuthorizationController::clientRegistration`).
 - **Dynamic client registration.** OpenEMR exposes RFC 7591 at
   `/oauth2/{site}/registration`. We register the dashboard client
   there at install time; the returned `client_id` goes into
@@ -345,7 +353,12 @@ capabilities directly against the source.
   and `/fhir/.well-known/smart-configuration` at app startup — no
   hardcoded endpoint URLs.
 - **SMART scopes** requested at startup:
-  `openid fhirUser launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationStatement.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read`.
+  `openid fhirUser launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read`.
+  `patient/MedicationStatement.read` is intentionally **not** in the
+  set: OpenEMR's FHIR layer does not advertise that scope (verified
+  against the dev install via `.well-known/openid-configuration`).
+  T4.4 (the Medications card) needs to source from `MedicationRequest`
+  or a non-FHIR endpoint as a result; the build plan flags this.
 
 ### Why fhirclient
 

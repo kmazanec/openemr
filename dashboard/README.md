@@ -66,22 +66,39 @@ matches what CI and the production deploy do.
 ```
 dashboard/
 ├── src/
-│   ├── App.tsx              # Mount point for the SPA tree
+│   ├── App.tsx                    # Wires the router and exports <App>
 │   ├── App.test.tsx
-│   └── main.tsx             # Vite entry
+│   ├── main.tsx                   # Vite entry
+│   ├── lib/
+│   │   ├── fhir.ts                # fhirclient + OIDC config (T2.1)
+│   │   └── fhir.test.ts
+│   └── routes/
+│       ├── routeTree.tsx          # TanStack Router tree (code-based)
+│       ├── login.tsx              # /login → FHIR.oauth2.authorize
+│       ├── authCallback.tsx       # /auth/callback → FHIR.oauth2.ready
+│       ├── dashboardLanding.tsx   # / and /dashboard placeholder
+│       ├── patient.tsx            # /patient/$pid placeholder (T4 fills)
+│       └── auth.test.tsx          # T2.2 unit coverage
 ├── tests/
-│   ├── setup.ts             # @testing-library/jest-dom registration
+│   ├── setup.ts                   # @testing-library/jest-dom registration
 │   └── e2e/
-│       └── smoke.spec.ts    # Playwright smoke
+│       └── smoke.spec.ts          # Playwright smoke
 ├── eslint.config.js
 ├── playwright.config.ts
 ├── vite.config.ts
 ├── vitest.config.ts
-├── tsconfig.json            # Solution-style: refs app + node configs
-├── tsconfig.app.json        # `src/` + tests: strict, jsdom env
-├── tsconfig.node.json       # config files (vite.config.ts, …)
+├── tsconfig.json                  # Solution-style: refs app + node configs
+├── tsconfig.app.json              # `src/` + tests: strict, jsdom env
+├── tsconfig.node.json             # config files (vite.config.ts, …)
 └── README.md
 ```
+
+> **Routing.** Routes are defined in code (`routes/routeTree.tsx`)
+> rather than via TanStack Router's file-based plugin. Same library,
+> same type safety, less generator churn for the small T2 route set.
+> If/when the file count makes the code-based tree painful (T4–T5
+> probably), a follow-up can migrate to file-based; the route
+> components are already split per-file to keep that easy.
 
 ## Dev environment integration
 
@@ -125,25 +142,43 @@ one `deploy.sh` builds from the deploy SHA's source.
 
 ## OAuth2 client registration (T2 onwards)
 
-Production deploys need a registered OIDC client (see T0.2 in the
-build plan). One-time admin step:
+Both dev and prod deploys need a registered OIDC client (see T0.2 in
+the build plan). The dashboard registers as a SMART **public** client
+(`application_type: "public"`) — no client secret, PKCE-only.
+
+> **Important:** OpenEMR's `application_type` field overloads the
+> public/confidential distinction. `"public"` → no `client_secret`,
+> auto-enabled if scopes are `patient/*` only. `"private"` → confidential
+> client with a generated `client_secret`, requires admin approval.
+> The `token_endpoint_auth_method` field is for confidential clients
+> only; omit it for public clients.
+
+One-time registration:
 
 ```sh
-# Replace {site} with the OpenEMR site (e.g. `default`) and
-# {host} with the production host (https://emr.example.com).
-curl -X POST "https://{host}/oauth2/{site}/registration" \
+# Dev: site=default, host=https://localhost:9300, redirect=http://localhost:5173/auth/callback
+# Prod: site=default (or your site), host=https://emr.example.com,
+#       redirect=https://emr.example.com/dashboard/auth/callback
+curl -sk -X POST "https://{host}/oauth2/{site}/registration" \
   -H 'Content-Type: application/json' \
   -d '{
-    "application_type": "private",
-    "redirect_uris": ["https://{host}/dashboard/auth/callback"],
+    "application_type": "public",
+    "redirect_uris": ["{redirect_uri}"],
     "client_name": "OpenEMR Patient Dashboard",
-    "token_endpoint_auth_method": "none"
+    "scope": "openid fhirUser launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read"
   }'
 ```
 
-The response includes `client_id`. Drop it into `.env.local` (dev) or
-the production deployment env as `VITE_OIDC_CLIENT_ID`. See
-`.env.example` for the full var surface.
+The response includes `client_id` and an empty `client_secret` (public
+client). Drop the `client_id` into `.env.local` (dev) or the
+production deployment env as `VITE_OIDC_CLIENT_ID`. See `.env.example`
+for the full var surface.
+
+> **Note on Medications scope.** OpenEMR's FHIR layer does not expose a
+> `patient/MedicationStatement.read` scope (verified against the dev
+> install on 2026-05-07). The build plan's T4.4 Medications card will
+> need to source from `MedicationRequest` or a non-FHIR endpoint —
+> revisit when T4.4 lands.
 
 ## Conventions
 
