@@ -17,7 +17,11 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run dev',
+    // Override Vite's prod base path (`/dashboard/`) so the dev
+    // server serves at the root for these smoke tests. Production
+    // routing (with the /dashboard/ prefix) is exercised by Apache
+    // in the deployed environment, not here.
+    command: 'VITE_BASE=/ npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
