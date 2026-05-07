@@ -297,6 +297,72 @@ agent once more.
 
 ---
 
+## Rebaselining the eval suite
+
+The unified baseline at `agent/evals/baselines/eval-suite.json` pins a
+boolean per (dataset, case, rubric) cell. The Phase E.4 CI gate sums
+every applicable cell across all four datasets and fails the pipeline
+when more than 5% flip live. Rebaselining is the deliberate, documented
+step that updates expectations after an intentional change — never a
+side effect of a routine PR.
+
+### When to rebaseline
+
+- **Model upgrade.** Bumping the synthesizer (Anthropic Sonnet 4.6 →
+  4.7, etc.) or the embeddings/rerank vendor versions changes per-case
+  scores in ways that are not regressions.
+- **Intentional rubric tightening.** Adding a new check inside an
+  existing rubric (e.g., `factually_consistent` now also rejects
+  unmatched bbox locators) is expected to flip cells from baseline-pass
+  to live-fail, and the new behavior is what we want pinned.
+- **Deliberate suite expansion.** Adding new cases (a new archetype, a
+  new lab-trend scenario) means new rows in the baseline; the
+  structural test at `agent/evals/baselines/eval-suite.test.ts` will
+  fail until the baseline file lists them.
+
+Do **not** rebaseline to make a PR's failing CI green. The drill in
+the next section exists specifically to ensure deliberate regressions
+are caught — papering over them by rebaselining defeats the gate.
+
+### How to rebaseline
+
+The script lives at `agent/scripts/rebaseline.ts` and is wired as
+`npm run evals:rebaseline`. It reads the most recent LangSmith
+experiment for each of the four datasets, pulls every per-rubric
+feedback row, and writes `agent/evals/baselines/eval-suite.json`. It
+refuses to write unless invoked with both `--confirm` and a
+`--commit-message <text>` argument; the message is recorded in the
+file's audit fields and is meant to repeat the rebaseline PR's commit
+body verbatim.
+
+Steps:
+
+1. Make sure a recent experiment has run for each dataset against the
+   target HEAD. Either wait for the nightly LangSmith experiment job
+   or trigger it manually with `cd agent && npm run evals:experiment`
+   (requires `LANGSMITH_API_KEY` and `ANTHROPIC_API_KEY`).
+2. From a feature branch named `eval-rebaseline/<short-reason>`:
+   ```sh
+   cd agent
+   npm run evals:rebaseline -- --confirm --commit-message "rebaseline after Sonnet 4.6 → 4.7 — citation_present cell flips on 6 lab-trend rows are now expected"
+   ```
+3. Inspect the diff (`git diff agent/evals/baselines/eval-suite.json`).
+   Cells that flipped from `true` to `false` or appeared/disappeared
+   should match the change you intended. If unrelated cells moved,
+   stop — the experiment may have included a real regression.
+4. Commit the regenerated baseline alone (no other changes in the
+   commit). Open the PR with the **`eval-rebaseline`** label so reviewers
+   know the gate is being intentionally moved.
+5. Reviewer confirms the message matches the diff and merges.
+
+If the script reports `no experiment found for dataset <name>`, the
+LangSmith project for that dataset is missing — re-run
+`evals:experiment` or pass an explicit experiment via the
+`experimentNameByDataset` option (an exported function on the script
+module is available for one-off scripts that need fixed targets).
+
+---
+
 ## Pre-deploy checklist
 
 Quick sanity sweep before pushing to master. Most are automated by the
