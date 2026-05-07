@@ -449,117 +449,139 @@ integration testing.
 
 The FHIR data UI. Each card is a story.
 
-### T4.1 — `<PatientHeader />` (the persistent identity bar)
+### T4.1 — `<PatientHeader />` (the persistent identity bar) — **DONE**
 
 - **What.** Card-shape component pinned at the top of the dashboard.
   Reads `Patient` via `useFhirRequest`. Renders name, DOB + age,
   sex, MRN, active-status badge.
 - **Acceptance.**
-  - [ ] Tests written before the implementation, using
+  - [x] Tests written before the implementation, using
         `@medplum/fhirtypes` `Patient` mocks. Cover: full data,
         missing optional fields, deceased patient, inactive patient.
-  - [ ] Renders all five fields the W2 brief calls out.
-  - [ ] Loading state is a skeleton placeholder, not a spinner that
+  - [x] Renders all five fields the W2 brief calls out.
+  - [x] Loading state is a skeleton placeholder, not a spinner that
         shifts layout.
-  - [ ] Error state shows "Couldn't load patient — Retry" with a
+  - [x] Error state shows "Couldn't load patient — Retry" with a
         retry button that calls the hook's `retry()`.
-  - [ ] Bootstrap 5 classes; no `react-bootstrap`.
-  - [ ] Stays visible regardless of which tab is active.
+  - [x] Bootstrap 5 classes; no `react-bootstrap`.
+  - [x] Stays visible regardless of which tab is active. (The
+        component lives in `PatientRoute`'s top region, above the
+        card grid; tab strip below it lands in T5.)
 - **Blockers.** T2.4.
 
-### T4.2 — `<AllergiesCard />`
+### T4.2 — `<AllergiesCard />` — **DONE**
 
 - **What.** Reads `AllergyIntolerance?patient={id}&clinical-status=active`.
   Renders allergen, severity, reaction, verification status. "View
   all" link to the legacy `stats_full.php?category=allergy`.
 - **Acceptance.**
-  - [ ] Tests first, using fixture FHIR Bundles. Cover: empty,
+  - [x] Tests first, using fixture FHIR Bundles. Cover: empty,
         single allergy, multiple, missing fields.
-  - [ ] Title bar matches legacy "Allergies".
-  - [ ] Link to legacy edit page is plain `<a href>` — no router
+  - [x] Title bar matches legacy "Allergies".
+  - [x] Link to legacy edit page is plain `<a href>` — no router
         navigation.
-  - [ ] Per-card error boundary catches FHIR errors without blanking
-        the dashboard.
+  - [x] Per-card error boundary catches FHIR errors without blanking
+        the dashboard. (Implemented as a card-level error/retry
+        slot inside the shared `<Card>` shell — one failed FHIR
+        call shows a retryable error in that card only. The React
+        ErrorBoundary class for unrecoverable render errors lands
+        in T6.1.)
 - **Blockers.** T2.4, T4.1.
 
-### T4.3 — `<ProblemListCard />`
+### T4.3 — `<ProblemListCard />` — **DONE**
 
 - **What.** Reads `Condition?patient={id}&category=problem-list-item`.
   Renders title, ICD/SNOMED code, onset date, status. "View all"
   link to `stats_full.php?category=medical_problem`.
 - **Acceptance.**
-  - [ ] Tests first. Fixture with active + resolved + multiple
+  - [x] Tests first. Fixture with active + resolved + multiple
         conditions; only active should render.
-  - [ ] Coding column shows the SNOMED display when present, falls
+  - [x] Coding column shows the SNOMED display when present, falls
         back to ICD-10, falls back to text.
-  - [ ] Link to legacy edit page works.
+  - [x] Link to legacy edit page works.
 - **Blockers.** T2.4, T4.1.
 
-### T4.4 — `<MedicationsCard />`
+### T4.4 — `<MedicationsCard />` — **DONE (deviation)**
 
-- **Open question (raised in T2.2, 2026-05-07).** OpenEMR's FHIR
-  layer does **not** expose `patient/MedicationStatement.read`
-  (verified against the dev install's
-  `.well-known/openid-configuration`). Pre-T4.4 spike: confirm
-  whether the resource is available without that scope (some
-  servers expose `MedicationStatement` only under `user/*`), or
-  whether the card has to source from a non-FHIR endpoint. If
-  neither path works, the Medications card collapses into the
-  Prescriptions card (`MedicationRequest`) — which is a parity
-  loss vs the legacy dashboard.
-- **What.** Reads `MedicationStatement?patient={id}&status=active`.
-  Renders drug, dose, route, frequency. Link to legacy med-issue
-  edit page.
+- **Open question — RESOLVED 2026-05-07.** OpenEMR's FHIR layer
+  exposes **no** `MedicationStatement` scope at all (not under
+  `patient/*`, `user/*`, or `system/*` — verified in the dev
+  install's `.well-known/openid-configuration`). The only available
+  resource for "currently-taking medications" is `MedicationRequest`.
+  Inspection of `src/Services/PrescriptionService.php` shows OpenEMR
+  splits its two legacy lists across `MedicationRequest.intent`:
+  - `lists_medication` ("Medications" — the patient's current med
+    list) → `intent=plan`
+  - `prescriptions` (eRx-style) → `intent=order`
+- **Deviation from the original plan.** The card reads
+  `MedicationRequest?patient={id}&status=active&intent=plan`
+  instead of `MedicationStatement`. T4.5 (`PrescriptionsCard`)
+  reads the `intent=order` slice. The two cards stay distinct,
+  matching the legacy dashboard's layout (no parity loss).
+- **What (revised).** Reads
+  `MedicationRequest?patient={id}&status=active&intent=plan`.
+  Renders drug, dose, route, frequency. View-all link goes to the
+  legacy `stats_full.php?category=medication` page.
 - **Acceptance.**
-  - [ ] Open question above resolved before implementation starts.
-  - [ ] Tests first. Fixtures cover dosed/undosed, with/without
+  - [x] Open question above resolved before implementation
+        started.
+  - [x] Tests first. Fixtures cover dosed/undosed, with/without
         route.
-  - [ ] Display matches the legacy issue-card column ordering.
+  - [x] Display matches the legacy issue-card column ordering.
 - **Blockers.** T2.4, T4.1.
 
-### T4.5 — `<PrescriptionsCard />`
+### T4.5 — `<PrescriptionsCard />` — **DONE**
 
-- **What.** Reads `MedicationRequest?patient={id}&status=active`.
-  Renders prescription details. "Add" / "Edit" links go to
+- **What.** Reads
+  `MedicationRequest?patient={id}&status=active&intent=order`
+  (the eRx slice — see T4.4 for the intent split). Renders
+  prescription details. "Add prescription" link goes to
   `eRx.php?page=compose` if eRx is enabled, else to the legacy
   `controller.php?prescription&list&id=$pid` (matches the legacy
   conditional). The `erx_enable` flag is read from
   `window.erx_enable`, set by `main_v2.php` in the same
   `<script>` block that already injects `csrf_token_js`,
-  `webroot_url`, etc. (T3.2 owns adding it to that block.)
+  `webroot_url`, etc.
 - **Acceptance.**
-  - [ ] Tests first. Fixtures cover eRx-on (link → `eRx.php`)
+  - [x] Tests first. Fixtures cover eRx-on (link → `eRx.php`)
         and eRx-off (link → `controller.php?prescription`).
-  - [ ] `main_v2.php` injects `window.erx_enable` from
-        `OEGlobalsBag`. (Add to T3.1's globals injection or a
-        small follow-up here — coordinate.)
-  - [ ] Card has a typed config helper that reads
+  - [x] `main_v2.php` injects `window.erx_enable` from
+        `OEGlobalsBag`. (Already in place from T3.1 — see
+        `interface/main/tabs/main_v2.php` line ~176.)
+  - [x] Card has a typed config helper that reads
         `window.erx_enable` once at module load and exposes it
-        as a strongly-typed boolean.
+        as a strongly-typed boolean (`src/lib/config.ts`,
+        `isErxEnabled()`).
 - **Blockers.** T2.4, T4.1, T3.1 (for the globals injection).
 
-### T4.6 — `<CareTeamCard />`
+### T4.6 — `<CareTeamCard />` — **DONE**
 
-- **What.** Reads `CareTeam?patient={id}&status=active`. Renders
-  participant name, role.
+- **What.** Reads
+  `CareTeam?patient={id}&status=active&_include=CareTeam:participant`.
+  Renders participant name, role.
 - **Acceptance.**
-  - [ ] Tests first. Fixtures cover multi-participant teams,
+  - [x] Tests first. Fixtures cover multi-participant teams,
         missing role displays, inactive participants.
-  - [ ] Practitioner names resolve from the participant references
-        (use `_include=CareTeam:participant` if the API supports it,
-        else N+1 fetches; flag the perf cost).
+  - [x] Practitioner names resolve from the participant references
+        (`_include=CareTeam:participant` is requested; falls back
+        to `member.display` whatever the server returns. If the
+        server ignores `_include`, the card still works — it just
+        shows whatever display the FHIR layer already inlined,
+        rather than firing N+1 follow-up reads. We accept that
+        trade rather than ship a guaranteed N+1).
 - **Blockers.** T2.4, T4.1.
 
-### T4.7 — `<EncountersCard />` — the guaranteed +1
+### T4.7 — `<EncountersCard />` — the guaranteed +1 — **DONE**
 
 - **What.** Reads `Encounter?patient={id}&_sort=-date&_count=10`.
   Renders date, type, provider, reason. No click-through (legacy
   encounter open is out of scope for W2).
 - **Acceptance.**
-  - [ ] Tests first. Fixtures cover empty, recent encounters,
+  - [x] Tests first. Fixtures cover empty, recent encounters,
         multi-page (`_count` truncated).
-  - [ ] Empty state ("No recent encounters") visually matches the
-        empty state used by other cards.
+  - [x] Empty state ("No recent encounters") visually matches the
+        empty state used by other cards (same `text-muted` paragraph
+        rendered inside the shared `<Card>` shell).
 - **Blockers.** T2.4, T4.1.
 
 ---
