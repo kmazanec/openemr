@@ -71,7 +71,25 @@ $sessionPid = (is_scalar($sessionPidRaw) && $sessionPidRaw !== '' && $sessionPid
 $siteAddr = $globals->getString('site_addr_oath');
 $webroot = $globals->getWebRoot();
 $fhirBaseUrl = $siteAddr . $webroot . '/apis/' . $siteId . '/fhir';
-$issuer = $siteAddr . $webroot . '/oauth2/' . $siteId;
+// The agent service is configured (via AGENT_JWT_ISSUER on its
+// container) with a single canonical issuer URL. PHP must mint
+// tokens with that exact string — deriving the issuer from
+// $_SERVER means a request to http://localhost:8300 mints with
+// http://... while a request to https://localhost:9300 mints with
+// https://..., and only one of those matches the agent's expected
+// issuer. The mismatch shows up as an opaque
+// `unexpected "iss" claim value` in agent logs and a 401 from
+// every action that actually reaches the agent service.
+//
+// OE_AGENT_JWT_ISSUER is the override knob; set it in the openemr
+// container's environment to whatever AGENT_JWT_ISSUER is on the
+// agent container. Without the override we fall back to the
+// request-derived value for backwards compatibility (and so test
+// fixtures that do not set the env var keep working).
+$issuerOverride = getenv('OE_AGENT_JWT_ISSUER');
+$issuer = is_string($issuerOverride) && $issuerOverride !== ''
+    ? $issuerOverride
+    : $siteAddr . $webroot . '/oauth2/' . $siteId;
 
 $resolvedFhirUser = null;
 if ($authUserId !== '') {

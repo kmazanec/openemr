@@ -59,7 +59,16 @@ export const createBearerAuthMiddleware = (
             );
         } catch (err) {
             if (err instanceof AgentJwtVerificationError) {
-                logger.debug({ err: err.message }, 'rejected agent request');
+                const cause = err.cause;
+                const causeMessage = cause instanceof Error ? cause.message : undefined;
+                const causeCode =
+                    cause !== null && typeof cause === 'object' && 'code' in cause
+                        ? String(cause.code)
+                        : undefined;
+                logger.warn(
+                    { err: err.message, causeMessage, causeCode },
+                    'rejected agent request',
+                );
                 return unauthorized(c);
             }
             throw err;

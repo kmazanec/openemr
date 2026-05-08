@@ -101,6 +101,14 @@ services:
       OPENEMR_SETTING_practice_return_email_path: 'noreply@openemr.local'
       OPENEMR_SETTING_Patient_Reminder_Sender_Name: 'OpenEMR Reminders'
       AGENT_SERVICE_URL: http://agent:8080
+      # Mirrors AGENT_JWT_ISSUER on the agent container. agent.php uses
+      # this to mint Co-Pilot JWTs with the exact issuer the agent
+      # service verifies against, regardless of which host/port the
+      # browser hit OpenEMR on. Without it the issuer gets derived from
+      # site_addr_oath (or $_SERVER), and a request to http://localhost:8300
+      # mints a token the agent (which expects https://localhost:9300)
+      # rejects with `unexpected "iss" claim value`.
+      OE_AGENT_JWT_ISSUER: https://localhost:${WT_HTTPS_PORT:-9300}/oauth2/default
     depends_on:
       mysql:
         condition: service_healthy
