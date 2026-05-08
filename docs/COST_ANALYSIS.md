@@ -348,3 +348,160 @@ The cost-projection counters in the agent service
 and per-model cost on every request, so as soon as the system has
 a sprint of real-clinician traffic these estimates become measured
 numbers rather than projections.
+
+---
+
+## Engineering cost — the eval suite and observability
+
+The numbers above are the runtime bill — what a deployed clinic
+pays. Separately, building and operating the agent has its own
+recurring bill: the eval suite (which runs LLMs on every
+agent-touching MR and on a nightly schedule) and the LangSmith
+observability platform that backs both evals and production
+tracing. These are *engineering-team* costs, not per-clinic costs,
+and they don't scale with deployment tier — a 100-clinician
+deployment and a 10,000-clinician deployment pay the same eval
+bill.
+
+### Per-MR eval gate
+
+The `test:agent-evals-gate` CI job runs every suite's experiment
+against real models on each MR that touches agent code, eval
+wiring, or the baseline file. It exists to prevent a model-or-prompt
+change from silently regressing rubric scores.
+
+| Suite | Cases (current) | Per-case unit | Per-run cost |
+| --- | ---: | ---: | ---: |
+| `briefing-graph` | 29 | $0.04 | $1.16 |
+| `conversational-graph` | 37 | $0.10 | $3.70 |
+| `document-extraction` | 26 | $0.06 | $1.56 |
+| **Total per gate run** | **92** | | **~$6.42** |
+
+Per-case unit prices are derived from production median token
+counts at HEAD across the synthesizer (Anthropic Sonnet 4.6),
+embedder (OpenAI `text-embedding-3-large`), retriever
+(Pinecone Standard p1), and reranker (Cohere `rerank-english-v3`).
+The conversational-graph suite is the dominant line because it
+runs the supervisor + retrievers for ~3 turns per case, where the
+other two suites are single-pass.
+
+A **$7.50 hard cap per gate run** is enforced in
+`agent/scripts/check-cost-cap.ts`; the cost-cap step is the first
+thing the gate does, so a runaway dataset growth blocks the
+pipeline before any vendor calls fire. Adjust the cap with a
+documented justification in `W2_ARCHITECTURE.md` only.
+
+**MR volume → monthly cost.** The gate fires on every MR whose
+diff matches the path filter (`agent/src/`, eval runners, rubrics,
+baselines, lockfiles, or `.gitlab-ci.yml`). Approximate steady
+state during active feature work:
+
+| MR throughput / month | Gate runs / month | Eval-gate LLM spend |
+| --- | ---: | ---: |
+| 20 MRs (low) | 20 | ~$130 |
+| 50 MRs (typical) | 50 | ~$320 |
+| 100 MRs (heavy) | 100 | ~$640 |
+
+A rebase that retriggers the pipeline counts as a separate run.
+The cap is per-run, not per-MR — a 5-rebase MR pays 5x.
+
+### Nightly experiment
+
+`test:agent-evals-nightly` runs the same experiment shape against
+master once per scheduled trigger (currently set up to run nightly
+from GitLab → Build → Pipeline schedules). One run = one full
+eval-suite cost ≈ **$6.42**. At 30 nights/month: **~$190/month**.
+
+### LangSmith — observability and evaluator infrastructure
+
+LangSmith is wired in for two distinct jobs:
+
+1. **Production tracing.** Every agent tool, graph node, and
+   model call emits a trace. PHI is redacted before traces leave
+   the agent (`LANGSMITH_HIDE_INPUTS=true`).
+2. **Eval feedback storage.** Each `evaluate()` call in the eval
+   gate creates an experiment, runs a target trace per example,
+   and posts five evaluator child traces per example (one per
+   rubric: `schema_valid`, `citation_present`,
+   `factually_consistent`, `safe_refusal`, `no_phi_in_logs`).
+   The gate reads those feedback rows back via `client.listRuns`
+   + `client.listFeedback` to compare against the baseline.
+
+**Trace volume from the eval suite alone.** Per gate run:
+92 cases × (1 target + 5 evaluators) = **552 traces**. Per
+nightly run: another ~552. At 50 MRs/month + 30 nightly runs:
+~44K eval-only traces/month, before any production traffic.
+
+**LangSmith list pricing** (as of 2026-04, Plus tier — verify at
+purchase time):
+- $39/seat/month, includes 50K base traces/month per workspace.
+- $0.0005 per trace beyond the included pool.
+- Enterprise tier (volume + SSO + private cloud) negotiated.
+
+**Engineering bill at typical throughput:**
+
+| Line item | Quantity | Unit | Monthly cost |
+| --- | ---: | ---: | ---: |
+| LangSmith Plus (3 engineers) | 3 seats | $39 | $117 |
+| Trace overage (assume ~80K total: ~44K eval + ~36K dev/prod) | ~30K over | $0.0005 | $15 |
+| **LangSmith subtotal** | | | **~$132** |
+| Eval gate (50 MRs, 1 run/MR) | 50 runs | $6.42 | ~$320 |
+| Nightly experiment (30 nights) | 30 runs | $6.42 | ~$190 |
+| **Eval LLM subtotal** | | | **~$510** |
+| **Engineering total** | | | **~$640/month** |
+
+This is the steady-state bill during active feature development.
+It does not scale with the deployment tier — a 100-clinician pilot
+and a 10,000-clinician deployment incur the same engineering line
+unless the team is also growing.
+
+### Levers for the engineering bill
+
+Ranked by impact, lowest-effort first:
+
+1. **Path-filter discipline on the eval gate.** Already in place
+   (`agent/src/`, eval wiring, baselines, lockfiles only).
+   Doc-only and PHP-only MRs skip the gate. Without this, every
+   MR pays ~$6.42 — at 50 MRs/month that's $320 of avoidable
+   spend.
+2. **Sample the eval datasets per MR; full coverage nightly.**
+   The conversational-graph suite at 37 cases drives 58% of the
+   per-run cost. Running a stratified sample of ~10 cases per MR
+   (≥1 from each `caseKind`) and the full 37 only on the nightly
+   would drop per-MR cost from $6.42 to ~$2.00 without losing
+   regression coverage on master. ~1 sprint to wire up.
+3. **Project-route evaluator traces.** LangSmith's
+   `evaluate(target, { evaluator_project: 'evals' })` sends
+   evaluator child traces to a separate project. Doesn't reduce
+   trace count but keeps the production-tracing project clean
+   and lets retention policies diverge (short TTL on evals,
+   long TTL on prod).
+4. **Drop the nightly cadence.** If the per-MR gate is doing its
+   job, the nightly is a redundant safety net. Saves ~$190/month
+   at the cost of slower drift detection on master.
+5. **Self-host the observability backend.** Langfuse is an OSS
+   alternative with the same trace/feedback shape; running it on
+   the same Droplet that hosts OpenEMR is realistic up through
+   Tier 2. Saves the LangSmith subtotal at the cost of an
+   ops-line — only worth it if engineering scales past ~10
+   seats or trace volume balloons past ~500K/month.
+
+### What would change these numbers
+
+- **Dataset growth.** Every case added to a suite multiplies into
+  ~6 traces and one model call per gate run. The hard-cap script
+  is the cost forcing function — it blocks the pipeline when
+  a dataset bump pushes the run total over $7.50.
+- **Synthesizer model swap.** The per-case prices assume Sonnet 4.6
+  for synthesis. A swap to Opus would 4–5x the eval bill; a swap
+  to Haiku for the lower-stakes suites would cut it ~3x. The
+  current mix follows the same per-task routing rationale as the
+  runtime path: Haiku where it's cheap and good, Sonnet where the
+  larger model earns its premium.
+- **MR throughput.** A team running 200 MRs/month on agent code is
+  paying ~$1,280/month in eval-gate LLM spend at current dataset
+  sizes. Crossing $1K/month is the cue to invest in the per-MR
+  sampling lever above.
+- **LangSmith pricing.** LangSmith's posted price has moved twice
+  in the last 18 months. Re-baseline this section after any
+  contract change.
