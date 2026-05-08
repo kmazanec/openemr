@@ -54,8 +54,24 @@ export const SourceReferenceSchema = z
         confidence: z.number().min(0).max(1).optional(),
         meta: z
             .object({
-                document_uuid: z.string().min(1).optional(),
-                extractor_version: z.string().min(1).optional(),
+                // Empty-string-tolerant optional strings. The synthesizer
+                // (and external producers) routinely emit `""` for
+                // optional-fill-in fields rather than omitting the key —
+                // most JSON-shaping LLMs default to that shape when the
+                // schema lists a field. Zod's `.optional()` rejects `""`
+                // because `""` doesn't satisfy `.min(1)`, even though
+                // the value is conceptually absent. The coercion below
+                // (matching the `record_recorded_at` pattern) accepts
+                // `""` AND coerces it to `undefined` so downstream code
+                // sees a single canonical "absent" representation.
+                document_uuid: z
+                    .union([z.literal(''), z.string().min(1)])
+                    .optional()
+                    .transform((v) => (v === '' ? undefined : v)),
+                extractor_version: z
+                    .union([z.literal(''), z.string().min(1)])
+                    .optional()
+                    .transform((v) => (v === '' ? undefined : v)),
                 rerank_score: z.number().optional(),
                 record_recorded_at: z
                     .union([z.literal(''), z.string().min(1)])
@@ -66,11 +82,20 @@ export const SourceReferenceSchema = z
                 // matched `EvidenceSnippet`. The panel's guideline drawer
                 // reads `publication`, `title`, `section`, and `url` to
                 // render the source card without a second fetch.
-                publication: z.string().min(1).optional(),
-                title: z.string().min(1).optional(),
+                publication: z
+                    .union([z.literal(''), z.string().min(1)])
+                    .optional()
+                    .transform((v) => (v === '' ? undefined : v)),
+                title: z
+                    .union([z.literal(''), z.string().min(1)])
+                    .optional()
+                    .transform((v) => (v === '' ? undefined : v)),
                 year: z.number().int().optional(),
                 url: z.string().url().optional(),
-                section: z.string().min(1).optional(),
+                section: z
+                    .union([z.literal(''), z.string().min(1)])
+                    .optional()
+                    .transform((v) => (v === '' ? undefined : v)),
             })
             .optional(),
     })
