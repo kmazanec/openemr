@@ -197,7 +197,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'evidenceRetriever',
         description:
-            "Retrieves clinical-guideline chunks from the curated guideline corpus (USPSTF). Pick FIRST whenever the user's question is about screening recommendations, screening intervals, prevention guidance, treatment thresholds, dosing rules, risk-stratification, or anything a clinician would normally answer by reaching for a published guideline rather than chart data alone. Args: { query: string, top_k?: number, source_filter?: ('USPSTF')[] }.",
+            "Retrieves clinical-guideline chunks from the curated guideline corpus, which includes USPSTF (screening / prevention), ADA (diabetes), CDC (immunizations, STI screening), and AGS-Beers (geriatric medication safety). Pick FIRST whenever the user's question is about screening recommendations, screening intervals, prevention guidance, treatment thresholds, dosing rules, risk-stratification, or anything a clinician would normally answer by reaching for a published guideline rather than chart data alone. Args: { query: string, top_k?: number, source_filter?: ('USPSTF'|'ADA'|'AGS-Beers'|'CDC')[] }. Omit source_filter by default — the cross-source reranker picks the strongest match across all four publishers. Set source_filter only when the question is unambiguously scoped to one publisher (e.g. \"what does USPSTF say about\", \"per ADA standards of care\").",
     },
     {
         handoff: 'documentEvidenceRetriever',
