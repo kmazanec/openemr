@@ -27,7 +27,7 @@ export function PatientRoute(): ReactElement {
   return (
     <AppShell
       dashboardBody={
-        <RequireFhirSession>
+        <RequireFhirSession pid={pid}>
           <PatientSummary pid={pid} />
         </RequireFhirSession>
       }

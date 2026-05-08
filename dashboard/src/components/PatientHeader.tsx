@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { HumanName, Identifier, Patient } from '@medplum/fhirtypes';
+import type { Bundle, BundleEntry, HumanName, Identifier, Patient } from '@medplum/fhirtypes';
 import { useFhirRequest } from '../lib/useFhirRequest';
 
 const MR_CODE = 'MR';
@@ -9,8 +9,18 @@ export interface PatientHeaderProps {
   today?: Date;
 }
 
+// OpenEMR's FHIR layer keys Patient resources by UUID, but the
+// dashboard receives the legacy integer pid from the patient
+// finder. Look the patient up by its `identifier` field (which the
+// FHIR layer populates with the legacy pid) and take the first
+// match. This avoids a separate pid → uuid round-trip and keeps the
+// card parameterized by the value the rest of the SPA passes in.
 export function PatientHeader({ pid, today }: PatientHeaderProps): ReactElement {
-  const { data, error, loading, retry } = useFhirRequest<Patient>(`Patient/${pid}`);
+  const { data: bundle, error, loading, retry } = useFhirRequest<Bundle<Patient>>(
+    `Patient?identifier=${encodeURIComponent(pid)}`,
+  );
+
+  const data: Patient | undefined = firstEntry(bundle);
 
   if (loading && data === undefined) {
     return <PatientHeaderSkeleton />;
@@ -115,6 +125,14 @@ function PatientHeaderError({ onRetry }: { onRetry: () => void }): ReactElement 
       </div>
     </div>
   );
+}
+
+function firstEntry(bundle: Bundle<Patient> | undefined): Patient | undefined {
+  if (bundle === undefined) return undefined;
+  const entries = bundle.entry;
+  if (entries === undefined || entries.length === 0) return undefined;
+  const first: BundleEntry<Patient> | undefined = entries[0];
+  return first?.resource;
 }
 
 function formatName(names: HumanName[] | undefined): string {

@@ -168,8 +168,9 @@ export async function ensureClientId(): Promise<string> {
   return body.client_id;
 }
 
-// Shape main_v2.php emits as window.OE_SMART_LAUNCH. The launch
-// token is an opaque, encrypted blob built by SMARTLaunchToken
+// Shape main_v2.php emits as window.OE_SMART_LAUNCH (and that
+// main_v2_launch.php returns from a per-patient request). The
+// launch token is an opaque, encrypted blob built by SMARTLaunchToken
 // (PHP-side) carrying the patient UUID and intent. `aud` is the
 // FHIR base URL the access token will be bound to.
 export interface SmartLaunch {
@@ -180,7 +181,41 @@ export interface SmartLaunch {
 declare global {
   interface Window {
     OE_SMART_LAUNCH?: SmartLaunch;
+    api_csrf_token_js?: string;
+    webroot_url?: string;
   }
+}
+
+// Fetch a freshly-built launch token bound to the given legacy
+// integer pid. Required when the user has just picked a patient in
+// the legacy finder — the page-load OE_SMART_LAUNCH would carry no
+// patient context, so the resulting access token's `context` would
+// be empty and FHIR requests would 401.
+export async function fetchLaunchForPid(pid: string): Promise<SmartLaunch> {
+  if (typeof window === 'undefined') {
+    throw new Error('fetchLaunchForPid: window unavailable');
+  }
+  const csrf = window.api_csrf_token_js ?? '';
+  const root = window.webroot_url ?? '';
+  if (csrf === '') {
+    throw new Error('fetchLaunchForPid: api_csrf_token_js not set on window');
+  }
+  const response = await fetch(
+    `${root}/interface/main/tabs/main_v2_launch.php?pid=${encodeURIComponent(pid)}`,
+    {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', APICSRFTOKEN: csrf },
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`fetchLaunchForPid: HTTP ${response.status}`);
+  }
+  const body = (await response.json()) as { launch?: unknown; aud?: unknown };
+  if (typeof body.launch !== 'string' || typeof body.aud !== 'string') {
+    throw new Error('fetchLaunchForPid: malformed response');
+  }
+  return { launch: body.launch, aud: body.aud };
 }
 
 export function buildAuthorizeParams(
@@ -221,9 +256,24 @@ export function buildAuthorizeParams(
   };
 }
 
-export async function authorize(): Promise<void> {
+// Kick off the SMART OIDC dance.
+//
+// pid (optional): the legacy integer pid the user just picked. When
+// present, we fetch a fresh launch token bound to that patient so
+// the resulting access token's context.patient is set. Without it
+// we fall back to the page-load OE_SMART_LAUNCH (no-patient
+// launch), which is fine for landing flows that don't yet need
+// patient-scoped FHIR access.
+export async function authorize(pid?: string): Promise<void> {
   await ensureClientId();
-  const smartLaunch = typeof window === 'undefined' ? undefined : window.OE_SMART_LAUNCH;
+  let smartLaunch: SmartLaunch | undefined;
+  if (typeof window !== 'undefined') {
+    if (pid !== undefined && pid !== '') {
+      smartLaunch = await fetchLaunchForPid(pid);
+    } else {
+      smartLaunch = window.OE_SMART_LAUNCH;
+    }
+  }
   await FHIR.oauth2.authorize(buildAuthorizeParams(getOidcConfig(), smartLaunch));
 }
 

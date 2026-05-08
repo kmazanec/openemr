@@ -1,7 +1,13 @@
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Patient } from '@medplum/fhirtypes';
+import type { Bundle, Patient } from '@medplum/fhirtypes';
 import type { ReactNode } from 'react';
+
+function bundleOf(patient: Patient): Bundle<Patient> {
+  return { resourceType: 'Bundle', type: 'searchset', entry: [{ resource: patient }] };
+}
+
+const emptyBundle: Bundle<Patient> = { resourceType: 'Bundle', type: 'searchset', entry: [] };
 
 vi.mock('fhirclient/lib/entry/browser', () => ({
   default: {
@@ -51,7 +57,7 @@ const fullPatient: Patient = {
 describe('PatientHeader', () => {
   it('renders name, DOB, age, sex, MRN, and an Active badge', async () => {
     const { PatientHeader } = await import('./PatientHeader');
-    const client = clientReturning(fullPatient);
+    const client = clientReturning(bundleOf(fullPatient));
 
     await renderWithClient(client, <PatientHeader pid="42" today={new Date('2026-05-07')} />);
 
@@ -61,13 +67,13 @@ describe('PatientHeader', () => {
     expect(screen.getByText(/male/i)).toBeInTheDocument();
     expect(screen.getByText(/MRN-12345/)).toBeInTheDocument();
     expect(screen.getByText(/Active/)).toBeInTheDocument();
-    expect(client.request).toHaveBeenCalledWith('Patient/42');
+    expect(client.request).toHaveBeenCalledWith('Patient?identifier=42');
   });
 
   it('handles missing optional fields gracefully', async () => {
     const { PatientHeader } = await import('./PatientHeader');
     const minimal: Patient = { resourceType: 'Patient', id: '7' };
-    const client = clientReturning(minimal);
+    const client = clientReturning(bundleOf(minimal));
 
     await renderWithClient(client, <PatientHeader pid="7" today={new Date('2026-05-07')} />);
 
@@ -79,7 +85,7 @@ describe('PatientHeader', () => {
   it('renders a Deceased badge when deceasedBoolean is true', async () => {
     const { PatientHeader } = await import('./PatientHeader');
     const deceased: Patient = { ...fullPatient, deceasedBoolean: true };
-    const client = clientReturning(deceased);
+    const client = clientReturning(bundleOf(deceased));
 
     await renderWithClient(client, <PatientHeader pid="42" today={new Date('2026-05-07')} />);
 
@@ -89,7 +95,7 @@ describe('PatientHeader', () => {
   it('renders a Deceased badge when deceasedDateTime is set', async () => {
     const { PatientHeader } = await import('./PatientHeader');
     const deceased: Patient = { ...fullPatient, deceasedDateTime: '2024-01-01' };
-    const client = clientReturning(deceased);
+    const client = clientReturning(bundleOf(deceased));
 
     await renderWithClient(client, <PatientHeader pid="42" today={new Date('2026-05-07')} />);
 
@@ -99,11 +105,20 @@ describe('PatientHeader', () => {
   it('renders an Inactive badge for active=false', async () => {
     const { PatientHeader } = await import('./PatientHeader');
     const inactive: Patient = { ...fullPatient, active: false };
-    const client = clientReturning(inactive);
+    const client = clientReturning(bundleOf(inactive));
 
     await renderWithClient(client, <PatientHeader pid="42" today={new Date('2026-05-07')} />);
 
     expect(await screen.findByText(/Inactive/)).toBeInTheDocument();
+  });
+
+  it('renders a skeleton when the Bundle is empty (FHIR returned no Patient)', async () => {
+    const { PatientHeader } = await import('./PatientHeader');
+    const client = clientReturning(emptyBundle);
+
+    await renderWithClient(client, <PatientHeader pid="999" today={new Date('2026-05-07')} />);
+
+    expect(screen.getByTestId('patient-header-skeleton')).toBeInTheDocument();
   });
 
   it('renders a skeleton placeholder while loading (not a spinner)', async () => {
@@ -131,7 +146,7 @@ describe('PatientHeader', () => {
     expect(retry).toBeInTheDocument();
 
     // Clicking retry calls the FHIR client a second time.
-    client.request.mockImplementationOnce(() => Promise.resolve(fullPatient));
+    client.request.mockImplementationOnce(() => Promise.resolve(bundleOf(fullPatient)));
     await act(async () => {
       retry.click();
       await Promise.resolve();

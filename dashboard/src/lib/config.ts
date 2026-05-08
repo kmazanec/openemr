@@ -4,15 +4,19 @@
 // renders them inline before the SPA bundle script tag, so they are
 // always defined by the time this module evaluates.
 
-interface LegacyGlobals {
-  erx_enable?: boolean;
-  webroot_url?: string;
-  site_id_js?: string;
+// Augment Window with the inline globals main_v2.php emits. The
+// other ones (webroot_url, api_csrf_token_js) are declared in
+// fhir.ts; we keep erx_enable here next to its consumer.
+declare global {
+  interface Window {
+    erx_enable?: boolean;
+    site_id_js?: string;
+  }
 }
 
-function legacyGlobals(): LegacyGlobals {
-  if (typeof window === 'undefined') return {};
-  return window as unknown as LegacyGlobals;
+function legacyGlobals(): Window {
+  if (typeof window === 'undefined') return {} as Window;
+  return window;
 }
 
 const ERX_ENABLED: boolean = legacyGlobals().erx_enable === true;

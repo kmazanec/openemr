@@ -23,6 +23,31 @@ page.on('console', (msg) => {
 });
 page.on('pageerror', (err) => browserLog.push(`[pageerror] ${err.message}`));
 
+const fhirNet = [];
+const launchNet = [];
+page.on('request', (req) => {
+  const url = req.url();
+  if (url.includes('/fhir/') && !url.includes('.well-known')) {
+    fhirNet.push({ phase: 'req', method: req.method(), url, headers: req.headers() });
+  }
+  if (url.includes('main_v2_launch.php')) {
+    launchNet.push({ phase: 'req', url });
+  }
+});
+page.on('response', async (r) => {
+  const url = r.url();
+  if (url.includes('/fhir/') && !url.includes('.well-known')) {
+    let body = '';
+    try { body = (await r.text()).slice(0, 200); } catch {}
+    fhirNet.push({ phase: 'res', status: r.status(), url, body });
+  }
+  if (url.includes('main_v2_launch.php')) {
+    let body = '';
+    try { body = (await r.text()).slice(0, 400); } catch {}
+    launchNet.push({ phase: 'res', status: r.status(), url, body });
+  }
+});
+
 async function waitForStableUrl(quietMs = 1500, timeoutMs = 25000) {
   const start = Date.now();
   let lastUrl = page.url();
@@ -109,6 +134,24 @@ console.log('after second pick:', JSON.stringify(tabState2, null, 2));
 
 await page.screenshot({ path: 'debug-ehr-launch.png' });
 console.log('screenshot at debug-ehr-launch.png');
+
+console.log('--- main_v2_launch.php traffic:');
+for (const r of launchNet) {
+  console.log(`  ${r.phase} ${r.status ?? ''} ${r.url}`);
+  if (r.body) console.log(`    body: ${r.body}`);
+}
+
+console.log('--- FHIR network traffic:');
+for (const r of fhirNet.slice(0, 12)) {
+  if (r.phase === 'req') {
+    console.log(`  REQ ${r.method} ${r.url}`);
+    console.log(`     authorization: ${r.headers.authorization ?? '(none)'}`);
+    console.log(`     accept: ${r.headers.accept ?? '(none)'}`);
+  } else {
+    console.log(`  RES ${r.status} ${r.url}`);
+    console.log(`     body: ${r.body}`);
+  }
+}
 
 console.log('--- selected browser console output:');
 for (const line of browserLog.filter((l) => l.match(/error|FHIR|SMART|launch|fail/i)).slice(0, 30)) {

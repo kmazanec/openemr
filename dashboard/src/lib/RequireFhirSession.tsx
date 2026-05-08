@@ -10,6 +10,11 @@ type State =
 
 export interface RequireFhirSessionProps {
   children: ReactNode;
+  // Legacy integer pid the user is viewing. When present, we
+  // request a launch token bound to that patient before kicking off
+  // authorize(), so the resulting access token's context.patient is
+  // populated and patient-scoped FHIR requests succeed.
+  pid?: string;
 }
 
 // Hydrates the FHIR session at the root of any patient-scoped subtree.
@@ -29,7 +34,7 @@ export interface RequireFhirSessionProps {
 // also auto-redirects to authorize(), so going through it is just
 // extra hops; calling authorize() directly is the same UX with one
 // fewer mount.
-export function RequireFhirSession({ children }: RequireFhirSessionProps): ReactElement {
+export function RequireFhirSession({ children, pid }: RequireFhirSessionProps): ReactElement {
   const [state, setState] = useState<State>({ kind: 'pending' });
 
   useEffect(() => {
@@ -46,7 +51,7 @@ export function RequireFhirSession({ children }: RequireFhirSessionProps): React
         // naturally; we just need to render something during the
         // brief window before the browser leaves the page.
         setState({ kind: 'authorizing' });
-        authorize().catch((err: unknown) => {
+        authorize(pid).catch((err: unknown) => {
           if (cancelled) return;
           const message = err instanceof Error ? err.message : 'Unknown error';
           setState({ kind: 'error', message });
@@ -55,7 +60,7 @@ export function RequireFhirSession({ children }: RequireFhirSessionProps): React
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pid]);
 
   if (state.kind === 'pending') {
     return (
