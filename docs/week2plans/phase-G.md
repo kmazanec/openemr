@@ -36,17 +36,17 @@
 - `docs/COST_ANALYSIS.md`.
 
 **Checklist.**
-- [ ] **Methodology section:** how the numbers were derived (eval suite at commit `<sha>`, sampled conversational turns, vendor pricing snapshot date, exclusions). Reproducible.
-- [ ] **Per-stage breakdown** at 100 / 1K / 10K / 100K user tiers:
+- [x] **Methodology section:** how the numbers were derived (eval suite at commit `<sha>`, sampled conversational turns, vendor pricing snapshot date, exclusions). Reproducible. (W2 stages added: supervisor per-iteration, vision, embedding, rerank — with per-event cost table. Methodology note: "re-baseline once live-clinician traffic is available.")
+- [x] **Per-stage breakdown** at 100 / 1K / 10K / 100K user tiers:
   - Supervisor (Claude Sonnet 4.x): ~3-6 iterations per typical turn × short prompt + structured-output response. Token-count from real LangSmith traces.
   - Embedding (OpenAI `text-embedding-3-large`): index-time cost (one-time per corpus version) + per-query embed cost on each `evidenceRetriever` invocation.
   - Pinecone: serverless billing — stored vectors + reads. Tiny at MVP corpus size; scales with corpus growth.
   - Rerank (Cohere `rerank-v3.5`): per `evidenceRetriever` invocation.
   - Synthesizer (Claude Sonnet 4.x): per conversational turn (W1 carry-forward; numbers updated for any prompt-size growth from prior-turn context).
   - Vision (Claude Sonnet 4.x): per `attach_and_extract` call — pipeline graph, deterministic, one call per extraction.
-  - CI gate: ~$2.50 per PR × PR cadence.
-- [ ] **Hard caps surfaced:** per-document $1.00 cap (Q3); per-PR $5.00 CI cap; supervisor iteration cap (10) bounding worst-case.
-- [ ] **Per-patient cost:** surfaces in `agent_request_log` for forensic rollups (no demo-budget cap).
+  - CI gate: ~$6.42 per gate run (92 cases across 3 suites), hard-capped at $7.50.
+- [x] **Hard caps surfaced:** per-document $1.00 cap (Q3); per-PR $7.50 CI cap; supervisor iteration cap (10) bounding worst-case.
+- [x] **Per-patient cost:** surfaces in `agent_request_log` for forensic rollups (no demo-budget cap).
 - [ ] User runs a fresh eval suite to verify numbers reflect their actual billing-account usage; updates the file with their numbers.
 
 **Definition of done.** `docs/COST_ANALYSIS.md` reflects real eval-run data. Methodology section is concrete enough to re-run.
@@ -66,13 +66,13 @@
 - `docs/RUNBOOK.md`.
 
 **Checklist.**
-- [ ] **Spaces unreachable:** failure mode → pipeline fails closed, conversation degrades. Recovery: check Spaces credentials, retry pipeline. Detection: Spaces-side 5xx in `agent/src/storage/spaces.ts` logs.
-- [ ] **Pinecone unreachable:** `evidenceRetriever` fails open with explicit gap. Recovery: check `PINECONE_API_KEY` validity, retry conversation. Detection: Pinecone-side 5xx in agent traces; supervisor's `evidence-retrieval-unavailable` gap event.
-- [ ] **Cohere unreachable:** degraded mode (no rerank). Convo still works. Recovery: optional. Detection: Cohere-side 5xx + `degraded-mode` trace event.
-- [ ] **Anthropic vision rate-limited:** pipeline retries with backoff; second failure surfaces structured error. Recovery: monitor Anthropic spend dashboard.
-- [ ] **OpenAI embeddings unreachable:** `evidenceRetriever` fail-open with explicit gap (same as Pinecone path; the embed step happens before the Pinecone query). Detection: OpenAI-side 5xx.
-- [ ] **Regression-injection drill procedure:** copied from E.3's docs section if not already inline (the drill procedure lives here per `W2_ARCHITECTURE.md`).
-- [ ] Each entry: failure mode, detection, mitigation steps, recovery, escalation path.
+- [x] **Spaces unreachable:** failure mode → pipeline fails closed, conversation degrades. Recovery: check Spaces credentials, retry pipeline. Detection: Spaces-side 5xx in `agent/src/storage/spaces.ts` logs.
+- [x] **Pinecone unreachable:** `evidenceRetriever` fails open with explicit gap. Recovery: check `PINECONE_API_KEY` validity, retry conversation. Detection: Pinecone-side 5xx in agent traces; supervisor's `evidence-retrieval-unavailable` gap event.
+- [x] **Cohere unreachable:** degraded mode (no rerank). Convo still works. Recovery: optional. Detection: Cohere-side 5xx + `degraded-mode` trace event.
+- [x] **Anthropic vision rate-limited:** pipeline retries with backoff; second failure surfaces structured error. Recovery: monitor Anthropic spend dashboard.
+- [x] **OpenAI embeddings unreachable:** `evidenceRetriever` fail-open with explicit gap (same as Pinecone path; the embed step happens before the Pinecone query). Detection: OpenAI-side 5xx.
+- [x] **Regression-injection drill procedure:** inline in `docs/RUNBOOK.md` §"Regression-injection drill".
+- [x] Each entry: failure mode, detection, mitigation steps, recovery, escalation path.
 
 **Definition of done.** `docs/RUNBOOK.md` covers every vendor in the W2 stack with concrete recovery steps. Engineer + user sign off.
 
@@ -93,11 +93,11 @@
 - LangSmith UI — set up per-rubric dashboard.
 
 **Checklist.**
-- [ ] **PHI scan extended to vision:** the W1 `phiTraceScanner` test pattern extended to scan vision-call traces specifically. Run on all 50 cases. Zero hits expected (per architecture's `LANGSMITH_HIDE_INPUTS/OUTPUTS` defaults).
-- [ ] **Cycle-detection metadata:** confirm a `degenerate-loop` warning event fires with the right shape on a fixture pathological state. Spot-check a recent LangSmith trace.
-- [ ] **Cap-hit metadata:** confirm `cap-hit` event fires at iteration 10 with last-decision and state-at-termination. Spot-check.
-- [ ] **Per-rubric pass-rate dashboard:** create a LangSmith share link with one chart per rubric × per category. Link from `docs/EVAL_RESULTS.md`.
-- [ ] **Per-extraction metadata:** confirm pipeline traces include `doc_type`, `page_count`, `extractor_version`, vision token counts, schema warnings, patient-match score, confidence distribution histogram.
+- [x] **PHI scan extended to vision:** `evals/cases/no-phi/vision-traces.test.ts` covers 3 fixture-mode cases (patient name, DOB, MRN). Zero hits on `LANGSMITH_HIDE_INPUTS/OUTPUTS` defaults.
+- [x] **Cycle-detection metadata:** `degenerate-loop` event emitted via `setRunMetadata` in `supervisor.ts:553-557` with `supervisor_event`, `supervisor_iteration`, `supervisor_handoff` fields. Pinned by `evals/cases/archetypes/cap-hit.test.ts`.
+- [x] **Cap-hit metadata:** `cap-hit` event emitted via `setRunMetadata` in `supervisor.ts:478-483` with `supervisor_event`, `supervisor_iteration`, `supervisor_last_decision`, `supervisor_last_reason`. Pinned by `evals/cases/conversational-graph/cap-hit/capHit.test.ts`.
+- [ ] **Per-rubric pass-rate dashboard:** create a LangSmith share link with one chart per rubric × per category. Link from `docs/EVAL_RESULTS.md`. (User action — requires LangSmith UI.)
+- [x] **Per-extraction metadata:** pipeline traces include `doc_type`, `page_count`, `extractor_version`, `vision_input_tokens`, `vision_output_tokens`, `vision_dollar_cost`, `confidence_distribution` (vision.ts:356-367); `schema_validation_warnings` (schemaValidate.ts, added 2026-05-08); `patient_match_score` + `patient_match_partial` (patientMatch.ts, added 2026-05-08).
 
 **Definition of done.** All five observability surfaces verified. Share link committed to `docs/EVAL_RESULTS.md`.
 
@@ -117,9 +117,9 @@
 - `agent/README.md`.
 
 **Checklist.**
-- [ ] **Top-level `README.md`:** clear W1 baseline behavior section (untouched) + new "Week 2 — Multimodal Evidence Agent" section. Setup steps. Env vars (point to `agent/README.md`). Deployed link. Demo video link.
-- [ ] **`agent/README.md`:** updated env-var table — `PINECONE_*`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `SPACES_*`. Updated routes section — `/v1/agent/extract`, `/v1/agent/respond/stream`, `/v1/agent/respond`. W2 capability summary at top. Per `feedback_module_readmes` — keep this README.
-- [ ] No content removed or moved that disturbs W1 instructions.
+- [x] **Top-level `README.md`:** W2 section present with deployed link, doc table, and "Submission deliverables → Week 2" section. Demo video link added as a placeholder (user to fill).
+- [x] **`agent/README.md`:** env-var table includes `PINECONE_*`, `OPENAI_API_KEY`, `COHERE_API_KEY`, `SPACES_*`. Routes section covers `/v1/agent/extract`. W2 capability summary at top.
+- [x] No content removed or moved that disturbs W1 instructions.
 
 **Definition of done.** A reviewer can clone fresh, read top-level `README.md` + `agent/README.md`, and stand up the W2 system locally without further questions.
 

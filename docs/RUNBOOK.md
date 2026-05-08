@@ -363,6 +363,189 @@ module is available for one-off scripts that need fixed targets).
 
 ---
 
+## Spaces unreachable (W2)
+
+DigitalOcean Spaces hosts raw document bytes (lab PDFs, intake forms,
+rasterized page images) for the ingestion pipeline. When Spaces is
+down, the pipeline cannot read or write documents.
+
+**Symptoms.** Clinician attaches a PDF; the panel shows "Document
+extraction is temporarily unavailable." Agent logs contain a Spaces
+S3 `RequestError` or `NoSuchKey` in `agent/src/storage/spaces.ts`.
+
+**Detection.** Spaces-side 5xx responses in the agent log:
+
+```sh
+docker compose logs agent --tail=200 | grep "spaces\|S3\|storage"
+```
+
+**Failure mode.** Pipeline fails closed — a `failed` artifact with
+`status='failed'` and `errors=['storage-unreachable']` is written.
+The `extraction_artifacts` row stays at `failed`; the chart is
+unaffected. The conversational supervisor sees `status='failed'` and
+routes to a chart-only briefing with a Gap chip ("Document attached,
+extraction unavailable").
+
+**Recovery.**
+
+1. Confirm Spaces is up: DigitalOcean status page → Object Storage.
+2. Verify `SPACES_KEY`, `SPACES_SECRET`, `SPACES_REGION`,
+   `SPACES_BUCKET`, `SPACES_ENDPOINT` are set correctly in
+   `/etc/openemr/.env`.
+3. `docker compose up --detach --force-recreate agent`
+4. Clinician re-attaches the document — the pipeline retries from
+   scratch (idempotent on `(document_hash, extractor_version)`, so
+   re-running is safe).
+
+**Escalation.** If the Spaces bucket itself is missing, re-create it
+in the DO console and re-configure the IAM keys. The `source_document_uuid`
+column on extracted facts links back to the document; no chart data is
+lost if the bucket disappears — only the raw PDF bytes.
+
+---
+
+## Pinecone unreachable (W2)
+
+Pinecone hosts the guideline corpus (USPSTF, CDC, ADA, AGS Beers).
+When Pinecone is down, the `evidenceRetriever` cannot return guideline
+chunks.
+
+**Symptoms.** Briefings succeed but the "Evidence" section is absent
+from the panel. Agent log contains a Pinecone 5xx or connection error.
+
+**Detection.** Check for the `evidence-retrieval-unavailable` gap event
+in the agent log:
+
+```sh
+docker compose logs agent --tail=200 | grep "pinecone\|evidenceRetriever\|evidence-retrieval"
+```
+
+**Failure mode.** Fail-open. The `evidenceRetriever` node catches the
+Pinecone error, emits an `evidence-retrieval-unavailable` gap, and
+returns control to the supervisor. The supervisor synthesizes without
+guideline evidence; the briefing renders with a Gap chip in the
+Evidence section ("Clinical guideline evidence temporarily unavailable").
+Chart data and extracted-document data are unaffected.
+
+**Recovery.**
+
+1. Confirm Pinecone is reachable:
+   `curl "https://api.pinecone.io/indexes" -H "Api-Key: $PINECONE_API_KEY"`
+2. Verify `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`,
+   `PINECONE_NAMESPACE` in `/etc/openemr/.env`.
+3. `docker compose up --detach --force-recreate agent`
+4. Retry a briefing; the Evidence section should reappear.
+
+**If the index is missing** (e.g. after an unintended deletion):
+re-run `npm run grounding:reindex-corpus` from the agent host (all
+corpus source files are in `agent/data/corpus/`). This is a ~5 minute
+idempotent upsert. See `agent/README.md` for the step-by-step.
+
+---
+
+## Cohere unreachable (W2)
+
+Cohere provides the `rerank-v3.5` step for the `evidenceRetriever`.
+When Cohere is down, retrieval falls back to Pinecone hybrid-score
+ordering without reranking.
+
+**Symptoms.** Guideline retrieval still works but the Evidence section
+may show lower-relevance chunks. Agent log contains a Cohere 5xx.
+
+**Detection.**
+
+```sh
+docker compose logs agent --tail=200 | grep "cohere\|rerank\|degraded-mode"
+```
+
+A `degraded-mode` trace event is emitted on every rerank failure; it
+does not escalate to a gap.
+
+**Failure mode.** Degraded mode — the top-3 results are selected by
+Pinecone hybrid score alone. The response is still grounded in the
+corpus and cites real chunks; it may simply be less optimally ordered
+than with reranking. No chart or extraction data affected.
+
+**Recovery.** Optional — the system works without Cohere. To restore
+reranking:
+
+1. Verify `COHERE_API_KEY` in `/etc/openemr/.env`.
+2. `docker compose up --detach --force-recreate agent`
+
+Cohere outages are typically short. No data is lost or corrupted
+during degraded mode.
+
+---
+
+## Anthropic vision rate-limited (W2)
+
+The ingestion pipeline makes a Claude Sonnet 4.x call per document
+upload for vision extraction. Rate limits on the Anthropic API cause
+pipeline failures when extraction is attempted faster than the limit
+allows.
+
+**Symptoms.** Document extraction fails with `errors=['rate-limited']`
+in the artifact. Panel shows "Document extraction is temporarily
+unavailable."
+
+**Detection.**
+
+```sh
+docker compose logs agent --tail=200 | grep "rate.limit\|429\|vision"
+```
+
+**Failure mode.** The pipeline retries once with exponential backoff
+(~30 seconds). On the second failure, a `failed` artifact is written
+with `errors=['rate-limited']`. The conversation degrades gracefully
+as described in the Spaces-unreachable section above.
+
+**Recovery.**
+
+1. Monitor the Anthropic usage dashboard for current spend vs. limits.
+2. If the limit is from bulk extraction (multiple clinicians uploading
+   simultaneously), reduce concurrency or stagger uploads.
+3. The clinician can re-attach the document once the rate limit window
+   resets (typically 1 minute for per-minute limits, 1 hour for daily
+   limits).
+4. Per-document hard cap of $1.00 is enforced in the pipeline before
+   the vision call — if the cap is the issue (document is too large),
+   the error code is `cost-cap-exceeded`, not `rate-limited`.
+
+---
+
+## OpenAI embeddings unreachable (W2)
+
+OpenAI's embedding endpoint is called per `evidenceRetriever`
+invocation to encode the supervisor's query vector for Pinecone search.
+When OpenAI is unreachable, the embed step fails before the Pinecone
+query runs.
+
+**Symptoms.** Same as Pinecone unreachable — the Evidence section is
+absent, with an `evidence-retrieval-unavailable` gap chip.
+
+**Detection.**
+
+```sh
+docker compose logs agent --tail=200 | grep "openai\|embed\|evidence-retrieval"
+```
+
+**Failure mode.** Fail-open, same path as Pinecone unreachable. The
+embed error is caught in the `evidenceRetriever` node, which emits the
+gap and returns. Chart and extraction data are unaffected.
+
+**Recovery.**
+
+1. Verify `OPENAI_API_KEY` in `/etc/openemr/.env` is valid and has
+   remaining quota.
+2. `docker compose up --detach --force-recreate agent`
+3. Retry a briefing; the Evidence section should reappear.
+
+Note: if both Pinecone and OpenAI are down simultaneously, the fail-open
+path still fires (the embed call fails before the Pinecone query, so the
+gap is emitted once regardless of which vendor is unreachable first).
+
+---
+
 ## Eval-gate CI job (per-MR)
 
 The `test:agent-evals-gate` job in `.gitlab-ci.yml` runs every suite's

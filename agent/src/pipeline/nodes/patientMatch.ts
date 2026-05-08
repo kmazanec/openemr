@@ -28,6 +28,7 @@
 
 import type { Logger } from 'pino';
 
+import { setRunMetadata } from '../../observability/traceMetadata.js';
 import type { Demographics } from '../../snapshot/types.js';
 import { matchDob, matchName, type MatchScore } from '../match/demographics.js';
 import {
@@ -182,6 +183,11 @@ export const patientMatch = async (
         patientMatchPartial: partial,
         demographicsWarnings: buildWarnings(nameScore, dobScore),
     };
+
+    setRunMetadata({
+        patient_match_score: combinedScore,
+        patient_match_partial: partial,
+    });
 
     deps.logger.info(
         {

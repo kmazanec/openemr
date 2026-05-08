@@ -60,6 +60,17 @@ The Co-Pilot makes one or more LLM calls for each of these events:
    for clinicians who have opted in, the system pre-renders briefings
    for every patient on the next day's schedule. The clinician opens
    the morning's chart and the briefing is already there.
+4. **Document extraction** *(W2)*. When a clinician attaches a lab PDF
+   or intake form, the ingestion pipeline runs one vision LLM call
+   (Claude Sonnet 4.x) per document to extract structured facts.
+   This is a one-time cost per document; subsequent references to the
+   same document are served from the `extraction_artifacts` cache at
+   zero additional LLM cost.
+5. **Guideline evidence retrieval** *(W2)*. When the supervisor routes
+   to the `evidenceRetriever`, one OpenAI embedding call encodes the
+   query, one Pinecone hybrid-search query returns candidate chunks,
+   and one Cohere rerank call orders the top results. These fire once
+   per supervisor iteration that invokes the evidence retriever.
 
 Each of those events spends tokens against the Anthropic API.
 Everything else — auth, audit logging, conversation persistence,
@@ -73,6 +84,10 @@ carries no per-event LLM cost.
 | Default briefing | Claude Haiku 4.5 | $0.80 / 1M tok | $4.00 / 1M tok | Structured retrieval over a known chart snapshot — Haiku handles the format-and-cite work at ~4x lower cost than Sonnet. |
 | Free-text follow-up | Claude Sonnet 4.6 | $3.00 / 1M tok | $15.00 / 1M tok | Free-form clinician questions benefit from the larger model; this path runs only on user-initiated follow-ups, so the higher per-call cost lands on the small minority of events. |
 | Lab-trend follow-up | Claude Sonnet 4.6 | $3.00 / 1M tok | $15.00 / 1M tok | Interpreting a multi-point analyte trend with reference ranges — same reasoning as free-text. |
+| Supervisor (W2) | Claude Sonnet 4.6 | $3.00 / 1M tok | $15.00 / 1M tok | The W2 supervisor is an LLM call per iteration. Typical turns see 3–6 supervisor iterations; the iteration cap of 10 is the hard ceiling. Supervisor prompts are short (closed-enum handoff manifest + state summary) so per-iteration token count is modest. |
+| Document vision (W2) | Claude Sonnet 4.6 | $3.00 / 1M tok | $15.00 / 1M tok | Vision extraction of lab PDFs and intake forms. One call per document upload. Input includes rasterized page images (billed as image tokens) + the strict Zod extraction schema; output is structured JSON. |
+| Embedding (W2) | OpenAI text-embedding-3-large | $0.13 / 1M tok | — | Per-query embedding for `evidenceRetriever`. Single short query string per retriever invocation. |
+| Rerank (W2) | Cohere rerank-v3.5 | $2.00 / 1K searches | — | Top-20 Pinecone results reranked to top-3. One rerank call per `evidenceRetriever` invocation. |
 
 This per-task routing — Haiku for the high-volume happy path, Sonnet
 where the larger model earns its premium — is the second largest
@@ -84,10 +99,30 @@ numbers above by roughly 3x.
 
 | Event | Input tokens | Output tokens | Model | Cost / event |
 | --- | ---: | ---: | --- | ---: |
-| Pre-visit briefing | ~5,000 | ~1,200 | Haiku 4.5 | **$0.0088** |
+| Pre-visit briefing (W1) | ~5,000 | ~1,200 | Haiku 4.5 | **$0.0088** |
 | Pre-visit briefing (worst case — complex elderly chart) | ~6,500 | ~1,500 | Haiku 4.5 | **$0.0112** |
-| Free-text follow-up | ~5,500 | ~1,000 | Sonnet 4.6 | **$0.0315** |
-| Lab-trend follow-up | ~5,500 | ~800 | Sonnet 4.6 | **$0.0285** |
+| Free-text follow-up (W1) | ~5,500 | ~1,000 | Sonnet 4.6 | **$0.0315** |
+| Lab-trend follow-up (W1) | ~5,500 | ~800 | Sonnet 4.6 | **$0.0285** |
+| Supervisor — per iteration (W2) | ~2,000 | ~200 | Sonnet 4.6 | **$0.0009** |
+| Supervisor — typical turn (3–4 iterations) | ~8,000 | ~800 | Sonnet 4.6 | **$0.0036** |
+| Supervisor — worst-case (10 iterations, cap hit) | ~20,000 | ~2,000 | Sonnet 4.6 | **$0.0090** |
+| Document vision — lab PDF (4 pages) | ~8,000 img+text | ~3,000 | Sonnet 4.6 | **$0.069** |
+| Document vision — intake form (2 pages) | ~5,000 img+text | ~2,000 | Sonnet 4.6 | **$0.045** |
+| Guideline evidence retrieval (W2) | ~300 embed | — | OpenAI embed-3-large | **$0.000039** |
+| Guideline evidence retrieval — rerank (W2) | 20 results | — | Cohere rerank-v3.5 | **$0.002** |
+
+Document vision token costs include image tokens (billed per 1K
+image pixels / 750 input tokens equivalent for Sonnet 4.x image
+pricing). The $1.00 per-document hard cap in
+`agent/scripts/check-cost-cap.ts` bounds any single extraction.
+
+The supervisor cost is per conversational turn that involves
+retriever decisions; a simple chart-only briefing with no attached
+documents and no guideline retrieval may skip the supervisor
+entirely (the W1 deterministic branch still handles it directly).
+For W2 turns where the supervisor runs, the typical 3–4 iteration
+cost ($0.0036) is dominated by the synthesizer itself ($0.0285)
+and is not a meaningful line item until volume scales.
 
 Input volume is dominated by the system prompt (~3,700 tokens, the
 clinical-safety framing and citation requirements) and a compact

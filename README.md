@@ -71,10 +71,21 @@ For agent-only iteration without the full stack, see [`agent/README.md`](agent/R
 
 ## Submission deliverables
 
+### Week 1
+
 - Architecture deck: [`docs/architecture-presentation.html`](docs/architecture-presentation.html)
 - UI mockup: [`docs/ui-mockup.html`](docs/ui-mockup.html)
 - Eval results: [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md)
 - Cost analysis: [`docs/COST_ANALYSIS.md`](docs/COST_ANALYSIS.md)
+
+### Week 2
+
+- Architecture deck (W2): [`docs/week2-architecture-presentation.html`](docs/week2-architecture-presentation.html)
+- Demo video: _to be added — record the Mrs. Patel upload → extraction → accept flow (3–5 min)_
+- Eval results (W2 updated): [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md)
+- Cost analysis (W2 updated): [`docs/COST_ANALYSIS.md`](docs/COST_ANALYSIS.md)
+- Runbook (W2 vendor entries): [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
+- LangSmith datasets: see [`docs/EVAL_RESULTS.md`](docs/EVAL_RESULTS.md#w2-dataset-shares) — _flip to public and add links_
 
 ---
 

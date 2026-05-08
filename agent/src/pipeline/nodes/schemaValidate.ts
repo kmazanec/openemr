@@ -24,6 +24,7 @@
 import type { Logger } from 'pino';
 import type { z } from 'zod';
 
+import { setRunMetadata } from '../../observability/traceMetadata.js';
 import { intakeFormSchema } from '../schemas/intakeForm.js';
 import { labPdfSchema } from '../schemas/labPdf.js';
 import {
@@ -167,5 +168,6 @@ export const schemaValidate = (
         });
     }
 
+    setRunMetadata({ schema_validation_warnings: dropped > 0 ? dropped : 0 });
     return { schema: parsed.data, status: 'validated' };
 };
