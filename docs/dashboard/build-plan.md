@@ -766,6 +766,10 @@ Pre-merge work. Don't ship without these.
         blocks rendering (proves enforcement is on).
 - **Blockers.** T1.6, T6.1, all of T4 and T5.
 
+
+## T6.6 - Bug List
+- What. Various bugs the user found while testing
+
 ---
 
 ## T7 — Stretch goals (post-MVP)
