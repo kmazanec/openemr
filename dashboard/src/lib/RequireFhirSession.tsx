@@ -1,25 +1,35 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
-import { useRouter } from '@tanstack/react-router';
-import { completeAuthorization, type Client } from './fhir';
+import { authorize, completeAuthorization, type Client } from './fhir';
 import { FhirSessionProvider } from './authBoundary';
 
 type State =
   | { kind: 'pending' }
   | { kind: 'ready'; client: Client }
-  | { kind: 'unauthenticated' };
+  | { kind: 'authorizing' }
+  | { kind: 'error'; message: string };
 
 export interface RequireFhirSessionProps {
   children: ReactNode;
 }
 
 // Hydrates the FHIR session at the root of any patient-scoped subtree.
-// On first render, calls FHIR.oauth2.ready() (which reads the
-// session-storage entry written by the /auth/callback route). On
-// success, mounts <FhirSessionProvider> with the live client so the
-// downstream cards' useFhirRequest hooks have an authenticated client
-// to talk to. On failure, sends the user to /login.
+//
+// Three states matter:
+//   1. ready — fhirclient.oauth2.ready() resolved with a session
+//      (typically because /auth/callback already ran in this browser).
+//      Render children with the live client.
+//   2. pending — checking sessionStorage for an existing session.
+//      Render a placeholder.
+//   3. authorizing — no session; we kicked off the SMART OIDC dance
+//      via authorize() and the browser is mid-redirect to OpenEMR's
+//      authorization endpoint. Render a brief "Signing in…" placeholder
+//      until the redirect fires.
+//
+// We deliberately do NOT navigate to /login here. The login route
+// also auto-redirects to authorize(), so going through it is just
+// extra hops; calling authorize() directly is the same UX with one
+// fewer mount.
 export function RequireFhirSession({ children }: RequireFhirSessionProps): ReactElement {
-  const router = useRouter();
   const [state, setState] = useState<State>({ kind: 'pending' });
 
   useEffect(() => {
@@ -31,18 +41,21 @@ export function RequireFhirSession({ children }: RequireFhirSessionProps): React
       })
       .catch(() => {
         if (cancelled) return;
-        setState({ kind: 'unauthenticated' });
+        // No session — kick off the SMART authorize redirect. This
+        // is a full-page navigation, so component teardown happens
+        // naturally; we just need to render something during the
+        // brief window before the browser leaves the page.
+        setState({ kind: 'authorizing' });
+        authorize().catch((err: unknown) => {
+          if (cancelled) return;
+          const message = err instanceof Error ? err.message : 'Unknown error';
+          setState({ kind: 'error', message });
+        });
       });
     return () => {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (state.kind === 'unauthenticated') {
-      void router.navigate({ to: '/login' });
-    }
-  }, [state, router]);
 
   if (state.kind === 'pending') {
     return (
@@ -52,10 +65,19 @@ export function RequireFhirSession({ children }: RequireFhirSessionProps): React
     );
   }
 
-  if (state.kind === 'unauthenticated') {
+  if (state.kind === 'authorizing') {
     return (
       <div role="status" className="p-3">
-        <p>Redirecting to sign in…</p>
+        <p>Signing in…</p>
+      </div>
+    );
+  }
+
+  if (state.kind === 'error') {
+    return (
+      <div role="alert" className="p-3">
+        <h2 className="h5">Couldn't sign in to FHIR</h2>
+        <p className="text-muted">{state.message}</p>
       </div>
     );
   }

@@ -32,13 +32,21 @@ declare global {
 // The browser's URL stays at main_v2.php?token_main=..., which is
 // what the legacy session check expects.
 //
-// Trade-off: deep links into a specific patient/legacy tab via the
-// browser address bar don't work (you'd need a real basepath +
-// Apache rewrite for that — out of scope until T6.5/deploy).
-// Bookmarking is still a future work item.
+// Exception: when the SPA is loaded *as the OAuth callback target*
+// (Apache rewrites /dashboard/auth/callback → dashboard/dist/index.html
+// per T1.6), we want the in-memory router to start at /auth/callback
+// so AuthCallbackRoute fires. fhirclient reads ?code=&state= from
+// the real window.location.search, so the URL bar staying at
+// /dashboard/auth/callback is fine.
+function pickInitialEntry(): string {
+  if (typeof window === 'undefined') return '/';
+  if (window.location.pathname.endsWith('/auth/callback')) return '/auth/callback';
+  return '/';
+}
+
 const router = createRouter({
   routeTree,
-  history: createMemoryHistory({ initialEntries: ['/'] }),
+  history: createMemoryHistory({ initialEntries: [pickInitialEntry()] }),
 });
 
 declare module '@tanstack/react-router' {

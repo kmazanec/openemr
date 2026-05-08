@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// fhirclient is loaded dynamically inside getClient() so we can stub
-// import.meta.env per test before the module evaluates.
 const VARS = [
   'VITE_OIDC_ISSUER',
   'VITE_OIDC_CLIENT_ID',
@@ -21,44 +19,28 @@ function setEnv(values: Partial<Record<(typeof VARS)[number], string | undefined
 }
 
 const VALID_ENV = {
-  VITE_OIDC_ISSUER: 'https://emr.example.com/oauth2/default',
+  VITE_OIDC_ISSUER: 'https://emr.example.com/apis/default/fhir',
   VITE_OIDC_CLIENT_ID: 'test-client-id',
   VITE_OIDC_REDIRECT_URI: 'https://emr.example.com/dashboard/auth/callback',
   VITE_OIDC_SCOPE: 'openid fhirUser launch/patient offline_access',
+};
+
+const ALL_UNSET: Record<(typeof VARS)[number], undefined> = {
+  VITE_OIDC_ISSUER: undefined,
+  VITE_OIDC_CLIENT_ID: undefined,
+  VITE_OIDC_REDIRECT_URI: undefined,
+  VITE_OIDC_SCOPE: undefined,
 };
 
 describe('getOidcConfig', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllEnvs();
+    if (typeof localStorage !== 'undefined') localStorage.clear();
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-  });
-
-  it('throws a descriptive error when VITE_OIDC_ISSUER is missing', async () => {
-    setEnv({ ...VALID_ENV, VITE_OIDC_ISSUER: undefined });
-    const { getOidcConfig } = await import('./fhir');
-    expect(() => getOidcConfig()).toThrow(/VITE_OIDC_ISSUER/);
-  });
-
-  it('throws a descriptive error when VITE_OIDC_CLIENT_ID is missing', async () => {
-    setEnv({ ...VALID_ENV, VITE_OIDC_CLIENT_ID: undefined });
-    const { getOidcConfig } = await import('./fhir');
-    expect(() => getOidcConfig()).toThrow(/VITE_OIDC_CLIENT_ID/);
-  });
-
-  it('throws a descriptive error when VITE_OIDC_REDIRECT_URI is missing', async () => {
-    setEnv({ ...VALID_ENV, VITE_OIDC_REDIRECT_URI: undefined });
-    const { getOidcConfig } = await import('./fhir');
-    expect(() => getOidcConfig()).toThrow(/VITE_OIDC_REDIRECT_URI/);
-  });
-
-  it('throws a descriptive error when VITE_OIDC_SCOPE is missing', async () => {
-    setEnv({ ...VALID_ENV, VITE_OIDC_SCOPE: undefined });
-    const { getOidcConfig } = await import('./fhir');
-    expect(() => getOidcConfig()).toThrow(/VITE_OIDC_SCOPE/);
   });
 
   it('returns the parsed config when every var is set', async () => {
@@ -72,20 +54,90 @@ describe('getOidcConfig', () => {
     });
   });
 
-  it('error names every missing var when several are unset', async () => {
+  it('derives iss and redirectUri from window.location.origin when env vars are missing', async () => {
+    // Vitest's jsdom environment pins location.origin to
+    // http://localhost:3000 by default — assert that fallback.
     setEnv({
-      ...VALID_ENV,
-      VITE_OIDC_ISSUER: undefined,
-      VITE_OIDC_CLIENT_ID: undefined,
+      ...ALL_UNSET,
+      VITE_OIDC_CLIENT_ID: 'cached-client-id',
     });
     const { getOidcConfig } = await import('./fhir');
-    let message = '';
-    try {
-      getOidcConfig();
-    } catch (err) {
-      message = err instanceof Error ? err.message : String(err);
-    }
-    expect(message).toMatch(/VITE_OIDC_ISSUER/);
-    expect(message).toMatch(/VITE_OIDC_CLIENT_ID/);
+    const cfg = getOidcConfig();
+    expect(cfg.iss).toBe(`${window.location.origin}/apis/default/fhir`);
+    expect(cfg.redirectUri).toBe(`${window.location.origin}/dashboard/auth/callback`);
+    expect(cfg.scope).toContain('patient/AllergyIntolerance.read');
+  });
+
+  it('reads clientId from localStorage when no env var is set', async () => {
+    setEnv(ALL_UNSET);
+    localStorage.setItem('oeDashboard.smartClientId', 'cached-id-from-storage');
+    const { getOidcConfig } = await import('./fhir');
+    expect(getOidcConfig().clientId).toBe('cached-id-from-storage');
+  });
+
+  it('throws when no clientId can be resolved from env or storage', async () => {
+    setEnv(ALL_UNSET);
+    const { getOidcConfig } = await import('./fhir');
+    expect(() => getOidcConfig()).toThrow(/VITE_OIDC_CLIENT_ID/);
+  });
+});
+
+describe('ensureClientId', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    if (typeof localStorage !== 'undefined') localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('returns the env client_id when set, without hitting the network', async () => {
+    setEnv({ ...ALL_UNSET, VITE_OIDC_CLIENT_ID: 'env-client-id' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const { ensureClientId } = await import('./fhir');
+    await expect(ensureClientId()).resolves.toBe('env-client-id');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns the localStorage cache when set, without hitting the network', async () => {
+    setEnv(ALL_UNSET);
+    localStorage.setItem('oeDashboard.smartClientId', 'cached-client-id');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const { ensureClientId } = await import('./fhir');
+    await expect(ensureClientId()).resolves.toBe('cached-client-id');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('registers a new client and caches the returned client_id', async () => {
+    setEnv(ALL_UNSET);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ client_id: 'fresh-client-id' }),
+    } as unknown as Response);
+
+    const { ensureClientId } = await import('./fhir');
+    await expect(ensureClientId()).resolves.toBe('fresh-client-id');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${window.location.origin}/oauth2/default/registration`);
+    expect(init.method).toBe('POST');
+    expect(localStorage.getItem('oeDashboard.smartClientId')).toBe('fresh-client-id');
+  });
+
+  it('throws on registration failure', async () => {
+    setEnv(ALL_UNSET);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({}),
+    } as unknown as Response);
+
+    const { ensureClientId } = await import('./fhir');
+    await expect(ensureClientId()).rejects.toThrow(/Failed to register/);
   });
 });
