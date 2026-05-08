@@ -34,13 +34,15 @@ export function PatientHeader({ pid, today }: PatientHeaderProps): ReactElement 
     return <PatientHeaderSkeleton />;
   }
 
-  return <PatientHeaderView patient={data} today={today ?? new Date()} />;
+  return <PatientHeaderView pid={pid} patient={data} today={today ?? new Date()} />;
 }
 
 function PatientHeaderView({
+  pid,
   patient,
   today,
 }: {
+  pid: string;
   patient: Patient;
   today: Date;
 }): ReactElement {
@@ -52,23 +54,106 @@ function PatientHeaderView({
   const status = statusOf(patient);
 
   return (
-    <div className="card patient-header" data-testid="patient-header">
-      <div className="card-body d-flex flex-wrap align-items-center gap-3">
-        <div className="patient-header-name flex-grow-1">
-          <h2 className="h5 mb-1">{name}</h2>
-          <div className="text-muted small">
+    <div className="patient-header px-3 py-2 border-bottom" data-testid="patient-header">
+      <div className="d-flex align-items-start gap-3">
+        <PatientAvatar />
+        <div className="flex-grow-1">
+          <div className="d-flex align-items-center gap-2">
+            <h1 className="h4 mb-0 text-primary fw-normal">
+              {name} <span className="text-muted">({pid})</span>
+            </h1>
+            <button
+              type="button"
+              className="btn btn-sm btn-link text-muted text-decoration-none p-0"
+              aria-label="Close patient"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  const top: (Window & { clearPatient?: () => void }) | null = window.top;
+                  top?.clearPatient?.();
+                }
+              }}
+            >
+              &times;
+            </button>
+          </div>
+          <div className="text-body-secondary small">
             {dob !== undefined && (
               <span className="me-3">
                 DOB: {dob}
-                {age !== null && <> (age {age})</>}
+                {age !== null && <> Age: {age}</>}
               </span>
             )}
-            {sex !== undefined && <span className="me-3">Sex: {sex}</span>}
-            {mrn !== null && <span className="me-3">MRN: {mrn}</span>}
+            {sex !== undefined && <span className="me-3 visually-hidden">Sex: {sex}</span>}
+            {mrn !== null && <span className="me-3 visually-hidden">MRN: {mrn}</span>}
+            <span className="visually-hidden"><StatusBadge status={status} /></span>
           </div>
         </div>
-        <StatusBadge status={status} />
+        <EncounterSelector />
       </div>
+    </div>
+  );
+}
+
+function PatientAvatar(): ReactElement {
+  return (
+    <div
+      className="rounded-circle bg-body-tertiary d-flex align-items-center justify-content-center flex-shrink-0"
+      style={{ width: 48, height: 48 }}
+      aria-hidden="true"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="32"
+        height="32"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className="text-secondary"
+      >
+        <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+      </svg>
+    </div>
+  );
+}
+
+function EncounterSelector(): ReactElement {
+  return (
+    <div className="d-flex align-items-center gap-2 flex-shrink-0" data-testid="encounter-selector">
+      <button
+        type="button"
+        className="btn btn-sm btn-link text-decoration-none p-1"
+        aria-label="Encounter history"
+        title="Encounter history"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path d="M8 3.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 .146.354l3 3a.5.5 0 0 0 .708-.708L8.5 7.793V4a.5.5 0 0 0-.5-.5z" />
+          <path d="M8 16A8 8 0 1 0 0 8a.5.5 0 0 1 1 0 7 7 0 1 1 2.05 4.95L1.107 11H4.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1-.5-.5v-4a.5.5 0 0 1 1 0v2.469l1.226-1.226A7 7 0 0 0 8 16z" />
+        </svg>
+      </button>
+      <div className="input-group input-group-sm" style={{ width: 'auto' }}>
+        <button
+          type="button"
+          className="btn btn-outline-secondary dropdown-toggle"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+        >
+          Select Encounter
+        </button>
+      </div>
+      <button
+        type="button"
+        className="btn btn-sm btn-outline-secondary"
+        aria-label="New encounter"
+        title="New encounter"
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -87,28 +172,20 @@ function statusOf(patient: Patient): PatientStatus {
 
 function StatusBadge({ status }: { status: PatientStatus }): ReactElement {
   const label = status === 'active' ? 'Active' : status === 'inactive' ? 'Inactive' : 'Deceased';
-  const cls =
-    status === 'active'
-      ? 'bg-success'
-      : status === 'inactive'
-        ? 'bg-secondary'
-        : 'bg-dark';
-  return <span className={`badge ${cls}`}>{label}</span>;
+  return <span>{label}</span>;
 }
 
 function PatientHeaderSkeleton(): ReactElement {
   return (
     <div
-      className="card patient-header"
+      className="patient-header px-3 py-2 border-bottom"
       data-testid="patient-header-skeleton"
       aria-busy="true"
     >
-      <div className="card-body">
-        <div className="placeholder-glow">
-          <span className="placeholder col-4" />
-          <br />
-          <span className="placeholder col-6" />
-        </div>
+      <div className="placeholder-glow">
+        <span className="placeholder col-4" />
+        <br />
+        <span className="placeholder col-6" />
       </div>
     </div>
   );
@@ -116,8 +193,8 @@ function PatientHeaderSkeleton(): ReactElement {
 
 function PatientHeaderError({ onRetry }: { onRetry: () => void }): ReactElement {
   return (
-    <div className="card patient-header border-danger" data-testid="patient-header-error">
-      <div className="card-body d-flex justify-content-between align-items-center">
+    <div className="patient-header px-3 py-2 border-bottom border-danger" data-testid="patient-header-error">
+      <div className="d-flex justify-content-between align-items-center">
         <span>Couldn&rsquo;t load patient</span>
         <button type="button" className="btn btn-sm btn-outline-danger" onClick={onRetry}>
           Retry

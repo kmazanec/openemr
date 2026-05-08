@@ -1,0 +1,102 @@
+/* Bootstrap 5-shaped utilities the host (main_v2.php on Bootstrap 4.6)
+   does not provide. The SPA was authored against Bootstrap 5 idioms;
+   re-implement the few classes we rely on so the rendered DOM looks
+   right under either major. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.bg-body {
+  background-color: #fff !important;
+}
+
+.bg-body-tertiary {
+  background-color: #e9ecef !important;
+}
+
+.text-body-secondary {
+  color: #6c757d !important;
+}
+
+/* Bootstrap 5 gap utilities (BS4.6 stops at gap-0). */
+.gap-1 { gap: 0.25rem !important; }
+.gap-2 { gap: 0.5rem !important; }
+.gap-3 { gap: 1rem !important; }
+.gap-4 { gap: 1.5rem !important; }
+.gap-5 { gap: 3rem !important; }
+
+/* Bootstrap 5 .row gutters (g-3) — BS4 uses no-gutters / mx-n*. */
+.row.g-3 {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+}
+.row.g-3 > [class^="col-"], .row.g-3 > [class*=" col-"] {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Patient header: tighter, lighter than the default Bootstrap card chrome. */
+.patient-header {
+  background-color: #fff;
+}
+
+/* Tab strip: legacy-look (small text, paper tabs sitting on a baseline). */
+.tab-strip-legacy {
+  background-color: #fafafa;
+  border-bottom: 1px solid #dee2e6;
+  list-style: none;
+  padding-top: 4px;
+  gap: 2px;
+}
+
+.tab-strip-legacy .nav-item {
+  font-size: 0.875rem;
+  background-color: #f1f3f5;
+}
+
+.tab-strip-legacy .nav-item.bg-body {
+  background-color: #fff !important;
+  border-color: #dee2e6 !important;
+}
+
+/* Sub-nav row: small links below the tab strip. */
+.patient-sub-nav {
+  background-color: #fff;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.patient-sub-nav a {
+  white-space: nowrap;
+}
+
+/* Cards: legacy renders each section as a borderless block with a
+   thin underlined header and the body sitting flush below. */
+.legacy-card {
+  background-color: transparent;
+}
+
+.legacy-card > .card-header {
+  border-color: #dee2e6 !important;
+  border-bottom-width: 2px !important;
+  background-color: transparent !important;
+}
+
+.legacy-card .card-title {
+  font-size: 0.95rem;
+}
+
+/* Empty-state alert banner: lighter blue than Bootstrap's default. */
+.legacy-card .alert-info {
+  background-color: #e7f3f7;
+  border-color: #cfe6ee;
+  color: #1c5e72;
+}

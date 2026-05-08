@@ -34,7 +34,12 @@ function AllergiesBody({ bundle }: { bundle: Bundle<AllergyIntolerance> | undefi
     .filter((r): r is AllergyIntolerance => r !== undefined);
 
   if (allergies.length === 0) {
-    return <p className="text-muted mb-0">No known active allergies.</p>;
+    return (
+      <p className="text-muted mb-0 small">
+        Nothing Recorded
+        <span className="visually-hidden"> (No known active allergies.)</span>
+      </p>
+    );
   }
 
   return (

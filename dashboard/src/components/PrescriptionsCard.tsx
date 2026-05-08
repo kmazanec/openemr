@@ -44,20 +44,28 @@ function PrescriptionsBody({
   return (
     <>
       <div className="d-flex justify-content-end mb-2">
-        <a className="btn btn-sm btn-outline-secondary" href={addPrescriptionHref(pid)}>
+        <a
+          className="btn btn-sm btn-outline-secondary"
+          href={addPrescriptionHref(pid)}
+        >
           Add prescription
         </a>
       </div>
       {rxs.length === 0 ? (
-        <p className="text-muted mb-0">No active prescriptions.</p>
+        <p className="text-muted mb-0 small">
+          Nothing Recorded
+          <span className="visually-hidden"> (No active prescriptions.)</span>
+        </p>
       ) : (
         <div className="table-responsive">
-          <table className="table table-sm table-borderless mb-0">
+          <table className="table table-sm mb-0">
             <thead>
-              <tr>
+              <tr className="text-body-secondary">
                 <th scope="col">Drug</th>
-                <th scope="col">Dose</th>
-                <th scope="col">Authored</th>
+                <th scope="col">Details</th>
+                <th scope="col">Qty</th>
+                <th scope="col">Refills</th>
+                <th scope="col">Filled</th>
               </tr>
             </thead>
             <tbody>
@@ -65,6 +73,8 @@ function PrescriptionsBody({
                 <tr key={m.id ?? Math.random().toString(36)}>
                   <td>{drugOf(m)}</td>
                   <td>{doseOf(m)}</td>
+                  <td>{quantityOf(m)}</td>
+                  <td>{refillsOf(m)}</td>
                   <td>{m.authoredOn ?? '—'}</td>
                 </tr>
               ))}
@@ -74,6 +84,20 @@ function PrescriptionsBody({
       )}
     </>
   );
+}
+
+function quantityOf(m: MedicationRequest): string {
+  const q = m.dispenseRequest?.quantity;
+  if (q === undefined) return '—';
+  if (typeof q.value !== 'number') return '—';
+  const unit = typeof q.unit === 'string' && q.unit.length > 0 ? ` ${q.unit}` : '';
+  return `${q.value}${unit}`;
+}
+
+function refillsOf(m: MedicationRequest): string {
+  const r = m.dispenseRequest?.numberOfRepeatsAllowed;
+  if (typeof r !== 'number') return '—';
+  return String(r);
 }
 
 function addPrescriptionHref(pid: string): string {

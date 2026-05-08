@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import './dashboard.css';
 
 const container = document.getElementById('dashboard-root');
 if (!container) {

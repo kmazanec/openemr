@@ -36,7 +36,12 @@ function ProblemsBody({ bundle }: { bundle: Bundle<Condition> | undefined }): Re
     .filter((c) => isActive(c));
 
   if (conditions.length === 0) {
-    return <p className="text-muted mb-0">No active problems.</p>;
+    return (
+      <p className="text-muted mb-0 small">
+        Nothing Recorded
+        <span className="visually-hidden"> (No active problems.)</span>
+      </p>
+    );
   }
 
   return (

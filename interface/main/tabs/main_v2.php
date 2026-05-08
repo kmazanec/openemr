@@ -641,7 +641,17 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
         $entryFile = is_array($entry) && isset($entry['file']) && is_string($entry['file'])
             ? $entry['file']
             : null;
+        // Vite-emitted CSS chunk for the SPA entry — Vite places
+        // imported CSS in the `css` array of the entry's manifest
+        // record. Inject each one as a <link> so component styles
+        // ship alongside the JS bundle.
+        $entryCss = is_array($entry) && isset($entry['css']) && is_array($entry['css'])
+            ? array_filter($entry['css'], is_string(...))
+            : [];
         ?>
+        <?php foreach ($entryCss as $cssFile) { ?>
+            <link rel="stylesheet" href="<?php echo attr($webroot . '/dashboard/dist/' . $cssFile); ?>">
+        <?php } ?>
         <div id="dashboard-root"></div>
         <?php if ($entryFile !== null) { ?>
             <script type="module" src="<?php echo attr($webroot . '/dashboard/dist/' . $entryFile); ?>"></script>

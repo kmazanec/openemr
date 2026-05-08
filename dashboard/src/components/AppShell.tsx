@@ -11,14 +11,19 @@ export interface AppShellProps {
   // mounted at all times (hidden when inactive), so this child
   // re-renders only when the route's pid actually changes.
   dashboardBody: ReactNode;
+  // Optional persistent header rendered above the tab strip — the
+  // patient identity bar lives here, mirroring the legacy layout
+  // where patient context sits above all per-tab navigation.
+  patientHeader?: ReactNode;
 }
 
-// Renders the persistent SPA chrome: tab strip on top, then a stack
-// of tab panes that stay mounted across tab switches. Legacy iframes
-// preserve their state (form contents, scroll position) when the
-// user flips back. The Dashboard pane's content is supplied by the
-// active route via the `dashboardBody` prop.
-export function AppShell({ dashboardBody }: AppShellProps): ReactElement {
+// Renders the persistent SPA chrome: optional patient header, tab
+// strip, then a stack of tab panes that stay mounted across tab
+// switches. Legacy iframes preserve their state (form contents,
+// scroll position) when the user flips back. The Dashboard pane's
+// content is supplied by the active route via the `dashboardBody`
+// prop.
+export function AppShell({ dashboardBody, patientHeader }: AppShellProps): ReactElement {
   const store = appTabsStore();
   const state = useTabs(store);
   const activeId = state.activeId;
@@ -29,6 +34,7 @@ export function AppShell({ dashboardBody }: AppShellProps): ReactElement {
       className="patient-shell d-flex flex-column"
       style={{ position: 'absolute', inset: 0 }}
     >
+      {patientHeader}
       <TabStrip store={store} />
       <div
         className="tab-content position-relative"

@@ -42,7 +42,12 @@ function MedicationsBody({
     .filter((r): r is MedicationRequest => r !== undefined);
 
   if (meds.length === 0) {
-    return <p className="text-muted mb-0">No active medications.</p>;
+    return (
+      <p className="text-muted mb-0 small">
+        Nothing Recorded
+        <span className="visually-hidden"> (No active medications.)</span>
+      </p>
+    );
   }
 
   return (
