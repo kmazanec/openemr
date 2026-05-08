@@ -9,6 +9,7 @@ import { MedicationsCard } from '../components/MedicationsCard';
 import { PrescriptionsCard } from '../components/PrescriptionsCard';
 import { CareTeamCard } from '../components/CareTeamCard';
 import { EncountersCard } from '../components/EncountersCard';
+import { LabsCard } from '../components/LabsCard';
 import { TreatmentInterventionPreferencesCard } from '../components/TreatmentInterventionPreferencesCard';
 import { CareExperiencePreferencesCard } from '../components/CareExperiencePreferencesCard';
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
@@ -98,6 +99,9 @@ function PatientSummary({ pid, uuid }: { pid: string; uuid: string }): ReactElem
           </div>
           <div className="col-12">
             <EncountersCard pid={uuid} />
+          </div>
+          <div className="col-12">
+            <LabsCard pid={uuid} />
           </div>
           <div className="col-12">
             <TreatmentInterventionPreferencesCard />

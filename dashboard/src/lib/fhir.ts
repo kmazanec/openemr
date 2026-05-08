@@ -18,7 +18,8 @@ export interface OidcConfig {
 const DEFAULT_SCOPE =
   'openid fhirUser launch launch/patient offline_access ' +
   'patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read ' +
-  'patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read';
+  'patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read ' +
+  'patient/Observation.read patient/DiagnosticReport.read patient/Immunization.read';
 
 // localStorage key for the auto-registered SMART client. We cache
 // the client_id so the user goes through registration once and the
