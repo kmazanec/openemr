@@ -66,6 +66,21 @@ export interface BriefingGraphDeps {
      */
     readonly kickoffExtraction?: KickoffExtractionDeps;
     /**
+     * Test-only node override for `kickoffExtraction`. Used by the
+     * conversational-graph eval target to inject a fake-success kickoff
+     * stub: it appends a `persisted` `KickoffExtractionResult` to state
+     * without standing up a real `PipelineRunner`. Production must
+     * never set this — the regular `kickoffExtraction` deps are the
+     * supported path. When both are set, the override wins (so a test
+     * can ignore the real deps shape entirely). The two-knob design
+     * keeps the production deps slot as the canonical surface while
+     * giving tests a 5-line escape hatch for the supervisor-routing
+     * cases that need a "kickoff already happened" signal in state.
+     */
+    readonly kickoffExtractionNodeOverride?: (
+        state: BriefingState,
+    ) => Promise<Partial<BriefingState>>;
+    /**
      * When set, the compiled graph persists state via this saver, keyed
      * by the `thread_id` the caller passes on `invoke`. Production wires
      * the LangGraph Postgres saver here; in-memory tests omit it (state
@@ -135,9 +150,11 @@ export const createBriefingGraph = (deps: BriefingGraphDeps) => {
     const evidenceRetrieverNode = deps.evidenceRetriever !== undefined
         ? createEvidenceRetriever(deps.evidenceRetriever)
         : evidenceRetrieverStub;
-    const kickoffExtractionNode = deps.kickoffExtraction !== undefined
-        ? createKickoffExtraction(deps.kickoffExtraction)
-        : kickoffExtractionStub;
+    const kickoffExtractionNode =
+        deps.kickoffExtractionNodeOverride
+        ?? (deps.kickoffExtraction !== undefined
+            ? createKickoffExtraction(deps.kickoffExtraction)
+            : kickoffExtractionStub);
 
     const supervisorDeps: SupervisorDeps = deps.supervisor ?? { decide: defaultSupervisorDecide };
     const builder = new StateGraph(BriefingStateAnnotation)

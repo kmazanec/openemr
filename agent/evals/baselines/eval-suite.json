@@ -153,7 +153,7 @@
         }
       }
     },
-    "clinical-copilot-conversational-graph-v4": {
+    "clinical-copilot-conversational-graph-v5": {
       "cases": {
         "cap-hit": {
           "factually_consistent": false,
@@ -175,6 +175,11 @@
           "no_phi_in_logs": true
         },
         "chart-medication-list-summary": {
+          "citation_present": true,
+          "factually_consistent": true,
+          "no_phi_in_logs": true
+        },
+        "doc-after-kickoff-routes-to-doc-retriever": {
           "citation_present": true,
           "factually_consistent": true,
           "no_phi_in_logs": true

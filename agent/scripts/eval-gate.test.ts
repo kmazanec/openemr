@@ -270,7 +270,7 @@ describe('resolveSkippedCases', () => {
             'clinical-copilot-briefing-graph-v2': {
                 cases: { 'archetype:diabetic': { citation_present: true } },
             },
-            'clinical-copilot-conversational-graph-v4': {
+            'clinical-copilot-conversational-graph-v5': {
                 cases: { 'multi-retriever': { citation_present: true } },
             },
             'clinical-copilot-document-extraction-v1': {
@@ -329,7 +329,7 @@ describe('resolveSkippedCases', () => {
             okReport('langsmith'),
         ]);
         expect(skips.size).toBe(1);
-        expect(skips.has('clinical-copilot-conversational-graph-v4::multi-retriever')).toBe(true);
+        expect(skips.has('clinical-copilot-conversational-graph-v5::multi-retriever')).toBe(true);
         expect(skips.has('clinical-copilot-briefing-graph-v2::archetype:diabetic')).toBe(false);
     });
 });
@@ -415,7 +415,7 @@ describe('renderMarkdownReport', () => {
                 flipped: [],
                 skipped: [
                     {
-                        dataset: 'clinical-copilot-conversational-graph-v4',
+                        dataset: 'clinical-copilot-conversational-graph-v5',
                         caseId: 'multi-retriever',
                         reason: 'vendor-outage',
                     },

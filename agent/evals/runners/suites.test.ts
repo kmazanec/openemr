@@ -126,7 +126,7 @@ describe('briefingGraphSuite', () => {
 });
 
 describe('conversationalGraphSuite', () => {
-    it('uses a v4 dataset name (schema-bump contract: rename when shape changes)', () => {
+    it('uses a v5 dataset name (schema-bump contract: rename when shape changes)', () => {
         // Bumped to -v2 when the case-group enum widened to add
         // multi-retriever and cap-hit. Bumped to -v3 (F.5e) when the
         // synthesizer's `ClaimCategory` enum gained a `family_history`
@@ -134,9 +134,12 @@ describe('conversationalGraphSuite', () => {
         // end-to-end suite's behavioral coverage and added 26
         // realistic clinic-encounter cases (8 document-retrieval, 8
         // guideline-retrieval, 4 multi-retriever, 4 chart-only, 2
-        // redaction). Bump again when the input/output shape changes
-        // so old experiments stay comparable.
-        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v4')).toBe(true);
+        // redaction). Bumped -v4 → -v5 when the
+        // `doc-after-kickoff-routes-to-doc-retriever` regression case
+        // pinned the supervisor's must-call-documentEvidenceRetriever-
+        // after-kickoff invariant.  Bump again when the input/output
+        // shape changes so old experiments stay comparable.
+        expect(CONVERSATIONAL_GRAPH_DATASET_NAME.endsWith('-v5')).toBe(true);
     });
 });
 

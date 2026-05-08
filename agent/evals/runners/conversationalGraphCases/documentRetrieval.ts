@@ -30,7 +30,8 @@ export type DocumentRetrievalCaseId =
     | 'doc-intake-medication-reconciliation'
     | 'doc-imaging-mammogram-birads3'
     | 'doc-cardiology-consult-letter'
-    | 'doc-ed-summary-syncope';
+    | 'doc-ed-summary-syncope'
+    | 'doc-after-kickoff-routes-to-doc-retriever';
 
 export type { ScenarioFixture, CaseSpec } from './_types.js';
 
@@ -861,6 +862,124 @@ const buildEdSummaryFixture = (): ScenarioFixture => {
     };
 };
 
+// --- Case 9: doc-after-kickoff-routes-to-doc-retriever -------------------
+//
+// Regression case for a production bug where the supervisor ran
+// `kickoffExtraction` (the document persisted, the artifact was written)
+// and then went STRAIGHT to `synthesize` without invoking
+// `documentEvidenceRetriever`. The synthesizer therefore had zero
+// `documentSnippets` and the answer cited only chart values, silently
+// omitting every fact in the document the clinician had just attached
+// the doc to ask about. The supervisor's reasoning was "all necessary
+// context has been gathered: the lab PDF has been extracted
+// (kickoffExtraction)" — confusing artifact persistence with retrieval
+// availability.
+//
+// The fixture forces the kickoff path by setting `envelope.pendingUploads`,
+// pre-seeds the artifact in `searchArtifacts` so `documentEvidenceRetriever`
+// has something to return, and asserts `verifier-accepted` (i.e. at
+// least one extracted_document claim accepted). The eval target uses
+// the test-only `kickoffExtractionNodeOverride` from `BriefingGraphDeps`
+// to simulate a successful kickoff without standing up a real
+// `PipelineRunner`.
+
+const FELDMAN: PatientShape = {
+    pid: 4309,
+    uuid: 'p-cg-0309',
+    displayName: 'Feldman, Robert',
+    sex: 'M',
+    dateOfBirth: '1971-06-08',
+    ageYears: 54,
+};
+
+export const DOC_AFTER_KICKOFF_DOCUMENT_UUID = 'doc-cg-postkickoff-0309';
+export const DOC_AFTER_KICKOFF_ARTIFACT_ID = 'aaaa0309-bbbb-4444-cccc-5555dddd0309';
+
+const buildPostKickoffFixture = (): ScenarioFixture => {
+    const snapshot = buildSnapshot(
+        FELDMAN,
+        [
+            {
+                code: 'I10',
+                codeSystem: 'ICD-10',
+                label: 'Essential hypertension',
+                onsetDate: '2018-04-10',
+                source: chartSrc('dx-309-1', 'condition.code'),
+            },
+        ],
+        [
+            {
+                name: 'Lisinopril 20 mg',
+                dose: '20 mg',
+                route: 'PO',
+                frequency: 'daily',
+                startDate: '2018-04-15',
+                stopDate: null,
+                prescriber: 'Dr. Patel',
+                indication: 'Hypertension',
+                prescriptionId: 'rx-309-lis',
+                source: chartSrc('rx-309-lis', 'medication.name'),
+            },
+        ],
+        { date: '2026-05-04', reason: 'Lab review', id: 'enc-309-1' },
+    );
+    const artifact: ExtractionArtifact = {
+        artifactId: DOC_AFTER_KICKOFF_ARTIFACT_ID,
+        documentUuid: DOC_AFTER_KICKOFF_DOCUMENT_UUID,
+        pid: FELDMAN.pid,
+        docType: 'lab_pdf',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            results: [
+                {
+                    analyte: 'Creatinine',
+                    value: 1.4,
+                    unit: 'mg/dL',
+                    page: 1,
+                    bbox: [60, 432, 860, 22],
+                    quote: 'Creatinine 1.4 H 0.74 - 1.35 mg/dL',
+                    confidence: 0.97,
+                },
+                {
+                    analyte: 'Potassium',
+                    value: 3.3,
+                    unit: 'mmol/L',
+                    page: 1,
+                    bbox: [60, 510, 860, 22],
+                    quote: 'Potassium 3.3 L 3.6 - 5.2 mmol/L',
+                    confidence: 0.97,
+                },
+            ],
+        },
+        deltasJson: null,
+        confidenceSignal: { self_reported: 0.97, schema_warning_count: 0, patient_match: 'full' },
+        status: 'pending_confirmation',
+        documentHash: '9'.repeat(64),
+        createdAt: '2026-05-04T20:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+    };
+    const baseEnv = buildEnvelope(
+        'doc-after-kickoff-routes-to-doc-retriever',
+        FELDMAN,
+        'What does the lab I just attached show, and is anything outside the reference range?',
+    );
+    // pendingUploads forces the supervisor down the kickoffExtraction
+    // path on iteration 1 — exactly the production scenario where the
+    // bug surfaced.
+    const envelope: RequestEnvelope = {
+        ...baseEnv,
+        pendingUploads: [
+            {
+                documentUuid: DOC_AFTER_KICKOFF_DOCUMENT_UUID,
+                docType: 'lab_pdf',
+                canonicalExt: 'pdf',
+            },
+        ],
+    };
+    return { snapshot, envelope, artifacts: [artifact] };
+};
+
 export const documentRetrievalCases: Readonly<Record<DocumentRetrievalCaseId, CaseSpec>> = {
     'doc-recent-hba1c-spike': {
         description:
@@ -909,5 +1028,11 @@ export const documentRetrievalCases: Readonly<Record<DocumentRetrievalCaseId, Ca
             "78-year-old female on lisinopril/atenolol/furosemide; clinician asks what last week's ED summary said about her syncope episode and the workup recommendation.",
         expectedGate: 'verifier-accepted',
         fixture: buildEdSummaryFixture,
+    },
+    'doc-after-kickoff-routes-to-doc-retriever': {
+        description:
+            'Regression: clinician just uploaded a lab PDF (envelope.pendingUploads is set). Supervisor must run kickoffExtraction THEN documentEvidenceRetriever before synthesize. Pre-prompt-fix the supervisor went kickoffExtraction → retrieveChart → evidenceRetriever → synthesize, skipping documentEvidenceRetriever, and the answer silently cited only chart values — no extracted_document claims. Verifier-accepted requires at least one extracted_document claim, which is impossible without documentEvidenceRetriever.',
+        expectedGate: 'verifier-accepted',
+        fixture: buildPostKickoffFixture,
     },
 };

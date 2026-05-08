@@ -33,6 +33,7 @@
  */
 
 import { createBriefingGraph } from '../../src/graph/index.js';
+import type { BriefingState } from '../../src/graph/state.js';
 import type { DocumentEvidenceRetrieverDeps } from '../../src/graph/nodes/documentEvidenceRetriever.js';
 import type { EvidenceRetrieverDeps } from '../../src/graph/nodes/evidenceRetriever.js';
 import {
@@ -52,7 +53,11 @@ import type {
 
 import type { AgentRubricInput, RubricClaim } from '../rubrics/types.js';
 
-import { documentRetrievalCases, type DocumentRetrievalCaseId } from './conversationalGraphCases/documentRetrieval.js';
+import {
+    documentRetrievalCases,
+    DOC_AFTER_KICKOFF_ARTIFACT_ID,
+    type DocumentRetrievalCaseId,
+} from './conversationalGraphCases/documentRetrieval.js';
 import { guidelineRetrievalCases, type GuidelineRetrievalCaseId } from './conversationalGraphCases/guidelineRetrieval.js';
 import { judgmentMixedCases, type JudgmentMixedCaseId } from './conversationalGraphCases/judgmentMixed.js';
 import { buildDatasetSnapshotClient } from './shared.js';
@@ -588,6 +593,42 @@ export const runConversationalGraphCase = async (
     const evidenceRetrieverDeps =
         deps.evidenceRetriever !== undefined ? { evidenceRetriever: deps.evidenceRetriever } : {};
 
+    // Cases whose envelope carries `pendingUploads` need the supervisor
+    // to traverse `kickoffExtraction` before any other handoff. We don't
+    // want to stand up a real `PipelineRunner` (rasterize → vision →
+    // schemaValidate → patientMatch → persist → emitDeltas) just to
+    // exercise post-extraction supervisor routing, so we plug in a
+    // fake-success node override that reads the supervisor's
+    // `kickoffExtraction` args from the most-recent decision history
+    // entry and appends a `persisted` `KickoffExtractionResult`. The
+    // pre-seeded artifact in `searchArtifacts` (provided by the
+    // fixture) is what the downstream `documentEvidenceRetriever`
+    // surfaces for citation; the kickoff result just unblocks the
+    // supervisor's "this upload has been processed" check so it stops
+    // re-picking kickoff and progresses to the next handoff.
+    const fakeKickoffOverride = (
+        state: BriefingState,
+    ): Promise<Partial<BriefingState>> => {
+        const last = state.supervisorDecisionHistory.at(-1);
+        const args = last?.args as
+            | { document_uuid?: unknown; doc_type?: unknown }
+            | undefined;
+        const documentUuid = typeof args?.document_uuid === 'string' ? args.document_uuid : '';
+        const docType = args?.doc_type === 'intake_form' ? 'intake_form' : 'lab_pdf';
+        return Promise.resolve({
+            kickoffExtractionResults: [
+                ...state.kickoffExtractionResults,
+                {
+                    documentUuid,
+                    docType,
+                    status: 'persisted',
+                    artifactId: DOC_AFTER_KICKOFF_ARTIFACT_ID,
+                    errorCode: null,
+                },
+            ],
+        });
+    };
+
     const graphDeps = {
         retrieveChart: {
             client: buildDatasetSnapshotClient(fixture.snapshot),
@@ -598,6 +639,7 @@ export const runConversationalGraphCase = async (
         synthesize: { synthesizer },
         verify: { unverifiedClaimsLog: createNullUnverifiedClaimsLog() },
         documentEvidenceRetriever: documentEvidenceDeps,
+        kickoffExtractionNodeOverride: fakeKickoffOverride,
         ...evidenceRetrieverDeps,
     };
 

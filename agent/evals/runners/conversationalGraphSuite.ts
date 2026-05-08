@@ -57,8 +57,11 @@ import {
 // `family_history` slot. v4: suite absorbed the deleted end-to-end
 // suite's behavioral coverage and added 26 realistic clinic-encounter
 // cases (8 document-retrieval, 8 guideline-retrieval, 4 multi-
-// retriever, 4 chart-only, 2 redaction).
-export const DATASET_NAME = 'clinical-copilot-conversational-graph-v4';
+// retriever, 4 chart-only, 2 redaction). v5: added the
+// `doc-after-kickoff-routes-to-doc-retriever` regression case
+// pinning the supervisor's must-call-documentEvidenceRetriever-after-
+// kickoff invariant against the prompt-change drift mode.
+export const DATASET_NAME = 'clinical-copilot-conversational-graph-v5';
 
 const DATASET_DESCRIPTION =
     "Conversational-graph evals — the suite that exercises the supervisor's judgment and retriever coordination on realistic family-medicine encounters. Includes 5 structural-invariant cases (each retriever, verification, multi-retriever, cap-hit), 5 refusal cases (off-topic + cross-patient), 8 document-retrieval happy paths (recent labs, intake forms, imaging, consult letters, ED summaries), 8 guideline-retrieval happy paths (CRC, statin, GDM, mammography, bone density, HTN target, ASA primary prevention, tobacco cessation), 4 multi-retriever scenarios needing both document AND guideline, 4 chart-only edge cases, and 2 redaction cases (cross-patient + hidden off-schema SSN) preserving end-to-end behavioral coverage.";
