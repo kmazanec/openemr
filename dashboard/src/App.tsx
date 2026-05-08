@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { routeTree } from './routes/routeTree';
 import { hydrateInitialTabs, installShims, type InitialTab } from './lib/bootShims';
 import { appTabsStore } from './lib/tabsStore';
+import { getLaunchPid } from './lib/fhir';
 
 // main_v2.php emits window.OE_DEFAULT_TABS — the SPA's source of
 // truth for the user's seeded tab strip (Calendar, Message Inbox,
@@ -70,6 +71,24 @@ export function App(): ReactElement {
       hydrateInitialTabs(store, window.OE_DEFAULT_TABS ?? []);
     }
     window.__OE_DASHBOARD_TABS__ = store;
+    // If sessionStorage carries a launch pid (set by authorize() and
+    // surviving the OAuth round-trip), the user was viewing a patient
+    // before the redirect. Restore the dashboard tab + patient route
+    // so the post-redirect page lands them right back where they
+    // were, without requiring a second set_pid call from the iframe.
+    //
+    // Skip when we're on /auth/callback — that route's component owns
+    // the post-OAuth redirect to main_v2_resume.php; navigating away
+    // here would short-circuit it.
+    const onAuthCallback =
+      typeof window !== 'undefined' &&
+      window.location.pathname.endsWith('/auth/callback');
+    const launchPid = getLaunchPid();
+    if (!onAuthCallback && launchPid !== null && launchPid !== '') {
+      store.openDashboardTab();
+      store.setActive('__dashboard');
+      void router.navigate({ to: '/patient/$pid', params: { pid: launchPid } });
+    }
   }, []);
 
   return <RouterProvider router={router} />;
