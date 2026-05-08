@@ -19,7 +19,7 @@ folder.
 |---|---|
 | Framework | **React 19 + TypeScript, built with Vite 6** |
 | Routing | **TanStack Router** (file-based, type-safe) |
-| Data + auth | **fhirclient** (the SMART-on-FHIR JS client) — handles OIDC + PKCE + FHIR transport in one library |
+| Data + auth | **fhirclient** (the SMART-on-FHIR JS client) running the **SMART EHR Launch** sequence — OpenEMR session implicit step 1, OIDC + PKCE + JWT for the rest |
 | FHIR types | **`@medplum/fhirtypes`** (TypeScript types only, no runtime) |
 | Client-side cache | **None for W2.** Each card fetches on mount. TanStack Query as a stretch goal if invalidation cost becomes painful. |
 | Component library | **Bootstrap 5** classes directly. No `react-bootstrap`, no Tailwind, no Mantine. |
@@ -319,46 +319,89 @@ is deliberate:
 
 ---
 
-## Auth — OAuth2 / OpenID Connect
+## Auth — OAuth2 / OpenID Connect (SMART EHR Launch)
 
 The brief requires OIDC login. OpenEMR ships its own OAuth2 / OIDC
 authorization server (League OAuth2-based); I confirmed its
 capabilities directly against the source.
 
+We use the **SMART EHR Launch sequence** (not Standalone), because
+the SPA is hosted inside `main_v2.php` — the user is already
+authenticated to OpenEMR by the time the SPA's auth flow runs.
+SMART defines this exact case: the EHR hands the SMART app a
+short-lived `launch` parameter that carries the patient context, and
+the OAuth server can issue an authorization code without a second
+login screen because it trusts the existing session cookie. All the
+defenses of the Standalone flow (OIDC + PKCE + JWT bearer tokens)
+still hold; the only thing that goes away is the redundant credential
+prompt.
+
 ### What we use
 
+- **SMART EHR Launch sequence.** `main_v2.php` builds an opaque
+  encrypted `SMARTLaunchToken` carrying the active patient's UUID
+  and intent. When the SPA needs to authorize, it requests a fresh
+  per-patient launch token from `interface/main/tabs/main_v2_launch.php`
+  (a small same-origin endpoint protected by the legacy session
+  cookie + `APICSRFTOKEN`). fhirclient passes that token plus the
+  FHIR `aud` to OpenEMR's authorize endpoint. The OAuth server,
+  recognizing the launch token + the existing OpenEMR session +
+  the client's `skip_ehr_launch_authorization_flow` flag, issues
+  an authorization code immediately.
 - **Authorization code grant with PKCE (S256).** PKCE is enforced;
   S256 is the only allowed challenge method
   (`CustomAuthCodeGrant.php:53`). The SMART app launch spec
   mandates this; OpenEMR follows.
 - **Public client.** The dashboard registers with no client secret.
-  OpenEMR treats `client_secret` empty as `is_confidential = 0`,
-  which is the correct shape for a SPA. **Use
-  `application_type: "public"` in the registration payload** —
-  OpenEMR's `application_type` field overloads the public/confidential
-  distinction (`"public"` → no secret, auto-enabled when scopes are
-  `patient/*` only; `"private"` → confidential client, secret
-  generated, requires admin approval). The
-  `token_endpoint_auth_method` field is for confidential clients
-  only and must be omitted for public clients (verified against
-  `AuthorizationController::clientRegistration`).
+  Use `application_type: "public"` in the registration payload —
+  OpenEMR's `application_type` field overloads the public/
+  confidential distinction (`"public"` → no secret, auto-enabled
+  when scopes are `patient/*` only; `"private"` → confidential
+  client, secret generated, requires admin approval).
 - **Dynamic client registration.** OpenEMR exposes RFC 7591 at
-  `/oauth2/{site}/registration`. We register the dashboard client
-  there at install time; the returned `client_id` goes into
-  build-time config.
+  `/oauth2/{site}/registration`. The SPA auto-registers itself the
+  first time it runs and caches the resulting `client_id` in
+  `localStorage`. RFC 7591 doesn't take the
+  `skip_ehr_launch_authorization_flow` flag, so an admin must
+  enable it (and add the `launch` scope) on the registered client
+  exactly once — see `dashboard/README.md` for the runbook.
 - **Refresh-token rotation.** Refresh tokens have a 3-month TTL,
   access tokens 1 hour. fhirclient does silent refresh in the
   background; the user doesn't see token expiry.
 - **Discovery.** `/oauth2/{site}/.well-known/openid-configuration`
   and `/fhir/.well-known/smart-configuration` at app startup — no
-  hardcoded endpoint URLs.
+  hardcoded endpoint URLs. The SPA derives its OIDC config from
+  `window.location.origin` so dev and prod work without per-env env
+  vars.
 - **SMART scopes** requested at startup:
-  `openid fhirUser launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read`.
+  `openid fhirUser launch launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read`.
+  The `launch` scope is what enables the EHR Launch flow. We use
+  `patient/*.read` rather than `user/*.read` because OpenEMR
+  reserves `user/*` for confidential clients only;
+  `patient/*` works for public clients and the SMART launch token's
+  patient context binds the access token to the right record.
   `patient/MedicationStatement.read` is intentionally **not** in the
   set: OpenEMR's FHIR layer does not advertise that scope (verified
   against the dev install via `.well-known/openid-configuration`).
-  T4.4 (the Medications card) needs to source from `MedicationRequest`
-  or a non-FHIR endpoint as a result; the build plan flags this.
+  The Medications card sources from `MedicationRequest?intent=plan`
+  as a result; the build plan flags this.
+
+### Why this works
+
+A SMART **Standalone** launch would have required a second login
+screen (OpenEMR's OAuth server has no shared-session view of the
+core OpenEMR session by default). That's friction for no security
+benefit — the user has already proven their identity to the EHR.
+The EHR Launch sequence is exactly the SMART-defined answer to
+that case.
+
+A non-SMART, cookie-only design would have skipped the OAuth
+infrastructure entirely. Tempting, but it gives up the "we used
+the SMART-on-FHIR reference client" defense — which is the
+strongest alignment story we have for an OSS port of *the SMART
+reference EHR*. EHR Launch keeps fhirclient and the SMART contract
+intact while removing the only piece of friction (the second
+login).
 
 ### Why fhirclient
 

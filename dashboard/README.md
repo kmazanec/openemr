@@ -140,45 +140,135 @@ The CI artifact is for **inspection only** (download from the MR UI
 to spot-check a build). The bundle that reaches production is the
 one `deploy.sh` builds from the deploy SHA's source.
 
-## OAuth2 client registration (T2 onwards)
+## SMART EHR Launch — auth setup
 
-Both dev and prod deploys need a registered OIDC client (see T0.2 in
-the build plan). The dashboard registers as a SMART **public** client
-(`application_type: "public"`) — no client secret, PKCE-only.
+The dashboard is hosted inside `interface/main/tabs/main_v2.php`, so
+the user has already authenticated to OpenEMR by the time the SPA
+loads. We use the **SMART EHR Launch sequence** (not standalone): the
+SPA hands the OAuth server an opaque `launch` token bound to the
+active patient + the existing OpenEMR session cookie, and the OAuth
+server issues an access token without prompting for credentials a
+second time. Strict OIDC + PKCE + JWT bearer tokens; the only
+difference from standalone is that step 1's "log in" is implicit
+because the user is already in the EHR.
 
-> **Important:** OpenEMR's `application_type` field overloads the
-> public/confidential distinction. `"public"` → no `client_secret`,
-> auto-enabled if scopes are `patient/*` only. `"private"` → confidential
-> client with a generated `client_secret`, requires admin approval.
-> The `token_endpoint_auth_method` field is for confidential clients
-> only; omit it for public clients.
+**Two prerequisites** must be set on the OpenEMR install before the
+flow works. Both are one-time per install.
 
-One-time registration:
+### 1. site_addr_oath must match the SPA's origin
+
+OpenEMR's OAuth server advertises endpoint URLs based on the
+`site_addr_oath` global. If it points at `https://localhost:9300`
+but the SPA loads from `http://localhost:8300`, the OAuth redirect
+chain crosses origins and the browser will reject the OAuth issuer's
+self-signed cert. Set it to the same origin the SPA is served from.
+
+**Dev (Docker compose):**
 
 ```sh
-# Dev: site=default, host=https://localhost:9300, redirect=http://localhost:5173/auth/callback
-# Prod: site=default (or your site), host=https://emr.example.com,
-#       redirect=https://emr.example.com/dashboard/auth/callback
-curl -sk -X POST "https://{host}/oauth2/{site}/registration" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "application_type": "public",
-    "redirect_uris": ["{redirect_uri}"],
-    "client_name": "OpenEMR Patient Dashboard",
-    "scope": "openid fhirUser launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read"
-  }'
+docker exec development-easy-mysql-1 \
+  mariadb -uopenemr -popenemr openemr -e \
+  "UPDATE globals SET gl_value = 'http://localhost:8300' \
+   WHERE gl_name = 'site_addr_oath'"
 ```
 
-The response includes `client_id` and an empty `client_secret` (public
-client). Drop the `client_id` into `.env.local` (dev) or the
-production deployment env as `VITE_OIDC_CLIENT_ID`. See `.env.example`
-for the full var surface.
+**Prod (Admin UI):** *Admin → System → Globals → Connectors* → set
+**OAuth2/JWT Server Address** to the public URL of the OpenEMR
+deployment (e.g. `https://emr.example.com`).
+
+### 2. Register the dashboard's OAuth2 client and enable EHR-launch skip
+
+The dashboard registers itself the first time it runs (`ensureClientId`
+in `src/lib/fhir.ts` POSTs to `/oauth2/{site}/registration`), but the
+RFC 7591 registration endpoint doesn't take the
+`skip_ehr_launch_authorization_flow` flag — that has to be set
+separately, by an admin.
+
+**The flag is what makes the second login screen go away.** Without
+it, even though OpenEMR has a valid session cookie, the OAuth
+authorization endpoint will still render its `oauth2-login.html.twig`
+template asking the user to sign in. With it, OpenEMR trusts the
+existing session and issues a code immediately. There's also a
+parallel global flag — `oauth_ehr_launch_authorization_flow_skip` —
+that gates this behavior site-wide.
+
+**Dev (Docker compose):** the global is already 1 in the seed data.
+After the SPA's first run auto-registers the client, flip the
+per-client flag and add the `launch` scope:
+
+```sh
+docker exec development-easy-mysql-1 \
+  mariadb -uopenemr -popenemr openemr -e \
+  "UPDATE oauth_clients
+     SET skip_ehr_launch_authorization_flow = 1,
+         scope = CONCAT(scope, ' launch')
+   WHERE client_name = 'OpenEMR Patient Dashboard'
+     AND scope NOT LIKE '%launch %'
+     AND scope NOT LIKE '% launch'"
+```
+
+The dashboard's redirect URI must also match the SPA's actual origin
+(`http://localhost:8300/dashboard/auth/callback`). Auto-registration
+uses the SPA's `window.location.origin`, but if you registered the
+client manually first, update it:
+
+```sh
+docker exec development-easy-mysql-1 \
+  mariadb -uopenemr -popenemr openemr -e \
+  "UPDATE oauth_clients
+     SET redirect_uri = 'http://localhost:8300/dashboard/auth/callback'
+   WHERE client_name = 'OpenEMR Patient Dashboard'"
+```
+
+**Prod (Admin UI):**
+
+1. *Admin → System → Globals → Connectors* — confirm
+   **OAuth2/JWT — Allow EHR Launch authorization flow skip** is on.
+2. Load the SPA once at `https://emr.example.com/?v2=1` while
+   logged in. The SPA auto-registers via
+   `POST /oauth2/{site}/registration`. Confirm a new row in
+   *Admin → System → API Clients (OAuth2)* with the name
+   "OpenEMR Patient Dashboard".
+3. Open the new client and:
+   - **Enable** the client (`is_enabled = 1`).
+   - **Skip EHR Launch Authorization Flow**: check the box.
+   - **Scope**: append ` launch` to the existing scope list.
+   - **Redirect URI**: confirm it matches
+     `https://emr.example.com/dashboard/auth/callback`.
+4. Save.
+
+### How the auth flow looks at runtime
+
+1. User logs into OpenEMR with `?v2=1`. `main_v2.php` renders.
+2. User picks a patient via the legacy Finder iframe →
+   `top.RTop.location = "...?set_pid=N"` → SPA shim → router
+   navigates to `/patient/N`.
+3. `RequireFhirSession` mounts and checks for an existing SMART
+   session in `sessionStorage`. If present, it renders the cards.
+4. If not, the SPA calls
+   `interface/main/tabs/main_v2_launch.php?pid=N` to get a fresh
+   encrypted launch token bound to that patient's UUID. It then
+   calls `fhirclient.oauth2.authorize` with `launch` + `aud`
+   parameters.
+5. OpenEMR's authorization server sees the launch token + the
+   `skip_ehr_launch_authorization_flow` flag + the active session
+   → issues an authorization code without showing a login screen.
+6. fhirclient lands at `/dashboard/auth/callback?code=...` (Apache
+   rewrite serves the SPA there), exchanges the code for an access
+   token, and stores the SMART session in `sessionStorage`.
+7. `AuthCallbackRoute` redirects through
+   `interface/main/tabs/main_v2_resume.php`, which mints a fresh
+   `token_main` and lands the user back on `main_v2.php`.
+8. `RequireFhirSession` mounts again, sees the session, and the
+   cards' patient-scoped FHIR fetches succeed.
+
+The whole dance happens once per browser tab. Subsequent patient
+picks reuse the session — no second redirect chain.
 
 > **Note on Medications scope.** OpenEMR's FHIR layer does not expose a
 > `patient/MedicationStatement.read` scope (verified against the dev
-> install on 2026-05-07). The build plan's T4.4 Medications card will
-> need to source from `MedicationRequest` or a non-FHIR endpoint —
-> revisit when T4.4 lands.
+> install on 2026-05-07). The Medications card sources from
+> `MedicationRequest?intent=plan` instead — see build plan T4.4.
 
 ## Conventions
 
