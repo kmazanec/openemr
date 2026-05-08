@@ -81,7 +81,7 @@ function PrescriptionsBody({
                   <td>{doseOf(m)}</td>
                   <td>{quantityOf(m)}</td>
                   <td>{refillsOf(m)}</td>
-                  <td>{m.authoredOn ?? '—'}</td>
+                  <td>{filledOf(m)}</td>
                 </tr>
               ))}
             </tbody>
@@ -104,6 +104,13 @@ function refillsOf(m: MedicationRequest): string {
   const r = m.dispenseRequest?.numberOfRepeatsAllowed;
   if (typeof r !== 'number') return '—';
   return String(r);
+}
+
+function filledOf(m: MedicationRequest): string {
+  const a = m.authoredOn;
+  if (typeof a !== 'string' || a.length === 0) return '—';
+  // Strip the time component when authoredOn is a full ISO timestamp.
+  return a.slice(0, 10);
 }
 
 function addPrescriptionHref(pid: string): string {
