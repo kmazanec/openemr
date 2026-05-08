@@ -37,6 +37,17 @@ describe('buildShimRouter', () => {
     expect(router.navigate).toHaveBeenCalledWith({ to: '/dashboard' });
   });
 
+  it('navigateToDashboardRoot clears the cached launch pid', () => {
+    sessionStorage.setItem('OE_LAUNCH_PID', '42');
+    const router = fakeRouter();
+    const store = createTabsStore();
+    const shimRouter = buildShimRouter({ router: router, tabsStore: store });
+
+    shimRouter.navigateToDashboardRoot();
+
+    expect(sessionStorage.getItem('OE_LAUNCH_PID')).toBeNull();
+  });
+
   it('openLegacyTab pushes the URL into the tabs store and navigates the router', () => {
     const router = fakeRouter();
     const store = createTabsStore();
