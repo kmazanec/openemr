@@ -345,25 +345,66 @@ const narrowRetrieveChartArgs = (args: Record<string, unknown> | undefined): Ret
 };
 
 /**
+ * Recover a usable retriever query when the supervisor LLM picked a
+ * retriever handoff but didn't fill in `args.query`. Production
+ * Anthropic with `withStructuredOutput` is mostly reliable about this,
+ * but real-model evals have surfaced occasional handoffs with
+ * `{ handoff: 'evidenceRetriever', reason: …, narration: … }` and no
+ * `args` — the model effectively meant "look up something for this
+ * question" without restating it. Falling back to the envelope's
+ * typed question (or the synthesized implicit question on
+ * upload-only turns) keeps the run useful instead of throwing the
+ * graph on the floor. Returns null when neither source is populated;
+ * caller decides whether to throw.
+ */
+const fallbackQueryFromState = (state: BriefingState): string | null => {
+    const explicit = state.envelope.question;
+    if (typeof explicit === 'string' && explicit.trim().length > 0) {
+        return explicit.trim();
+    }
+    const implicit = buildImplicitQuestion(
+        (state.envelope.pendingUploads ?? []).map((p) => ({ docType: p.docType })),
+    );
+    if (implicit !== null && implicit.trim().length > 0) {
+        return implicit.trim();
+    }
+    return null;
+};
+
+/**
  * §C.1 narrow `documentEvidenceRetriever`'s loose args into the typed
  * {@link DocumentEvidenceArgs} shape via {@link DocumentEvidenceArgsSchema}.
  * Defaults (`lookback_days: 90`, `top_k: 5`) bind here so the node sees
  * a fully-populated value.
  *
- * Throws on missing args, missing `query`, or out-of-range bounds — the
- * runner surfaces a typed error rather than letting the graph route on
- * a malformed payload. (The Zod schema rejects `doc_types: []` as well,
- * so an empty array can't slip past via the model's structured output.)
+ * Recovery: if `args` is missing entirely or its `query` field is
+ * missing/empty, fall back to `fallbackQuery` (typically the envelope
+ * question). Throws only when no fallback is available either — the
+ * runner still surfaces a typed error in that genuinely-malformed
+ * case, but a real run with a typed clinical question never gets
+ * crashed by a brittle LLM omission.
  */
 const narrowDocumentEvidenceArgs = (
     args: Record<string, unknown> | undefined,
+    fallbackQuery: string | null,
 ): DocumentEvidenceArgs => {
-    if (args === undefined) {
-        throw new Error(
-            'supervisor: documentEvidenceRetriever handoff requires args: { query, ... }',
+    const merged: Record<string, unknown> =
+        args === undefined ? {} : { ...args };
+    const rawQuery = merged['query'];
+    const queryProvided = typeof rawQuery === 'string' && rawQuery.trim().length > 0;
+    if (!queryProvided) {
+        if (fallbackQuery === null) {
+            throw new Error(
+                'supervisor: documentEvidenceRetriever handoff requires args: { query, ... } and no fallback question is available',
+            );
+        }
+        merged['query'] = fallbackQuery;
+        logger.warn(
+            { fallbackQueryLength: fallbackQuery.length },
+            'supervisor: documentEvidenceRetriever picked without args.query — recovering with envelope question',
         );
     }
-    return DocumentEvidenceArgsSchema.parse(args);
+    return DocumentEvidenceArgsSchema.parse(merged);
 };
 
 /**
@@ -371,16 +412,31 @@ const narrowDocumentEvidenceArgs = (
  * {@link EvidenceArgs} shape via {@link EvidenceArgsSchema}. Defaults
  * (`top_k: 3`) bind here so the node sees a fully-populated value.
  *
- * Throws on missing args, missing `query`, out-of-range `top_k`, or an
- * empty `source_filter`. Same contract as `narrowDocumentEvidenceArgs`
- * — the runner surfaces a typed error rather than letting the graph
- * route on a malformed payload.
+ * Same recovery semantics as `narrowDocumentEvidenceArgs`: missing args
+ * or missing query falls back to the envelope question; only throws
+ * when no fallback exists.
  */
-const narrowEvidenceArgs = (args: Record<string, unknown> | undefined): EvidenceArgs => {
-    if (args === undefined) {
-        throw new Error('supervisor: evidenceRetriever handoff requires args: { query, ... }');
+const narrowEvidenceArgs = (
+    args: Record<string, unknown> | undefined,
+    fallbackQuery: string | null,
+): EvidenceArgs => {
+    const merged: Record<string, unknown> =
+        args === undefined ? {} : { ...args };
+    const rawQuery = merged['query'];
+    const queryProvided = typeof rawQuery === 'string' && rawQuery.trim().length > 0;
+    if (!queryProvided) {
+        if (fallbackQuery === null) {
+            throw new Error(
+                'supervisor: evidenceRetriever handoff requires args: { query, ... } and no fallback question is available',
+            );
+        }
+        merged['query'] = fallbackQuery;
+        logger.warn(
+            { fallbackQueryLength: fallbackQuery.length },
+            'supervisor: evidenceRetriever picked without args.query — recovering with envelope question',
+        );
     }
-    return EvidenceArgsSchema.parse(args);
+    return EvidenceArgsSchema.parse(merged);
 };
 
 const sameDecisionAsPrevious = (
@@ -472,9 +528,15 @@ export const createSupervisor = (
                 retrieveChartArgs = narrowRetrieveChartArgs(decision.args);
             }
         } else if (decision.handoff === 'documentEvidenceRetriever') {
-            documentEvidenceArgs = narrowDocumentEvidenceArgs(decision.args);
+            documentEvidenceArgs = narrowDocumentEvidenceArgs(
+                decision.args,
+                fallbackQueryFromState(state),
+            );
         } else if (decision.handoff === 'evidenceRetriever') {
-            evidenceRetrieverArgs = narrowEvidenceArgs(decision.args);
+            evidenceRetrieverArgs = narrowEvidenceArgs(
+                decision.args,
+                fallbackQueryFromState(state),
+            );
         }
 
         // Cycle detection. Re-picking the same handoff with the same
@@ -572,7 +634,7 @@ Rules:
 - Pick exactly one handoff from the manifest.
 - Provide a non-empty reason — you are accountable for every routing decision.
 - Provide a one-sentence narration (≤120 chars), written for the clinician watching the panel: a clear, concrete description of what you're about to do, in present continuous tense. Examples: "Pulling prior lipid panels to compare." / "Checking the USPSTF on statin primary prevention." / "Analyzing the lipid panel you just attached." / "Drafting your briefing." It will be shown verbatim as the panel's progress line for this step. Avoid jargon, internal handoff names, and technical detail.
-- When the envelope carries pendingUploads (documents the clinician just attached) and any entry has not yet been processed this turn (its documentUuid is absent from observation.kickoffExtractionResultsThisTurn), your FIRST action MUST be kickoffExtraction for one of those entries. Copy { document_uuid, doc_type } from the pending entry verbatim into args. Until every pending entry has been processed (or has produced a 'failed' result you can route around), do not pick synthesize. After kickoffExtraction completes successfully, you MUST also run documentEvidenceRetriever before synthesize for that document — kickoffExtraction only writes the artifact to storage; it does NOT make the extracted facts (with bbox + page + quote) available to the synthesizer. Without documentEvidenceRetriever the synthesizer has zero structured snippets from the uploaded document and the answer will silently omit every fact the clinician just attached the document to ask about. Pick a query that names what the document is about (e.g. "lab results from the attached PDF" or "intake form findings on attached form"). Other context (retrieveChart for trending, evidenceRetriever for guidelines) is optional and depends on the question; documentEvidenceRetriever is not optional once kickoffExtraction has succeeded on the relevant document.
+- When the envelope carries pendingUploads (documents the clinician just attached) and any entry has not yet been processed this turn (its documentUuid is absent from observation.kickoffExtractionResultsThisTurn), your FIRST action MUST be kickoffExtraction for one of those entries. Copy { document_uuid, doc_type } from the pending entry verbatim into args. Until every pending entry has been processed (or has produced a 'failed' result you can route around), do not pick synthesize. After kickoffExtraction completes, decide on the next iteration what additional context the extracted document warrants — for a lab, prior trending via retrieveChart('lab') is often valuable; for a question the document raises, evidenceRetriever may add guideline backing; for grounding a citation in the extracted facts, documentEvidenceRetriever surfaces the structured snippets.
 - When observation.implicitQuestion is set (the envelope carried documents but no typed question), treat it as if the clinician asked it explicitly. The same routing rules below — guideline-shaped routing to evidenceRetriever, chart-only lookups direct to synthesize, etc. — apply unchanged. Concretely: an implicit "what should I consider doing about this lab" against a chart with abnormal results almost always benefits from evidenceRetriever before synthesize. Do not skip evidenceRetriever just because the question is implicit.
 - When you pick retrieveChart on a turn that has already retrieved chart data once, you must include args.categories naming which categories to re-fetch.
 - Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question. The synthesizer is forbidden from citing clinical knowledge from its own training data — its only valid sources are this turn's chart records and any retriever output already in state.
