@@ -6,14 +6,20 @@ import { isErxEnabled } from '../lib/config';
 import { drugOf, doseOf } from './medicationFormat';
 
 export interface PrescriptionsCardProps {
+  // FHIR Patient UUID; used to query MedicationRequest.
   pid: string;
+  // Legacy integer pid; used to build links to legacy controllers
+  // (eRx.php, controller.php?prescription) which expect the integer
+  // patient_data.pid, not the UUID. Defaults to `pid` for tests and
+  // the standalone case where they happen to be the same value.
+  legacyPid?: string;
 }
 
 // Prescriptions (eRx-style records) maps to MedicationRequest with
 // intent=order in OpenEMR's FHIR layer (sourced from the prescriptions
 // table). Intent=plan covers the patient's currently-taking list,
 // rendered by MedicationsCard.
-export function PrescriptionsCard({ pid }: PrescriptionsCardProps): ReactElement {
+export function PrescriptionsCard({ pid, legacyPid }: PrescriptionsCardProps): ReactElement {
   const { data, error, loading, retry } = useFhirRequest<Bundle<MedicationRequest>>(
     `MedicationRequest?patient=${pid}&status=active&intent=order`,
   );
@@ -25,7 +31,7 @@ export function PrescriptionsCard({ pid }: PrescriptionsCardProps): ReactElement
       error={data === undefined ? error : null}
       onRetry={retry}
     >
-      <PrescriptionsBody pid={pid} bundle={data} />
+      <PrescriptionsBody pid={legacyPid ?? pid} bundle={data} />
     </Card>
   );
 }

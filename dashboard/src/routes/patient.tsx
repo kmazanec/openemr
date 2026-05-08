@@ -91,7 +91,7 @@ function PatientSummary({ pid, uuid }: { pid: string; uuid: string }): ReactElem
             <MedicationsCard pid={uuid} />
           </div>
           <div className="col-12">
-            <PrescriptionsCard pid={uuid} />
+            <PrescriptionsCard pid={uuid} legacyPid={pid} />
           </div>
           <div className="col-12">
             <CareTeamCard pid={uuid} />
