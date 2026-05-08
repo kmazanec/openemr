@@ -4,6 +4,7 @@ import {
   type ShimRouter,
 } from './shims';
 import { installDlgopen } from './dlgopen';
+import { clearLaunchPid } from './fhir';
 import type { TabsStore } from './tabsStore';
 
 // The TanStack router type is generic over the registered route tree;
@@ -38,6 +39,9 @@ export function buildShimRouter({ router, tabsStore }: ShimRouterDeps): ShimRout
       void router.navigate({ to: '/patient/$pid', params: { pid } });
     },
     navigateToDashboardRoot() {
+      // Forget the launch pid so the next mount does not auto-restore
+      // the patient the user just closed.
+      clearLaunchPid();
       void router.navigate({ to: '/dashboard' });
     },
     openLegacyTab(name, url) {

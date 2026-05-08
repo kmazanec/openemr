@@ -276,6 +276,14 @@ function setLaunchPid(pid: string | undefined): void {
   sessionStorage.setItem(LAUNCH_PID_STORAGE_KEY, pid);
 }
 
+// Forget which patient the active session belongs to. Called when
+// the user explicitly clears the patient (× button, legacy
+// clearPatient() shim) so the next mount does not auto-restore the
+// patient they just closed.
+export function clearLaunchPid(): void {
+  setLaunchPid(undefined);
+}
+
 // Kick off the SMART OIDC dance.
 //
 // pid (optional): the legacy integer pid the user just picked. When
