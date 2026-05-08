@@ -14,6 +14,7 @@ import { CareExperiencePreferencesCard } from '../components/CareExperiencePrefe
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
 import { AppShell } from '../components/AppShell';
 import { appTabsStore } from '../lib/tabsStore';
+import { usePatientUuid } from '../lib/usePatientUuid';
 
 export function PatientRoute(): ReactElement {
   const { pid } = useParams({ from: '/patient/$pid' });
@@ -39,14 +40,41 @@ export function PatientRoute(): ReactElement {
       }
       dashboardBody={
         <RequireFhirSession pid={pid}>
-          <PatientSummary pid={pid} />
+          <PatientSummaryWithUuid pid={pid} />
         </RequireFhirSession>
       }
     />
   );
 }
 
-function PatientSummary({ pid }: { pid: string }): ReactElement {
+// Resolves the legacy pid to a FHIR UUID once at the top of the
+// patient summary, so every card downstream queries by UUID. The
+// FHIR layer rejects ?patient=$legacypid; UUIDs are the canonical
+// foreign key in OpenEMR's FHIR module.
+function PatientSummaryWithUuid({ pid }: { pid: string }): ReactElement {
+  const { uuid, error, loading } = usePatientUuid(pid);
+
+  if (loading) {
+    return (
+      <div className="p-3 text-muted" role="status">
+        Loading patient…
+      </div>
+    );
+  }
+  if (error !== null || uuid === null) {
+    return (
+      <div className="p-3" role="alert">
+        <h2 className="h5">Couldn&rsquo;t resolve patient</h2>
+        <p className="text-muted">
+          {error?.message ?? `No FHIR Patient found for pid ${pid}.`}
+        </p>
+      </div>
+    );
+  }
+  return <PatientSummary pid={pid} uuid={uuid} />;
+}
+
+function PatientSummary({ pid, uuid }: { pid: string; uuid: string }): ReactElement {
   return (
     <div>
       <PatientSubNav pid={pid} />
@@ -54,22 +82,22 @@ function PatientSummary({ pid }: { pid: string }): ReactElement {
         <DashboardPageHeader pid={pid} />
         <div className="row g-3">
           <div className="col-12 col-lg-4">
-            <AllergiesCard pid={pid} />
+            <AllergiesCard pid={uuid} />
           </div>
           <div className="col-12 col-lg-4">
-            <ProblemListCard pid={pid} />
+            <ProblemListCard pid={uuid} />
           </div>
           <div className="col-12 col-lg-4">
-            <MedicationsCard pid={pid} />
+            <MedicationsCard pid={uuid} />
           </div>
           <div className="col-12">
-            <PrescriptionsCard pid={pid} />
+            <PrescriptionsCard pid={uuid} />
           </div>
           <div className="col-12">
-            <CareTeamCard pid={pid} />
+            <CareTeamCard pid={uuid} />
           </div>
           <div className="col-12">
-            <EncountersCard pid={pid} />
+            <EncountersCard pid={uuid} />
           </div>
           <div className="col-12">
             <TreatmentInterventionPreferencesCard />

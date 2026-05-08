@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
-import { authorize, completeAuthorization, type Client } from './fhir';
+import { authorize, completeAuthorization, getLaunchPid, type Client } from './fhir';
 import { FhirSessionProvider } from './authBoundary';
 
 type State =
@@ -39,6 +39,23 @@ export function RequireFhirSession({ children, pid }: RequireFhirSessionProps): 
 
   useEffect(() => {
     let cancelled = false;
+    // SMART launches are patient-bound: the access token can only
+    // see the launch's patient. If the route's pid differs from the
+    // pid the active session was minted for, the cached session is
+    // useless — every FHIR query will return 0 rows. Force a fresh
+    // authorize bound to the new pid.
+    const sessionPid = getLaunchPid();
+    if (pid !== undefined && pid !== '' && sessionPid !== null && sessionPid !== pid) {
+      setState({ kind: 'authorizing' });
+      authorize(pid).catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        setState({ kind: 'error', message });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     completeAuthorization()
       .then((client) => {
         if (cancelled) return;

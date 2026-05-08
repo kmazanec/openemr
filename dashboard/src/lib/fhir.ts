@@ -256,6 +256,26 @@ export function buildAuthorizeParams(
   };
 }
 
+// Tracks which legacy pid the active SMART session was minted for.
+// Survives across redirects (sessionStorage) so that on mount we can
+// detect "user picked a different patient since last launch" and
+// kick off a fresh authorize.
+const LAUNCH_PID_STORAGE_KEY = 'OE_LAUNCH_PID';
+
+export function getLaunchPid(): string | null {
+  if (typeof sessionStorage === 'undefined') return null;
+  return sessionStorage.getItem(LAUNCH_PID_STORAGE_KEY);
+}
+
+function setLaunchPid(pid: string | undefined): void {
+  if (typeof sessionStorage === 'undefined') return;
+  if (pid === undefined || pid === '') {
+    sessionStorage.removeItem(LAUNCH_PID_STORAGE_KEY);
+    return;
+  }
+  sessionStorage.setItem(LAUNCH_PID_STORAGE_KEY, pid);
+}
+
 // Kick off the SMART OIDC dance.
 //
 // pid (optional): the legacy integer pid the user just picked. When
@@ -274,6 +294,10 @@ export async function authorize(pid?: string): Promise<void> {
       smartLaunch = window.OE_SMART_LAUNCH;
     }
   }
+  // Record which pid this launch is bound to so subsequent mounts
+  // can detect a mismatch and re-authorize. Stored before the
+  // redirect; sessionStorage survives the OAuth round-trip.
+  setLaunchPid(pid);
   await FHIR.oauth2.authorize(buildAuthorizeParams(getOidcConfig(), smartLaunch));
 }
 

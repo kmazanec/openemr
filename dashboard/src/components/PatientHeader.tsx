@@ -58,10 +58,11 @@ function PatientHeaderView({
       <div className="d-flex align-items-start gap-3">
         <PatientAvatar />
         <div className="flex-grow-1">
-          <div className="d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center gap-2 flex-wrap">
             <h1 className="h4 mb-0 text-primary fw-normal">
               {name} <span className="text-muted">({pid})</span>
             </h1>
+            <StatusBadge status={status} />
             <button
               type="button"
               className="btn btn-sm btn-link text-muted text-decoration-none p-0"
@@ -83,9 +84,12 @@ function PatientHeaderView({
                 {age !== null && <> Age: {age}</>}
               </span>
             )}
-            {sex !== undefined && <span className="me-3 visually-hidden">Sex: {sex}</span>}
-            {mrn !== null && <span className="me-3 visually-hidden">MRN: {mrn}</span>}
-            <span className="visually-hidden"><StatusBadge status={status} /></span>
+            {sex !== undefined && (
+              <span className="me-3">
+                Sex: <span className="text-capitalize">{sex}</span>
+              </span>
+            )}
+            {mrn !== null && <span className="me-3">MRN: {mrn}</span>}
           </div>
         </div>
         <EncounterSelector />
@@ -172,7 +176,13 @@ function statusOf(patient: Patient): PatientStatus {
 
 function StatusBadge({ status }: { status: PatientStatus }): ReactElement {
   const label = status === 'active' ? 'Active' : status === 'inactive' ? 'Inactive' : 'Deceased';
-  return <span>{label}</span>;
+  const cls =
+    status === 'active'
+      ? 'bg-success'
+      : status === 'inactive'
+        ? 'bg-secondary'
+        : 'bg-dark';
+  return <span className={`badge ${cls}`}>{label}</span>;
 }
 
 function PatientHeaderSkeleton(): ReactElement {
