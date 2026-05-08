@@ -62,6 +62,47 @@ const __copilotPanel = (function () {
     }
 
     /**
+     * Re-pin the OpenEMR session cookie to this tab's PHP-assigned
+     * session ID before any same-origin fetch to the agent proxy.
+     *
+     * OpenEMR supports parallel logins per browser by allowing JS to
+     * rewrite the session cookie (cookie_httponly is intentionally
+     * false on the core session). When another tab in the same browser
+     * mints a new session ID — common after a SMART OAuth round-trip,
+     * a second login, or even an iframe reload — that new ID is what
+     * `document.cookie` carries. Without `top.restoreSession()` first,
+     * our `fetch()` sends the foreign session ID, lands on a session
+     * with no `site_id` set, and `interface/globals.php` 400s with
+     * "Site ID is missing from session data!". Every other AJAX
+     * endpoint in the codebase calls `top.restoreSession()` before
+     * posting (see `library/js/utility.js`, `ajtooltip.js`, etc.) —
+     * we do the same.
+     *
+     * Defensive: `top` is reachable only when the panel iframe is
+     * same-origin with `main_v2.php` (the standard mount path). If
+     * `top.restoreSession` isn't available (e.g. opened standalone for
+     * tests or in a way that breaks the chain), we skip silently —
+     * the fetch may still succeed if the cookie happens to match.
+     */
+    const restoreTopSession = () => {
+        try {
+            if (typeof window !== 'undefined'
+                && window.top
+                && typeof window.top.restoreSession === 'function') {
+                window.top.restoreSession();
+            }
+        } catch {
+            // Cross-origin access throws on a sealed `top` reference;
+            // a missing helper is benign — no-op and continue.
+        }
+    };
+
+    const proxyFetch = (url, init) => {
+        restoreTopSession();
+        return fetch(url, init);
+    };
+
+    /**
      * `conversationId` is mutable: a placeholder until either a resume
      * lookup hands us an authoritative UUID (§4.6) or the agent mints
      * one and echoes it back in the `meta` event of the first stream
@@ -1142,7 +1183,7 @@ const __copilotPanel = (function () {
         thread.push(placeholder);
         renderThread();
         try {
-            const response = await fetch(`${proxyUrl}?action=briefing&pid=${encodeURIComponent(pid)}`, {
+            const response = await proxyFetch(`${proxyUrl}?action=briefing&pid=${encodeURIComponent(pid)}`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -2634,7 +2675,7 @@ const __copilotPanel = (function () {
      */
     const tryResume = async () => {
         try {
-            const response = await fetch(
+            const response = await proxyFetch(
                 `${proxyUrl}?action=latest_conversation&pid=${encodeURIComponent(pid)}`,
                 {
                     method: 'GET',
@@ -2770,7 +2811,7 @@ const __copilotPanel = (function () {
                 params.set('before_updated_at', historyNextBefore.updatedAt);
                 params.set('before_id', historyNextBefore.id);
             }
-            const response = await fetch(`${proxyUrl}?${params.toString()}`, {
+            const response = await proxyFetch(`${proxyUrl}?${params.toString()}`, {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
@@ -2817,7 +2858,7 @@ const __copilotPanel = (function () {
             pid: String(pid),
             conversation: id,
         });
-        const response = await fetch(`${proxyUrl}?${params.toString()}`, {
+        const response = await proxyFetch(`${proxyUrl}?${params.toString()}`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },

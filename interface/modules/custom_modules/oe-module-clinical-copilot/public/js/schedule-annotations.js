@@ -153,6 +153,15 @@
     function fetchAnnotations(date) {
         const url = proxyUrl()
             + '?action=schedule_briefings&date=' + encodeURIComponent(date);
+        // Re-pin the OpenEMR session cookie before the fetch — see
+        // panel.js `restoreTopSession` for the rationale.
+        try {
+            if (typeof window !== 'undefined'
+                && window.top
+                && typeof window.top.restoreSession === 'function') {
+                window.top.restoreSession();
+            }
+        } catch { /* benign */ }
         return fetch(url, {
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },
