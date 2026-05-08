@@ -44,8 +44,24 @@ export function RequireFhirSession({ children, pid }: RequireFhirSessionProps): 
     // pid the active session was minted for, the cached session is
     // useless — every FHIR query will return 0 rows. Force a fresh
     // authorize bound to the new pid.
+    //
+    // Mismatch covers two cases:
+    //   1. sessionPid is set and ≠ route pid (the obvious one).
+    //   2. sessionPid is null but there's a cached SMART session in
+    //      sessionStorage from a launch we don't have provenance
+    //      for (e.g. the user opened a patient in a prior build that
+    //      didn't track OE_LAUNCH_PID). Trusting that session would
+    //      bind every FHIR query to whatever patient it was minted
+    //      for; force a fresh authorize so the new pid wins.
     const sessionPid = getLaunchPid();
-    if (pid !== undefined && pid !== '' && sessionPid !== null && sessionPid !== pid) {
+    const routePidPresent = pid !== undefined && pid !== '';
+    const pidMismatch = routePidPresent && sessionPid !== null && sessionPid !== pid;
+    const untrustedSession =
+      routePidPresent &&
+      sessionPid === null &&
+      typeof sessionStorage !== 'undefined' &&
+      sessionStorage.getItem('SMART_KEY') !== null;
+    if (pidMismatch || untrustedSession) {
       setState({ kind: 'authorizing' });
       authorize(pid).catch((err: unknown) => {
         if (cancelled) return;

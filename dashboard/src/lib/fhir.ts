@@ -305,8 +305,14 @@ export async function authorize(pid?: string): Promise<void> {
   }
   // Record which pid this launch is bound to so subsequent mounts
   // can detect a mismatch and re-authorize. Stored before the
-  // redirect; sessionStorage survives the OAuth round-trip.
-  setLaunchPid(pid);
+  // redirect; sessionStorage survives the OAuth round-trip. Only
+  // when a pid is actually present — a standalone authorize (e.g.
+  // LoginRoute) must not clobber the cached pid from a prior
+  // patient-bound launch, or the next mount won't detect the
+  // patient-switch case at all.
+  if (pid !== undefined && pid !== '') {
+    setLaunchPid(pid);
+  }
   await FHIR.oauth2.authorize(buildAuthorizeParams(getOidcConfig(), smartLaunch));
 }
 
