@@ -32,8 +32,10 @@ folder.
 | Cross-frame contract | **SPA shims the legacy `top.*` and `left_nav.*` methods on `window`.** Legacy iframes call into them as they always did; our shims translate the calls into router/state changes. |
 | `dlgopen` | **SPA provides a `dlgopen` shim on `window`** that opens a Bootstrap 5 modal in the SPA. Legacy iframes calling `top.dlgopen(...)` get the modal hosted by us. |
 | Patient context | **URL is canonical** (`/patient/$pid`). Shimmed `left_nav.setPatient(...)` writes to the URL; the router observes. Bookmarkable, back-button works. |
-| Required clinical cards | Patient header, Allergies, Problem List, Medications (`MedicationStatement`), Prescriptions (`MedicationRequest`), Care Team |
-| "+1" priority order | **Encounters → Labs → Vitals → Immunizations.** Encounters guaranteed; the rest as time permits. |
+| Required clinical cards | Patient header, Allergies, Problem List, Medications (`MedicationRequest?intent=plan`), Prescriptions (`MedicationRequest?intent=order`), Care Team |
+| "+1" delivered | **Encounters** (guaranteed) + **Lab Results** (stretch). Vitals + Immunizations scopes are pre-requested but the cards are unbuilt — straightforward to add later. |
+| Patient context tracking | **`OE_LAUNCH_PID` in `sessionStorage`** records which legacy pid the active SMART session was minted for. On every patient-route mount, the SPA compares the route's pid to the cached one; on mismatch it forces a fresh `authorize(pid)`. Without this, fhirclient happily reuses a session bound to a different patient and every FHIR query silently returns the wrong patient's data. |
+| Legacy pid → FHIR UUID | **`usePatientUuid(pid)` hook** at `PatientRoute`. Prefers `client.patient.id` from the SMART context; falls back to `Patient?identifier=$pid` lookup. The cards take the resolved UUID as their `pid` prop and query FHIR by UUID; the legacy integer pid is plumbed separately to any cards that build legacy URLs (`PrescriptionsCard`'s Add-prescription link). |
 | Visual parity target | **"Close enough."** Same shapes, same density, same affordances; modern under the hood. Not pixel-for-pixel. |
 | Test runner | **Vitest** + React Testing Library |
 | E2E tests | **Playwright** for smoke tests (login flow, render dashboard, assert cards) |
@@ -298,6 +300,54 @@ the dashboard. Bookmarking and back-button work. Patient finder
 calls into `left_nav.setPatient` as it always did; our shim
 catches it.
 
+There are two non-obvious moves underneath that simple statement,
+both forced by quirks of OpenEMR's FHIR layer:
+
+1. **`pid` (the URL param) is OpenEMR's legacy integer pid; the
+   FHIR layer keys by UUID.** Every card has to query
+   `?patient={uuid}`, not `?patient={pid}`. `usePatientUuid(pid)`
+   resolves the UUID once at the top of `PatientRoute` and passes
+   it down to the cards as their `pid` prop. The hook prefers the
+   SMART context's `client.patient.id` (zero round-trips when the
+   launch was bound to this patient) and falls back to a
+   `Patient?identifier=$pid` lookup. Cards that build *legacy*
+   URLs — like `PrescriptionsCard`'s "Add prescription" link to
+   `controller.php?prescription&list&id=$pid` — need the integer
+   pid too, so it's plumbed through as a separate `legacyPid`
+   prop where required.
+
+2. **SMART launches are patient-bound.** The access token's
+   `patient` context is fixed at authorize time; once the OAuth
+   server issues a token bound to patient A, every patient-scoped
+   FHIR query against that token returns only A's data —
+   regardless of what `?patient=` says in the URL. So switching
+   patients in the SPA *requires* a fresh `authorize(newPid)` —
+   which is a hard redirect.
+
+   `OE_LAUNCH_PID` in `sessionStorage` records which legacy pid
+   the active session was minted for. `RequireFhirSession` checks
+   it on every mount: if the route's pid differs from the cached
+   one, it calls `authorize(routePid)` instead of completing the
+   existing session. Two mismatch cases trigger re-auth:
+   - Cached pid is set and ≠ route pid (the obvious one).
+   - Cached pid is null but a `SMART_KEY` exists in
+     sessionStorage. That means there's a fhirclient session with
+     no provenance — likely from a prior build that didn't track
+     the pid. Trusting it would silently bind every query to
+     whatever patient it was originally minted for, so we force a
+     fresh authorize.
+
+   On the redirect-back-to-the-SPA leg, `App` reads
+   `OE_LAUNCH_PID` and re-navigates the in-memory router to
+   `/patient/$pid` plus opens the dashboard tab — so the user
+   lands exactly where they were, without the legacy iframe
+   needing to call `set_pid` a second time.
+
+   `clearLaunchPid()` runs from the `clearPatient` shim (the ×
+   button on the identity bar, plus any legacy iframe call to
+   `top.left_nav.clearPatient()`). Without it the next mount
+   would auto-restore the patient the user just dismissed.
+
 ---
 
 ## Why this works without an iframe for the dashboard tab
@@ -374,7 +424,7 @@ prompt.
   `window.location.origin` so dev and prod work without per-env env
   vars.
 - **SMART scopes** requested at startup:
-  `openid fhirUser launch launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read`.
+  `openid fhirUser launch launch/patient offline_access patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read patient/Observation.read patient/DiagnosticReport.read patient/Immunization.read`.
   The `launch` scope is what enables the EHR Launch flow. We use
   `patient/*.read` rather than `user/*.read` because OpenEMR
   reserves `user/*` for confidential clients only;
@@ -384,7 +434,25 @@ prompt.
   set: OpenEMR's FHIR layer does not advertise that scope (verified
   against the dev install via `.well-known/openid-configuration`).
   The Medications card sources from `MedicationRequest?intent=plan`
-  as a result; the build plan flags this.
+  as a result. `patient/Observation.read` and
+  `patient/Immunization.read` are reserved capacity for the future
+  Vitals (T7.3) and Immunizations (T7.4) cards; today the Lab Results
+  card uses `DiagnosticReport.read` only.
+
+> **Scope-change runbook.** Adding a scope to `DEFAULT_SCOPE`
+> (or `VITE_OIDC_SCOPE`) is **not enough on its own** — the OAuth
+> client in OpenEMR was registered with a fixed scope set, and the
+> authorization server will silently grant only the intersection
+> with the registered set. Re-register a fresh client with
+> `application_type: "public"` (and the new scope list) via
+> `POST /oauth2/{site}/registration`, write the resulting
+> `client_id` into `dashboard/.env.local` (or the prod
+> `.env.production`), and rebuild. Existing SMART sessions in
+> `sessionStorage` need to be cleared by the browser so fhirclient
+> re-authorizes against the new client. Don't pass
+> `token_endpoint_auth_method: "none"` in the registration payload —
+> OpenEMR's RFC 7591 implementation rejects it; `application_type:
+> "public"` alone signals the public-client semantics.
 
 ### Why this works
 
@@ -550,14 +618,30 @@ confirmed all six have full FHIR coverage.
 
 | Card | FHIR resource | Endpoint |
 |---|---|---|
-| Patient header | `Patient` | `GET /fhir/Patient/{id}` |
-| Allergies | `AllergyIntolerance` | `GET /fhir/AllergyIntolerance?patient={id}&clinical-status=active` |
-| Problem List | `Condition` | `GET /fhir/Condition?patient={id}&category=problem-list-item` |
-| Medications | `MedicationStatement` | `GET /fhir/MedicationStatement?patient={id}&status=active` |
-| Prescriptions | `MedicationRequest` | `GET /fhir/MedicationRequest?patient={id}&status=active` |
-| Care Team | `CareTeam` | `GET /fhir/CareTeam?patient={id}&status=active` |
+| Patient header | `Patient` | `GET /fhir/Patient?identifier={pid}` (UUID resolution) then `GET /fhir/Patient/{uuid}` |
+| Allergies | `AllergyIntolerance` | `GET /fhir/AllergyIntolerance?patient={uuid}&clinical-status=active` |
+| Problem List | `Condition` | `GET /fhir/Condition?patient={uuid}&category=problem-list-item` |
+| Medications | `MedicationRequest` (intent=plan) | `GET /fhir/MedicationRequest?patient={uuid}&status=active&intent=plan` |
+| Prescriptions | `MedicationRequest` (intent=order) | `GET /fhir/MedicationRequest?patient={uuid}&status=active&intent=order` |
+| Care Team | `CareTeam` | `GET /fhir/CareTeam?patient={uuid}&status=active&_include=CareTeam:participant` |
+| Recent Encounters (+1) | `Encounter` | `GET /fhir/Encounter?patient={uuid}&_sort=-date&_count=10` |
+| Lab Results (+1 stretch) | `DiagnosticReport` | `GET /fhir/DiagnosticReport?patient={uuid}&category=LAB&_sort=-date&_count=10` |
 
 All read-only. Mutations stay on the legacy dashboard for W2.
+
+**OpenEMR's FHIR layer does not expose `MedicationStatement`** under
+any scope — verified against the dev install's
+`.well-known/openid-configuration`. The legacy dashboard splits its
+two medication lists across `MedicationRequest.intent`
+(`PrescriptionService.php` source-of-truth):
+
+- `intent=plan` → `lists_medication` (the patient's currently-taking
+  list, surfaced as "Medications" in the legacy dashboard).
+- `intent=order` → `prescriptions` (eRx-style records, surfaced as
+  "Prescriptions" in the legacy dashboard).
+
+The two cards stay distinct, matching the legacy layout. No parity
+loss; one resource type instead of two.
 
 ---
 
@@ -566,19 +650,28 @@ All read-only. Mutations stay on the legacy dashboard for W2.
 The brief lets us pick one of: encounter history, lab results,
 vitals, immunizations, upcoming appointments, patient notes.
 
-We commit to **Encounters** as the guaranteed +1, and pick up
-**Labs**, **Vitals**, and **Immunizations** opportunistically if
-time permits. Order:
+**Delivered:**
 
-1. **Encounters** (guaranteed). Full FHIR coverage. Clinically
-   central — "show me the patient and their last 5 visits" is
-   what the page is for.
-2. **Lab results.** Full FHIR coverage via `DiagnosticReport`
-   plus observation linking. Slightly more wiring than encounters.
-3. **Vitals.** Full FHIR coverage via `Observation?category=vital-signs`.
-   Needs flattening across observations; fiddly mapping.
-4. **Immunizations.** Full FHIR coverage. Easy to render but less
-   clinically central than the others.
+1. **Encounters** (the guaranteed +1). `Encounter?patient=...&_sort=-date&_count=10`,
+   columns Date / Type / Provider / Reason. Lives as a full-width
+   card after Care Team.
+2. **Lab Results** (stretch). `DiagnosticReport?patient=...&category=LAB&_sort=-date&_count=10`,
+   columns Date / Test / Status. Same full-width card shape.
+
+**Pre-wired but not built yet:**
+
+3. **Vitals.** Scope (`patient/Observation.read`) is already
+   requested at authorize time, so the SMART session has the
+   permission. The card itself isn't written; the lift is one
+   `Observation?category=vital-signs` query plus a flatten
+   step across blood-pressure / pulse / temp observations.
+4. **Immunizations.** Scope (`patient/Immunization.read`) is also
+   pre-requested. The card is one `Immunization?_sort=-date`
+   query and a three-column table.
+
+Both should drop in without another scope-change cycle, since the
+authorization server's grant set already covers them. The build
+plan tracks them as T7.3 and T7.4.
 
 Patient notes (`pnotes`) is **excluded** because it has no FHIR
 coverage (audit `04-data-model.md` §9). Appointments is excluded
@@ -591,18 +684,40 @@ to match for parity than encounters.
 
 "Close enough" rather than pixel-for-pixel. The dashboard preserves:
 
-- Same number of columns at desktop widths
-- Same card identity (allergies/problems/meds at the top, patient
-  notes in the center, etc.)
-- Same edit affordances and "view all" links per card
-- Same information density per card (fields, counts, dates)
+- **Patient identity bar above the tab strip.** Avatar circle,
+  `Name (pid) ×`, DOB / Age line, encounter selector on the right.
+  Active / Inactive / Deceased status as a small badge next to the
+  name. Sex and MRN inline with DOB.
+- **Tab strip below the header** with refresh / lock / × icons
+  per tab, paper-tab look on a baseline.
+- **Sub-nav row** under the tabs (Dashboard | History |
+  Assessments ▾ | Report | Documents | Transactions | Issues |
+  Ledger | External Data) — wired to the legacy `loadFrame` shim
+  so each link opens the corresponding legacy page in a new tab.
+- **`Medical Record Dashboard - {Name}`** page title with
+  collapse + help icons.
+- **Card grid:** Allergies / Medical Problems / Medications in a
+  3-up row at the top; Prescriptions and Care Team as full-width
+  tables; Recent Encounters and Lab Results as full-width tables;
+  Treatment Intervention Preferences and Care Experience
+  Preferences as stub cards with the legacy light-blue empty-state
+  banner. Card chrome is the legacy blue title with drag-handle
+  dots and an edit-pencil on the right.
+- Same edit affordances and "view all" links per card.
+- Same information density per card (fields, counts, dates).
+- Empty states render `Nothing Recorded` visually with the
+  original phrasing kept screen-reader-accessible.
 
 It does not preserve:
 
-- Bootstrap 4 quirks (border-radius, exact padding, exact spacing)
-- Legacy color scheme drift (some cards have inline color overrides)
+- Bootstrap 4 quirks (border-radius, exact padding, exact spacing).
+  The SPA was authored against Bootstrap 5 idioms; the host
+  (`main_v2.php`) loads Bootstrap 4.6, so a small `dashboard.css`
+  re-implements the BS5-only utilities we use (`visually-hidden`,
+  `gap-*`, `text-body-secondary`, `bg-body`, `g-3` row gutters).
+- Legacy color scheme drift (some cards have inline color overrides).
 - Per-card collapse-state persistence (we use sessionStorage, not
-  the legacy `users_settings` round-trip)
+  the legacy `users_settings` round-trip).
 
 A clinician opening the new dashboard sees the same information
 in the same places. The implementation is modern; the page is not
@@ -622,8 +737,13 @@ redesigned.
 - **Components.** Bootstrap 5 classes directly. We do not pull in
   `react-bootstrap`.
 - **Tests.** Vitest + React Testing Library for unit/component
-  tests; Playwright for smoke E2E (login flow, dashboard renders,
-  cards populate from FHIR).
+  tests (153 cases at last count). Playwright is wired up for E2E
+  smoke; the current specs cover the SPA boot, the SMART
+  authorize redirect chain, and the patient-context shim path.
+  The "all-cards-populate-from-FHIR" end-to-end spec isn't
+  written yet — visual-verifying it via Chrome DevTools MCP was
+  faster for the W2 timeline; adding it is straightforward
+  follow-up work.
 - **Lint / format.** ESLint + Prettier, hooked into the project's
   existing `prek` pre-commit. Linting runs only on staged files in
   `dashboard/`; we do not lint repo-wide (per the project's
@@ -639,32 +759,43 @@ redesigned.
 ```
 dashboard/
 ├── src/
-│   ├── routes/                    # TanStack Router file-based routes
-│   ├── components/
-│   │   ├── PatientHeader.tsx
-│   │   ├── cards/
-│   │   │   ├── AllergiesCard.tsx
-│   │   │   ├── ProblemListCard.tsx
-│   │   │   ├── MedicationsCard.tsx
-│   │   │   ├── PrescriptionsCard.tsx
-│   │   │   ├── CareTeamCard.tsx
-│   │   │   └── EncountersCard.tsx
-│   │   └── legacy/
-│   │       └── LegacyIframeTab.tsx
+│   ├── routes/                          # TanStack Router routes
+│   │   ├── routeTree.tsx
+│   │   ├── patient.tsx                  # /patient/$pid (the dashboard tab)
+│   │   ├── legacyTab.tsx                # /dashboard/legacy/$name (iframe host)
+│   │   ├── login.tsx, authCallback.tsx
+│   │   └── dashboardLanding.tsx
+│   ├── components/                      # flat — no nested subdirs
+│   │   ├── AppShell.tsx                 # tab strip + tab-content host
+│   │   ├── PatientHeader.tsx, PatientSubNav.tsx, DashboardPageHeader.tsx
+│   │   ├── TabStrip.tsx, LegacyIframeTab.tsx
+│   │   ├── Card.tsx                     # shared card chrome
+│   │   ├── AllergiesCard.tsx, ProblemListCard.tsx, MedicationsCard.tsx
+│   │   ├── PrescriptionsCard.tsx, CareTeamCard.tsx, EncountersCard.tsx
+│   │   ├── LabsCard.tsx                 # T7.2 stretch
+│   │   ├── TreatmentInterventionPreferencesCard.tsx     # legacy stub
+│   │   ├── CareExperiencePreferencesCard.tsx            # legacy stub
+│   │   └── medicationFormat.ts
 │   ├── lib/
-│   │   ├── fhir.ts                # fhirclient setup
-│   │   ├── shims.ts               # window.top.* / left_nav.* / dlgopen shims
-│   │   ├── logger.ts
-│   │   └── errors.ts              # error boundaries
+│   │   ├── fhir.ts                      # fhirclient + OE_LAUNCH_PID
+│   │   ├── usePatientUuid.ts            # legacy pid → FHIR UUID resolver
+│   │   ├── useFhirRequest.ts            # the per-card fetch hook
+│   │   ├── useTabs.ts, tabsStore.ts     # external store for the tab strip
+│   │   ├── shims.ts, bootShims.ts       # window.top.* / left_nav.* / dlgopen
+│   │   ├── dlgopen.ts                   # Bootstrap-modal-backed dlgopen
+│   │   ├── auth.ts, authBoundary.tsx, RequireFhirSession.tsx
+│   │   └── config.ts                    # window.erx_enable etc.
+│   ├── dashboard.css                    # BS5 utility shims under BS4 host
 │   ├── App.tsx
 │   └── main.tsx
 ├── tests/
-│   ├── unit/
-│   └── e2e/
-├── dist/                          # vendored, refreshed in CI on PRs
+│   └── e2e/                             # Playwright smoke tests
+├── dist/                                # gitignored; built in CI + at deploy
 ├── package.json
-├── tsconfig.json
-├── vite.config.ts
+├── tsconfig.json, tsconfig.app.json, tsconfig.node.json, tsconfig.e2e.json
+├── vite.config.ts, vitest.config.ts, playwright.config.ts
+├── eslint.config.js, .prettierrc.json
+├── .env.example
 └── README.md
 ```
 
@@ -679,17 +810,28 @@ dashboard/
 4. **Build.** `npm run build` — produces `dashboard/dist/`. CI
    fails on TypeScript or ESLint errors.
 5. **Tests.** `npm test` runs Vitest; `npm run e2e` runs Playwright.
-6. **Vendoring.** `dashboard/dist/` is committed to git. CI
-   refreshes it on every PR that touches `dashboard/src/`. End
-   users `git clone openemr/openemr` and the dashboard works
-   without an install-time transpile, matching how the rest of
-   OpenEMR ships.
+6. **`dist/` is gitignored.** Original plan was to vendor the
+   built bundle into git so end users could `git clone` and run.
+   We dropped that during T1.5 — source maps alone churned ~900 KB
+   per build, and CI artifacts of that scope on every MR weren't
+   worth the carry. Today:
+   - Local dev: `npm run build` writes `dashboard/dist/` and the
+     OpenEMR Apache container's bind mount picks it up.
+   - CI: `test:dashboard` runs the build as a smoke check that the
+     source compiles. No artifact upload.
+   - Deploy (`infra/deploy.sh`): a one-shot `node:22-alpine`
+     container builds `dashboard/dist/` against the release tree
+     just before the OpenEMR container recreate. A named volume
+     (`openemr-deploy-dashboard-node-modules`) caches the install
+     across deploys.
 7. **Client registration.** A one-time admin step against the
-   target OpenEMR install: POST to `/oauth2/{site}/registration`
-   with the dashboard's redirect URI (`/dashboard/auth/callback`).
-   Capture the `client_id` and write it to
-   `dashboard/.env.production` as `VITE_OIDC_CLIENT_ID`. No secret
-   to manage (public client).
+   target OpenEMR install. POST to `/oauth2/{site}/registration`
+   with `application_type: "public"`, the SPA's redirect URI
+   (`<host>/dashboard/auth/callback`), and the full scope list
+   above. Capture the `client_id` from the response and write it
+   to `dashboard/.env.production` as `VITE_OIDC_CLIENT_ID`. No
+   secret to manage. **Re-register** any time the requested scope
+   set changes — see the scope-change runbook in the auth section.
 
 ### Logging
 
@@ -752,6 +894,41 @@ sink later; every call site uses the module rather than raw
    a UX cost we accept for the security benefit; if the team
    wants longer-lived sessions, fhirclient supports
    `localStorage` (worse XSS posture) or a custom storage adapter.
+7. **Patient switch costs an OAuth round-trip.** Because SMART
+   launches are patient-bound, every patient switch (Calendar →
+   click appointment, Finder → click result, etc.) triggers a
+   full-page redirect through `main_v2_launch.php` →
+   `oauth2/.../authorize` → `main_v2_resume.php` →
+   `main_v2.php?token_main=...`. With the OpenEMR session cookie
+   already in place this is fast (no second login screen, no user
+   prompt) but it's still ~200–500 ms of redirects that the
+   legacy dashboard didn't pay. We accept the cost in exchange
+   for the SMART contract. If it ever bites in practice, the
+   alternative is a non-SMART cookie-only auth model — which
+   would give up the "we used the SMART reference client" story.
+8. **OpenEMR PHP-session loss during redirect chain.** During
+   testing we observed a transient state where the OpenEMR PHP
+   session lost its `site_id` value, which causes every legacy
+   AJAX endpoint (`dated_reminders_counter.php`, `messages.php`,
+   `main_info.php`, and our own `main_v2_launch.php`) to 400 with
+   "Site ID is missing from session data!". Couldn't reliably
+   reproduce; the session usually self-heals on the next
+   navigation. The SPA's FHIR/SMART session is independent and
+   continues to work, so the dashboard cards still populate even
+   while the legacy iframe widgets are 400ing. If this turns out
+   to be a real bug rather than dev-environment flakiness, the
+   defense is to detect 400 + "Site ID" in the response and force
+   a fresh login.
+9. **Vitals + Immunizations cards are unbuilt** but their scopes
+   are pre-requested. If a clinic's expectations require them at
+   merge time, they're each ~30–45 min of work — same shape as
+   `EncountersCard` / `LabsCard`. T7.3 / T7.4 in the build plan.
+10. **Per-card error boundaries are partial.** `Card.tsx` has a
+    card-level error/retry slot for FHIR failures (one bad call
+    doesn't blank the dashboard). The React-class
+    `<ErrorBoundary>` for unrecoverable render errors hasn't
+    landed yet (T6.1). For W2 demo conditions this is fine; for
+    a clinic deploy, add it before merge.
 
 ---
 
