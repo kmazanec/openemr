@@ -5,6 +5,7 @@ import { AuthCallbackRoute } from './authCallback';
 import { DashboardLanding } from './dashboardLanding';
 import { PatientRoute } from './patient';
 import { LegacyTabRoute } from './legacyTab';
+import { CopilotStandaloneRoute } from './copilot';
 
 const rootRoute = createRootRoute({
   component: function Root(): ReactElement {
@@ -52,6 +53,12 @@ const legacyTabRoute = createRoute({
   },
 });
 
+const copilotRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/copilot/$pid',
+  component: CopilotStandaloneRoute,
+});
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -59,4 +66,5 @@ export const routeTree = rootRoute.addChildren([
   dashboardRoute,
   patientRoute,
   legacyTabRoute,
+  copilotRoute,
 ]);

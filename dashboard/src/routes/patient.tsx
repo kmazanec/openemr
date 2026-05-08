@@ -14,6 +14,8 @@ import { TreatmentInterventionPreferencesCard } from '../components/TreatmentInt
 import { CareExperiencePreferencesCard } from '../components/CareExperiencePreferencesCard';
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
 import { AppShell } from '../components/AppShell';
+import { CopilotPanel } from '../components/CopilotPanel';
+import { CopilotLaunchCard } from '../components/CopilotLaunchCard';
 import { appTabsStore } from '../lib/tabsStore';
 import { usePatientUuid } from '../lib/usePatientUuid';
 
@@ -32,6 +34,15 @@ export function PatientRoute(): ReactElement {
   // Only the patient summary itself is auth-gated. The patient header
   // is hosted by the shell so it sits above the tab strip, mirroring
   // legacy.
+  // Co-Pilot tab body. Auth piggy-backs on the OpenEMR PHP session
+  // cookie that's already in scope when the SPA is hosted inside
+  // main_v2.php — fetch() with `credentials: 'same-origin'` carries it
+  // to the agent.php proxy, which mints a 5-min JWT for the agent.
+  // No SMART access token is needed for this surface.
+  const numericPid = Number.parseInt(pid, 10);
+  const copilotBody = Number.isFinite(numericPid) && numericPid > 0
+    ? <CopilotPanel pid={numericPid} />
+    : null;
   return (
     <AppShell
       patientHeader={
@@ -44,6 +55,7 @@ export function PatientRoute(): ReactElement {
           <PatientSummaryWithUuid pid={pid} />
         </RequireFhirSession>
       }
+      copilotBody={copilotBody}
     />
   );
 }
@@ -82,6 +94,9 @@ function PatientSummary({ pid, uuid }: { pid: string; uuid: string }): ReactElem
       <div className="px-3 pb-3">
         <DashboardPageHeader pid={pid} />
         <div className="row g-3">
+          <div className="col-12">
+            <CopilotLaunchCard pid={pid} />
+          </div>
           <div className="col-12 col-lg-4">
             <AllergiesCard pid={uuid} />
           </div>

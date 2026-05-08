@@ -42,6 +42,15 @@ declare global {
 function pickInitialEntry(): string {
   if (typeof window === 'undefined') return '/';
   if (window.location.pathname.endsWith('/auth/callback')) return '/auth/callback';
+  // Hash-routed entry — used by E2E tests and any future deep-links
+  // (e.g. an external link to a patient summary). The browser URL
+  // bar stays at main_v2.php; the in-memory router picks up the
+  // intended route from the hash. Format: `#/copilot/42`,
+  // `#/patient/42`, etc.
+  const hash = window.location.hash;
+  if (hash.startsWith('#/')) {
+    return hash.slice(1);
+  }
   return '/';
 }
 

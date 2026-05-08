@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createTabsStore, DASHBOARD_TAB_ID, type LegacyTab } from './tabsStore';
+import {
+  createTabsStore,
+  COPILOT_TAB_ID,
+  DASHBOARD_TAB_ID,
+  type LegacyTab,
+} from './tabsStore';
 
 describe('tabsStore', () => {
   it('starts empty — Dashboard tab is added only when a patient is opened', () => {
@@ -101,6 +106,39 @@ describe('tabsStore', () => {
     const state = store.getState();
     expect(state.activeId).toBe('msg');
     expect(state.tabs.map((t) => t.id)).toEqual(['msg']);
+  });
+
+  it('openCopilotTab inserts the Co-Pilot tab next to the Dashboard tab', () => {
+    const store = createTabsStore();
+    store.openDashboardTab();
+    store.openLegacyTab('cal', '/cal');
+    store.openCopilotTab();
+    const state = store.getState();
+    // Dashboard, Copilot (inserted right after dashboard), then cal
+    expect(state.tabs.map((t) => t.id)).toEqual([
+      DASHBOARD_TAB_ID,
+      COPILOT_TAB_ID,
+      'cal',
+    ]);
+    expect(state.activeId).toBe(COPILOT_TAB_ID);
+  });
+
+  it('openCopilotTab without a dashboard tab inserts at the front', () => {
+    const store = createTabsStore();
+    store.openLegacyTab('cal', '/cal');
+    store.openCopilotTab();
+    expect(store.getState().tabs.map((t) => t.id)).toEqual([COPILOT_TAB_ID, 'cal']);
+  });
+
+  it('openCopilotTab on an already-open Copilot tab just activates it', () => {
+    const store = createTabsStore();
+    store.openCopilotTab();
+    store.openLegacyTab('cal', '/cal');
+    store.openCopilotTab();
+    expect(
+      store.getState().tabs.filter((t) => t.id === COPILOT_TAB_ID),
+    ).toHaveLength(1);
+    expect(store.getState().activeId).toBe(COPILOT_TAB_ID);
   });
 
   it('subscribe fires on every state change and returns an unsubscribe', () => {

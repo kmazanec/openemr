@@ -11,10 +11,19 @@
 // or PatientRoute mount).
 
 export const DASHBOARD_TAB_ID = '__dashboard';
+export const COPILOT_TAB_ID = '__copilot';
 
 export interface DashboardTab {
   id: typeof DASHBOARD_TAB_ID;
   label: 'Patient Dashboard';
+}
+
+// SPA-native Clinical Co-Pilot tab — renders <CopilotPanel> rather
+// than an iframe. Distinct from the dashboard tab so the doctor can
+// keep both open and toggle between them without re-mounting either.
+export interface CopilotTab {
+  id: typeof COPILOT_TAB_ID;
+  label: 'Clinical Co-Pilot';
 }
 
 export interface LegacyTab {
@@ -23,7 +32,7 @@ export interface LegacyTab {
   url: string;
 }
 
-export type Tab = DashboardTab | LegacyTab;
+export type Tab = DashboardTab | CopilotTab | LegacyTab;
 
 export interface TabsState {
   tabs: Tab[];
@@ -35,11 +44,13 @@ export interface TabsStore {
   subscribe(listener: () => void): () => void;
   openLegacyTab(name: string, url: string, label?: string): void;
   openDashboardTab(): void;
+  openCopilotTab(): void;
   setActive(id: string): void;
   closeTab(id: string): void;
 }
 
 const DASHBOARD_TAB: DashboardTab = { id: DASHBOARD_TAB_ID, label: 'Patient Dashboard' };
+const COPILOT_TAB: CopilotTab = { id: COPILOT_TAB_ID, label: 'Clinical Co-Pilot' };
 
 export function createTabsStore(): TabsStore {
   let state: TabsState = {
@@ -65,14 +76,15 @@ export function createTabsStore(): TabsStore {
 
     openLegacyTab(name, url, label) {
       const existing = state.tabs.find(
-        (t): t is LegacyTab => t.id !== DASHBOARD_TAB_ID && t.id === name,
+        (t): t is LegacyTab =>
+          t.id !== DASHBOARD_TAB_ID && t.id !== COPILOT_TAB_ID && t.id === name,
       );
       if (existing !== undefined) {
         // Same name re-loaded with a (possibly) new URL: navigate the
         // existing iframe rather than rebuilding it. Object identity
         // stays stable, so React reuses the same iframe DOM node.
         const updated = state.tabs.map((t): Tab => {
-          if (t.id === name && t.id !== DASHBOARD_TAB_ID) {
+          if (t.id === name && t.id !== DASHBOARD_TAB_ID && t.id !== COPILOT_TAB_ID) {
             return { ...t, url };
           }
           return t;
@@ -97,6 +109,25 @@ export function createTabsStore(): TabsStore {
         tabs: [DASHBOARD_TAB, ...state.tabs],
         activeId: DASHBOARD_TAB_ID,
       });
+    },
+
+    openCopilotTab() {
+      const existing = state.tabs.find((t) => t.id === COPILOT_TAB_ID);
+      if (existing !== undefined) {
+        setState({ ...state, activeId: COPILOT_TAB_ID });
+        return;
+      }
+      // Insert immediately after the dashboard tab so the chat UI sits
+      // next to the chart summary in the strip; falls to position 0 if
+      // the dashboard tab isn't open yet.
+      const dashIdx = state.tabs.findIndex((t) => t.id === DASHBOARD_TAB_ID);
+      const insertAt = dashIdx === -1 ? 0 : dashIdx + 1;
+      const tabs = [
+        ...state.tabs.slice(0, insertAt),
+        COPILOT_TAB,
+        ...state.tabs.slice(insertAt),
+      ];
+      setState({ tabs, activeId: COPILOT_TAB_ID });
     },
 
     setActive(id) {
