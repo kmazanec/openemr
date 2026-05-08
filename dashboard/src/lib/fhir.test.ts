@@ -82,6 +82,51 @@ describe('getOidcConfig', () => {
   });
 });
 
+describe('buildAuthorizeParams', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const baseConfig = {
+    iss: 'http://localhost:8300/apis/default/fhir',
+    clientId: 'test-client',
+    redirectUri: 'http://localhost:8300/dashboard/auth/callback',
+    scope: 'openid fhirUser launch launch/patient',
+  };
+
+  it('emits standalone-launch params when no SmartLaunch is supplied', async () => {
+    const { buildAuthorizeParams } = await import('./fhir');
+    expect(buildAuthorizeParams(baseConfig)).toMatchObject({
+      iss: baseConfig.iss,
+      clientId: baseConfig.clientId,
+      redirectUri: baseConfig.redirectUri,
+      scope: baseConfig.scope,
+      pkceMode: 'required',
+    });
+    expect((buildAuthorizeParams(baseConfig) as { launch?: string }).launch).toBeUndefined();
+  });
+
+  it('emits EHR-launch params when SmartLaunch is supplied (iss = aud, launch token forwarded)', async () => {
+    const { buildAuthorizeParams } = await import('./fhir');
+    const smart = {
+      launch: 'opaque-encrypted-launch-token',
+      aud: 'http://localhost:8300/apis/default/fhir',
+    };
+    expect(buildAuthorizeParams(baseConfig, smart)).toMatchObject({
+      iss: smart.aud,
+      launch: smart.launch,
+      clientId: baseConfig.clientId,
+      redirectUri: baseConfig.redirectUri,
+      scope: baseConfig.scope,
+      pkceMode: 'required',
+    });
+  });
+});
+
 describe('ensureClientId', () => {
   beforeEach(() => {
     vi.resetModules();

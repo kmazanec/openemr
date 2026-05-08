@@ -8,10 +8,11 @@ type Status = 'pending' | 'error';
 //   1. The SPA is hosted at /dashboard/auth/callback (Apache rewrite,
 //      T1.6). We're at the *real* /dashboard/auth/callback URL with
 //      ?code=&state= in the search string. After ready() completes,
-//      we redirect — via a real navigation — back to main_screen.php?v2=1
-//      so the legacy session minting flow gets us a fresh token_main
-//      and lands us on main_v2.php with the SMART session in
-//      sessionStorage.
+//      we redirect — via a real navigation — to main_v2_resume.php,
+//      which mints a fresh token_main and 302s back to main_v2.php
+//      so the SPA shell re-mounts with the user's tabs intact. The
+//      SMART session lives in window.sessionStorage and survives the
+//      redirect chain.
 //   2. We're invoked from inside the memory router (tests, future
 //      direct deep link). After ready() completes, navigate via the
 //      memory router to /patient/$pid (or /dashboard if no patient).
@@ -29,11 +30,10 @@ export function AuthCallbackRoute(): ReactElement {
           typeof window !== 'undefined' &&
           window.location.pathname.endsWith('/auth/callback');
         if (isRealCallback) {
-          // Bounce through main_screen.php to get a fresh token_main
-          // and end up on main_v2.php — the SMART session lives in
-          // sessionStorage, which survives the redirect.
           const origin = window.location.origin;
-          window.location.replace(`${origin}/interface/main/main_screen.php?v2=1`);
+          window.location.replace(
+            `${origin}/interface/main/tabs/main_v2_resume.php`,
+          );
           return;
         }
         const pid = client.patient?.id ?? null;

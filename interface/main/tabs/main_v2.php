@@ -42,12 +42,16 @@ use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Common\Session\SessionUtil;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Twig\TwigContainer;
+use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Core\Header;
 use OpenEMR\Core\OEEnvBag;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Events\Main\Tabs\RenderEvent;
+use OpenEMR\FHIR\Config\ServerConfig;
+use OpenEMR\FHIR\SMART\SMARTLaunchToken;
 use OpenEMR\Menu\MainMenuRole;
 use OpenEMR\Services\LogoService;
+use OpenEMR\Services\PatientService;
 use OpenEMR\Services\ProductRegistrationService;
 use OpenEMR\Services\VersionService;
 use OpenEMR\Telemetry\TelemetryService;
@@ -461,6 +465,55 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
         // legacy shell would have rendered from $session['default_open_tabs'].
         // The first entry becomes the active tab — typically Calendar.
         window.OE_DEFAULT_TABS = <?php echo json_encode($oeDefaultTabs, JSON_UNESCAPED_SLASHES); ?>;
+        <?php
+        // SMART EHR Launch context. The dashboard's auth flow is the
+        // SMART EHR launch sequence: instead of sending the user to a
+        // second OAuth login screen, OpenEMR's authorization server
+        // accepts an opaque "launch" token + the existing OpenEMR
+        // session and issues an authorization code immediately.
+        //
+        // We build the launch token on the server here so that the
+        // logged-in user's OpenEMR session is what authorizes the
+        // launch — no credentials in JS, no second sign-in. The token
+        // carries the active patient UUID (when one is in session) so
+        // fhirclient receives the patient context as part of the SMART
+        // token response.
+        //
+        // Preconditions for the OAuth server to skip the login screen:
+        //   - global `oauth_ehr_launch_authorization_flow_skip = 1`
+        //   - the dashboard's oauth_clients row has
+        //     `skip_ehr_launch_authorization_flow = 1`
+        //     and includes the `launch` scope
+        //   - the user has a live OpenEMR core session (cookie present)
+        // Documented in dashboard/README.md.
+        $oeSmartLaunch = null;
+        $sessionPid = $session->get('pid');
+        $puuid = null;
+        if (!empty($sessionPid)) {
+            try {
+                $patientService = new PatientService();
+                $puuidBytes = $patientService->getUuid((int) $sessionPid);
+                if (!empty($puuidBytes)) {
+                    $puuid = UuidRegistry::uuidToString($puuidBytes);
+                }
+            } catch (\Throwable) {
+                // Don't block the page if pid → uuid lookup fails;
+                // the SPA will just request a no-patient launch.
+                $puuid = null;
+            }
+        }
+        $launchToken = new SMARTLaunchToken($puuid);
+        $launchToken->setIntent(SMARTLaunchToken::INTENT_MAIN_TAB);
+        $oeSmartLaunch = [
+            'launch' => $launchToken->serialize(),
+            'aud' => (new ServerConfig())->getFhirUrl(),
+        ];
+        ?>
+        // SMART EHR launch context for the dashboard's authorize() call.
+        // `launch` is an opaque, encrypted token holding the patient
+        // UUID + intent. `aud` is the FHIR base URL fhirclient should
+        // bind the resulting access token to.
+        window.OE_SMART_LAUNCH = <?php echo json_encode($oeSmartLaunch, JSON_UNESCAPED_SLASHES); ?>;
 
         app_view_model.application_data.user(new user_data_view_model(<?php echo json_encode($session->get("authUser"))
             . ',' . json_encode($userQuery['fname'])

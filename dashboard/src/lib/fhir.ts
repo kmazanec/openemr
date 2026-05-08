@@ -9,8 +9,14 @@ export interface OidcConfig {
   scope: string;
 }
 
+// SMART scopes the dashboard requests at authorize time.
+//
+// `launch` and `launch/patient` together cover both the EHR-launch
+// flow (patient context handed in via the `launch` token from
+// main_v2.php) and the fallback standalone flow (no launch context;
+// fhirclient asks the user to pick a patient if needed).
 const DEFAULT_SCOPE =
-  'openid fhirUser launch/patient offline_access ' +
+  'openid fhirUser launch launch/patient offline_access ' +
   'patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read ' +
   'patient/MedicationRequest.read patient/CareTeam.read patient/Encounter.read';
 
@@ -46,12 +52,14 @@ function envOrEmpty(env: Record<string, string | undefined>, key: string): strin
  * defaults derived from the SPA's host origin.
  *
  * Precedence (per field):
- *   1. VITE_OIDC_* env var if non-empty (build-time, used in prod
- *      and in tests).
- *   2. Default computed from window.location.origin:
- *        iss          → ${origin}/apis/${SITE}/fhir
- *        redirectUri  → ${origin}/dashboard/auth/callback
- *        scope        → DEFAULT_SCOPE
+ *   1. When the SPA is hosted inside main_v2.php (window.OE_SMART_LAUNCH
+ *      is present), iss and redirectUri are forced to the SPA's actual
+ *      origin so they line up with what the OAuth server expects from a
+ *      same-origin EHR launch. Stale .env.local values from standalone
+ *      Vite dev would otherwise leak through and produce a redirect_uri
+ *      mismatch.
+ *   2. Otherwise, VITE_OIDC_* env var if non-empty (build-time).
+ *   3. Otherwise, computed from window.location.origin.
  *
  * clientId additionally falls back to localStorage (the cache
  * populated by ensureClientId() on first run). Throws when no
@@ -60,18 +68,18 @@ function envOrEmpty(env: Record<string, string | undefined>, key: string): strin
 export function getOidcConfig(): OidcConfig {
   const env = import.meta.env as Record<string, string | undefined>;
   const origin = originOrUndefined();
+  const ehrLaunch = typeof window === 'undefined' ? undefined : window.OE_SMART_LAUNCH;
 
   const issEnv = envOrEmpty(env, 'VITE_OIDC_ISSUER');
   const redirectEnv = envOrEmpty(env, 'VITE_OIDC_REDIRECT_URI');
   const scopeEnv = envOrEmpty(env, 'VITE_OIDC_SCOPE');
 
-  const iss = issEnv !== '' ? issEnv : origin === undefined ? '' : `${origin}/apis/${SITE}/fhir`;
+  const computedIss = origin === undefined ? '' : `${origin}/apis/${SITE}/fhir`;
+  const computedRedirect = origin === undefined ? '' : `${origin}/dashboard/auth/callback`;
+
+  const iss = ehrLaunch !== undefined ? computedIss : issEnv !== '' ? issEnv : computedIss;
   const redirectUri =
-    redirectEnv !== ''
-      ? redirectEnv
-      : origin === undefined
-        ? ''
-        : `${origin}/dashboard/auth/callback`;
+    ehrLaunch !== undefined ? computedRedirect : redirectEnv !== '' ? redirectEnv : computedRedirect;
   const scope = scopeEnv !== '' ? scopeEnv : DEFAULT_SCOPE;
 
   // clientId can come from build-time env (prod) or from a
@@ -127,6 +135,12 @@ export async function ensureClientId(): Promise<string> {
   const redirectUri = redirectEnv !== '' ? redirectEnv : `${origin}/dashboard/auth/callback`;
   const scope = scopeEnv !== '' ? scopeEnv : DEFAULT_SCOPE;
 
+  // Note: OpenEMR's RFC 7591 registration does NOT accept the
+  // skip_ehr_launch_authorization_flow flag in the request body.
+  // We register the client here with the right scope, then an
+  // admin enables EHR-launch-skip via the OAuth Clients admin UI
+  // (or, in dev, a one-line UPDATE). See dashboard/README.md for
+  // the prod runbook.
   const response = await fetch(`${origin}/oauth2/${SITE}/registration`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -154,7 +168,50 @@ export async function ensureClientId(): Promise<string> {
   return body.client_id;
 }
 
-export function buildAuthorizeParams(config: OidcConfig): fhirclient.AuthorizeParams {
+// Shape main_v2.php emits as window.OE_SMART_LAUNCH. The launch
+// token is an opaque, encrypted blob built by SMARTLaunchToken
+// (PHP-side) carrying the patient UUID and intent. `aud` is the
+// FHIR base URL the access token will be bound to.
+export interface SmartLaunch {
+  launch: string;
+  aud: string;
+}
+
+declare global {
+  interface Window {
+    OE_SMART_LAUNCH?: SmartLaunch;
+  }
+}
+
+export function buildAuthorizeParams(
+  config: OidcConfig,
+  smartLaunch?: SmartLaunch,
+): fhirclient.AuthorizeParams {
+  // EHR launch path: `iss` becomes the FHIR base URL the EHR
+  // declared as `aud`, and we forward the encrypted launch token.
+  // Combined with the OAuth client's skip_ehr_launch_authorization_flow
+  // flag and the OpenEMR session cookie, the OAuth server issues a
+  // code immediately without a second login screen — so the OAuth
+  // dance is just two redirects (authorize → callback) and we can
+  // safely run them in the same window. The SMART session ends up
+  // in window.sessionStorage; AuthCallbackRoute then bounces through
+  // main_v2_resume.php to re-mint token_main and re-mount the SPA
+  // shell with the SMART session intact (sessionStorage survives
+  // navigations within the same tab + origin).
+  if (smartLaunch !== undefined) {
+    return {
+      iss: smartLaunch.aud,
+      launch: smartLaunch.launch,
+      clientId: config.clientId,
+      redirectUri: config.redirectUri,
+      scope: config.scope,
+      pkceMode: 'required',
+    };
+  }
+  // Standalone launch: no patient context handed in. fhirclient
+  // walks the user through SMART discovery + the standard provider
+  // login. Used for tests and any future deploy where the SPA is
+  // not embedded in main_v2.php.
   return {
     iss: config.iss,
     clientId: config.clientId,
@@ -166,7 +223,8 @@ export function buildAuthorizeParams(config: OidcConfig): fhirclient.AuthorizePa
 
 export async function authorize(): Promise<void> {
   await ensureClientId();
-  await FHIR.oauth2.authorize(buildAuthorizeParams(getOidcConfig()));
+  const smartLaunch = typeof window === 'undefined' ? undefined : window.OE_SMART_LAUNCH;
+  await FHIR.oauth2.authorize(buildAuthorizeParams(getOidcConfig(), smartLaunch));
 }
 
 export async function completeAuthorization(): Promise<Client> {
