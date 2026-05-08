@@ -297,4 +297,130 @@ describe('CopilotPanel', () => {
     await waitFor(() => expect(capturedInit).toBeDefined());
     expect(capturedInit?.credentials).toBe('same-origin');
   });
+
+  it('clicking an extracted_document chip opens the document drawer', async () => {
+    const docMessage: AssistantMessage = {
+      segments: [
+        {
+          text: 'The intake form lists penicillin allergy',
+          claims: [
+            {
+              id: 'cd1',
+              text: 'penicillin allergy',
+              category: 'allergy',
+              sourceReferences: [
+                {
+                  source_type: 'extracted_document',
+                  source_id: 'artifact-1',
+                  locator: {
+                    page: 2,
+                    bbox: [120, 340, 380, 60],
+                    field: 'allergies[0].substance',
+                  },
+                  quote: 'Penicillin — hives',
+                  meta: { document_uuid: 'doc-uuid-1' },
+                },
+              ],
+              safetyCritical: true,
+            },
+          ],
+          redacted: false,
+        },
+      ],
+      claimGroups: {},
+      gaps: [],
+      suggestedFollowUps: [],
+      archetypeFlags: [],
+    };
+    mockFetchStream(
+      sseFrames([
+        { type: 'meta', conversationId: 'conv-d', requestId: 'r-d', siteId: 'default' },
+        { type: 'assistantMessage', message: docMessage },
+        { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
+      ]),
+    );
+
+    render(<CopilotPanel pid={42} />);
+    await waitFor(() => screen.getByTestId('copilot-bubble-assistant'));
+
+    // The chip is interactive (button), not an anchor.
+    const chip = screen.getByTestId('copilot-chip');
+    expect(chip.tagName).toBe('BUTTON');
+
+    // Document drawer not open yet.
+    expect(screen.queryByTestId('copilot-doc-drawer')).toBeNull();
+
+    fireEvent.click(chip);
+    // Drawer mounts and starts loading the document — fetch was
+    // re-stubbed for the briefing call; for this assertion we just
+    // need the drawer to be visible.
+    await waitFor(() => expect(screen.getByTestId('copilot-doc-drawer')).toBeInTheDocument());
+  });
+
+  it('clicking a guideline chip opens the guideline drawer with the publication and quote', async () => {
+    const guidelineMessage: AssistantMessage = {
+      segments: [
+        {
+          text: 'USPSTF recommends statin therapy for primary prevention',
+          claims: [
+            {
+              id: 'cg1',
+              text: 'statin recommendation',
+              category: 'diagnosis',
+              sourceReferences: [
+                {
+                  source_type: 'guideline',
+                  source_id: 'uspstf-statin-2026',
+                  locator: { section: 'Recommendation 1' },
+                  quote:
+                    'For adults aged 40-75 years with one or more CVD risk factors, prescribe a statin for primary prevention.',
+                  meta: {
+                    publication: 'USPSTF',
+                    title: 'Statin Use for Primary Prevention',
+                    year: 2026,
+                    url: 'https://example.org/uspstf',
+                  },
+                },
+              ],
+              safetyCritical: false,
+            },
+          ],
+          redacted: false,
+        },
+      ],
+      claimGroups: {},
+      gaps: [],
+      suggestedFollowUps: [],
+      archetypeFlags: [],
+    };
+    mockFetchStream(
+      sseFrames([
+        { type: 'meta', conversationId: 'conv-g', requestId: 'r-g', siteId: 'default' },
+        { type: 'assistantMessage', message: guidelineMessage },
+        { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
+      ]),
+    );
+
+    render(<CopilotPanel pid={42} />);
+    await waitFor(() => screen.getByTestId('copilot-bubble-assistant'));
+
+    const chip = screen.getByTestId('copilot-chip');
+    expect(chip).toHaveAttribute('data-source-type', 'guideline');
+    expect(chip).toHaveTextContent('USPSTF');
+    fireEvent.click(chip);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('copilot-guideline-drawer')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('copilot-guideline-publication')).toHaveTextContent('USPSTF');
+    expect(screen.getByTestId('copilot-guideline-quote')).toHaveTextContent(
+      'prescribe a statin',
+    );
+
+    // A second click on the same chip closes it (toggle behavior).
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(screen.queryByTestId('copilot-guideline-drawer')).toBeNull(),
+    );
+  });
 });

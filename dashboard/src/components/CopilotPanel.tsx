@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { useCopilotStream, type CopilotTurn as Turn } from '../lib/useCopilotStream';
 import type {
   AssistantMessage,
@@ -6,6 +6,13 @@ import type {
   Claim,
   SourceReference,
 } from '../lib/copilotTypes';
+import { isFiniteBbox, type Bbox } from '../lib/bbox';
+import {
+  DocumentViewerDrawer,
+  type DocumentViewerArgs,
+} from './DocumentViewerDrawer';
+import { GuidelineDrawer } from './GuidelineDrawer';
+import type { PdfJsImporter } from '../lib/pdfjsLoader';
 
 export interface CopilotPanelProps {
   pid: number;
@@ -13,6 +20,12 @@ export interface CopilotPanelProps {
   // Test-only override; production omits this and uses the same-origin
   // proxy url.
   proxyUrl?: string;
+  // Test-only override for document_view.php. Lets unit + e2e tests
+  // intercept document fetches without a live OpenEMR.
+  documentViewUrl?: string;
+  // Test-only override for the PDF.js dynamic import — JSDOM can't
+  // load a real CDN bundle, so unit tests inject a fake PdfJsModule.
+  pdfjsImporter?: PdfJsImporter;
 }
 
 /**
@@ -30,11 +43,63 @@ export interface CopilotPanelProps {
  * fires a default-briefing request automatically. Subsequent free-text
  * questions or chip-clicks become follow-up turns.
  */
-export function CopilotPanel({ pid, siteId = 'default', proxyUrl }: CopilotPanelProps): ReactElement {
+export function CopilotPanel({
+  pid,
+  siteId = 'default',
+  proxyUrl,
+  documentViewUrl,
+  pdfjsImporter,
+}: CopilotPanelProps): ReactElement {
   const { state, submit, reset } = useCopilotStream(
     proxyUrl !== undefined
       ? { pid, siteId, proxyUrl }
       : { pid, siteId },
+  );
+
+  // Side-drawer state. Per-source-type so a guideline chip click
+  // doesn't tear down a document drawer mid-render (the drawers
+  // share the right edge of the screen visually but their state is
+  // independent).
+  const [docArgs, setDocArgs] = useState<DocumentViewerArgs | null>(null);
+  const [guidelineSource, setGuidelineSource] = useState<{
+    source: SourceReference;
+    claimText: string;
+  } | null>(null);
+
+  const onChipClick = useCallback(
+    (claim: Claim, ref: SourceReference): void => {
+      if (ref.source_type === 'extracted_document') {
+        const args = viewerArgsFromSource(ref);
+        if (args === null) return;
+        // Second click on the same chip closes the drawer (toggle UX
+        // matches the legacy panel).
+        if (
+          docArgs !== null &&
+          docArgs.documentUuid === args.documentUuid &&
+          docArgs.page === args.page
+        ) {
+          setDocArgs(null);
+        } else {
+          setDocArgs(args);
+          setGuidelineSource(null);
+        }
+        return;
+      }
+      if (ref.source_type === 'guideline') {
+        if (
+          guidelineSource !== null &&
+          guidelineSource.source.source_id === ref.source_id
+        ) {
+          setGuidelineSource(null);
+        } else {
+          setGuidelineSource({ source: ref, claimText: claim.text });
+          setDocArgs(null);
+        }
+        return;
+      }
+      // chart chips fall through to their `<a href>` deep link.
+    },
+    [docArgs, guidelineSource],
   );
 
   // Auto-fire the default briefing once per mount-per-patient. We key
@@ -105,11 +170,23 @@ export function CopilotPanel({ pid, siteId = 'default', proxyUrl }: CopilotPanel
           </div>
         ) : (
           state.turns.map((turn, i) => (
-            <TurnView key={i} turn={turn} />
+            <TurnView key={i} turn={turn} onChipClick={onChipClick} />
           ))
         )}
         <div ref={threadEndRef} />
       </div>
+
+      <DocumentViewerDrawer
+        args={docArgs}
+        onClose={() => setDocArgs(null)}
+        {...(documentViewUrl !== undefined ? { documentViewUrl } : {})}
+        {...(pdfjsImporter !== undefined ? { pdfjsImporter } : {})}
+      />
+      <GuidelineDrawer
+        source={guidelineSource?.source ?? null}
+        claimText={guidelineSource?.claimText ?? ''}
+        onClose={() => setGuidelineSource(null)}
+      />
 
       {lastAssistant !== null && lastAssistant.message.suggestedFollowUps.length > 0 && (
         <div
@@ -173,7 +250,13 @@ function lastAssistantTurn(turns: readonly Turn[]): { message: AssistantMessage 
   return null;
 }
 
-function TurnView({ turn }: { turn: Turn }): ReactElement {
+function TurnView({
+  turn,
+  onChipClick,
+}: {
+  turn: Turn;
+  onChipClick: (claim: Claim, ref: SourceReference) => void;
+}): ReactElement {
   switch (turn.kind) {
     case 'user':
       return (
@@ -188,7 +271,7 @@ function TurnView({ turn }: { turn: Turn }): ReactElement {
         </div>
       );
     case 'assistant':
-      return <AssistantBubble message={turn.message} />;
+      return <AssistantBubble message={turn.message} onChipClick={onChipClick} />;
     case 'progress':
       return (
         <div className="d-flex justify-content-start mb-2">
@@ -269,7 +352,13 @@ function TurnView({ turn }: { turn: Turn }): ReactElement {
   }
 }
 
-function AssistantBubble({ message }: { message: AssistantMessage }): ReactElement {
+function AssistantBubble({
+  message,
+  onChipClick,
+}: {
+  message: AssistantMessage;
+  onChipClick: (claim: Claim, ref: SourceReference) => void;
+}): ReactElement {
   const redactedCount = message.segments.filter((s) => s.redacted).length;
   return (
     <div className="d-flex justify-content-start mb-2">
@@ -294,7 +383,7 @@ function AssistantBubble({ message }: { message: AssistantMessage }): ReactEleme
         )}
         <p className="mb-0" data-testid="copilot-prose">
           {message.segments.filter((s) => !s.redacted).map((seg, i) => (
-            <SegmentInline key={i} segment={seg} />
+            <SegmentInline key={i} segment={seg} onChipClick={onChipClick} />
           ))}
           {redactedCount > 0 && (
             <span
@@ -311,24 +400,45 @@ function AssistantBubble({ message }: { message: AssistantMessage }): ReactEleme
   );
 }
 
-function SegmentInline({ segment }: { segment: AssistantMessageSegment }): ReactElement {
+function SegmentInline({
+  segment,
+  onChipClick,
+}: {
+  segment: AssistantMessageSegment;
+  onChipClick: (claim: Claim, ref: SourceReference) => void;
+}): ReactElement {
   return (
     <span data-testid="copilot-segment">
       {segment.text}
       {segment.claims.map((claim) =>
         claim.sourceReferences.map((ref, ri) => (
-          <SourceChip key={`${claim.id}-${ri}`} claim={claim} reference={ref} />
+          <SourceChip
+            key={`${claim.id}-${ri}`}
+            claim={claim}
+            reference={ref}
+            onClick={() => onChipClick(claim, ref)}
+          />
         )),
       )}{' '}
     </span>
   );
 }
 
-function SourceChip({ claim, reference }: { claim: Claim; reference: SourceReference }): ReactElement {
+function SourceChip({
+  claim,
+  reference,
+  onClick,
+}: {
+  claim: Claim;
+  reference: SourceReference;
+  onClick: () => void;
+}): ReactElement {
   const url = sourceLinkUrl(reference);
   const tooltip = chipTooltipText(reference);
   const label = chipLabel(reference);
   const cls = 'badge text-decoration-none ms-1 ' + chipColorClass(reference);
+  // Chart chips with a known deep link render as anchors so the user
+  // gets the native middle-click / open-in-new-tab affordance.
   if (url !== null) {
     return (
       <a
@@ -343,6 +453,34 @@ function SourceChip({ claim, reference }: { claim: Claim; reference: SourceRefer
       >
         {label}
       </a>
+    );
+  }
+  // extracted_document and guideline chips are buttons that open a
+  // side drawer. Chart chips without a known deep link fall back to
+  // the same visual treatment as a non-clickable badge (no drawer
+  // exists for chart sources — the data is already inline above).
+  const interactive =
+    reference.source_type === 'extracted_document' || reference.source_type === 'guideline';
+  if (interactive) {
+    return (
+      <button
+        type="button"
+        className={cls + ' border-0'}
+        title={tooltip}
+        data-testid="copilot-chip"
+        data-claim-id={claim.id}
+        data-source-type={reference.source_type}
+        onClick={(e) => {
+          e.preventDefault();
+          onClick();
+        }}
+        // Buttons inside flowing text shouldn't disturb the line
+        // height; collapse browser-default button padding so the chip
+        // sits inline with the surrounding badge styles.
+        style={{ padding: '0.15em 0.5em', cursor: 'pointer' }}
+      >
+        {label}
+      </button>
     );
   }
   return (
@@ -390,6 +528,28 @@ function chipTooltipText(ref: SourceReference): string {
   // all three source types.
   const trim = ref.quote.length > 220 ? ref.quote.slice(0, 217) + '…' : ref.quote;
   return trim;
+}
+
+/**
+ * Pull the (documentUuid, page, bbox) the document viewer needs out
+ * of an `extracted_document` source ref. Mirrors the legacy panel's
+ * `viewerArgsFromSource` — `meta.document_uuid` and `locator.page` /
+ * `locator.bbox` are the canonical carriers; if `meta.document_uuid`
+ * is missing the chip is unrenderable as a viewer target so we
+ * return null and fall back to a tooltip-only chip.
+ */
+function viewerArgsFromSource(ref: SourceReference): DocumentViewerArgs | null {
+  if (ref.source_type !== 'extracted_document') return null;
+  const meta = ref.meta ?? {};
+  const documentUuid = typeof meta.document_uuid === 'string' ? meta.document_uuid : '';
+  if (documentUuid === '') return null;
+  const page = typeof ref.locator.page === 'number' ? ref.locator.page : null;
+  const rawBbox = ref.locator.bbox;
+  let bbox: Bbox | null = null;
+  if (Array.isArray(rawBbox) && rawBbox.length === 4 && isFiniteBbox(rawBbox)) {
+    bbox = rawBbox as Bbox;
+  }
+  return { documentUuid, page, bbox };
 }
 
 /**

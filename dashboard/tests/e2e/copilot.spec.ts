@@ -189,6 +189,199 @@ test.describe('Clinical Co-Pilot panel', () => {
     );
   });
 
+  test('clicking an extracted_document chip opens the side drawer with a bbox overlay', async ({
+    page,
+  }) => {
+    const docSseBody =
+      `event: meta\ndata: ${JSON.stringify({
+        type: 'meta',
+        conversationId: 'conv-d',
+        requestId: 'req-d',
+        siteId: 'default',
+      })}\n\nevent: assistantMessage\ndata: ${JSON.stringify({
+        type: 'assistantMessage',
+        message: {
+          segments: [
+            {
+              text: 'Intake form lists penicillin allergy',
+              claims: [
+                {
+                  id: 'cd1',
+                  text: 'penicillin allergy',
+                  category: 'allergy',
+                  sourceReferences: [
+                    {
+                      source_type: 'extracted_document',
+                      source_id: 'art-1',
+                      locator: {
+                        page: 1,
+                        bbox: [120, 340, 380, 60],
+                      },
+                      quote: 'Penicillin — hives',
+                      meta: { document_uuid: 'doc-uuid-e2e' },
+                    },
+                  ],
+                  safetyCritical: true,
+                },
+              ],
+              redacted: false,
+            },
+          ],
+          claimGroups: {},
+          gaps: [],
+          suggestedFollowUps: [],
+          archetypeFlags: [],
+        },
+      })}\n\nevent: done\ndata: ${JSON.stringify({
+        type: 'done',
+        persistedAt: '2026-05-08T00:00:00Z',
+      })}\n\n`;
+
+    await page.route(
+      '**/interface/modules/custom_modules/oe-module-clinical-copilot/public/agent.php**',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          body: docSseBody,
+        });
+      },
+    );
+
+    // A 1×1 PNG so the image branch can decode and lay out a real
+    // wrapper in the browser. The actual pixels are irrelevant — the
+    // bbox overlay positions in CSS percentages relative to the
+    // wrapper, and we only assert "an overlay is present and
+    // percent-positioned".
+    const onePxPngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
+    const pngBuffer = Buffer.from(onePxPngBase64, 'base64');
+
+    let docFetched = false;
+    await page.route(
+      '**/interface/modules/custom_modules/oe-module-clinical-copilot/public/document_view.php**',
+      async (route) => {
+        docFetched = true;
+        await route.fulfill({
+          status: 200,
+          contentType: 'image/png',
+          body: pngBuffer,
+        });
+      },
+    );
+
+    await page.goto('/#/copilot/42');
+    const chip = page.getByTestId('copilot-chip').first();
+    await expect(chip).toBeVisible({ timeout: 10_000 });
+    await expect(chip).toHaveAttribute('data-source-type', 'extracted_document');
+
+    // Drawer not open before the click.
+    await expect(page.getByTestId('copilot-doc-drawer')).toHaveCount(0);
+
+    await chip.click();
+
+    // Drawer mounts, the document_view.php endpoint is hit, and the
+    // image wrapper renders.
+    await expect(page.getByTestId('copilot-doc-drawer')).toBeVisible();
+    await expect.poll(() => docFetched).toBe(true);
+    await expect(page.getByTestId('copilot-doc-image-wrapper')).toBeVisible();
+
+    // The bbox overlay is positioned in percentages (normalized
+    // 0..1000 grid → CSS percent), which proves the bbox math wired
+    // through end-to-end.
+    const overlay = page.getByTestId('copilot-doc-bbox');
+    await expect(overlay).toBeVisible();
+    const left = await overlay.evaluate((el) => (el as HTMLElement).style.left);
+    expect(left).toMatch(/%$/);
+
+    // The drawer closes on Escape.
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('copilot-doc-drawer')).toHaveCount(0);
+  });
+
+  test('clicking a guideline chip opens the guideline drawer with publication + quote', async ({
+    page,
+  }) => {
+    const guidelineSseBody =
+      `event: meta\ndata: ${JSON.stringify({
+        type: 'meta',
+        conversationId: 'conv-g',
+        requestId: 'req-g',
+        siteId: 'default',
+      })}\n\nevent: assistantMessage\ndata: ${JSON.stringify({
+        type: 'assistantMessage',
+        message: {
+          segments: [
+            {
+              text: 'USPSTF recommends statin therapy',
+              claims: [
+                {
+                  id: 'cg1',
+                  text: 'statin recommendation',
+                  category: 'diagnosis',
+                  sourceReferences: [
+                    {
+                      source_type: 'guideline',
+                      source_id: 'uspstf-statin-2026',
+                      locator: { section: 'Recommendation 1' },
+                      quote:
+                        'For adults aged 40-75 years with one or more CVD risk factors, prescribe a statin for primary prevention.',
+                      meta: {
+                        publication: 'USPSTF',
+                        title: 'Statin Use for Primary Prevention',
+                        year: 2026,
+                        url: 'https://example.org/uspstf',
+                      },
+                    },
+                  ],
+                  safetyCritical: false,
+                },
+              ],
+              redacted: false,
+            },
+          ],
+          claimGroups: {},
+          gaps: [],
+          suggestedFollowUps: [],
+          archetypeFlags: [],
+        },
+      })}\n\nevent: done\ndata: ${JSON.stringify({
+        type: 'done',
+        persistedAt: '2026-05-08T00:00:00Z',
+      })}\n\n`;
+
+    await page.route(
+      '**/interface/modules/custom_modules/oe-module-clinical-copilot/public/agent.php**',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          body: guidelineSseBody,
+        });
+      },
+    );
+
+    await page.goto('/#/copilot/42');
+    const chip = page.getByTestId('copilot-chip').first();
+    await expect(chip).toBeVisible({ timeout: 10_000 });
+    await expect(chip).toHaveAttribute('data-source-type', 'guideline');
+    await chip.click();
+
+    await expect(page.getByTestId('copilot-guideline-drawer')).toBeVisible();
+    await expect(page.getByTestId('copilot-guideline-publication')).toContainText('USPSTF');
+    await expect(page.getByTestId('copilot-guideline-quote')).toContainText(
+      'prescribe a statin',
+    );
+    await expect(page.getByTestId('copilot-guideline-link')).toHaveAttribute(
+      'href',
+      'https://example.org/uspstf',
+    );
+
+    // Closes on the close button.
+    await page.getByTestId('copilot-guideline-close').click();
+    await expect(page.getByTestId('copilot-guideline-drawer')).toHaveCount(0);
+  });
+
   test('clicking a suggested follow-up sends a follow_up turn through the proxy', async ({ page }) => {
     const captured: string[] = [];
     await page.route(
