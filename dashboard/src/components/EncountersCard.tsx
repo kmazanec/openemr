@@ -35,15 +35,11 @@ function EncountersBody({ bundle }: { bundle: Bundle<Encounter> | undefined }): 
     .map((e: BundleEntry<Encounter>) => e.resource)
     .filter((r): r is Encounter => r !== undefined);
 
-  if (encounters.length === 0) {
-    return <p className="text-muted mb-0">No recent encounters.</p>;
-  }
-
   return (
     <div className="table-responsive">
-      <table className="table table-sm table-borderless mb-0">
+      <table className="table table-sm mb-0">
         <thead>
-          <tr>
+          <tr className="text-body-secondary">
             <th scope="col">Date</th>
             <th scope="col">Type</th>
             <th scope="col">Provider</th>
@@ -51,14 +47,23 @@ function EncountersBody({ bundle }: { bundle: Bundle<Encounter> | undefined }): 
           </tr>
         </thead>
         <tbody>
-          {encounters.map((e) => (
-            <tr key={e.id ?? Math.random().toString(36)}>
-              <td>{dateOf(e)}</td>
-              <td>{typeOf(e.type)}</td>
-              <td>{providerOf(e.participant)}</td>
-              <td>{reasonOf(e.reasonCode)}</td>
+          {encounters.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="text-muted small">
+                Nothing Recorded
+                <span className="visually-hidden"> (No recent encounters.)</span>
+              </td>
             </tr>
-          ))}
+          ) : (
+            encounters.map((e) => (
+              <tr key={e.id ?? Math.random().toString(36)}>
+                <td>{dateOf(e)}</td>
+                <td>{typeOf(e.type)}</td>
+                <td>{providerOf(e.participant)}</td>
+                <td>{reasonOf(e.reasonCode)}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

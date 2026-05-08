@@ -8,6 +8,7 @@ import { ProblemListCard } from '../components/ProblemListCard';
 import { MedicationsCard } from '../components/MedicationsCard';
 import { PrescriptionsCard } from '../components/PrescriptionsCard';
 import { CareTeamCard } from '../components/CareTeamCard';
+import { EncountersCard } from '../components/EncountersCard';
 import { TreatmentInterventionPreferencesCard } from '../components/TreatmentInterventionPreferencesCard';
 import { CareExperiencePreferencesCard } from '../components/CareExperiencePreferencesCard';
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
@@ -66,6 +67,9 @@ function PatientSummary({ pid }: { pid: string }): ReactElement {
           </div>
           <div className="col-12">
             <CareTeamCard pid={pid} />
+          </div>
+          <div className="col-12">
+            <EncountersCard pid={pid} />
           </div>
           <div className="col-12">
             <TreatmentInterventionPreferencesCard />
