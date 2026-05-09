@@ -238,6 +238,6 @@ describe('vision node', () => {
     });
 
     it('exposes EXTRACTOR_VERSION as a stable string for the persist node', () => {
-        expect(EXTRACTOR_VERSION).toBe('vision-v1');
+        expect(EXTRACTOR_VERSION).toBe('vision-v2-snap');
     });
 });

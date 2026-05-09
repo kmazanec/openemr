@@ -41,6 +41,11 @@ import type { Logger } from 'pino';
 import type { z } from 'zod';
 
 import {
+    snapExtractionBboxes,
+    type PageOcr,
+    type SnapSummary,
+} from '../bboxSnap.js';
+import {
     costForUsage,
     setRunMetadata,
     type CostForUsageInput,
@@ -56,7 +61,7 @@ import { type PageImage, type PipelineError, type PipelineState } from '../state
  * `(document_hash, extractor_version)` idempotency key. The persist
  * node (B.7) reads this when computing the idempotency lookup.
  */
-export const EXTRACTOR_VERSION = 'vision-v1';
+export const EXTRACTOR_VERSION = 'vision-v2-snap';
 
 export const DEFAULT_VISION_MODEL = 'claude-sonnet-4-6';
 
@@ -78,12 +83,10 @@ Document delimiters
 
 Citations
 - Every extracted field must include: page (1-indexed), bbox ([x, y, w, h] as INTEGERS on a 0..1000 grid normalized to the page image, where x and y are the top-left corner relative to the page's top-left and w and h are the width and height — each component is "thousandths of the page's width or height"), quote (the literal text you read, used by downstream verification), and confidence (0.0 to 1.0, your own calibrated certainty).
-- The 1000-grid is intentional: emit precise integers like 142 or 873 — do NOT coarsen to multiples of 10 or 100, or you will mis-cite by entire rows. Think "what fraction of the page width or height is this", scale by 1000, and round to the nearest integer.
-- bbox example: a value cell whose left edge is ~14.2% across the page, top edge ~8.3% down, width ~18.7% of the page, height ~3.4% of the page would have bbox [142, 83, 187, 34].
 - bbox values must satisfy 0 <= x, 0 <= y, x + w <= 1000, y + h <= 1000.
-- A bbox you cannot localize is a field you did not extract — omit it rather than guess.
-- CRITICAL — table column headers are NEVER cited. When a value lives in a tabular section (PROBLEM LIST, ALLERGIES, FAMILY HISTORY, MEDICATIONS, results), the bbox MUST point at the row containing the value text itself — never the row containing the column labels above it ("CONDITION", "ICD-10", "ALLERGEN", "RELATION", etc.) and never the section title banner row ("FAMILY HISTORY", "ALLERGIES", etc.). Concretely: if "Hypertension" sits two visual rows below the section banner (banner, then column-label row, then "Hypertension"), the bbox top must align with the "Hypertension" row, not the column-label row above it. Mis-aligning the bbox onto the column header is the single most common error and you must avoid it.
-- Verify each bbox before emitting: imagine the rectangle drawn on the page. The cited text from the row should fall fully inside that rectangle. If the rectangle would land on a header, banner, or border, move the y-coordinate down to the actual data row.
+- The bbox is a coarse hint — the post-processor re-aligns each citation to the actual OCR'd text position using the quote, so a bbox that's roughly on the right row is good enough. The quote is what matters: it MUST be the literal text exactly as it appears in the document (preserve case, punctuation, spacing inside the cell). Quote mismatches break the alignment pass and the field will fall back to your raw bbox.
+- A bbox you cannot localize at all is a field you did not extract — omit it rather than guess. But if you can localize the row, do not labor over pixel precision; the alignment pass handles the snap.
+- A field you cannot quote literally — because it spans multiple lines or because the document is illegible — is also a field you did not extract. Omit rather than paraphrase.
 
 Schema
 - Return only the fields the structured-output schema asks for. Unknown fields will be silently dropped; missing required fields are a hard error.
@@ -182,6 +185,33 @@ export interface VisionDeps {
      * synchronous noop and don't spend 500ms per retry case.
      */
     readonly sleep?: (ms: number) => Promise<void>;
+    /**
+     * Optional bbox-snap pipeline. When wired, after a successful
+     * structured-output parse the vision node fetches each page's PNG
+     * bytes via its signed URL, runs Tesseract OCR on it, and snaps
+     * every cited bbox to the actual text position. This eliminates
+     * the model's systematic per-row offset and the inconsistent
+     * `[x,y,w,h]` vs `[x1,y1,x2,y2]` shape (the prompt asks for the
+     * former, but on dense lab tables the model emits the latter
+     * roughly half the time). When unwired, vision falls back to
+     * trusting the model's bbox as-is.
+     *
+     * Tests omit this field; the per-MR Vitest gate validates the
+     * structural pipeline without paying the cost of running real
+     * Tesseract on stub fixtures.
+     */
+    readonly bboxSnapper?: BboxSnapper;
+}
+
+export interface BboxSnapper {
+    /**
+     * Fetch each page's PNG bytes (via signed URL or cached buffer),
+     * run OCR, and return per-page OCR data. Implementations return
+     * an empty array when the snapper is unconfigured at runtime
+     * (e.g., dev environments without Tesseract); the caller treats
+     * an empty result as "snap skipped" rather than a failure.
+     */
+    readonly snap: (pages: readonly PageImage[]) => Promise<readonly PageOcr[]>;
 }
 
 export interface TransientVisionErrorOptions {
@@ -381,6 +411,36 @@ export const vision = async (
         });
     }
 
+    // Bbox snap pass — re-cite each field to the OCR-found text
+    // position on the rasterized page. The Zod-parsed object is a
+    // plain JS tree so `snapExtractionBboxes` can mutate it in place.
+    let snapSummary: SnapSummary | null = null;
+    if (deps.bboxSnapper !== undefined && state.pages.length > 0) {
+        try {
+            const ocrPages = await deps.bboxSnapper.snap(state.pages);
+            if (ocrPages.length > 0) {
+                snapSummary = snapExtractionBboxes(parsed.data, ocrPages);
+                logger.info(
+                    {
+                        documentUuid: state.documentUuid,
+                        totalBboxes: snapSummary.totalBboxes,
+                        snappedBboxes: snapSummary.snappedBboxes,
+                        formatDetected: snapSummary.formatDetected,
+                    },
+                    'vision: bbox-snap pass complete',
+                );
+            }
+        } catch (snapErr) {
+            // Snap failures are non-fatal — the unsnapped extraction
+            // is still usable, just less precisely cited. Logging at
+            // warn so an operator can spot a Tesseract regression.
+            logger.warn(
+                { documentUuid: state.documentUuid, err: String(snapErr) },
+                'vision: bbox-snap pass failed; proceeding with unsnapped bboxes',
+            );
+        }
+    }
+
     if (result.usage !== undefined) {
         const cacheCreationInputTokens = result.usage.cacheCreationInputTokens ?? 0;
         const cacheReadInputTokens = result.usage.cacheReadInputTokens ?? 0;
@@ -403,6 +463,13 @@ export const vision = async (
             vision_cache_creation_input_tokens: cacheCreationInputTokens,
             vision_cache_read_input_tokens: cacheReadInputTokens,
             confidence_distribution: confidenceHistogram(parsed.data),
+            ...(snapSummary !== null
+                ? {
+                      bbox_snap_total: snapSummary.totalBboxes,
+                      bbox_snap_snapped: snapSummary.snappedBboxes,
+                      bbox_snap_format: snapSummary.formatDetected,
+                  }
+                : {}),
         });
     }
 

@@ -27,6 +27,7 @@ import type { OpenEmrDocumentReferenceClient } from '../storage/openemrDocumentR
 import type { Rasterizer } from './rasterizer.js';
 import type { VisionInvocation } from './nodes/vision.js';
 
+import { createBboxSnapper, defaultFetchPageBytes, type BboxSnapperLike } from './bboxSnap.js';
 import { createPipelineGraph, type PipelineDeps } from './index.js';
 import type { PipelineState } from './state.js';
 
@@ -62,6 +63,12 @@ export interface ProductionPipelineDeps {
     readonly transientPrefix: string;
     readonly artifactIdGenerator: () => string;
     readonly logger: Logger;
+    /**
+     * Optional override for the bbox-snap pipeline. Production wires
+     * the default Tesseract-backed snapper unless this is supplied;
+     * tests can pass a no-op snapper to keep Vitest deterministic.
+     */
+    readonly bboxSnapper?: BboxSnapperLike;
 }
 
 /**
@@ -108,6 +115,12 @@ export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): Pip
                 vision: {
                     invoker: deps.visionInvoker,
                     logger: deps.logger,
+                    bboxSnapper:
+                        deps.bboxSnapper ??
+                        createBboxSnapper({
+                            fetchBytes: defaultFetchPageBytes,
+                            logger: deps.logger,
+                        }),
                 },
                 schemaValidate: { logger: deps.logger },
                 patientMatch: {

@@ -15,7 +15,12 @@ ARG NODE_IMAGE=node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647b
 # `spawn pdfinfo ENOENT` whenever a clinician uploads a PDF locally.
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
-RUN apk add --no-cache poppler-utils
+# `tesseract-ocr` + the english trained data are used by the §B.4b
+# bbox-snap pass that runs after vision returns — the snapper re-OCRs
+# each rasterized page and aligns every cited bbox to actual text.
+# Without it the vision model's bboxes are systematically shifted by
+# half a row on dense lab tables.
+RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --include=dev
@@ -50,7 +55,12 @@ WORKDIR /app
 # Poppler is the reference Linux PDF renderer and handles the modern
 # PDF features (transparency groups, blend modes, gradients) that
 # pdfjs-on-Node-canvas struggled with.
-RUN apk add --no-cache poppler-utils
+#
+# `tesseract-ocr` is used by the §B.4b bbox-snap pass that aligns
+# every cited bbox to the actual OCR'd text position on the page.
+# Required at runtime — without it the snapper logs a per-page
+# warning and the model's raw (often row-shifted) bboxes ship through.
+RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
 
 ENV NODE_ENV=production \
     PORT=8080
