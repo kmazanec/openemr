@@ -4,6 +4,7 @@ import {
   buildLeftNavShims,
   buildRTopShims,
   buildTopShims,
+  commitSessionPid,
   installLeftNavShims,
   installTopShims,
   type ShimRouter,
@@ -276,5 +277,127 @@ describe('installLeftNavShims', () => {
     const top = (win as unknown as { top: Record<string, unknown> }).top;
     expect(top['left_nav']).toBe(leftNav);
     expect(top['RTop']).toBe(RTop);
+  });
+});
+
+describe('commitSessionPid', () => {
+  // C4: PolicyGate's PatientMismatch fired on every cross-patient briefing
+  // because $_SESSION['pid'] lagged behind the SPA's in-memory state. The
+  // commit helper hits library/ajax/set_pt.php with the standard
+  // (set_pid + csrf_token_form) GET contract used by dynamic_finder.php.
+  it('GETs set_pt.php with set_pid + csrf_token_form when both globals are present', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const win = fakeWindow({
+      csrf_token_js: 'csrf-abc',
+      webroot_url: '/openemr',
+    });
+
+    await commitSessionPid('42', win, fetchImpl);
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const [url, opts] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('/openemr/library/ajax/set_pt.php?set_pid=42&csrf_token_form=csrf-abc');
+    expect((opts as RequestInit).method).toBe('GET');
+    expect((opts as RequestInit).credentials).toBe('same-origin');
+  });
+
+  it('skips the fetch when csrf_token_js is missing', async () => {
+    const fetchImpl = vi.fn();
+    const win = fakeWindow({ webroot_url: '/openemr' });
+
+    await commitSessionPid('42', win, fetchImpl);
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('skips the fetch when fetchImpl is undefined (test/SSR safety)', async () => {
+    const win = fakeWindow({ csrf_token_js: 'x', webroot_url: '/' });
+    await expect(commitSessionPid('42', win, undefined)).resolves.toBeUndefined();
+  });
+
+  it('swallows fetch rejections (server-side fallback handles re-sync)', async () => {
+    const fetchImpl = vi.fn(() => Promise.reject(new Error('network')));
+    const win = fakeWindow({ csrf_token_js: 'csrf', webroot_url: '' });
+
+    await expect(
+      commitSessionPid('1', win, fetchImpl as unknown as typeof fetch),
+    ).resolves.toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+});
+
+describe('buildTopShims — set_pid commits server-side session', () => {
+  it('fires the commit GET before navigating', () => {
+    const router = mockRouter();
+    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const win = fakeWindow({ csrf_token_js: 'tok', webroot_url: '/oe' });
+    const shims = buildTopShims({
+      router,
+      win,
+      fetchImpl,
+    });
+
+    shims.set_pid(7);
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl.mock.calls[0]![0]).toBe(
+      '/oe/library/ajax/set_pt.php?set_pid=7&csrf_token_form=tok',
+    );
+    expect(router.navigateToPatient).toHaveBeenCalledWith('7');
+  });
+});
+
+describe('buildLeftNavShims — setPatient commits server-side session', () => {
+  it('fires the commit GET before navigating', () => {
+    const router = mockRouter();
+    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const win = fakeWindow({ csrf_token_js: 'tok', webroot_url: '/oe' });
+    const shims = buildLeftNavShims({
+      router,
+      win,
+      fetchImpl,
+    });
+
+    shims.setPatient('Doe, Jane', '42');
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(router.navigateToPatient).toHaveBeenCalledWith('42');
+  });
+});
+
+describe('buildRTopShims — set_pid URL commits server-side session', () => {
+  it('fires the commit GET when location= URL carries set_pid', () => {
+    const router = mockRouter();
+    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const win = fakeWindow({ csrf_token_js: 'tok', webroot_url: '/oe' });
+    const shims = buildRTopShims({
+      router,
+      win,
+      fetchImpl,
+    });
+
+    shims.location = '../../patient_file/summary/demographics.php?set_pid=104';
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl.mock.calls[0]![0]).toBe(
+      '/oe/library/ajax/set_pt.php?set_pid=104&csrf_token_form=tok',
+    );
+    expect(router.navigateToPatient).toHaveBeenCalledWith('104');
+  });
+
+  it('does NOT commit when location= URL has no set_pid', () => {
+    const router = mockRouter();
+    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const win = fakeWindow({ csrf_token_js: 'tok', webroot_url: '/oe' });
+    const shims = buildRTopShims({
+      router,
+      win,
+      fetchImpl,
+    });
+
+    shims.location = '/interface/something/else.php';
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(router.openLegacyTab).toHaveBeenCalled();
   });
 });

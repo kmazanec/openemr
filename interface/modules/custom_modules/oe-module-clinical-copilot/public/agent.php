@@ -16,6 +16,7 @@ declare(strict_types=1);
 // any other code in this file.
 require_once __DIR__ . '/../../../../globals.php';
 
+use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentRequest;
@@ -29,6 +30,8 @@ use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
 use OpenEMR\Modules\ClinicalCopilot\Schedule\MorningPrepGate;
 use OpenEMR\Modules\ClinicalCopilot\Settings\SettingsRepository;
 use Symfony\Component\HttpFoundation\Request;
+
+require_once OEGlobalsBag::getInstance()->getSrcDir() . '/pid.inc.php';
 
 $request = Request::createFromGlobals();
 $session = SessionWrapperFactory::getInstance()->getActiveSession();
@@ -58,6 +61,24 @@ $authUserId = is_scalar($authUserIdRaw) ? (string) $authUserIdRaw : '';
 
 $authUserRaw = $session->get('authUser');
 $authUser = is_string($authUserRaw) ? $authUserRaw : '';
+
+// Sync the server-side session to the requested patient if it has drifted.
+// The dashboard SPA's set_pid shim updates the URL and in-memory state but
+// (historically) did not POST set_pt.php, so $_SESSION['pid'] could lag
+// behind the requested ?pid=. PolicyGate's PatientMismatch check then 403'd
+// every cross-patient briefing. This mirrors panel.php's convention (and
+// the legacy demographics_full.php / pnotes_full.php pattern): aclCheckCore
+// is the trust point, and a request that names a pid the user is allowed to
+// view aligns the session to that pid.
+$pidIsDigits = is_string($pidParam) && ctype_digit($pidParam);
+if ($pidIsDigits && AclMain::aclCheckCore('patients', 'med')) {
+    $existingPidRaw = $session->get('pid');
+    $existingPidInt = is_scalar($existingPidRaw) ? (int) $existingPidRaw : 0;
+    $requestedPidInt = (int) $pidParam;
+    if ($requestedPidInt > 0 && $requestedPidInt !== $existingPidInt) {
+        setpid($requestedPidInt);
+    }
+}
 
 $sessionPidRaw = $session->get('pid');
 $sessionPid = (is_scalar($sessionPidRaw) && $sessionPidRaw !== '' && $sessionPidRaw !== 0)

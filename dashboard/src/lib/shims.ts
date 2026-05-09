@@ -130,12 +130,57 @@ interface ShimDeps {
 }
 
 /**
+ * Commit the active patient pid to the PHP server-side session by GET'ing
+ * `library/ajax/set_pt.php`. Without this, $_SESSION['pid'] lags behind the
+ * SPA's in-memory state and PolicyGate rejects subsequent agent.php calls
+ * with `patientmismatch`. Mirrors the legacy contract used by
+ * `interface/main/finder/dynamic_finder.php` (GET, `set_pid` + `csrf_token_form`).
+ *
+ * Fire-and-forget by design: legacy callers invoke `top.set_pid(123)`
+ * synchronously, and we still want navigation to start immediately. The
+ * server-side fallback in `agent.php` (panel.php-style `setpid()` re-sync)
+ * is the durable trust point — this helper is best-effort to keep
+ * non-agent surfaces (legacy iframes, snapshot endpoints) in agreement.
+ *
+ * Exported for tests.
+ */
+export function commitSessionPid(
+  pid: string,
+  win: Window & typeof globalThis,
+  fetchImpl: typeof fetch | undefined,
+): Promise<void> {
+  if (fetchImpl === undefined) return Promise.resolve();
+  const w = win as unknown as Record<string, unknown>;
+  const csrfRaw = w['csrf_token_js'];
+  const rootRaw = w['webroot_url'];
+  const csrf = typeof csrfRaw === 'string' ? csrfRaw : '';
+  const root = typeof rootRaw === 'string' ? rootRaw : '';
+  if (csrf === '' || pid === '') {
+    return Promise.resolve();
+  }
+  const url =
+    `${root}/library/ajax/set_pt.php` +
+    `?set_pid=${encodeURIComponent(pid)}` +
+    `&csrf_token_form=${encodeURIComponent(csrf)}`;
+  return fetchImpl(url, { method: 'GET', credentials: 'same-origin' }).then(
+    () => undefined,
+    // Swallow network/CSRF errors: the agent.php server-side fallback will
+    // re-sync the session on the next request. Logging here would noise up
+    // the console on every legacy-iframe pick.
+    () => undefined,
+  );
+}
+
+/**
  * Build the shim object without installing it. Exported so tests can
  * exercise each shim against a mock router and a mock fetch. Use
  * `installTopShims` for the real install.
  */
 export function buildTopShims(deps: ShimDeps): TopShims {
   const router = deps.router;
+  const win = deps.win ?? (globalThis as unknown as Window & typeof globalThis);
+  const fetchImpl =
+    deps.fetchImpl ?? (typeof win.fetch === 'function' ? win.fetch.bind(win) : undefined);
 
   // Arrow functions so the shims survive being detached
   // (e.g. `const f = top.set_pid; f(123)`). Legacy callers do
@@ -144,6 +189,7 @@ export function buildTopShims(deps: ShimDeps): TopShims {
 
   const set_pid = (pid: number | string): void => {
     const normalized = typeof pid === 'number' ? String(pid) : pid;
+    void commitSessionPid(normalized, win, fetchImpl);
     router.navigateToPatient(normalized);
   };
 
@@ -195,6 +241,8 @@ export function installTopShims(deps: ShimDeps): TopShims {
 interface LeftNavDeps {
   router: ShimRouter;
   win?: Window & typeof globalThis;
+  /** fetch implementation; defaulted in the public installer. */
+  fetchImpl?: typeof fetch;
 }
 
 /**
@@ -204,6 +252,9 @@ interface LeftNavDeps {
  */
 export function buildLeftNavShims(deps: LeftNavDeps): LeftNavShims {
   const router = deps.router;
+  const win = deps.win ?? (globalThis as unknown as Window & typeof globalThis);
+  const fetchImpl =
+    deps.fetchImpl ?? (typeof win.fetch === 'function' ? win.fetch.bind(win) : undefined);
 
   const setPatient: LeftNavShims['setPatient'] = (
     _name,
@@ -213,6 +264,7 @@ export function buildLeftNavShims(deps: LeftNavDeps): LeftNavShims {
     _dob,
   ) => {
     const normalized = typeof pid === 'number' ? String(pid) : pid;
+    void commitSessionPid(normalized, win, fetchImpl);
     router.navigateToPatient(normalized);
   };
 
@@ -302,6 +354,9 @@ export function extractSetPid(url: string): string | null {
 /** Build the `RTop.setLocation` + `RTop.location` setter shim. */
 export function buildRTopShims(deps: LeftNavDeps): RTopShims {
   const router = deps.router;
+  const win = deps.win ?? (globalThis as unknown as Window & typeof globalThis);
+  const fetchImpl =
+    deps.fetchImpl ?? (typeof win.fetch === 'function' ? win.fetch.bind(win) : undefined);
 
   // Shared handler: route a URL update either to a patient pick
   // (when the URL carries set_pid=, as the patient finder emits)
@@ -310,6 +365,7 @@ export function buildRTopShims(deps: LeftNavDeps): RTopShims {
   const handleLocation = (url: string): void => {
     const pid = extractSetPid(url);
     if (pid !== null) {
+      void commitSessionPid(pid, win, fetchImpl);
       router.navigateToPatient(pid);
       return;
     }

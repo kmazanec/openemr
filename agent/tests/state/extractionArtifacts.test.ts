@@ -212,9 +212,23 @@ describe('createExtractionArtifactStoreFromPool — findArtifactByDocumentHash',
     it('returns null on a miss', async () => {
         const pool = buildFakePool([{ rowCount: 0 }]);
         const store = createExtractionArtifactStoreFromPool(pool);
-        const found = await store.findArtifactByDocumentHash('h'.repeat(64), 'v1.0.0');
+        const found = await store.findArtifactByDocumentHash(
+            'h'.repeat(64),
+            'v1.0.0',
+            42,
+        );
         expect(found).toBeNull();
-        expect(pool.calls[0]?.params).toEqual(['h'.repeat(64), 'v1.0.0']);
+        expect(pool.calls[0]?.params).toEqual(['h'.repeat(64), 'v1.0.0', 42]);
+    });
+
+    it('keys the SQL on (hash, version, pid) — same bytes across patients are distinct artifacts', async () => {
+        const pool = buildFakePool([{ rowCount: 0 }]);
+        const store = createExtractionArtifactStoreFromPool(pool);
+        await store.findArtifactByDocumentHash('h'.repeat(64), 'v1.0.0', 99);
+        const sql = pool.calls[0]?.sql ?? '';
+        expect(sql).toMatch(/document_hash = \$1/);
+        expect(sql).toMatch(/extractor_version = \$2/);
+        expect(sql).toMatch(/pid = \$3/);
     });
 
     it('returns the parsed row on a hit', async () => {
@@ -226,6 +240,7 @@ describe('createExtractionArtifactStoreFromPool — findArtifactByDocumentHash',
         const found = await store.findArtifactByDocumentHash(
             artifact.documentHash,
             artifact.extractorVersion,
+            artifact.pid,
         );
         expect(found).not.toBeNull();
         expect(found?.artifactId).toBe(artifact.artifactId);
@@ -245,7 +260,7 @@ describe('createExtractionArtifactStoreFromPool — findArtifactByDocumentHash',
         ]);
         const store = createExtractionArtifactStoreFromPool(pool);
         await expect(
-            store.findArtifactByDocumentHash('a'.repeat(64), 'v1.0.0'),
+            store.findArtifactByDocumentHash('a'.repeat(64), 'v1.0.0', 1),
         ).rejects.toThrow(/unexpected doc_type/);
     });
 
@@ -258,7 +273,7 @@ describe('createExtractionArtifactStoreFromPool — findArtifactByDocumentHash',
         ]);
         const store = createExtractionArtifactStoreFromPool(pool);
         await expect(
-            store.findArtifactByDocumentHash('a'.repeat(64), 'v1.0.0'),
+            store.findArtifactByDocumentHash('a'.repeat(64), 'v1.0.0', 1),
         ).rejects.toThrow(/unexpected status/);
     });
 });
@@ -483,6 +498,7 @@ integrationDescribe('createPgExtractionArtifactStore — real Postgres', () => {
         const found = await store.findArtifactByDocumentHash(
             artifact.documentHash,
             artifact.extractorVersion,
+            artifact.pid,
         );
         expect(found?.artifactId).toBe(artifact.artifactId);
 

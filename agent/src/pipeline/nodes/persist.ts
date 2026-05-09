@@ -6,10 +6,13 @@
  *
  *   1. Compute `document_hash` (SHA-256 of canonical bytes).
  *   2. Idempotency lookup: if a row already exists for
- *      `(document_hash, EXTRACTOR_VERSION)`, short-circuit with the
+ *      `(document_hash, EXTRACTOR_VERSION, pid)`, short-circuit with the
  *      cached `artifact_id`. The cached row's deltas are *not*
  *      recomputed — re-running the same input is by definition a
- *      no-op.
+ *      no-op. `pid` is in the key so the same bytes uploaded under two
+ *      different patients produce two artifacts, not one — without it,
+ *      a cross-patient re-upload silently aliased to the first patient's
+ *      row.
  *   3. Otherwise, claim an advisory lock on `document_uuid` (so two
  *      concurrent invokers serialize through one writer).
  *   4. Call OpenEMR's Tier-1 endpoint to write the DocumentReference.
@@ -132,7 +135,11 @@ export const persist = async (
 
     let cached: ExtractionArtifact | null;
     try {
-        cached = await artifactStore.findArtifactByDocumentHash(documentHash, EXTRACTOR_VERSION);
+        cached = await artifactStore.findArtifactByDocumentHash(
+            documentHash,
+            EXTRACTOR_VERSION,
+            state.pid,
+        );
     } catch (err) {
         logger.error(
             { documentUuid: placeholderUuid, err: String(err) },
@@ -186,6 +193,7 @@ export const persist = async (
             cachedAfterLock = await artifactStore.findArtifactByDocumentHash(
                 documentHash,
                 EXTRACTOR_VERSION,
+                state.pid,
             );
         } catch (err) {
             logger.error(
