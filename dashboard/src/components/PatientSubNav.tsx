@@ -1,4 +1,5 @@
 import type { ReactElement, MouseEvent } from 'react';
+import { appTabsStore } from '../lib/tabsStore';
 
 export interface PatientSubNavProps {
   pid: string;
@@ -145,24 +146,31 @@ function DropdownItem({ item, pid }: { item: SubNavLink; pid: string }): ReactEl
   );
 }
 
-interface LeftNavLike {
-  loadFrame?: (frameName: string, name: string, url: string) => void;
-}
-
+// Open a sub-nav target in the SPA tab strip. SubNav clicks are
+// SPA-internal (we own both ends of the call), so we go straight to
+// the tabs store rather than round-tripping through `top.left_nav.
+// loadFrame` like a legacy iframe would. We also resolve the URL
+// against `top.webroot_url` when one is defined — main_v2.php emits
+// it on `window` so legacy iframes have an absolute base; SubNav
+// links live on the same shell and benefit from the same prefix.
 function openLegacyTab(
   e: MouseEvent<HTMLAnchorElement>,
   id: string,
-  _label: string,
+  label: string,
   url: string,
 ): void {
   if (typeof window === 'undefined') return;
-  const top: (Window & { left_nav?: LeftNavLike }) | null = window.top;
-  const left_nav = top?.left_nav;
-  if (typeof left_nav?.loadFrame === 'function') {
-    e.preventDefault();
-    // Frame name maps to legacy iframe slot (e.g. 'RBot'); we don't
-    // own that here. The bootShim's loadFrame path keys by `name` so
-    // the same id always reuses the same tab.
-    left_nav.loadFrame(`frame-${id}`, id, url);
-  }
+  e.preventDefault();
+  const webroot = readWebRoot();
+  const fullUrl = url.startsWith('http') || url.startsWith('//')
+    ? url
+    : `${webroot}${url.startsWith('/') ? '' : '/'}${url}`;
+  appTabsStore().openLegacyTab(id, fullUrl, label);
+}
+
+function readWebRoot(): string {
+  if (typeof window === 'undefined') return '';
+  const top = (window.top ?? window) as Window & { webroot_url?: unknown };
+  const wr = top.webroot_url;
+  return typeof wr === 'string' ? wr : '';
 }

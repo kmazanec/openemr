@@ -1,5 +1,10 @@
 import type { ReactElement, ReactNode } from 'react';
-import { appTabsStore, DASHBOARD_TAB_ID, type LegacyTab } from '../lib/tabsStore';
+import {
+  appTabsStore,
+  COPILOT_TAB_ID,
+  DASHBOARD_TAB_ID,
+  type LegacyTab,
+} from '../lib/tabsStore';
 import { useTabs } from '../lib/useTabs';
 import { TabStrip } from './TabStrip';
 import { LegacyIframeTab } from './LegacyIframeTab';
@@ -11,6 +16,10 @@ export interface AppShellProps {
   // mounted at all times (hidden when inactive), so this child
   // re-renders only when the route's pid actually changes.
   dashboardBody: ReactNode;
+  // Body of the Co-Pilot tab — the React-native chat panel. Optional
+  // because not every route hosts the Co-Pilot (the no-patient
+  // landing page, for example).
+  copilotBody?: ReactNode;
   // Optional persistent header rendered above the tab strip — the
   // patient identity bar lives here, mirroring the legacy layout
   // where patient context sits above all per-tab navigation.
@@ -22,12 +31,18 @@ export interface AppShellProps {
 // switches. Legacy iframes preserve their state (form contents,
 // scroll position) when the user flips back. The Dashboard pane's
 // content is supplied by the active route via the `dashboardBody`
-// prop.
-export function AppShell({ dashboardBody, patientHeader }: AppShellProps): ReactElement {
+// prop. The Co-Pilot pane (a SPA-native chat panel) is supplied
+// similarly via `copilotBody`.
+export function AppShell({
+  dashboardBody,
+  copilotBody,
+  patientHeader,
+}: AppShellProps): ReactElement {
   const store = appTabsStore();
   const state = useTabs(store);
   const activeId = state.activeId;
   const dashboardOpen = state.tabs.some((t) => t.id === DASHBOARD_TAB_ID);
+  const copilotOpen = state.tabs.some((t) => t.id === COPILOT_TAB_ID);
 
   return (
     <div
@@ -49,8 +64,19 @@ export function AppShell({ dashboardBody, patientHeader }: AppShellProps): React
             {dashboardBody}
           </div>
         )}
+        {copilotOpen && copilotBody !== undefined && (
+          <div
+            hidden={activeId !== COPILOT_TAB_ID}
+            data-testid="copilot-pane"
+            style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
+          >
+            {copilotBody}
+          </div>
+        )}
         {state.tabs
-          .filter((t): t is LegacyTab => t.id !== DASHBOARD_TAB_ID)
+          .filter(
+            (t): t is LegacyTab => t.id !== DASHBOARD_TAB_ID && t.id !== COPILOT_TAB_ID,
+          )
           .map((t) => (
             <LegacyIframeTab
               key={t.id}

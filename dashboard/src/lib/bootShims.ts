@@ -4,6 +4,7 @@ import {
   type ShimRouter,
 } from './shims';
 import { installDlgopen } from './dlgopen';
+import { installMenuShims } from './menuShims';
 import { clearLaunchPid } from './fhir';
 import type { TabsStore } from './tabsStore';
 
@@ -94,10 +95,18 @@ export interface InstallShimsDeps extends ShimRouterDeps {
 }
 
 // One-shot installer called from App boot. Wires top.*, left_nav.*,
-// RTop, and top.dlgopen onto window.top.
+// RTop, top.dlgopen, and the menu-dispatch globals onto window.top.
 export function installShims(deps: InstallShimsDeps): void {
   const shimRouter = buildShimRouter(deps);
   installTopShims({ router: shimRouter, win: deps.win });
   installLeftNavShims({ router: shimRouter, win: deps.win });
   installDlgopen({ win: deps.win });
+  // navigateTab + activateTabByName are how the legacy parent menu's
+  // Knockout `click: menuActionClick` ultimately reaches a tab. The
+  // legacy tabs_view_model.js defines them, but the shell it was
+  // designed for renders the resulting tab via Knockout — which the
+  // v2 shell doesn't render. Replacing both globals lets every
+  // existing menu click land on our SPA strip without modifying any
+  // PHP / Twig / Knockout code.
+  installMenuShims({ tabsStore: deps.tabsStore, win: deps.win });
 }
