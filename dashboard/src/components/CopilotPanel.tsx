@@ -17,6 +17,7 @@ import {
 } from './DocumentViewerDrawer';
 import { GuidelineDrawer } from './GuidelineDrawer';
 import { CopilotHistory } from './CopilotHistory';
+import { TrendChart } from './TrendChart';
 import type { PdfJsImporter } from '../lib/pdfjsLoader';
 
 const PROXY_URL =
@@ -524,6 +525,7 @@ function AssistantBubble({
             </span>
           )}
         </p>
+        <TrendChart chart={message.trendChart} />
       </div>
     </div>
   );

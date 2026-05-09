@@ -71,12 +71,41 @@ export interface SuggestedFollowUp {
   // For our UI we just send displayText as the next question.
 }
 
+// One observation rendered in a trend chart. Mirrors
+// `AssistantMessageTrendPoint` on the agent side; values are
+// guaranteed-finite numbers (the agent's `decideTrendChart`
+// rejects non-numerics up front so the renderer never has to defend
+// against `NaN`).
+export interface AssistantMessageTrendPoint {
+  observedAt: string;
+  value: number;
+  abnormal: boolean;
+}
+
+// Optional trend-chart attachment on an `AssistantMessage`. Mirrors
+// `AssistantMessageTrendChart` on the agent side. At most one per
+// turn — the slot is a single value, not an array, so the
+// "single chart" guarantee is structural rather than runtime-checked.
+export interface AssistantMessageTrendChart {
+  analyte: string;
+  unit: string | null;
+  referenceRange: string | null;
+  points: readonly AssistantMessageTrendPoint[];
+  reason: 'fresh_lab_with_history' | 'follow_up_lab_question';
+  groundedInClaimIds: readonly string[];
+}
+
 export interface AssistantMessage {
   segments: readonly AssistantMessageSegment[];
   claimGroups: unknown; // we don't render the side panel — leave opaque
   gaps: readonly Gap[];
   suggestedFollowUps: readonly SuggestedFollowUp[];
   archetypeFlags: readonly string[];
+  // Present only when the agent's format node decides a chart is
+  // warranted (fresh lab vs. history, or a follow-up about a metric
+  // with ≥2 numeric points). Optional — pre-trend-chart messages,
+  // and any turn that doesn't qualify, omit the field entirely.
+  trendChart?: AssistantMessageTrendChart;
 }
 
 // A subset of the agent's `BriefingStreamEvent` discriminated union —

@@ -332,3 +332,43 @@
   font-size: 0.9em;
   line-height: 1.35;
 }
+
+/* Trend chart (single chart per assistant bubble). Hand-rolled SVG;
+   no external chart library. Tokens mirror the legacy panel.css so
+   the two renderers stay visually consistent. Layout (margins,
+   padding, border) lives on Bootstrap utility classes in the
+   component itself; this stylesheet owns the SVG-internal styling
+   that Bootstrap doesn't touch. */
+.copilot-trend__svg {
+  display: block;
+  height: auto;
+  max-width: 480px;
+}
+
+.copilot-trend__band {
+  fill: #dcfce7;
+  fill-opacity: 0.55;
+}
+
+.copilot-trend__line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.copilot-trend__dot {
+  fill: #2563eb;
+  stroke: #ffffff;
+  stroke-width: 1;
+}
+
+.copilot-trend__dot--abnormal {
+  fill: #dc2626;
+}
+
+.copilot-trend__axis-label {
+  font-size: 10px;
+  fill: #64748b;
+}

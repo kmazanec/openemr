@@ -440,4 +440,66 @@ describe('CopilotPanel', () => {
       expect(screen.queryByTestId('copilot-guideline-drawer')).toBeNull(),
     );
   });
+
+  it('renders a trend chart inside the assistant bubble when the message carries one', async () => {
+    const message: AssistantMessage = {
+      ...buildAssistantMessage(),
+      // Override gaps so we don't have to assert around the unrelated
+      // allergies banner; this case is purely about the chart slot.
+      gaps: [],
+      trendChart: {
+        analyte: 'Hemoglobin A1c',
+        unit: '%',
+        referenceRange: '<5.7',
+        reason: 'fresh_lab_with_history',
+        groundedInClaimIds: ['c2'],
+        points: [
+          { observedAt: '2024-09-01T00:00:00Z', value: 7.4, abnormal: true },
+          { observedAt: '2025-04-01T00:00:00Z', value: 8.4, abnormal: true },
+        ],
+      },
+    };
+    mockFetchStream(
+      sseFrames([
+        { type: 'meta', conversationId: 'conv-1', requestId: 'r1', siteId: 'default' },
+        { type: 'assistantMessage', message },
+        { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
+      ]),
+    );
+
+    render(<CopilotPanel pid={42} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('copilot-bubble-assistant')).toBeInTheDocument(),
+    );
+
+    const figure = screen.getByTestId('copilot-trend-chart');
+    expect(figure).toHaveAttribute('data-reason', 'fresh_lab_with_history');
+    expect(figure.textContent).toContain('Hemoglobin A1c (%) — new value in context');
+    expect(screen.getAllByTestId('copilot-trend-dot')).toHaveLength(2);
+
+    // Single-chart cap is structural (the wire shape is one slot,
+    // not an array) — still good to pin in the integration test
+    // that there's one and only one chart in the bubble.
+    expect(screen.getAllByTestId('copilot-trend-chart')).toHaveLength(1);
+  });
+
+  it('does not render a trend chart when the message omits the slot', async () => {
+    // Default `buildAssistantMessage()` has no `trendChart` field —
+    // the chart should be absent from the bubble.
+    mockFetchStream(
+      sseFrames([
+        { type: 'meta', conversationId: 'conv-1', requestId: 'r1', siteId: 'default' },
+        { type: 'assistantMessage', message: buildAssistantMessage() },
+        { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
+      ]),
+    );
+
+    render(<CopilotPanel pid={42} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('copilot-bubble-assistant')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('copilot-trend-chart')).toBeNull();
+  });
 });

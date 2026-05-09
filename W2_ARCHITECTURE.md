@@ -50,7 +50,7 @@ The W1 architecture stays load-bearing. W2 adds new graph topology, new persiste
 - **Side-by-side PDF.js pane** in the panel for extracted-document citation overlays.
 - **Inline accept/reject controls** in the panel for Tier-3 promotion.
 - **Runner-side `loadPriorContext`** projects `conversation_messages` into a `PriorTurnContext` state slot before the graph runs. User turns replay as text; assistant turns replay as `{citations, facts}` (no prose). Both the supervisor and the synthesizer read it.
-- **Inline trend-chart attachment** on assistant messages — `Format` derives an optional single `trendChart` slot from the verified ledger + snapshot for fresh-lab-vs-history and trend-question turns. Old copilot panel renders it as an inline SVG line chart inside the assistant bubble; dashboard-React port deferred. See "Inline trend chart attachment" below.
+- **Inline trend-chart attachment** on assistant messages — `Format` derives an optional single `trendChart` slot from the verified ledger + snapshot for fresh-lab-vs-history and lab-question follow-up turns. Both renderers (legacy copilot panel and dashboard React `CopilotPanel`) draw it as a hand-rolled inline SVG line chart inside the assistant bubble. See "Inline trend chart attachment" below.
 
 ### Frozen (regression-only during W2 sprint)
 
@@ -389,16 +389,19 @@ interface AssistantMessageTrendChart {
 
 **Why decision lives in `Format`.** It's a pure function over `(verified, snapshot, envelope)` — no I/O, no model call. Trivially testable, observable in trace metadata, and impossible for the synthesizer to fabricate (the chart can't disagree with the citations because it derives from the same source rows). The synthesizer's prose remains the load-bearing answer; the chart is an additive visual.
 
-**Renderer.** The old copilot panel (`interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js`) renders the slot as a hand-rolled inline SVG line chart inside the assistant bubble — no external charting library. Hand-rolled SVG over Chart.js / D3 because:
+**Renderers.** Two surfaces draw the slot, both as hand-rolled inline SVG line charts inside the assistant bubble — no external charting library on either side:
 
-- Zero new asset to ship; no script-load timing or CDN dependency.
-- Pure-string output: testable from node alongside the other panel-renderer helpers (`tests/js/copilot-panel-trend-chart.test.js`), no DOM stub needed.
-- The bubble re-renders on every event in the chat thread; a chart-instance lifecycle would need teardown plumbing for nothing.
+- **Legacy panel** (`interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js`) — pure-string SVG output, exported from the same UMD-style IIFE the rest of the panel helpers live in. Tested from node via `tests/js/copilot-panel-trend-chart.test.js`.
+- **Dashboard React** (`dashboard/src/components/TrendChart.tsx`, with pure helpers in `dashboard/src/lib/trendChart.ts`) — a typed React component that takes the same `AssistantMessageTrendChart` shape and returns `null` when the input is invalid. Tested via `dashboard/src/components/TrendChart.test.tsx` (render-side) and `dashboard/src/lib/trendChart.test.ts` (math).
+
+Hand-rolled SVG on both sides because:
+
+- Zero new asset to ship; no script-load timing, CDN dependency, or version bump.
+- Pure output (string on the legacy side, React tree on the dashboard side): testable without mounting any chart instance.
+- The bubble re-renders on every event in the chat thread; a chart-library instance would need teardown plumbing for nothing.
 - The chart is intentionally simple — single line over time, ≤24 points, optional reference-range band overlay.
 
-If a future requirement (rich tooltips, multi-series overlays) outgrows the hand-rolled SVG, swapping in Chart.js is a self-contained renderer change — the wire contract (`AssistantMessageTrendChart`) is renderer-agnostic.
-
-**Scope note: old copilot only.** This iteration ships only the wire contract (server) and the old-panel renderer. The dashboard React `CopilotPanel` ignores the unknown property until ported — a follow-up MR will add the React-side renderer.
+The two renderers are kept structurally aligned (same dimensions, same range parser, same caption rules, same axis-label layout) so a future side-by-side comparison stays apples-to-apples. If a future requirement (rich tooltips, multi-series overlays) outgrows the hand-rolled SVG, swapping in Chart.js is a self-contained per-surface change — the wire contract (`AssistantMessageTrendChart`) is renderer-agnostic.
 
 ### Prior-turn context
 
