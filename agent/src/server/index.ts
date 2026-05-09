@@ -50,6 +50,7 @@ import { tryParseSpacesEnv } from '../config/spacesEnv.js';
 import { buildProductionPipelineRunner } from '../pipeline/production.js';
 import { createPopplerRasterizer } from '../pipeline/rasterizer.js';
 import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
+import { createCanonicalDocumentFallbackClient } from '../storage/canonicalDocumentFallback.js';
 import { createAgentSpacesClient, createOpenEmrSpacesClient } from '../storage/spaces.js';
 import { createOpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
 import {
@@ -831,6 +832,9 @@ export const start = async (port: number): Promise<void> => {
                         siteId: ctx.openemrSiteId,
                     }),
                 );
+        const canonicalDocumentFallback = createCanonicalDocumentFallbackClient({
+            baseUrl: openEmrBaseUrl,
+        });
         pipelineRunner = buildProductionPipelineRunner({
             artifactStore: extractionArtifactStore,
             openemrSpaces,
@@ -838,6 +842,7 @@ export const start = async (port: number): Promise<void> => {
             rasterizer: createPopplerRasterizer(),
             visionInvoker: createAnthropicVisionInvocation(),
             documentReferenceClient,
+            canonicalDocumentFallback,
             buildFetchChartDemographics: (ctx) => {
                 const fetch = fetchSnapshotForCtx(ctx);
                 return async (pid) => (await fetch(pid)).patient;

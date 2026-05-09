@@ -21,6 +21,7 @@ import type { Logger } from 'pino';
 import type { PipelineRunner, PipelineCallContext } from '../server/routes/extract.js';
 import type { ExtractionArtifactStore } from '../state/extractionArtifacts.js';
 import type { Demographics, ChartSnapshot } from '../snapshot/types.js';
+import type { CanonicalDocumentFallbackClient } from '../storage/canonicalDocumentFallback.js';
 import type { SpacesClient } from '../storage/spaces.js';
 import type { OpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
 import type { Rasterizer } from './rasterizer.js';
@@ -36,6 +37,15 @@ export interface ProductionPipelineDeps {
     readonly rasterizer: Rasterizer;
     readonly visionInvoker: VisionInvocation;
     readonly documentReferenceClient: OpenEmrDocumentReferenceClient;
+    /**
+     * Optional fallback bytes-fetcher for chart documents that
+     * aren't in the Spaces canonical bucket — typically because they
+     * were uploaded via OpenEMR's legacy Documents UI rather than
+     * through the agent's chat panel. When wired, the rasterize node
+     * uses this on a Spaces miss; when omitted, a Spaces miss is a
+     * `storage-unreachable` failure as before.
+     */
+    readonly canonicalDocumentFallback?: CanonicalDocumentFallbackClient;
     /**
      * Boundary the `patientMatch` node calls; production wires the
      * snapshot client per invocation (the per-call OpenEMR token comes
@@ -82,6 +92,18 @@ export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): Pip
                     transientPrefix: deps.transientPrefix,
                     logger: deps.logger,
                     canonicalExt: ctx.canonicalExt,
+                    ...(deps.canonicalDocumentFallback !== undefined
+                        ? {
+                            canonicalFallback: {
+                                client: deps.canonicalDocumentFallback,
+                                token: ctx.openemrToken,
+                                siteId: ctx.openemrSiteId,
+                                ...(ctx.conversationId !== undefined
+                                    ? { conversationId: ctx.conversationId }
+                                    : {}),
+                            },
+                        }
+                        : {}),
                 },
                 vision: {
                     invoker: deps.visionInvoker,

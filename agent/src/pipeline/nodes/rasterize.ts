@@ -23,6 +23,10 @@
 
 import type { Logger } from 'pino';
 
+import {
+    CanonicalDocumentFallbackNotFound,
+    type CanonicalDocumentFallbackClient,
+} from '../../storage/canonicalDocumentFallback.js';
 import { keyForCanonical, keyForTransientPage, type SpacesClient } from '../../storage/spaces.js';
 import { type PageImage, type PipelineError, type PipelineState } from '../state.js';
 import { type Rasterizer } from '../rasterizer.js';
@@ -66,6 +70,26 @@ export interface RasterizeDeps {
      * Used to stamp `expiresAt` on each PageImage for audit/debug.
      */
     readonly now?: () => Date;
+    /**
+     * Optional fallback canonical-bytes reader. When set, a Spaces
+     * NotFound on the canonical key falls back to fetching the
+     * document by uuid from
+     * `public/snapshot/document-bytes.php` — the path that handles
+     * documents uploaded via OpenEMR's legacy Documents UI (which
+     * land on local disk, not in the Spaces bucket). Without this
+     * dep wired, the canonical fetch behaves as before: a Spaces
+     * miss is a `storage-unreachable` failure.
+     *
+     * The fallback re-uploads the bytes to Spaces under the
+     * canonical key on success so subsequent reads (rasterizer
+     * retry, persist, page transient writes) hit the fast path.
+     */
+    readonly canonicalFallback?: {
+        readonly client: CanonicalDocumentFallbackClient;
+        readonly token: string;
+        readonly siteId: string;
+        readonly conversationId?: string;
+    };
 }
 
 const fail = (state: PipelineState, error: PipelineError): Partial<PipelineState> => ({
@@ -79,6 +103,19 @@ const isImageExt = (ext: string): boolean => {
 };
 
 const isPdfExt = (ext: string): boolean => ext.replace(/^\.+/, '').toLowerCase() === 'pdf';
+
+const deriveContentType = (ext: string): string => {
+    const e = ext.replace(/^\.+/, '').toLowerCase();
+    switch (e) {
+        case 'pdf': return 'application/pdf';
+        case 'png': return 'image/png';
+        case 'jpg':
+        case 'jpeg': return 'image/jpeg';
+        case 'tiff':
+        case 'tif': return 'image/tiff';
+        default: return 'application/octet-stream';
+    }
+};
 
 export const rasterize = async (
     state: PipelineState,
@@ -94,14 +131,80 @@ export const rasterize = async (
         const obj = await openemrSpaces.getObject({ key: canonicalKey });
         canonicalBytes = obj.body;
     } catch (err) {
-        logger.error(
+        // Spaces miss can mean the canonical bytes were never
+        // uploaded — typical for legacy-UI documents that landed on
+        // OpenEMR's local disk instead of Spaces. Fall back to the
+        // chart-side document-bytes endpoint (when wired) to fetch
+        // bytes by uuid, then write them back to Spaces under the
+        // canonical key so the persist node's re-read picks them up
+        // on the fast path.
+        if (deps.canonicalFallback === undefined) {
+            logger.error(
+                { documentUuid: state.documentUuid, canonicalKey, err: String(err) },
+                'rasterize: failed to fetch canonical document bytes (no fallback configured)',
+            );
+            return fail(state, {
+                code: 'storage-unreachable',
+                message: 'failed to read canonical document bytes from Spaces',
+            });
+        }
+        logger.info(
             { documentUuid: state.documentUuid, canonicalKey, err: String(err) },
-            'rasterize: failed to fetch canonical document bytes',
+            'rasterize: Spaces miss — attempting document-bytes fallback',
         );
-        return fail(state, {
-            code: 'storage-unreachable',
-            message: 'failed to read canonical document bytes from Spaces',
-        });
+        try {
+            canonicalBytes = await deps.canonicalFallback.client.readBytes({
+                documentUuid: state.documentUuid,
+                pid: state.pid,
+                token: deps.canonicalFallback.token,
+                siteId: deps.canonicalFallback.siteId,
+                ...(deps.canonicalFallback.conversationId !== undefined
+                    ? { conversationId: deps.canonicalFallback.conversationId }
+                    : {}),
+            });
+        } catch (fallbackErr) {
+            // Distinguish "document genuinely missing" (404) from
+            // "fallback path itself broken" only in the log line —
+            // the pipeline-level failure is the same either way:
+            // we can't proceed without canonical bytes.
+            const isNotFound = fallbackErr instanceof CanonicalDocumentFallbackNotFound;
+            logger.error(
+                {
+                    documentUuid: state.documentUuid,
+                    canonicalKey,
+                    fallbackErr: String(fallbackErr),
+                    isNotFound,
+                },
+                'rasterize: document-bytes fallback failed',
+            );
+            return fail(state, {
+                code: 'storage-unreachable',
+                message: isNotFound
+                    ? 'canonical document not in Spaces and not retrievable from OpenEMR'
+                    : 'failed to read canonical document bytes (Spaces and fallback both failed)',
+            });
+        }
+        logger.info(
+            { documentUuid: state.documentUuid, canonicalKey, byteCount: canonicalBytes.length },
+            'rasterize: fallback succeeded — writing canonical bytes back to Spaces',
+        );
+        // Best-effort write-back so persist's re-read hits the fast
+        // path. A write-back failure is logged but does not fail the
+        // pipeline — rasterize already has the bytes in memory and
+        // can complete this node; persist will hit the same fallback
+        // path on its own re-read.
+        try {
+            await openemrSpaces.putObject({
+                key: canonicalKey,
+                body: canonicalBytes,
+                contentType: deriveContentType(canonicalExt),
+            });
+        } catch (writeBackErr) {
+            logger.warn(
+                { documentUuid: state.documentUuid, canonicalKey, err: String(writeBackErr) },
+                'rasterize: canonical write-back to Spaces failed (proceeding anyway)',
+            );
+        }
     }
 
     if (isImageExt(canonicalExt)) {

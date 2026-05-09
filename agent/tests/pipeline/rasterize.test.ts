@@ -345,3 +345,148 @@ describe('rasterize node — failure isolation', () => {
         expect(requireErrors(out)[0]?.code).toBe('rasterize_failed');
     });
 });
+
+// Fallback fetch path for chart documents that aren't in the
+// canonical Spaces bucket — typically because they were uploaded
+// through OpenEMR's legacy Documents UI rather than through the
+// agent's chat panel. The fallback fetches by uuid from the new
+// `document-bytes.php` endpoint, then re-uploads to Spaces under the
+// canonical key so persist's re-read hits the fast path.
+describe('rasterize node — canonical-bytes fallback (legacy-UI uploads)', () => {
+    const buildDepsWithFallback = (
+        openemr: SpacesClient,
+        agent: SpacesClient,
+        rasterizer: Rasterizer,
+        canonicalExt: string,
+        readBytesFn: ReturnType<typeof vi.fn>,
+    ): RasterizeDeps => ({
+        openemrSpaces: openemr,
+        agentSpaces: agent,
+        rasterizer,
+        transientPrefix: 'transient',
+        logger: silentLogger,
+        canonicalExt,
+        canonicalFallback: {
+            client: { readBytes: readBytesFn as never },
+            token: 'test-token',
+            siteId: 'default',
+        },
+    });
+
+    it('falls back to document-bytes when Spaces misses, then writes back to Spaces under the canonical key', async () => {
+        const documentUuid = 'fbfbfbfb-fbfb-fbfb-fbfb-fbfbfbfbfbfb';
+        const pid = 106;
+        // Empty-stored map → Spaces.getObject misses.
+        const stored = new Map<string, Buffer>();
+        const openemr = buildFakeSpaces(stored, 'openemr');
+        const agent = buildFakeSpaces(new Map(), 'agent');
+        const pngBytes = readFixture('intake-forms/p03-reyes-intake.png');
+        const readBytes = vi.fn().mockResolvedValue(pngBytes);
+        const rasterizer = stubRasterizer(1);
+        const state = baseState({ documentUuid, pid });
+
+        const out = await rasterize(
+            state,
+            buildDepsWithFallback(openemr, agent, rasterizer, 'png', readBytes),
+        );
+
+        expect(out.status).toBe('rasterized');
+        expect(readBytes).toHaveBeenCalledWith(
+            expect.objectContaining({
+                documentUuid,
+                pid,
+                token: 'test-token',
+                siteId: 'default',
+            }),
+        );
+        // Write-back to Spaces under the canonical key — verifies
+        // persist's re-read will hit the fast path.
+        const canonicalKey = `${pid}/${documentUuid}.png`;
+        expect(stored.get(canonicalKey)).toEqual(pngBytes);
+    });
+
+    it('still rasterizes successfully when the Spaces write-back fails (best-effort)', async () => {
+        const documentUuid = 'fbfbfbfb-fbfb-fbfb-fbfb-aaaaaaaaaaaa';
+        const pid = 106;
+        // Spaces.getObject misses; putObject also throws.
+        const stored = new Map<string, Buffer>();
+        const openemr: SpacesClient = {
+            ...buildFakeSpaces(stored, 'openemr'),
+            putObject: vi.fn(() => Promise.reject(new Error('write-back fail'))),
+        };
+        const agent = buildFakeSpaces(new Map(), 'agent');
+        const pngBytes = readFixture('intake-forms/p03-reyes-intake.png');
+        const readBytes = vi.fn().mockResolvedValue(pngBytes);
+        const rasterizer = stubRasterizer(1);
+        const state = baseState({ documentUuid, pid });
+
+        const out = await rasterize(
+            state,
+            buildDepsWithFallback(openemr, agent, rasterizer, 'png', readBytes),
+        );
+
+        // Pipeline still proceeds — we have the bytes in memory.
+        // (Persist may hit the same fallback later; that's its own
+        // node's concern.)
+        expect(out.status).toBe('rasterized');
+    });
+
+    it('returns storage-unreachable when both Spaces and the fallback fail', async () => {
+        const documentUuid = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+        const pid = 106;
+        const openemr = buildFakeSpaces(new Map(), 'openemr');
+        const agent = buildFakeSpaces(new Map(), 'agent');
+        const readBytes = vi.fn().mockRejectedValue(new Error('endpoint unreachable'));
+        const rasterizer = stubRasterizer(1);
+        const state = baseState({ documentUuid, pid });
+
+        const out = await rasterize(
+            state,
+            buildDepsWithFallback(openemr, agent, rasterizer, 'pdf', readBytes),
+        );
+
+        expect(out.status).toBe('failed');
+        expect(requireErrors(out)[0]?.code).toBe('storage-unreachable');
+    });
+
+    it('does not invoke the fallback when Spaces succeeds (fast path stays untouched)', async () => {
+        const documentUuid = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+        const pid = 106;
+        const pngBytes = readFixture('intake-forms/p03-reyes-intake.png');
+        const { openemr, agent } = seedCanonical(pid, documentUuid, 'png', pngBytes);
+        const readBytes = vi.fn();
+        const rasterizer = stubRasterizer(1);
+        const state = baseState({ documentUuid, pid });
+
+        const out = await rasterize(
+            state,
+            buildDepsWithFallback(openemr, agent, rasterizer, 'png', readBytes),
+        );
+
+        expect(out.status).toBe('rasterized');
+        expect(readBytes).not.toHaveBeenCalled();
+    });
+
+    it('falls back through to PDF rendering when the canonical bytes are a PDF', async () => {
+        const documentUuid = '12121212-1212-1212-1212-121212121212';
+        const pid = 106;
+        const stored = new Map<string, Buffer>();
+        const openemr = buildFakeSpaces(stored, 'openemr');
+        const agent = buildFakeSpaces(new Map(), 'agent');
+        const pdfBytes = readFixture('intake-forms/p01-chen-intake-typed.pdf');
+        const readBytes = vi.fn().mockResolvedValue(pdfBytes);
+        const rasterizer = stubRasterizer(2);
+        const state = baseState({ documentUuid, pid });
+
+        const out = await rasterize(
+            state,
+            buildDepsWithFallback(openemr, agent, rasterizer, 'pdf', readBytes),
+        );
+
+        expect(out.status).toBe('rasterized');
+        const pages = requirePages(out);
+        expect(pages).toHaveLength(2);
+        // Canonical write-back ran for the PDF as well.
+        expect(stored.get(`${pid}/${documentUuid}.pdf`)).toEqual(pdfBytes);
+    });
+});
