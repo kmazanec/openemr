@@ -226,6 +226,46 @@ describe('snapExtractionBboxes', () => {
         expect(extraction.results[0]?.bbox).toEqual([200, 200, 750, 30]);
     });
 
+    it('uses a snapped row-neighbor to align an unsnappable single-char flag', () => {
+        // The "result_value" snap finds "108" on page row y≈200; the
+        // adjacent "flag" cell's quote is just "H" — too ambiguous
+        // to OCR-match alone. Pass 2 should borrow the row-neighbor's
+        // y-band, keeping its own model-x for column placement.
+        const extraction = {
+            results: [
+                {
+                    analyte_name: 'Glucose',
+                    page: 1,
+                    bbox: [85, 350, 60, 20] as [number, number, number, number],
+                    quote: '108',
+                    confidence: 0.95,
+                },
+                {
+                    analyte_name: 'GlucoseFlag',
+                    page: 1,
+                    // Flag's model bbox sits on the same row as Glucose
+                    // (y ≈ 350) but the model emitted a slightly off y.
+                    bbox: [200, 355, 12, 12] as [number, number, number, number],
+                    quote: 'H',
+                    confidence: 0.97,
+                },
+            ],
+        };
+        const page = buildPage([
+            ocrWord('108', 100, 200, 150, 220, 1),
+        ]);
+        const summary = snapExtractionBboxes(extraction, [page]);
+        expect(summary.snappedBboxes).toBe(2);
+        const flagBbox = extraction.results[1]?.bbox;
+        // The flag's y/h should match the snapped Glucose row (200..220
+        // → grid 200..220) instead of the model's original (355..367).
+        expect(flagBbox?.[1]).toBe(200);
+        expect(flagBbox?.[3]).toBe(20);
+        // The flag's x/w stays at the model column.
+        expect(flagBbox?.[0]).toBe(200);
+        expect(flagBbox?.[2]).toBe(12);
+    });
+
     it('skips bboxes with empty quote and leaves them untouched', () => {
         const extraction = {
             results: [

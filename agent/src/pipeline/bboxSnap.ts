@@ -239,17 +239,69 @@ export const snapQuoteToOcr = (
     const pageDiag = Math.hypot(page.width, page.height);
     const maxAllowedDistance = Math.max(page.width, page.height) * 0.5;
 
+    // Group words by (block, line). Multi-line quotes (addresses,
+    // reference ranges) need to walk consecutive lines, so we also
+    // build line-groups within each block keyed by integer line
+    // index so we can iterate them in document order.
     const lineMap = new Map<string, OcrWord[]>();
+    const blockLineIdx = new Map<number, number[]>();
     for (const w of page.words) {
         const key = `${w.block}::${w.line}`;
-        if (!lineMap.has(key)) lineMap.set(key, []);
+        if (!lineMap.has(key)) {
+            lineMap.set(key, []);
+            const idxList = blockLineIdx.get(w.block) ?? [];
+            if (!idxList.includes(w.line)) {
+                idxList.push(w.line);
+                idxList.sort((a, b) => a - b);
+                blockLineIdx.set(w.block, idxList);
+            }
+        }
         lineMap.get(key)!.push(w);
     }
 
     let best: SnapResult | null = null;
 
+    /**
+     * Concatenate `groupSize` consecutive lines from a block into a
+     * single ordered token list. Used so a multi-line quote can match
+     * across line breaks instead of falling back to the model's raw
+     * bbox.
+     */
+    const buildLineGroup = (block: number, startLineIdx: number, groupSize: number): OcrWord[] => {
+        const idxList = blockLineIdx.get(block) ?? [];
+        if (startLineIdx + groupSize > idxList.length) return [];
+        const out: OcrWord[] = [];
+        for (let k = 0; k < groupSize; k++) {
+            const lineNum = idxList[startLineIdx + k];
+            if (lineNum === undefined) return [];
+            const words = lineMap.get(`${block}::${lineNum}`);
+            if (words === undefined) return [];
+            out.push(...[...words].sort((a, b) => a.x1 - b.x1));
+        }
+        return out;
+    };
+
+    // Build the search set: per-line groups plus, for needles with
+    // ≥4 tokens, 2-line and 3-line groups within the same block. The
+    // 3-line cap matches how multi-line quotes wrap in practice
+    // (street + city/state, or a 3-line reference range).
+    type SearchUnit = OcrWord[];
+    const searchUnits: SearchUnit[] = [];
     for (const lineWords of lineMap.values()) {
-        const sorted = [...lineWords].sort((a, b) => a.x1 - b.x1);
+        searchUnits.push([...lineWords].sort((a, b) => a.x1 - b.x1));
+    }
+    if (probe.length >= 4) {
+        for (const [block, idxList] of blockLineIdx.entries()) {
+            for (let i = 0; i < idxList.length; i++) {
+                for (const groupSize of [2, 3]) {
+                    const grp = buildLineGroup(block, i, groupSize);
+                    if (grp.length > 0) searchUnits.push(grp);
+                }
+            }
+        }
+    }
+
+    for (const sorted of searchUnits) {
         const tokenized = sorted.map((w) => tokenize(w.text)[0] ?? '');
 
         for (let startIdx = 0; startIdx < tokenized.length; startIdx++) {
@@ -475,26 +527,82 @@ export const snapExtractionBboxes = (
     const bboxes = allBboxes.map((e) => e.obj['bbox'] as GridBbox);
     const format = detectBboxFormat(bboxes);
 
+    interface AnnotatedBbox {
+        readonly obj: Record<string, unknown>;
+        readonly pageNum: number;
+        /** Always xywh on the 0..1000 grid. */
+        readonly modelXywh: GridBbox;
+        snapped: boolean;
+    }
+
+    const annotated: AnnotatedBbox[] = allBboxes.map(({ obj, page: pageNum }) => ({
+        obj,
+        pageNum,
+        modelXywh: toXywh(obj['bbox'] as GridBbox, format),
+        snapped: false,
+    }));
+
     let snapped = 0;
-    for (const { obj, page: pageNum } of allBboxes) {
-        const page = pages.find((p) => p.pageNum === pageNum);
+    // Pass 1 — direct OCR-quote snapping. The lion's share of bboxes
+    // resolve here.
+    for (const a of annotated) {
+        const page = pages.find((p) => p.pageNum === a.pageNum);
         if (!page) continue;
-        const quote = typeof obj['quote'] === 'string' ? obj['quote'] : '';
+        const quote = typeof a.obj['quote'] === 'string' ? a.obj['quote'] : '';
         if (quote.length === 0) continue;
-        const raw = obj['bbox'] as GridBbox;
-        const xywh = toXywh(raw, format);
-        const cx = ((xywh[0] + xywh[2] / 2) / 1000) * page.width;
-        const cy = ((xywh[1] + xywh[3] / 2) / 1000) * page.height;
+        const cx = ((a.modelXywh[0] + a.modelXywh[2] / 2) / 1000) * page.width;
+        const cy = ((a.modelXywh[1] + a.modelXywh[3] / 2) / 1000) * page.height;
         const snap = snapQuoteToOcr(quote, { x: cx, y: cy }, page);
         if (snap) {
-            const grid = pixelRectToGrid(snap, page);
-            (obj as { bbox: GridBbox }).bbox = grid;
+            (a.obj as { bbox: GridBbox }).bbox = pixelRectToGrid(snap, page);
+            a.snapped = true;
+            snapped++;
+        }
+    }
+
+    // Pass 2 — row-neighbor fallback. Single-character flags ("H" / "L"
+    // / "F"), short single-token fields ("Yes" / "Mild" / "Unsure"),
+    // and other quotes too ambiguous to snap on their own quote text
+    // alone almost always live in the same OCR row as a longer field
+    // that DID snap (a result_value, a test_name, an analyte). Find a
+    // snapped neighbor on the same page whose model y-band overlaps
+    // ours and copy its snapped y-band onto our box, keeping our
+    // model x as the column anchor.
+    const rowNeighborMatchY = 25; // grid units of y-overlap tolerance.
+    for (const a of annotated) {
+        if (a.snapped) continue;
+        const page = pages.find((p) => p.pageNum === a.pageNum);
+        if (!page) continue;
+        const myYmid = a.modelXywh[1] + a.modelXywh[3] / 2;
+        let neighborSnapped: GridBbox | null = null;
+        let neighborDelta = Number.POSITIVE_INFINITY;
+        for (const n of annotated) {
+            if (!n.snapped || n.pageNum !== a.pageNum) continue;
+            const nYmid = n.modelXywh[1] + n.modelXywh[3] / 2;
+            const delta = Math.abs(nYmid - myYmid);
+            if (delta > rowNeighborMatchY) continue;
+            if (delta < neighborDelta) {
+                neighborDelta = delta;
+                neighborSnapped = n.obj['bbox'] as GridBbox;
+            }
+        }
+        if (neighborSnapped !== null) {
+            // Borrow the neighbor's snapped y/h; keep our model's
+            // x/w. The result is a tight row-aligned box at our
+            // column position.
+            const [, ny, , nh] = neighborSnapped;
+            const [mx, , mw] = a.modelXywh;
+            const cx = Math.max(0, Math.min(1000, mx));
+            const cw = Math.max(0, Math.min(1000 - cx, mw));
+            (a.obj as { bbox: GridBbox }).bbox = [cx, ny, cw, nh];
+            a.snapped = true;
             snapped++;
         } else if (format === 'xyxy') {
-            // Even when we can't snap, normalize corners → xywh so the
-            // renderer (which assumes xywh) doesn't extend the box to
-            // the bottom-right.
-            (obj as { bbox: GridBbox }).bbox = xywh;
+            // Last-resort: when corners couldn't snap and we don't
+            // have a row-neighbor either, normalize the bbox shape
+            // so the renderer (which assumes xywh) doesn't draw a
+            // box stretching to the bottom-right.
+            (a.obj as { bbox: GridBbox }).bbox = a.modelXywh;
         }
     }
 
