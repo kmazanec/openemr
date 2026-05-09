@@ -87,9 +87,18 @@ export function CopilotPanel({
     source: SourceReference;
     claimText: string;
   } | null>(null);
+  // Chart-chip popover anchors over the clicked chip and shows the
+  // cited fact in place. Mirrors the legacy panel's openPopover/
+  // closePopover flow. The anchor element drives positioning; the
+  // claim/ref drive content.
+  const [chartPopover, setChartPopover] = useState<{
+    claim: Claim;
+    ref: SourceReference;
+    anchor: HTMLElement;
+  } | null>(null);
 
   const onChipClick = useCallback(
-    (claim: Claim, ref: SourceReference): void => {
+    (claim: Claim, ref: SourceReference, anchor: HTMLElement): void => {
       if (ref.source_type === 'extracted_document') {
         const args = viewerArgsFromSource(ref);
         if (args === null) return;
@@ -104,6 +113,7 @@ export function CopilotPanel({
         } else {
           setDocArgs(args);
           setGuidelineSource(null);
+          setChartPopover(null);
         }
         return;
       }
@@ -116,12 +126,27 @@ export function CopilotPanel({
         } else {
           setGuidelineSource({ source: ref, claimText: claim.text });
           setDocArgs(null);
+          setChartPopover(null);
         }
         return;
       }
-      // chart chips fall through to their `<a href>` deep link.
+      // chart chips: open an in-place popover anchored to the chip,
+      // showing the cited fact (category, claim text, quote, recorded
+      // date, deep-link if available). A second click on the same chip
+      // closes the popover.
+      if (
+        chartPopover !== null &&
+        chartPopover.claim.id === claim.id &&
+        chartPopover.ref.source_id === ref.source_id
+      ) {
+        setChartPopover(null);
+      } else {
+        setChartPopover({ claim, ref, anchor });
+        setDocArgs(null);
+        setGuidelineSource(null);
+      }
     },
-    [docArgs, guidelineSource],
+    [docArgs, guidelineSource, chartPopover],
   );
 
   // Auto-fire the default briefing once per mount-per-patient. We key
@@ -366,6 +391,14 @@ export function CopilotPanel({
         claimText={guidelineSource?.claimText ?? ''}
         onClose={() => setGuidelineSource(null)}
       />
+      {chartPopover !== null && (
+        <ChartChipPopover
+          claim={chartPopover.claim}
+          reference={chartPopover.ref}
+          anchor={chartPopover.anchor}
+          onClose={() => setChartPopover(null)}
+        />
+      )}
     </div>
   );
 }
@@ -385,7 +418,7 @@ function TurnView({
   onChipClick,
 }: {
   turn: Turn;
-  onChipClick: (claim: Claim, ref: SourceReference) => void;
+  onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
 }): ReactElement {
   switch (turn.kind) {
     case 'user':
@@ -487,7 +520,7 @@ function AssistantBubble({
   onChipClick,
 }: {
   message: AssistantMessage;
-  onChipClick: (claim: Claim, ref: SourceReference) => void;
+  onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
 }): ReactElement {
   const redactedCount = message.segments.filter((s) => s.redacted).length;
   return (
@@ -536,7 +569,7 @@ function SegmentInline({
   onChipClick,
 }: {
   segment: AssistantMessageSegment;
-  onChipClick: (claim: Claim, ref: SourceReference) => void;
+  onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
 }): ReactElement {
   return (
     <span data-testid="copilot-segment">
@@ -547,7 +580,7 @@ function SegmentInline({
             key={`${claim.id}-${ri}`}
             claim={claim}
             reference={ref}
-            onClick={() => onChipClick(claim, ref)}
+            onClick={(anchor) => onChipClick(claim, ref, anchor)}
           />
         )),
       )}{' '}
@@ -562,64 +595,33 @@ function SourceChip({
 }: {
   claim: Claim;
   reference: SourceReference;
-  onClick: () => void;
+  onClick: (anchor: HTMLElement) => void;
 }): ReactElement {
-  const url = sourceLinkUrl(reference);
   const tooltip = chipTooltipText(reference);
   const label = chipLabel(reference);
   const cls = 'copilot-source ' + chipColorClass(reference);
-  // Chart chips with a known deep link render as anchors so the user
-  // gets the native middle-click / open-in-new-tab affordance.
-  if (url !== null) {
-    return (
-      <a
-        href={url}
-        className={cls}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={tooltip}
-        data-testid="copilot-chip"
-        data-claim-id={claim.id}
-        data-source-type={reference.source_type}
-      >
-        {label}
-      </a>
-    );
-  }
-  // extracted_document and guideline chips are buttons that open a
-  // side drawer. Chart chips without a known deep link fall back to
-  // the same visual treatment as a non-clickable badge (no drawer
-  // exists for chart sources — the data is already inline above).
-  const interactive =
-    reference.source_type === 'extracted_document' || reference.source_type === 'guideline';
-  if (interactive) {
-    return (
-      <button
-        type="button"
-        className={cls}
-        title={tooltip}
-        data-testid="copilot-chip"
-        data-claim-id={claim.id}
-        data-source-type={reference.source_type}
-        onClick={(e) => {
-          e.preventDefault();
-          onClick();
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
+  // All chips render as <button>: chart → opens an in-place popover
+  // anchored to the chip; extracted_document/guideline → opens its
+  // side drawer. Mirrors the legacy panel which always renders chips
+  // as <button data-role="source-chip"> and dispatches by source_type
+  // on click. We dropped the chart-with-deep-link <a href> shortcut
+  // because the deep link lives inside the popover ("View full record
+  // →"), not on the chip itself.
   return (
-    <span
+    <button
+      type="button"
       className={cls}
       title={tooltip}
       data-testid="copilot-chip"
       data-claim-id={claim.id}
       data-source-type={reference.source_type}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick(e.currentTarget);
+      }}
     >
       {label}
-    </span>
+    </button>
   );
 }
 
@@ -694,6 +696,219 @@ function sourceLinkUrl(ref: SourceReference): string | null {
     return `/interface/forms/encounter/view.php?id=${encodeURIComponent(ref.source_id)}`;
   }
   return null;
+}
+
+/**
+ * Chart-chip popover. Anchored to the clicked chip via fixed
+ * positioning, placed below by default and flipped above when the
+ * viewport runs out of room. Mirrors the legacy panel.js
+ * openPopover/positionPopover/closePopover flow.
+ *
+ * Dismiss triggers: outside click, Escape, scroll, viewport resize.
+ * Focus moves to the popover on open and back to the chip on close
+ * (the latter handled implicitly by the chip's stable identity in
+ * React's tree — when the popover unmounts the chip retains focus
+ * unless the outside click moved it elsewhere, which is the legacy
+ * behavior too).
+ */
+function ChartChipPopover({
+  claim,
+  reference,
+  anchor,
+  onClose,
+}: {
+  claim: Claim;
+  reference: SourceReference;
+  anchor: HTMLElement;
+  onClose: () => void;
+}): ReactElement {
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    placement: 'above' | 'below';
+  } | null>(null);
+
+  // Position once after mount (so the popover has measured its real
+  // height) and then leave it pinned. Scroll/resize close the popover
+  // rather than chasing the chip — re-flowing the popover during
+  // scroll fights the user and the legacy UI also dismisses on scroll.
+  useEffect(() => {
+    const el = popoverRef.current;
+    if (el === null) return;
+    const rect = anchor.getBoundingClientRect();
+    const popRect = el.getBoundingClientRect();
+    const margin = 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove =
+      spaceBelow < popRect.height + margin && rect.top > popRect.height + margin;
+    const top = placeAbove
+      ? rect.top - popRect.height - margin
+      : rect.bottom + margin;
+    const rawLeft = rect.left + rect.width / 2 - popRect.width / 2;
+    const left = Math.max(
+      margin,
+      Math.min(window.innerWidth - popRect.width - margin, rawLeft),
+    );
+    setPosition({
+      top: top + window.scrollY,
+      left: left + window.scrollX,
+      placement: placeAbove ? 'above' : 'below',
+    });
+    // Move focus into the popover after the next paint so screen
+    // readers settle before we change focus.
+    const raf = window.requestAnimationFrame(() => {
+      el.focus();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [anchor]);
+
+  // Outside click / Escape / scroll / resize dismissal.
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent): void => {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      if (popoverRef.current?.contains(target) === true) return;
+      // The chip itself is handled by its own click handler (which
+      // toggles the popover closed). Clicks on *other* chips also
+      // re-open elsewhere via the same handler. We only intercept
+      // clicks that landed outside both the popover and any chip.
+      if (
+        target instanceof HTMLElement &&
+        target.closest('[data-testid="copilot-chip"]') !== null
+      ) {
+        return;
+      }
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    const onScroll = (): void => onClose();
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [onClose]);
+
+  const url = sourceLinkUrl(reference);
+  const recordedAt =
+    typeof reference.meta?.record_recorded_at === 'string'
+      ? reference.meta.record_recorded_at
+      : null;
+  const style: React.CSSProperties =
+    position !== null
+      ? { top: position.top, left: position.left, position: 'absolute' }
+      : { visibility: 'hidden', position: 'absolute', top: 0, left: 0 };
+
+  return (
+    <div
+      ref={popoverRef}
+      className="copilot-source-popover"
+      role="dialog"
+      aria-modal="false"
+      tabIndex={-1}
+      data-testid="copilot-chip-popover"
+      data-placement={position?.placement ?? 'below'}
+      style={style}
+    >
+      <header className="copilot-source-popover__header">
+        <span className="copilot-source-popover__category">
+          {titleCaseCategory(claim.category)}
+        </span>
+        <button
+          type="button"
+          className="copilot-source-popover__close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </header>
+      <p
+        className="copilot-source-popover__claim"
+        data-testid="copilot-chip-popover-claim"
+      >
+        {formatDatesInText(claim.text)}
+      </p>
+      <p
+        className="copilot-source-popover__record"
+        data-testid="copilot-chip-popover-quote"
+      >
+        {chipTooltipText(reference)}
+      </p>
+      {recordedAt !== null && recordedAt !== '' && (
+        <p className="copilot-source-popover__recorded">
+          Recorded {formatDatesInText(recordedAt)}
+        </p>
+      )}
+      <div className="copilot-source-popover__footer">
+        {url !== null ? (
+          <a
+            className="copilot-source-popover__link"
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="copilot-chip-popover-link"
+          >
+            View full record →
+          </a>
+        ) : (
+          <span
+            className="copilot-source-popover__link copilot-source-popover__link--disabled"
+            title="No deep link available for this record type"
+          >
+            No deep link available
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function titleCaseCategory(category: string): string {
+  if (category === '') return 'Source';
+  return category
+    .split('_')
+    .map((part) => (part.length === 0 ? '' : part[0]!.toUpperCase() + part.slice(1)))
+    .join(' ');
+}
+
+/**
+ * Rewrite ISO `YYYY-MM-DD` dates (and full ISO timestamps) inside a
+ * plain-text string into "March 7, 2026" form. Matches the legacy
+ * panel.js `formatDatesInText` so the popover renders dates the same
+ * way the user sees them in the rest of the briefing prose. Operates
+ * on plain text — React handles HTML escaping at the JSX boundary, so
+ * we don't pre-escape here the way the legacy DOM-string-concat path
+ * had to.
+ */
+function formatDatesInText(text: string): string {
+  if (typeof text !== 'string') return '';
+  const isoPattern = /\b(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z?)?\b/g;
+  return text.replace(isoPattern, (match: string, y: string, mo: string, d: string): string => {
+    const month = Number.parseInt(mo, 10);
+    const day = Number.parseInt(d, 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return match;
+    const dt = new Date(`${y}-${mo}-${d}T00:00:00Z`);
+    if (Number.isNaN(dt.getTime())) return match;
+    try {
+      return dt.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC',
+      });
+    } catch {
+      return match;
+    }
+  });
 }
 
 function humanizeErrorCode(code: string): string {

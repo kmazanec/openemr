@@ -441,6 +441,83 @@ describe('CopilotPanel', () => {
     );
   });
 
+  it('clicking a chart chip opens a popover with the cited fact and a "View full record" link', async () => {
+    // Encounter chart-source: sourceLinkUrl produces a deep link, so
+    // the popover footer should render the live "View full record →"
+    // anchor (not the disabled fallback).
+    const chartMessage: AssistantMessage = {
+      segments: [
+        {
+          text: 'Most recent visit was an annual physical.',
+          claims: [
+            {
+              id: 'cc1',
+              text: 'Annual physical on 2026-03-07',
+              category: 'encounter',
+              sourceReferences: [
+                {
+                  source_type: 'chart',
+                  source_id: '42',
+                  locator: { field: 'encounter.reason' },
+                  quote: 'Annual physical (Encounter #42)',
+                  meta: { record_recorded_at: '2026-03-07' },
+                },
+              ],
+              safetyCritical: false,
+            },
+          ],
+          redacted: false,
+        },
+      ],
+      claimGroups: {},
+      gaps: [],
+      suggestedFollowUps: [],
+      archetypeFlags: [],
+    };
+    mockFetchStream(
+      sseFrames([
+        { type: 'meta', conversationId: 'conv-cc', requestId: 'r-cc', siteId: 'default' },
+        { type: 'assistantMessage', message: chartMessage },
+        { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
+      ]),
+    );
+
+    render(<CopilotPanel pid={42} />);
+    await waitFor(() => screen.getByTestId('copilot-bubble-assistant'));
+
+    const chip = screen.getByTestId('copilot-chip');
+    expect(chip).toHaveAttribute('data-source-type', 'chart');
+    // All chips render as <button> now — chart chips drive a popover
+    // rather than navigating directly.
+    expect(chip.tagName).toBe('BUTTON');
+
+    // Popover not open until the user clicks.
+    expect(screen.queryByTestId('copilot-chip-popover')).toBeNull();
+
+    fireEvent.click(chip);
+
+    const popover = await screen.findByTestId('copilot-chip-popover');
+    // Category title-cased from `encounter` → "Encounter".
+    expect(popover.textContent).toContain('Encounter');
+    // Claim text with ISO date reformatted to long form.
+    expect(screen.getByTestId('copilot-chip-popover-claim')).toHaveTextContent(
+      'Annual physical on March 7, 2026',
+    );
+    // Quote line carries the chip tooltip body.
+    expect(screen.getByTestId('copilot-chip-popover-quote')).toHaveTextContent(
+      'Annual physical (Encounter #42)',
+    );
+    // "View full record →" deep link points at the encounter view.
+    const link = screen.getByTestId('copilot-chip-popover-link');
+    expect(link).toHaveAttribute('href', '/interface/forms/encounter/view.php?id=42');
+
+    // Second click on the same chip closes the popover (toggle UX).
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(screen.queryByTestId('copilot-chip-popover')).toBeNull(),
+    );
+  });
+
   it('renders a trend chart inside the assistant bubble when the message carries one', async () => {
     const message: AssistantMessage = {
       ...buildAssistantMessage(),
