@@ -27,6 +27,8 @@ declare(strict_types=1);
 
 namespace OpenEMR\Modules\ClinicalCopilot\Controller;
 
+use OpenEMR\BC\ServiceContainer;
+use OpenEMR\Common\Crypto\KeySource;
 use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Modules\ClinicalCopilot\Auth\AgentEndpointAuth;
 use OpenEMR\Modules\ClinicalCopilot\Auth\ClockInterface;
@@ -131,6 +133,21 @@ final readonly class DocumentBytesController
             return;
         }
 
+        if ($row['encrypted']) {
+            // Legacy Documents UI uploads with at-rest encryption
+            // enabled. Without decrypting here, the agent's vision
+            // call sees ciphertext and rejects with "invalid file
+            // format." Mirror Document::decrypt_content so the
+            // returned bytes are byte-equivalent to what the
+            // Documents tab would render.
+            $plain = $this->decryptBytes($bytes);
+            if ($plain === null) {
+                $this->respondError(503, 'storage_unreachable');
+                return;
+            }
+            $bytes = $plain;
+        }
+
         $now = $this->clock->now();
         try {
             $this->eventDispatcher->dispatch(
@@ -173,12 +190,12 @@ final readonly class DocumentBytesController
      * Look up a document by `pid + uuid` AND require it is in the
      * Clinical Copilot category subtree.
      *
-     * @return array{url: string, mimetype: string}|null
+     * @return array{url: string, mimetype: string, encrypted: bool}|null
      */
     private function lookupDocument(int $pid, string $uuidBinary): ?array
     {
         $row = QueryUtils::fetchRecords(
-            "SELECT d.url AS url, d.mimetype AS mimetype
+            "SELECT d.url AS url, d.mimetype AS mimetype, d.encrypted AS encrypted
                FROM documents d
                JOIN categories_to_documents cd
                  ON cd.document_id = d.id
@@ -200,10 +217,44 @@ final readonly class DocumentBytesController
         $first = $row[0];
         $url = is_string($first['url'] ?? null) ? $first['url'] : '';
         $mimetype = is_string($first['mimetype'] ?? null) ? $first['mimetype'] : '';
+        $encryptedRaw = $first['encrypted'] ?? 0;
+        // OpenEMR's column is TINYINT; DBAL returns it as int or
+        // numeric string depending on the platform. Accept both.
+        $encrypted = is_int($encryptedRaw) ? $encryptedRaw === 1
+            : (is_string($encryptedRaw) && $encryptedRaw === '1');
         if ($url === '') {
             return null;
         }
-        return ['url' => $url, 'mimetype' => $mimetype];
+        return ['url' => $url, 'mimetype' => $mimetype, 'encrypted' => $encrypted];
+    }
+
+    /**
+     * Decrypt bytes that were stored with OpenEMR's at-rest encryption
+     * (the legacy Documents UI flips `documents.encrypted=1` when the
+     * site has `drive_encryption` on). Mirrors {@see \Document::decrypt_content}
+     * — same crypto helper, same key source — so the bytes we return
+     * are identical to what the Documents UI would render.
+     */
+    private function decryptBytes(string $cipher): ?string
+    {
+        try {
+            $cryptoGen = ServiceContainer::getCrypto();
+            $plain = $cryptoGen->decryptStandard($cipher, keySource: KeySource::Database);
+        } catch (\RuntimeException | \UnexpectedValueException | \DomainException $e) {
+            // CryptoGen surfaces decode failures as RuntimeException;
+            // missing/wrong-key as UnexpectedValueException. Wrong-shape
+            // ciphertext occasionally surfaces as DomainException. Any
+            // of these mean we can't decrypt — surface as null to the
+            // caller, which translates to 503 storage_unreachable.
+            $this->logger->warning('Agent document-bytes: decryption failed', [
+                'exception' => $e,
+            ]);
+            return null;
+        }
+        if ($plain === false || $plain === '') {
+            return null;
+        }
+        return $plain;
     }
 
     /**
