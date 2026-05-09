@@ -130,9 +130,13 @@ const buildFakeArtifactStore = (): FakeArtifactStoreContext => {
         findArtifactByDocumentHash: (
             hash: string,
             version: string,
+            pid: number,
         ): Promise<ExtractionArtifact | null> => {
             const found = inserts.find(
-                (a) => a.documentHash === hash && a.extractorVersion === version,
+                (a) =>
+                    a.documentHash === hash &&
+                    a.extractorVersion === version &&
+                    a.pid === pid,
             );
             if (found === undefined) return Promise.resolve(null);
             return Promise.resolve({

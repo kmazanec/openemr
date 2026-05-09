@@ -88,9 +88,17 @@ export interface ExtractionArtifactStore {
         documentUuid: string,
         options?: { readonly timeoutMs?: number },
     ) => Promise<DocumentLockHandle>;
+    /**
+     * Idempotency lookup. Keyed on `(document_hash, extractor_version, pid)`
+     * — the same bytes uploaded under two different patients are two
+     * artifacts, not one. The pre-2026-05 baseline keyed on `(hash, version)`
+     * alone, which silently aliased cross-patient re-uploads to the first
+     * patient's row.
+     */
     readonly findArtifactByDocumentHash: (
         documentHash: string,
         extractorVersion: string,
+        pid: number,
     ) => Promise<ExtractionArtifact | null>;
     /**
      * F.5a read helper for the `accept_fact` middleman route.
@@ -238,7 +246,7 @@ const FIND_BY_HASH_SQL = `
         confirmed_at,
         confirmed_by_user
     FROM extraction_artifacts
-    WHERE document_hash = $1 AND extractor_version = $2
+    WHERE document_hash = $1 AND extractor_version = $2 AND pid = $3
     LIMIT 1
 `;
 
@@ -589,8 +597,13 @@ export const createExtractionArtifactStoreFromPool = (
     const findArtifactByDocumentHash = async (
         documentHash: string,
         extractorVersion: string,
+        pid: number,
     ): Promise<ExtractionArtifact | null> => {
-        const result = await pool.query(FIND_BY_HASH_SQL, [documentHash, extractorVersion]);
+        const result = await pool.query(FIND_BY_HASH_SQL, [
+            documentHash,
+            extractorVersion,
+            pid,
+        ]);
         const row = result.rows[0];
         if (row === undefined) return null;
         return rowToArtifact(row as unknown as ArtifactRow);

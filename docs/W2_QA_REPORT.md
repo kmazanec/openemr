@@ -55,11 +55,20 @@ There are, however, **9 bugs / risks worth fixing before final submission**, ran
 - Subsequent `agent.php?action=briefing&pid=104` hits PHP's `PolicyGate::PatientMismatch` because `session->patientPid` (1) ≠ `request->requestedPatientPid` (104). Returns 403 `{"error":"patientmismatch"}`.
 - The legacy patient-finder click path *does* call set_pt.php, so the bug only surfaces when navigation happens through the cross-frame shim or programmatically.
 - **Fix:** in `dashboard/src/lib/shims.ts`, call `set_pt.php` from the `set_pid` shim before navigating; or have PolicyGate accept the SMART launch token's bound patient as authoritative.
+- ✅ **RESOLVED (2026-05-09).** Both halves landed:
+  - **Client-side (`dashboard/src/lib/shims.ts`):** `top.set_pid`, `left_nav.setPatient`, and the `RTop.location` setter (when the URL carries `set_pid=`) now fire-and-forget a `GET library/ajax/set_pt.php?set_pid=…&csrf_token_form=…` against the SPA's `window.csrf_token_js` + `webroot_url` globals before navigating. Same contract `dynamic_finder.php` already uses. Errors are swallowed because the server-side fallback below is the durable trust point.
+  - **Server-side (`agent.php`):** mirrors the panel.php convention — when `?pid=` is `ctype_digit` and the actor passes `AclMain::aclCheckCore('patients','med')`, we call `setpid($requestedPid)` before constructing `SessionContext`, so a stale browser-side commit can't lock out the gate. PolicyGate stays the policy point; the ACL check is the trust point. Same pattern `panel.php` / `demographics_full.php` / `pnotes_full.php` use.
+  - **Tests:** new `commitSessionPid` + buildTopShims/buildLeftNavShims/buildRTopShims unit tests in `dashboard/src/lib/shims.test.ts` pin the GET shape and the no-csrf / no-fetch no-op behaviour.
 
 ### C5. Idempotency cache poisons a doc against the wrong patient indefinitely
 - `extraction_artifacts` is keyed only on `(document_hash, extractor_version)`. When a lab PDF is uploaded against the wrong patient first, the pipeline writes a `failed/patient_mismatch` artifact. Re-uploading the same doc against the correct patient hits the cache and returns the cached **failed** verdict — extraction never re-runs.
 - I observed this live: Chen's lipid panel uploaded to Belford → refused (correct) → re-uploaded after `set_pid(104)` → instant "patientmismatch" with no new pipeline run.
 - **Fix:** when `cached.status === 'failed'` and the failure was `patient_mismatch`, do *not* short-circuit — re-run the pipeline (the new pid may match), or include `pid` in the idempotency key.
+- ✅ **RESOLVED (2026-05-09)**, with a corrected diagnosis. The premise above was wrong: a `patient_mismatch` from `patientMatch.ts` flips `state.status='failed'`, and `pipeline/index.ts:82`'s `routeOrCleanup` short-circuits straight to `cleanup` — `persist` never runs, so **no `failed/patient_mismatch` row is ever written**. The "instant patientmismatch on re-upload" the QA observed was the C4 session-pid drift, not a DB cache hit; once the panel rerendered with `pid=104` but `$_SESSION['pid']`=1, agent.php's `PolicyGate::PatientMismatch` 403'd before the supervisor even started.
+- Real cache concern (and what the fix addresses): `(document_hash, extractor_version)` ignored `pid`, so the same bytes uploaded under two patients where `patientMatch` *succeeds* on both would silently alias to the first patient's artifact at the persist short-circuit. Fix: include `pid` in the idempotency key.
+  - **Migration `1778358276015_extraction_artifacts_pid_in_idempotency_key.sql`** adds `UNIQUE (document_hash, extractor_version, pid)` then drops the prior 2-column UNIQUE. Non-destructive (`ADD CONSTRAINT` guarded by a `pg_constraint` lookup, `DROP CONSTRAINT IF EXISTS`); Down block restores the prior shape.
+  - **`ExtractionArtifactStore.findArtifactByDocumentHash`** now takes `pid: number` as a third arg; the `WHERE` clause and both `persist.ts` call sites (pre-lock + under-lock re-check) thread `state.pid` through.
+  - C4's session-pid drift is what actually unblocks the live H6 scenario; this C5 fix closes the silent cross-patient aliasing in the success path that would otherwise have surfaced as "the briefing references the wrong patient's lab values." 1138 agent vitests + 254 dashboard vitests pass; eslint + tsc clean on both.
 
 ---
 
@@ -94,6 +103,7 @@ There are, however, **9 bugs / risks worth fixing before final submission**, ran
 ### H6. The PolicyGate / set_pid mismatch and the idempotency-cache poisoning combine to make the document upload UX confusing
 - Real user flow that breaks: open Co-Pilot for patient A, upload doc that's actually for patient B, get "Service error: patientmismatch", switch to patient B, re-upload — still "patientmismatch" because of cached failure. The user has no way to recover except re-uploading with a tweak that changes the hash.
 - **Fix:** either C4 + C5 above, or surface a "this document was rejected against another patient — view that artifact" hint with a clear "force re-extract" affordance.
+- ✅ **RESOLVED via C4 + C5 (2026-05-09).** The dead-end was driven by C4 alone (the "cached failure" diagnosis was a misread — see C5's resolution note). With agent.php now session-syncing on every authorized request and the shim layer also POSTing `set_pt.php`, the second upload after a patient switch reaches the supervisor with the correct `$_SESSION['pid']`, runs the pipeline, and either persists or refuses based on the actual demographics — no silent state to clear.
 
 ---
 
