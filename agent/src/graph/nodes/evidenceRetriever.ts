@@ -27,7 +27,7 @@ import type {
  * `state.evidenceRetrieverArgs` (a typed {@link EvidenceArgs}); this
  * node reads the slot, runs Pinecone hybrid retrieval (top-20) over
  * the `guidelines-v1` namespace, reranks via Cohere `rerank-v3.5` to
- * `args.top_k` (default 3), and writes the result to
+ * `args.top_k` (default 5), and writes the result to
  * `state.evidenceRetrieverOutput`.
  *
  * Failure modes per `W2_ARCHITECTURE.md` §"Failure Modes":
@@ -41,19 +41,21 @@ import type {
  *
  * Quote excerpt: the chunk body can run to a few KB (USPSTF
  * "Clinical Considerations" sections in particular). The synthesizer's
- * substring-match contract only needs the first ~600 chars to anchor
- * a citation, and a long quote bloats the prompt body and dilutes
- * delimiter discipline. We pin the quote at 600 chars (round number;
- * roughly two paragraphs of guideline text) — eval cases assert the
+ * substring-match contract needs enough text to anchor a citation
+ * even when the load-bearing recommendation language sits past the
+ * opening paragraphs. We pin the quote at 1200 chars (roughly four
+ * paragraphs of guideline text) — long enough to cover the
+ * "Clinical Considerations" body in most USPSTF/CDC chunks, short
+ * enough to keep the prompt body bounded. Eval cases assert the
  * substring match against this excerpt, not the full body.
  */
 
 const logger = createLogger('graph:evidenceRetriever');
 
-/** Quote excerpt length (chars). Short enough to keep prompts bounded; long enough to anchor a substring-match. */
-const QUOTE_EXCERPT_CHARS = 600;
+/** Quote excerpt length (chars). Short enough to keep prompts bounded; long enough to anchor a substring-match against load-bearing recommendation language deeper in the chunk. */
+const QUOTE_EXCERPT_CHARS = 1200;
 
-const DEFAULT_TOP_K = 3;
+const DEFAULT_TOP_K = 5;
 
 export interface EvidenceRetrieverDeps {
     readonly pineconeRetriever: PineconeRetriever;

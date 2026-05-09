@@ -181,8 +181,9 @@ describe('createSupervisor (§A.7)', () => {
         expect(out.supervisorDecisionHistory?.[0]?.handoff).toBe('evidenceRetriever');
         expect(out.evidenceRetrieverArgs).toEqual({
             query: 'USPSTF colorectal cancer screening',
-            // Schema default — top-3 after rerank per architecture.
-            top_k: 3,
+            // Schema default — top-5 after rerank (bumped from 3 to give
+            // the synthesizer more recommendation surface area).
+            top_k: 5,
         });
     });
 

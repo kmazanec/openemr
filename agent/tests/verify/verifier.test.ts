@@ -1229,6 +1229,173 @@ describe('verifyLedger — guideline source_type (§C.5)', () => {
         );
         expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
     });
+
+    it('accepts a guideline claim whose quote drifts only in whitespace and punctuation (normalized fallback)', () => {
+        // The synthesizer paraphrased the snippet quote with comma drift
+        // and extra spaces — strict containsCI rejects, but the
+        // normalized substring fallback should accept because the
+        // load-bearing tokens still line up.
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'reminder',
+                    text:
+                        'USPSTF, recommends   screening for colorectal cancer  in adults: aged 45 to 75.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::colorectal-cancer-screening--recommendation-summary',
+                            'recommendation-summary',
+                            'screening, for colorectal cancer  in adults aged 45 to 75',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([colorectalSnippet]) },
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
+});
+
+// Tier-1 §"Recommendations" — `recommendation`-category claims surface
+// as patient-specific advice in the panel's "Recommendations" section.
+// Verifier rules: primary source ref must be guideline-typed (so a
+// chart-only "consider X" claim cannot reach the recommendations
+// header), and the same chunk_id+section+quote resolution applies as
+// the raw `guideline` path.
+describe('verifyLedger — recommendation category (Tier 1)', () => {
+    const guidelineRef = (sourceId: string, section: string, quote: string) => ({
+        source_type: 'guideline' as const,
+        source_id: sourceId,
+        locator: { section },
+        quote,
+    });
+    const ldlSnippet: EvidenceSnippet = {
+        chunkId: 'uspstf::statin-primary-prevention--clinical-considerations',
+        publication: 'USPSTF',
+        year: 2022,
+        section: 'clinical-considerations',
+        title: 'Statin Use for the Primary Prevention of Cardiovascular Disease in Adults',
+        url: 'https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-primary-prevention-cardiovascular-disease-adults',
+        licenseTier: 'public_domain',
+        quote:
+            'The USPSTF recommends that adults aged 40 to 75 years who have one or more cardiovascular disease risk factors and an estimated 10-year cardiovascular disease risk of 10% or greater should be offered a statin for primary prevention.',
+        rerankScore: 0.95,
+        degradedRerank: false,
+    };
+
+    const evidenceOutput = (snippets: readonly EvidenceSnippet[]) => ({
+        snippets,
+        gap: null,
+    });
+
+    it('accepts a recommendation claim whose primary ref is guideline-typed and resolves', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'recommendation',
+                    text:
+                        'Consider statin primary prevention — adults aged 40 to 75 years with cardiovascular risk factors should be offered a statin for primary prevention.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::statin-primary-prevention--clinical-considerations',
+                            'clinical-considerations',
+                            'adults aged 40 to 75 years',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([ldlSnippet]) },
+        );
+        expect(out.accepted).toHaveLength(1);
+        expect(out.passed).toBe(true);
+    });
+
+    it('rejects a recommendation claim whose primary ref is chart-typed (cannot reach Recommendations without a guideline)', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'recommendation',
+                    text: 'Consider increasing metformin given the persistent A1c elevation.',
+                    sourceReferences: [
+                        // primary is chart — would otherwise hit the
+                        // chart branch and look up CHECKS.recommendation
+                        // (which always returns false). The early
+                        // category-vs-source guard rejects with the
+                        // dedicated reason so the failure mode is
+                        // legible in traces.
+                        {
+                            source_type: 'chart',
+                            source_id: 'rx-1',
+                            locator: { field: 'medication.name' },
+                            quote: 'metformin',
+                        },
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([ldlSnippet]) },
+        );
+        expect(out.accepted).toHaveLength(0);
+        expect(out.rejected[0]?.reason).toBe('recommendation-missing-guideline-source');
+    });
+
+    it('rejects a recommendation claim citing a chunk_id that is not in this turn\'s retriever output', () => {
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'recommendation',
+                    text: 'Consider statin therapy.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::FABRICATED-recommendation-id',
+                            'clinical-considerations',
+                            'adults aged 40 to 75',
+                        ),
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([ldlSnippet]) },
+        );
+        expect(out.rejected[0]?.reason).toBe('source-record-not-in-snapshot');
+    });
+
+    it('accepts a recommendation with a guideline primary ref + a secondary chart ref anchoring the patient fact', () => {
+        // The architecturally-encouraged shape: lead with the
+        // guideline (primary), follow with the chart fact that
+        // triggered the suggestion. The verifier's primary-source
+        // dispatch only consults the first ref for the recommendation
+        // path; secondary refs ride through unchecked here (a future
+        // pass could add cross-validation, but that's not in scope
+        // for the Tier-1 widening).
+        const out = verifyLedger(
+            baseSnapshot(),
+            single(
+                claim({
+                    category: 'recommendation',
+                    text:
+                        'Consider initiating a statin — the patient is in the adults aged 40 to 75 years window per USPSTF.',
+                    sourceReferences: [
+                        guidelineRef(
+                            'uspstf::statin-primary-prevention--clinical-considerations',
+                            'clinical-considerations',
+                            'adults aged 40 to 75 years',
+                        ),
+                        {
+                            source_type: 'chart',
+                            source_id: 'patient-1',
+                            locator: { field: 'patient.ageYears' },
+                            quote: '58',
+                        },
+                    ],
+                }),
+            ),
+            { evidenceRetrieverOutput: evidenceOutput([ldlSnippet]) },
+        );
+        expect(out.accepted).toHaveLength(1);
+    });
 });
 
 // §C.5: confidence hard-stops applied AFTER source-reference

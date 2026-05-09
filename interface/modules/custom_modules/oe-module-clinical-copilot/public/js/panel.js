@@ -522,6 +522,7 @@ const __copilotPanel = (function () {
      */
     const SECTION_HEADINGS = {
         extractedDocument: 'From documents',
+        recommendation: 'Recommendations',
         guideline: 'Evidence',
     };
 
@@ -533,6 +534,13 @@ const __copilotPanel = (function () {
                 kind: 'extractedDocument',
                 heading: SECTION_HEADINGS.extractedDocument,
                 cards: claimGroups.extractedDocument.cards,
+            });
+        }
+        if (claimGroups.recommendation && Array.isArray(claimGroups.recommendation.claims)) {
+            sections.push({
+                kind: 'recommendation',
+                heading: SECTION_HEADINGS.recommendation,
+                claims: claimGroups.recommendation.claims,
             });
         }
         if (claimGroups.guideline && Array.isArray(claimGroups.guideline.claims)) {
@@ -735,7 +743,7 @@ const __copilotPanel = (function () {
             let body = '';
             if (section.kind === 'extractedDocument') {
                 body = section.cards.map(renderDocumentCard).join('');
-            } else if (section.kind === 'guideline') {
+            } else if (section.kind === 'guideline' || section.kind === 'recommendation') {
                 const claims = section.claims.map(renderClaimWithChips).join('');
                 body = `<ul class="copilot-claim-groups__list">${claims}</ul>`;
             }

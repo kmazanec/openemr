@@ -137,7 +137,7 @@ describe('chipTooltipText — variant per source_type', () => {
     });
 });
 
-describe('claimGroupsToSections — documents + evidence; chart bucket dropped', () => {
+describe('claimGroupsToSections — documents + recommendations + evidence; chart bucket dropped', () => {
     const claim = (id) => ({
         id,
         text: `claim ${id}`,
@@ -146,7 +146,7 @@ describe('claimGroupsToSections — documents + evidence; chart bucket dropped',
         safetyCritical: false,
     });
 
-    test('all three populated → only documents and evidence sections render', () => {
+    test('all four populated → documents, recommendations, evidence sections render in order; chart dropped', () => {
         // The chart bucket still ships on the wire (the verifier and
         // any future consumer keep reading it), but the renderer
         // deliberately drops it: the inline-prose chart citations
@@ -155,10 +155,19 @@ describe('claimGroupsToSections — documents + evidence; chart bucket dropped',
         const sections = claimGroupsToSections({
             chart: { subsections: [{ category: 'diagnosis', claims: [claim('a')] }] },
             extractedDocument: { cards: [{ documentUuid: 'doc-1', claims: [claim('b')] }] },
+            recommendation: { claims: [claim('r')] },
             guideline: { claims: [claim('c')] },
         });
-        expect(sections.map((s) => s.kind)).toEqual(['extractedDocument', 'guideline']);
-        expect(sections.map((s) => s.heading)).toEqual(['From documents', 'Evidence']);
+        expect(sections.map((s) => s.kind)).toEqual([
+            'extractedDocument',
+            'recommendation',
+            'guideline',
+        ]);
+        expect(sections.map((s) => s.heading)).toEqual([
+            'From documents',
+            'Recommendations',
+            'Evidence',
+        ]);
     });
 
     test('chart-only payload → no sections rendered', () => {
@@ -168,12 +177,32 @@ describe('claimGroupsToSections — documents + evidence; chart bucket dropped',
         expect(sections).toEqual([]);
     });
 
-    test('documents + guideline → both render in order', () => {
+    test('documents + guideline → both render in order (no recommendations)', () => {
         const sections = claimGroupsToSections({
             extractedDocument: { cards: [{ documentUuid: 'doc-1', claims: [claim('b')] }] },
             guideline: { claims: [claim('c')] },
         });
         expect(sections.map((s) => s.kind)).toEqual(['extractedDocument', 'guideline']);
+    });
+
+    test('recommendations alone render under the "Recommendations" header', () => {
+        const sections = claimGroupsToSections({
+            recommendation: {
+                claims: [{ ...claim('r'), category: 'recommendation' }],
+            },
+        });
+        expect(sections.map((s) => s.kind)).toEqual(['recommendation']);
+        expect(sections[0].heading).toBe('Recommendations');
+    });
+
+    test('recommendations come before raw evidence', () => {
+        // Clinicians read patient-specific advice first; the raw
+        // citations beneath are reference material.
+        const sections = claimGroupsToSections({
+            guideline: { claims: [claim('e')] },
+            recommendation: { claims: [claim('r')] },
+        });
+        expect(sections.map((s) => s.kind)).toEqual(['recommendation', 'guideline']);
     });
 
     test('empty object → no sections', () => {

@@ -65,6 +65,10 @@ const claimSchema = z.object({
         'identity',
         'reminder',
         'medication_statement',
+        // A patient-specific "consider X" suggestion. Primary source
+        // ref must be `guideline`-typed; the verifier rejects
+        // recommendations whose primary ref points at a chart record.
+        'recommendation',
     ]),
     sourceReferences: z.array(sourceReferenceSchema).min(1),
     safetyCritical: z.boolean(),

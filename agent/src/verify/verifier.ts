@@ -57,6 +57,12 @@ const REJECT_UNRESOLVED = 'source-record-not-in-snapshot' as const;
 const REJECT_CONTENT = 'claim-text-does-not-match-source-fields' as const;
 const REJECT_HARD_STOP = 'safety-critical-data-unavailable' as const;
 const REJECT_LOW_CONFIDENCE = 'low-confidence-extraction' as const;
+// A `recommendation`-category claim must lead with a guideline-typed
+// source ref. The synthesizer prompt teaches this; the verifier
+// enforces it so a chart-only claim mis-categorised as a
+// recommendation cannot reach the panel under the "Recommendations"
+// header.
+const REJECT_RECOMMENDATION_NEEDS_GUIDELINE = 'recommendation-missing-guideline-source' as const;
 
 export const HARD_STOP_ALLERGIES_UNAVAILABLE = 'allergies-unavailable' as const;
 export const HARD_STOP_PRESCRIPTIONS_UNAVAILABLE = 'prescriptions-unavailable' as const;
@@ -70,6 +76,36 @@ const isGap = <T>(v: readonly T[] | Gap): v is Gap =>
 
 const containsCI = (haystack: string, needle: string): boolean =>
     needle.length > 0 && haystack.toLowerCase().includes(needle.toLowerCase());
+
+/**
+ * Paraphrase-tolerant substring match. Normalizes both sides to
+ * lowercase, collapses whitespace runs to a single space, and strips
+ * a small set of "decorative" punctuation tokens (commas, semicolons,
+ * colons, parentheses, single/double quotes, em/en dashes). Digits,
+ * units, percent signs, comparison operators, and arithmetic
+ * characters are preserved — so "A1c 8.4 %" still differs from
+ * "A1c 8.5 %" but matches "A1c 8.4%" or "A1c, 8.4 percent" (the
+ * percent-spelled-out case still requires `containsCI` to pass on the
+ * fast path; this normalization only catches whitespace/punctuation
+ * drift, not lexical paraphrase).
+ *
+ * Used by the guideline and extracted-document resolvers as a
+ * fallback after `containsCI` fails — the synthesizer paraphrases
+ * substantively often enough that strict substring is paraphrase-
+ * hostile, but we don't want to widen all the way to a token-bag
+ * match (which the chart `tolerantTokenBagMatch` does for chart-side
+ * content matching).
+ */
+const NORMALIZE_DROP = /[,;:()'"–—]/g;
+const NORMALIZE_WS = /\s+/g;
+const normalizeForMatch = (s: string): string =>
+    s.toLowerCase().replace(NORMALIZE_DROP, ' ').replace(NORMALIZE_WS, ' ').trim();
+const containsNormalized = (haystack: string, needle: string): boolean => {
+    if (needle.length === 0) return false;
+    const n = normalizeForMatch(needle);
+    if (n.length === 0) return false;
+    return normalizeForMatch(haystack).includes(n);
+};
 
 /**
  * Tolerant content matcher. Falls back to a token-bag comparison when
@@ -625,6 +661,14 @@ const CHECKS: Record<Claim['category'], CategoryCheck> = {
         resolves: (ref, idx) => idx.medications.has(ref.source_id),
         contentMatches: matchesMedicationStatement,
     },
+    recommendation: {
+        // Recommendations require a guideline-typed primary ref. The
+        // dispatch in `verifyLedger` short-circuits before this entry is
+        // consulted; the slot exists only to keep `Record<ClaimCategory,
+        // CategoryCheck>` exhaustive so a future ClaimCategory addition
+        // can't quietly omit a check.
+        resolves: () => false,
+    },
 };
 
 export const computeHardStops = (snapshot: BriefingSnapshot): readonly HardStop[] => {
@@ -808,7 +852,15 @@ const resolveExtractedDocument = (
         containsCI(snippet.quote, ref.quote)
         || (valueStr.length > 0 && containsCI(valueStr, ref.quote))
         || containsCI(claim.text, snippet.quote)
-        || (valueStr.length > 0 && containsCI(claim.text, valueStr));
+        || (valueStr.length > 0 && containsCI(claim.text, valueStr))
+        // Normalized fallback for paraphrase-by-whitespace/punctuation.
+        // Mirrors the `resolveGuideline` widening — extracted-document
+        // OCR text often has decorative punctuation the synthesizer
+        // drops, and we don't want strict substring to reject those.
+        || containsNormalized(snippet.quote, ref.quote)
+        || (valueStr.length > 0 && containsNormalized(valueStr, ref.quote))
+        || containsNormalized(claim.text, snippet.quote)
+        || (valueStr.length > 0 && containsNormalized(claim.text, valueStr));
     if (!quoteOk) {
         return { ok: false, reason: REJECT_CONTENT };
     }
@@ -887,8 +939,19 @@ const resolveGuideline = (
         );
         return { ok: false, reason: anyKey === undefined ? REJECT_UNRESOLVED : REJECT_CONTENT };
     }
-    const quoteOk = containsCI(snippet.quote, ref.quote)
-        || containsCI(claim.text, snippet.quote);
+    // Fast path: literal case-insensitive substring. If that misses,
+    // fall back to a normalized substring (whitespace + punctuation
+    // collapsed) before declaring REJECT_CONTENT. The synthesizer
+    // legitimately paraphrases the snippet's quote — "Adults aged
+    // 50–75" rendered as "adults 50 to 75 years" — and a literal
+    // substring rejects it; the normalized path catches the most
+    // common paraphrase shapes (whitespace drift, decorative
+    // punctuation) without widening to a generic fuzzy match.
+    const quoteOk =
+        containsCI(snippet.quote, ref.quote)
+        || containsCI(claim.text, snippet.quote)
+        || containsNormalized(snippet.quote, ref.quote)
+        || containsNormalized(claim.text, snippet.quote);
     if (!quoteOk) {
         return { ok: false, reason: REJECT_CONTENT };
     }
@@ -979,6 +1042,16 @@ export const verifyLedger = (
         // applied within the chart branch, and extracted/guideline
         // claims are typically single-ref.
         const primary = claim.sourceReferences[0]!;
+
+        // Recommendations are guideline-grounded by definition. A
+        // chart-only "recommendation" is the failure mode this rule
+        // is here to catch — a model that categorised a chart
+        // observation as advice and tried to render it under
+        // "Recommendations" without an authoritative source.
+        if (claim.category === 'recommendation' && primary.source_type !== 'guideline') {
+            rejected.push({ claim, reason: REJECT_RECOMMENDATION_NEEDS_GUIDELINE });
+            continue;
+        }
 
         if (primary.source_type === 'chart') {
             // Carry-forward W1 chart resolution path.

@@ -310,7 +310,7 @@ describe('createEvidenceRetriever (§C.3)', () => {
         );
     });
 
-    it('truncates long chunk bodies to a 600-char excerpt as the snippet quote', async () => {
+    it('truncates long chunk bodies to a 1200-char excerpt as the snippet quote', async () => {
         const longBody = 'A'.repeat(2000);
         const pinecone = buildPineconeRetriever(() =>
             Promise.resolve([
@@ -331,7 +331,7 @@ describe('createEvidenceRetriever (§C.3)', () => {
         const out = await node(baseState({ evidenceRetrieverArgs: args({ top_k: 1 }) }));
 
         const quote = out.evidenceRetrieverOutput?.snippets[0]?.quote ?? '';
-        expect(quote.length).toBe(600);
+        expect(quote.length).toBe(1200);
     });
 
     it('rethrows non-PineconeUnavailableError errors (so unexpected bugs surface loudly)', async () => {

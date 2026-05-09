@@ -342,7 +342,7 @@ export type EvidenceSourceFilter = typeof EVIDENCE_SOURCE_FILTERS[number];
  */
 export const EvidenceArgsSchema = z.object({
     query: z.string().min(1),
-    top_k: z.number().int().min(1).max(10).default(3),
+    top_k: z.number().int().min(1).max(10).default(5),
     source_filter: z.array(z.enum(EVIDENCE_SOURCE_FILTERS)).min(1).optional(),
 });
 
@@ -553,7 +553,15 @@ export type ClaimCategory =
     | 'appointment'
     | 'identity'
     | 'reminder'
-    | 'medication_statement';
+    | 'medication_statement'
+    // A patient-specific suggestion grounded in a `guideline` source
+    // ref. Distinct from raw guideline citations so the panel can
+    // surface "Consider..." prose in its own "Recommendations" section
+    // ahead of the flat "Evidence" list. The verifier requires the
+    // primary source ref to be `guideline`-typed; secondary chart refs
+    // are allowed to anchor the patient fact that triggered the
+    // recommendation.
+    | 'recommendation';
 
 export interface Claim {
     readonly id: string;
@@ -657,6 +665,10 @@ export interface GuidelineClaimGroup {
     readonly claims: readonly Claim[];
 }
 
+export interface RecommendationClaimGroup {
+    readonly claims: readonly Claim[];
+}
+
 /**
  * §C.6 panel-side projection of accepted claims, bucketed by primary
  * `SourceReference.source_type`. Empty buckets are absent (Partial
@@ -667,10 +679,17 @@ export interface GuidelineClaimGroup {
  * The chat bubble (`segments[]`) is unchanged: prose flow stays
  * chronological. `claimGroups` is an additive projection over the same
  * accepted claims for the side panel.
+ *
+ * `recommendation` and `guideline` both correspond to claims whose
+ * primary source ref is guideline-typed; the split is on
+ * `claim.category`. Recommendations are patient-specific advice
+ * (rendered under "Recommendations") — clinicians read them first.
+ * Raw evidence facts go under "Evidence" below.
  */
 export interface ClaimGroups {
     readonly chart?: ChartClaimGroup;
     readonly extractedDocument?: DocumentClaimGroup;
+    readonly recommendation?: RecommendationClaimGroup;
     readonly guideline?: GuidelineClaimGroup;
 }
 

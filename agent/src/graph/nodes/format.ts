@@ -130,6 +130,13 @@ const CHART_CATEGORY_RANK: Record<ClaimCategory, number> = {
     allergy: 8,
     lab: 9,
     reminder: 10,
+    // recommendation claims never reach the chart subsection ordering
+    // (they're guideline-source-typed and routed to the
+    // "Recommendations" group). Rank is included only to keep
+    // `Record<ClaimCategory, number>` exhaustive — slot-after-everything
+    // so a future bug that misroutes a recommendation into the chart
+    // bucket doesn't shuffle the chart ordering.
+    recommendation: 11,
 };
 
 /**
@@ -163,6 +170,7 @@ const groupClaims = (
     const chartByCategory = new Map<ClaimCategory, Claim[]>();
     const docByUuid = new Map<string | null, Claim[]>();
     const docOrder: (string | null)[] = [];
+    const recommendation: Claim[] = [];
     const guideline: Claim[] = [];
 
     for (const claim of accepted) {
@@ -196,7 +204,16 @@ const groupClaims = (
                 break;
             }
             case 'guideline': {
-                guideline.push(claim);
+                // Split guideline-typed claims into "Recommendations"
+                // (patient-specific advice) vs "Evidence" (raw
+                // citations). Both come through the same verifier
+                // path; the category bit is what tells the renderer
+                // which UI section to put them in.
+                if (claim.category === 'recommendation') {
+                    recommendation.push(claim);
+                } else {
+                    guideline.push(claim);
+                }
                 break;
             }
         }
@@ -217,6 +234,10 @@ const groupClaims = (
             claims: docByUuid.get(uuid) ?? [],
         }));
         groups.extractedDocument = { cards };
+    }
+
+    if (recommendation.length > 0) {
+        groups.recommendation = { claims: recommendation };
     }
 
     if (guideline.length > 0) {

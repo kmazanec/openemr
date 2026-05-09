@@ -526,6 +526,45 @@ describe('format — claim groups by source_type (§C.6)', () => {
         expect(f.claimGroups.chart).toBeUndefined();
     });
 
+    it('splits guideline-source claims into recommendation vs guideline groups by claim.category', async () => {
+        // Tier 1 — recommendations are patient-specific advice (rendered
+        // under "Recommendations") and raw guideline citations are
+        // facts about the guideline (rendered under "Evidence" below).
+        // Both have `primary.source_type === 'guideline'`; the split
+        // is on `claim.category`.
+        const recommendationClaim: Claim = {
+            id: 'rec-1',
+            text: 'Consider statin primary prevention — patient meets the USPSTF eligibility window.',
+            category: 'recommendation',
+            sourceReferences: [
+                guidelineSourceRef(
+                    'uspstf::statin-primary-prevention--clinical-considerations',
+                    'clinical-considerations',
+                ),
+            ],
+            safetyCritical: false,
+        };
+        const verified: VerifiedLedger = {
+            passed: true,
+            accepted: [guidelineClaim, recommendationClaim],
+            rejected: [],
+            safetyHardStops: [],
+        };
+        const draft = draftSegments(
+            { text: 'USPSTF colorectal screening recommendation.', claimIds: ['gl-1'] },
+            { text: 'Consider statin primary prevention.', claimIds: ['rec-1'] },
+        );
+        const out = await format(baseState({ draft, verified }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        const recommendations = f.claimGroups.recommendation;
+        if (recommendations === undefined) throw new Error('recommendation group missing');
+        expect(recommendations.claims.map((c) => c.id)).toEqual(['rec-1']);
+        const guidelines = f.claimGroups.guideline;
+        if (guidelines === undefined) throw new Error('guideline group missing');
+        expect(guidelines.claims.map((c) => c.id)).toEqual(['gl-1']);
+    });
+
     it('excludes hard-stop-suppressed claims from claimGroups even though they ride in `accepted`', async () => {
         // Allergies-unavailable suppresses prescription content in the
         // bubble; mirroring that in the panel keeps the two surfaces in
