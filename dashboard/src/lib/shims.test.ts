@@ -286,7 +286,7 @@ describe('commitSessionPid', () => {
   // commit helper hits library/ajax/set_pt.php with the standard
   // (set_pid + csrf_token_form) GET contract used by dynamic_finder.php.
   it('GETs set_pt.php with set_pid + csrf_token_form when both globals are present', async () => {
-    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve({ ok: true } as Response));
     const win = fakeWindow({
       csrf_token_js: 'csrf-abc',
       webroot_url: '/openemr',
@@ -297,8 +297,8 @@ describe('commitSessionPid', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
     const [url, opts] = fetchImpl.mock.calls[0]!;
     expect(url).toBe('/openemr/library/ajax/set_pt.php?set_pid=42&csrf_token_form=csrf-abc');
-    expect((opts as RequestInit).method).toBe('GET');
-    expect((opts as RequestInit).credentials).toBe('same-origin');
+    expect(opts?.method).toBe('GET');
+    expect(opts?.credentials).toBe('same-origin');
   });
 
   it('skips the fetch when csrf_token_js is missing', async () => {
@@ -329,7 +329,7 @@ describe('commitSessionPid', () => {
 describe('buildTopShims — set_pid commits server-side session', () => {
   it('fires the commit GET before navigating', () => {
     const router = mockRouter();
-    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve({ ok: true } as Response));
     const win = fakeWindow({ csrf_token_js: 'tok', webroot_url: '/oe' });
     const shims = buildTopShims({
       router,
@@ -368,7 +368,7 @@ describe('buildLeftNavShims — setPatient commits server-side session', () => {
 describe('buildRTopShims — set_pid URL commits server-side session', () => {
   it('fires the commit GET when location= URL carries set_pid', () => {
     const router = mockRouter();
-    const fetchImpl = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve({ ok: true } as Response));
     const win = fakeWindow({ csrf_token_js: 'tok', webroot_url: '/oe' });
     const shims = buildRTopShims({
       router,
