@@ -729,6 +729,284 @@ const __copilotPanel = (function () {
     };
 
     /**
+     * Trend-chart renderer.
+     *
+     * Renders the optional `trendChart` slot on an assistant message as
+     * an inline SVG line chart (one per bubble — the wire shape is a
+     * single value, not an array, so the "single chart" cap is
+     * structural).
+     *
+     * Why hand-rolled SVG instead of Chart.js / D3:
+     *
+     *   - Zero new asset: no script tag, no CDN, no version bump.
+     *   - Pure-string output: testable from node alongside the other
+     *     pure helpers in this file (jest tests `require()` panel.js).
+     *   - No instance lifecycle to manage when the bubble re-renders
+     *     (the panel re-paints the whole thread on each event); a
+     *     library would need teardown/destroy plumbing on every paint.
+     *   - The chart is intentionally simple: a single line over time,
+     *     up to 24 points, optional reference-range band. A 200-line
+     *     SVG generator is the right shape for it.
+     *
+     * If we later need axes-with-labels, hover tooltips, or
+     * multi-series overlays, swapping this for Chart.js is a self-
+     * contained change — the wire contract (`AssistantMessageTrendChart`)
+     * is renderer-agnostic.
+     */
+
+    const TREND_CHART_WIDTH = 480;
+    const TREND_CHART_HEIGHT = 160;
+    const TREND_CHART_PAD = { top: 16, right: 16, bottom: 28, left: 40 };
+
+    /**
+     * SVG-attribute escaper. The DOM-touching `escapeText` above uses
+     * `document.createElement` (browser-only); the chart renderer runs
+     * inside the same browser-only `renderBubble` call but its output
+     * is also exercised from node by `tests/js/copilot-panel-trend-chart.test.js`,
+     * which has no DOM. This escape covers the five XML-special chars
+     * that matter for SVG attributes and text content; the chart never
+     * embeds untrusted HTML, so this minimal set is sufficient.
+     */
+    const escapeSvg = (s) => {
+        if (s === null || s === undefined) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    };
+
+    /**
+     * Format an ISO-8601 timestamp as a short date label for the chart
+     * x-axis (`Jan 14`, `Mar '24` for cross-year ranges). Falls back to
+     * the first 10 chars of the input if `Date` parsing fails so a
+     * malformed observedAt doesn't blank the axis.
+     */
+    const formatTrendDate = (iso, includeYear) => {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) {
+            return typeof iso === 'string' ? iso.slice(0, 10) : '';
+        }
+        const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+        const day = d.getUTCDate();
+        if (includeYear) {
+            // Two-digit year keeps the label compact.
+            const yy = String(d.getUTCFullYear()).slice(-2);
+            return `${month} '${yy}`;
+        }
+        return `${month} ${String(day)}`;
+    };
+
+    /**
+     * Parse a reference-range string like "<5.7" / ">100" / "70-180"
+     * into a numeric band the renderer can shade behind the line. Returns
+     * null when the format isn't one of the three the lab adapter emits
+     * — falling through is the right default so an unparsable range
+     * doesn't put a misleading band on the chart. The chart still renders
+     * the line; only the band overlay is suppressed.
+     */
+    const parseTrendRange = (raw) => {
+        if (typeof raw !== 'string') return null;
+        const s = raw.trim();
+        if (s === '') return null;
+        const ltMatch = s.match(/^<\s*(-?\d+(?:\.\d+)?)$/);
+        if (ltMatch) {
+            const hi = Number(ltMatch[1]);
+            if (Number.isFinite(hi)) return { lo: -Infinity, hi };
+        }
+        const gtMatch = s.match(/^>\s*(-?\d+(?:\.\d+)?)$/);
+        if (gtMatch) {
+            const lo = Number(gtMatch[1]);
+            if (Number.isFinite(lo)) return { lo, hi: Infinity };
+        }
+        const rangeMatch = s.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/);
+        if (rangeMatch) {
+            const lo = Number(rangeMatch[1]);
+            const hi = Number(rangeMatch[2]);
+            if (Number.isFinite(lo) && Number.isFinite(hi) && lo <= hi) {
+                return { lo, hi };
+            }
+        }
+        return null;
+    };
+
+    /**
+     * Project the chart data into pixel coordinates and emit the SVG
+     * string. Pure (no DOM) — the caller embeds the result in the
+     * bubble HTML. The body assumes the contract guaranteed by
+     * `decideTrendChart` server-side: ≥2 numeric points, all with a
+     * non-empty `observedAt`, sorted ascending.
+     */
+    const renderTrendChartSvg = (chart) => {
+        const points = Array.isArray(chart.points) ? chart.points : [];
+        if (points.length < 2) return '';
+
+        const xs = points.map((p) => {
+            const t = Date.parse(p.observedAt);
+            return Number.isFinite(t) ? t : 0;
+        });
+        const ys = points.map((p) => Number(p.value));
+        const xMin = Math.min(...xs);
+        const xMax = Math.max(...xs);
+        const xSpan = xMax - xMin || 1;
+
+        const range = parseTrendRange(chart.referenceRange);
+        // Pad the y-axis so the line never touches the chart edges.
+        // Include any finite range bound so the band is fully visible.
+        const yCandidates = ys.slice();
+        if (range !== null) {
+            if (Number.isFinite(range.lo)) yCandidates.push(range.lo);
+            if (Number.isFinite(range.hi)) yCandidates.push(range.hi);
+        }
+        const yMinRaw = Math.min(...yCandidates);
+        const yMaxRaw = Math.max(...yCandidates);
+        const ySpanRaw = yMaxRaw - yMinRaw || Math.max(Math.abs(yMaxRaw), 1) * 0.1;
+        const yPad = ySpanRaw * 0.12;
+        const yMin = yMinRaw - yPad;
+        const yMax = yMaxRaw + yPad;
+        const ySpan = yMax - yMin || 1;
+
+        const W = TREND_CHART_WIDTH;
+        const H = TREND_CHART_HEIGHT;
+        const P = TREND_CHART_PAD;
+        const plotW = W - P.left - P.right;
+        const plotH = H - P.top - P.bottom;
+
+        const xPx = (x) => P.left + ((x - xMin) / xSpan) * plotW;
+        const yPx = (y) => P.top + (1 - (y - yMin) / ySpan) * plotH;
+
+        // Range band — clamp infinite bounds to the chart edges so a
+        // "<5.7" range still paints a visible "normal" zone above the
+        // x-axis.
+        let bandSvg = '';
+        if (range !== null) {
+            const bandHi = Number.isFinite(range.hi) ? Math.min(range.hi, yMax) : yMax;
+            const bandLo = Number.isFinite(range.lo) ? Math.max(range.lo, yMin) : yMin;
+            if (bandHi > bandLo) {
+                const yTop = yPx(bandHi);
+                const yBottom = yPx(bandLo);
+                bandSvg = `<rect class="copilot-trend__band"
+                                 x="${String(P.left)}"
+                                 y="${String(yTop)}"
+                                 width="${String(plotW)}"
+                                 height="${String(yBottom - yTop)}"
+                                 data-role="trend-band"></rect>`;
+            }
+        }
+
+        // Path for the line.
+        const linePath = points
+            .map((p, i) => {
+                const cmd = i === 0 ? 'M' : 'L';
+                return `${cmd}${String(xPx(xs[i]))},${String(yPx(ys[i]))}`;
+            })
+            .join(' ');
+
+        // Dots for each observation. `abnormal` flips a CSS modifier
+        // class so the renderer styles out-of-range points distinctly
+        // without re-parsing the reference range here.
+        const dots = points
+            .map((p, i) => {
+                const cls = p.abnormal
+                    ? 'copilot-trend__dot copilot-trend__dot--abnormal'
+                    : 'copilot-trend__dot';
+                return `<circle class="${cls}"
+                                cx="${String(xPx(xs[i]))}"
+                                cy="${String(yPx(ys[i]))}"
+                                r="3.5"
+                                data-role="trend-dot"
+                                data-value="${escapeSvg(String(p.value))}"
+                                data-observed-at="${escapeSvg(p.observedAt)}">
+                            <title>${escapeSvg(String(p.value))}${chart.unit ? ' ' + escapeSvg(chart.unit) : ''} on ${escapeSvg(p.observedAt.slice(0, 10))}</title>
+                        </circle>`;
+            })
+            .join('');
+
+        // Y-axis: just the min and max labels — keeps the chart tidy
+        // inside a chat bubble. The dot tooltips carry the precise
+        // values per point.
+        const yLabel = (val) => {
+            const rounded = Math.abs(val) >= 100 ? Math.round(val) : Math.round(val * 10) / 10;
+            return String(rounded);
+        };
+        const yAxis = `
+            <text class="copilot-trend__axis-label"
+                  x="${String(P.left - 6)}"
+                  y="${String(yPx(yMaxRaw))}"
+                  text-anchor="end"
+                  dominant-baseline="middle">${escapeSvg(yLabel(yMaxRaw))}</text>
+            <text class="copilot-trend__axis-label"
+                  x="${String(P.left - 6)}"
+                  y="${String(yPx(yMinRaw))}"
+                  text-anchor="end"
+                  dominant-baseline="middle">${escapeSvg(yLabel(yMinRaw))}</text>`;
+
+        // X-axis: first and last point dates only. If the series spans
+        // multiple calendar years, switch to the year-tagged label so
+        // the reader sees the time scale.
+        const firstYear = new Date(points[0].observedAt).getUTCFullYear();
+        const lastYear = new Date(points[points.length - 1].observedAt).getUTCFullYear();
+        const includeYear = Number.isFinite(firstYear)
+            && Number.isFinite(lastYear)
+            && firstYear !== lastYear;
+        const xAxis = `
+            <text class="copilot-trend__axis-label"
+                  x="${String(P.left)}"
+                  y="${String(H - 8)}"
+                  text-anchor="start">${escapeSvg(formatTrendDate(points[0].observedAt, includeYear))}</text>
+            <text class="copilot-trend__axis-label"
+                  x="${String(W - P.right)}"
+                  y="${String(H - 8)}"
+                  text-anchor="end">${escapeSvg(formatTrendDate(points[points.length - 1].observedAt, includeYear))}</text>`;
+
+        return `<svg class="copilot-trend__svg"
+                     viewBox="0 0 ${String(W)} ${String(H)}"
+                     role="img"
+                     aria-label="${escapeSvg(chart.analyte)} trend"
+                     data-role="trend-svg">
+            ${bandSvg}
+            <path class="copilot-trend__line" d="${linePath}" data-role="trend-line"></path>
+            ${dots}
+            ${yAxis}
+            ${xAxis}
+        </svg>`;
+    };
+
+    /**
+     * Caption above the chart. Reason-driven so the user sees *why*
+     * the chart is here (and we don't ship a chart with no context).
+     * `follow_up_lab_question` covers both trend-style ("How is A1c
+     * trending?") and plain-lookup ("What's her A1c?") questions, so
+     * "history" reads naturally for both — the chart is showing the
+     * patient's recorded values for that analyte regardless of how
+     * the doctor phrased the question.
+     */
+    const trendChartCaption = (chart) => {
+        const analyte = String(chart.analyte || '');
+        const unit = chart.unit ? ` (${chart.unit})` : '';
+        if (chart.reason === 'fresh_lab_with_history') {
+            return `${analyte}${unit} — new value in context`;
+        }
+        return `${analyte}${unit} — recent values`;
+    };
+
+    const renderTrendChart = (chart) => {
+        if (!chart || typeof chart !== 'object') return '';
+        const points = Array.isArray(chart.points) ? chart.points : [];
+        if (points.length < 2) return '';
+        const svg = renderTrendChartSvg(chart);
+        if (svg === '') return '';
+        const caption = trendChartCaption(chart);
+        return `<figure class="copilot-trend"
+                       data-role="trend-chart"
+                       data-reason="${escapeSvg(chart.reason || '')}">
+            <figcaption class="copilot-trend__caption">${escapeSvg(caption)}</figcaption>
+            ${svg}
+        </figure>`;
+    };
+
+    /**
      * Render the C.6 panel-side projection of accepted claims grouped
      * by `source_type`. Empty `claimGroups` (e.g. a turn that produced
      * no accepted claims, or a follow-up that only emits redacted
@@ -919,9 +1197,11 @@ const __copilotPanel = (function () {
             const gaps = renderGapsBanner(entry.message.gaps);
             const suggestions = renderSuggestionsRail(entry.message.suggestedFollowUps, index);
             const claimGroups = renderClaimGroups(entry.message.claimGroups);
+            const trendChart = renderTrendChart(entry.message.trendChart);
             return `<article class="copilot-bubble copilot-bubble--assistant" data-role="bubble" data-state="rendered" data-bubble-index="${index}">
                 ${gaps}
                 <div class="copilot-bubble__body">${segments}${unverified ? ' ' + unverified : ''}</div>
+                ${trendChart}
                 ${claimGroups}
                 ${suggestions}
             </article>`;
@@ -2979,6 +3259,13 @@ const __copilotPanel = (function () {
         postAcceptFact,
         postReject,
         messageForFactActionCode,
+        // Trend-chart helpers, exposed for
+        // `tests/js/copilot-panel-trend-chart.test.js`.
+        renderTrendChart,
+        renderTrendChartSvg,
+        trendChartCaption,
+        parseTrendRange,
+        formatTrendDate,
     };
 })();
 

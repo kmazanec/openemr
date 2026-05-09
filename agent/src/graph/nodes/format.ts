@@ -6,6 +6,7 @@ import {
 } from '../../verify/verifier.js';
 import { deriveArchetypeFlags } from '../archetypeFlags.js';
 import { generateFollowUps } from '../followUps.js';
+import { decideTrendChart } from '../trendChart.js';
 import type {
     AssistantMessage,
     AssistantMessageSegment,
@@ -286,12 +287,19 @@ export const format = async (state: BriefingState): Promise<BriefingStateUpdate>
         ? generateFollowUps(verified, state.snapshot)
         : [];
 
+    const trendChart = decideTrendChart({
+        verified,
+        snapshot: state.snapshot,
+        envelope: state.envelope,
+    });
+
     const formatted: AssistantMessage = {
         segments,
         claimGroups: groupClaims(verified.accepted, verified.safetyHardStops),
         gaps: collectGaps(verified),
         suggestedFollowUps,
         archetypeFlags: deriveArchetypeFlags(state.snapshot),
+        ...(trendChart !== null ? { trendChart } : {}),
     };
 
     return { formatted };

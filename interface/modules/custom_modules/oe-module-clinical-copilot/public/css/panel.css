@@ -1254,3 +1254,55 @@
     color: #991b1b;
     border: 1px solid #fca5a5;
 }
+
+/* ───────── Trend chart (single chart per assistant bubble) ───────── */
+/* Hand-rolled SVG; no chart library. See `renderTrendChart` in panel.js. */
+.copilot-trend {
+    margin: 0.75em 0 0;
+    padding: 0.6em 0.75em;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.4em;
+}
+
+.copilot-trend__caption {
+    margin: 0 0 0.4em;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: #334155;
+}
+
+.copilot-trend__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 480px;
+}
+
+.copilot-trend__band {
+    fill: #dcfce7;
+    fill-opacity: 0.55;
+}
+
+.copilot-trend__line {
+    fill: none;
+    stroke: #2563eb;
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.copilot-trend__dot {
+    fill: #2563eb;
+    stroke: #ffffff;
+    stroke-width: 1;
+}
+
+.copilot-trend__dot--abnormal {
+    fill: #dc2626;
+}
+
+.copilot-trend__axis-label {
+    font-size: 10px;
+    fill: #64748b;
+}

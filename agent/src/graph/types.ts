@@ -693,6 +693,40 @@ export interface ClaimGroups {
     readonly guideline?: GuidelineClaimGroup;
 }
 
+/**
+ * Single observation rendered in a trend chart. `value` is a finite
+ * number; the format-side decision module rejects non-numeric lab
+ * values (`positive`, `<0.01`) up front so the renderer never has to
+ * defend against them. `abnormal` reflects the LabObservation's
+ * `abnormalFlag` so a renderer can highlight out-of-range points
+ * without re-evaluating the reference range.
+ */
+export interface AssistantMessageTrendPoint {
+    readonly observedAt: string;
+    readonly value: number;
+    readonly abnormal: boolean;
+}
+
+/**
+ * Optional trend-chart attachment on an `AssistantMessage`. At most
+ * one per turn — the slot is a single value, not an array, so the
+ * "single chart" guarantee is structural rather than runtime-checked.
+ *
+ * `reason` identifies which decision rule fired; the renderer can use
+ * it to caption the chart ("Compared to prior values" vs. "X over
+ * time"). `groundedInClaimIds` mirrors the `SuggestedFollowUp` field
+ * so the panel can correlate the chart with the claim that triggered
+ * it for tooltip/click handling.
+ */
+export interface AssistantMessageTrendChart {
+    readonly analyte: string;
+    readonly unit: string | null;
+    readonly referenceRange: string | null;
+    readonly points: readonly AssistantMessageTrendPoint[];
+    readonly reason: 'fresh_lab_with_history' | 'follow_up_lab_question';
+    readonly groundedInClaimIds: readonly string[];
+}
+
 export interface AssistantMessage {
     readonly segments: readonly AssistantMessageSegment[];
     /**
@@ -702,6 +736,15 @@ export interface AssistantMessage {
      * grouping so the panel stays in sync with the bubble's redactions.
      */
     readonly claimGroups: ClaimGroups;
+    /**
+     * Optional trend-chart attachment. Present at most once per turn
+     * (single value, not an array — the "one chart" cap is
+     * structural). Derived deterministically by `format` from the
+     * verified ledger + snapshot via `decideTrendChart`. The renderer
+     * is free to ignore the field; legacy clients see no behavior
+     * change.
+     */
+    readonly trendChart?: AssistantMessageTrendChart;
     /**
      * Safety hard stops surfaced once at message level rather than per
      * section. UI renders as a yellow-bar warning at the top of the
