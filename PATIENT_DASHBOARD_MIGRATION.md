@@ -20,6 +20,8 @@ folder.
 | Framework | **React 19 + TypeScript, built with Vite 6** |
 | Routing | **TanStack Router** (file-based, type-safe) |
 | Data + auth | **fhirclient** (the SMART-on-FHIR JS client) running the **SMART EHR Launch** sequence — OpenEMR session implicit step 1, OIDC + PKCE + JWT for the rest |
+| Session model | **Three sessions, three cookies** — `OpenEMR` (core, path `/`), `authserverOpenEMR` (OAuth, path `/oauth2/`), `apiOpenEMR` (REST/FHIR, path `/apis/`). The SPA's same-origin fetches to `/interface/...` PHP endpoints (agent.php, document_view.php) carry the core cookie and call `top.restoreSession()` first to defend against cross-tab cookie clobber. FHIR fetches use the SMART access token in the bearer header and don't fight with the cookie. Discussed in detail in the "Session model" subsection of the auth section. |
+| Cross-tab survival | **`main.php` and `main_v2.php` redirect to login (don't destroy the session) on `token_main` mismatch.** Deliberate divergence from upstream's destroy-then-redirect, which would 400 every other tab using the same session row. Stale-URL replay defense is preserved by the redirect (re-auth mints a fresh `token_main_php`). |
 | FHIR types | **`@medplum/fhirtypes`** (TypeScript types only, no runtime) |
 | Client-side cache | **None for W2.** Each card fetches on mount. TanStack Query as a stretch goal if invalidation cost becomes painful. |
 | Component library | **Bootstrap 5** classes directly. No `react-bootstrap`, no Tailwind, no Mantine. |
@@ -274,7 +276,7 @@ In our architecture, **our SPA is `top`**. So our SPA installs shims
 for each of these on `window` at startup. The shims translate
 legacy calls into router/state changes:
 
-- `restoreSession()` — `fetch(/library/restoreSession.php)`. No-op shim, just keeps the session warm.
+- `restoreSession()` — **not shimmed.** main_v2.php inlines the real implementation from `library/restoreSession.php`; the SPA leaves it alone. An earlier version of this codebase mistakenly stubbed `top.restoreSession` with an async no-op, on the assumption that it was an HTTP endpoint. It isn't — it's a JS function defined inline by main_v2.php that rewrites `document.cookie` back to *this tab's* PHP-assigned session id, and it's the only mechanism by which parallel logins survive cookie clobber across tabs. The shim's `installTopShims` now leaves any existing `top.restoreSession` intact and only installs a synchronous no-op fallback when nothing else has defined one (standalone test hosts).
 - `set_pid(pid)` / `setPatient(...)` — `router.navigate({ to: '/dashboard/patient/$pid', params: { pid } })`.
 - `clearPatient()` — `router.navigate({ to: '/dashboard' })`, clear patient state.
 - `setEncounter(...)` / `setPatientEncounter(...)` — update SPA encounter context.
@@ -470,6 +472,87 @@ strongest alignment story we have for an OSS port of *the SMART
 reference EHR*. EHR Launch keeps fhirclient and the SMART contract
 intact while removing the only piece of friction (the second
 login).
+
+### Session model — three sessions, three cookies
+
+OpenEMR's auth architecture separates the OAuth session from the
+core session by **cookie name and path scope** (verified against
+`src/Common/Session/SessionConfigurationBuilder.php`):
+
+| Session | Cookie name | Path | SameSite | HttpOnly |
+|---|---|---|---|---|
+| Core OpenEMR | `OpenEMR` | `/` | Strict | **false** |
+| OAuth server | `authserverOpenEMR` | `/oauth2/` | None | true |
+| REST/FHIR API | `apiOpenEMR` | `/apis/` | Strict | true |
+
+**Core session** is what `main.php` / `main_v2.php` / every legacy
+PHP page reads. `httponly: false` is intentional: a JS helper
+(`top.restoreSession()`) rewrites the cookie back to *this tab's*
+PHP-assigned session id when another tab clobbers it. This is the
+load-bearing mechanism for OpenEMR's parallel-login support.
+
+**OAuth session** is per-flow state for `/oauth2/...`. Path-scoped
+to `/oauth2/` so it doesn't reach `/interface/...` requests; the
+core session at `/` doesn't reach `/oauth2/...` either. They live
+in the same browser without colliding by name.
+
+**API session** is bearer-only — the SPA's FHIR calls authenticate
+with the SMART access token, not the cookie. The cookie exists for
+session-bound REST endpoints and isn't part of the SPA's hot path.
+
+The SPA's `agent.php` and `document_view.php` calls use the **core**
+session cookie. Each fetch wrapper calls `top.restoreSession()`
+first (`restoreTopSession()` in `dashboard/src/lib/restoreTopSession.ts`)
+to defend against another tab having clobbered the cookie since
+the SPA mounted. Same convention every legacy AJAX caller in the
+codebase already follows.
+
+### Cross-tab session survival — the bug we fixed
+
+Two tabs sharing one OpenEMR core session can survive each other's
+existence as long as neither destroys the shared session row. The
+upstream behavior of both `main.php` and `main_v2.php` was to call
+`authCloseSession()` on `token_main` mismatch — which destroys the
+session row server-side. When v2's `main_v2_resume.php` rotates
+`token_main_php` after the SMART OAuth round-trip (a normal step
+during patient navigation), the *legacy* tab's `token_main` URL
+parameter no longer matches. Any subsequent legacy-tab request that
+re-runs `main.php`'s bootstrap (a refresh, a navigation back to
+main.php) failed the token check, called `authCloseSession()`, and
+**destroyed the session row both tabs were sharing**. Both tabs
+then 400'd with "Site ID is missing from session data!" from
+`globals.php` on every subsequent request — the symptom open
+question 8 (below) catalogued.
+
+The fix is intentionally minimal and scoped to the two entry-point
+files we own: replace `authCloseSession()` with a non-destructive
+redirect to the login screen. The stale-URL replay defense is
+preserved (the user must re-authenticate, which mints a fresh
+`token_main_php`, so the stolen URL still won't work) — but one
+tab's stale `token_main` no longer kills the other tab's live
+session. This is one of the very few times we modify upstream
+`main.php`; documented as a deliberate, narrow divergence in the
+file's inline comment.
+
+### JWT issuer pinning — Co-Pilot path
+
+The Co-Pilot agent is a sidecar Node service that consumes a JWT
+minted by OpenEMR. The JWT carries an `iss` claim that the agent's
+verifier and OpenEMR's own snapshot endpoints both check. **Both
+sides must compose byte-identical strings.** The minter side
+(`agent.php`) honors `OE_AGENT_JWT_ISSUER` so deploys where
+`site_addr_oath` (OpenEMR's self-URL on the Docker network)
+differs from the agent's `AGENT_JWT_ISSUER` (its externally-facing
+URL) can pin the issuer. Earlier in the project, the verifier
+sides (`snapshot.php` and the narrow agent endpoints) were
+composing the issuer from `site_addr_oath` directly without
+honoring the override; in the dev container that produced
+`http://localhost:8300/oauth2/default` on the verifier side vs.
+`https://localhost:9300/oauth2/default` in the JWT, and every
+Co-Pilot briefing failed with `chart_unavailable`. Resolution
+centralized at `AgentEndpointBootstrap::resolveIssuer` so the
+minter and verifier sides share one source of truth. Pinned by
+`tests/Tests/Isolated/Modules/ClinicalCopilot/ResolveIssuerTest.php`.
 
 ### Why fhirclient
 
@@ -906,19 +989,20 @@ sink later; every call site uses the module rather than raw
    for the SMART contract. If it ever bites in practice, the
    alternative is a non-SMART cookie-only auth model — which
    would give up the "we used the SMART reference client" story.
-8. **OpenEMR PHP-session loss during redirect chain.** During
-   testing we observed a transient state where the OpenEMR PHP
-   session lost its `site_id` value, which causes every legacy
-   AJAX endpoint (`dated_reminders_counter.php`, `messages.php`,
-   `main_info.php`, and our own `main_v2_launch.php`) to 400 with
-   "Site ID is missing from session data!". Couldn't reliably
-   reproduce; the session usually self-heals on the next
-   navigation. The SPA's FHIR/SMART session is independent and
-   continues to work, so the dashboard cards still populate even
-   while the legacy iframe widgets are 400ing. If this turns out
-   to be a real bug rather than dev-environment flakiness, the
-   defense is to detect 400 + "Site ID" in the response and force
-   a fresh login.
+8. **OpenEMR PHP-session loss during redirect chain.** **Resolved.**
+   Two distinct bugs collapsed into the same "Site ID is missing
+   from session data!" symptom. (a) The Co-Pilot JWT issuer
+   mismatch — fixed by `AgentEndpointBootstrap::resolveIssuer`
+   honoring `OE_AGENT_JWT_ISSUER` on both minter and verifier
+   sides. (b) The cross-tab session destruction — fixed by
+   replacing `authCloseSession()` in `main.php` and `main_v2.php`
+   with a non-destructive redirect to the login screen on
+   `token_main` mismatch. Both fixes documented in the Auth
+   section above; covered by the `ResolveIssuerTest` and verified
+   end-to-end in Chrome DevTools (log into legacy → patient →
+   log into v2 → same patient → both tabs survive cleanly). If
+   the symptom recurs, look for a *third* path through
+   `globals.php` line 273 — these were the two we knew about.
 9. **Vitals + Immunizations cards are unbuilt** but their scopes
    are pre-requested. If a clinic's expectations require them at
    merge time, they're each ~30–45 min of work — same shape as

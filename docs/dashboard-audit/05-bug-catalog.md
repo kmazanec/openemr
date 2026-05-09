@@ -383,10 +383,25 @@ nothing is due
 - **Where:** `demographics.php:1062-1063` and many other inline
   anchors throughout the legacy summary pages.
 - **Detail:** Every "doesn't really need it" anchor still has an
-  inline `onclick='top.restoreSession()'` to keep the session warm.
-  CSP-unfriendly, hard to refactor, and drowns out real handlers.
-- **Port note:** A single `fetch` interceptor on the new client can
-  do the keep-alive once.
+  inline `onclick='top.restoreSession()'`. CSP-unfriendly, hard
+  to refactor, and drowns out real handlers.
+- **What it actually does:** *Not* a keep-alive (that was the
+  early read; it's wrong). The function is defined inline by
+  `library/restoreSession.php` and rewrites `document.cookie` back
+  to *this tab's* PHP-assigned session id. It's the load-bearing
+  mechanism for OpenEMR's parallel-login support — `cookie_httponly`
+  is intentionally false on the core session so JS can reclaim the
+  cookie when another tab's login clobbers it. Every legacy AJAX
+  handler calls it before posting to a session-cookie-bound PHP
+  endpoint.
+- **Port note:** A single `fetch` interceptor on the new client
+  invokes it once per request. The dashboard's
+  `restoreTopSession()` helper (`dashboard/src/lib/restoreTopSession.ts`)
+  fronts every same-origin fetch to `agent.php` /
+  `document_view.php`. The SPA's `installTopShims` MUST NOT replace
+  the inlined `top.restoreSession` — an earlier version did, with
+  a stub no-op, and silently broke parallel-login support across
+  tabs.
 
 ---
 
@@ -432,6 +447,39 @@ nothing is due
 - **Port note:** The new app doesn't need this surface — it's a
   legacy mechanism for "log in, here are the tabs you had open last
   time".
+
+---
+
+## B25. `authCloseSession()` on `token_main` mismatch destroys the cross-tab session
+
+- **Severity:** Bug (correctness — production impact).
+- **Where:** `main.php:78-87` and `main_v2.php:95-104` (upstream
+  pattern).
+- **Detail:** Both entry-point scripts called `authCloseSession()`
+  on `token_main` mismatch — which destroys the entire server-side
+  session row. When two tabs share the OpenEMR core session
+  cookie (`OpenEMR`, scoped to `/`), and one tab rotates
+  `token_main_php` (e.g. v2's `main_v2_resume.php` after the SMART
+  OAuth round-trip), the other tab's stale `token_main` URL
+  parameter no longer matches. Any subsequent request from the
+  stale tab — a refresh, a click that re-runs main.php's
+  bootstrap — fails the token check, calls `authCloseSession()`,
+  and destroys the session row both tabs were using. Both tabs
+  then 400 with "Site ID is missing from session data!" from
+  `globals.php` line 273 on every subsequent request. Symptom in
+  PATIENT_DASHBOARD_MIGRATION.md open-question 8.
+- **Why the original code did this:** stale-URL replay defense.
+  A bookmarked main.php URL with an old `token_main` should not
+  be reusable. Destroying the session enforced that.
+- **Port note:** **Fixed** in this branch — replace
+  `authCloseSession()` with a non-destructive redirect to the
+  login screen in both files. The stale-URL replay defense is
+  preserved by the redirect (re-auth mints a fresh
+  `token_main_php`), but the cross-tab session is no longer
+  collateral damage. This is a deliberate, scoped divergence from
+  upstream documented inline in both files. The fix should be
+  filed back to upstream — main.php is upstream code, not unique
+  to our port — but ships in this branch independently.
 
 ---
 
