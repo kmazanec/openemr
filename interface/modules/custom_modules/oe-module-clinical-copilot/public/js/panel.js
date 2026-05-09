@@ -2121,6 +2121,7 @@ const __copilotPanel = (function () {
         'image/png',
         'image/jpeg',
         'image/tiff',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ]);
     const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 

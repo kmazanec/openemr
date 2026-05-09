@@ -25,7 +25,7 @@ export type PipelineStreamEvent =
     | {
           readonly type: 'pipeline.start';
           readonly documentUuid: string;
-          readonly docType: 'lab_pdf' | 'intake_form';
+          readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
           readonly triggerSource: 'panel' | 'autosweep' | 'cli';
       }
     | {

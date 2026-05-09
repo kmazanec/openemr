@@ -63,6 +63,11 @@ final readonly class DocumentUploadController
         'image/png' => 'png',
         'image/jpeg' => 'jpg',
         'image/tiff' => 'tiff',
+        // DOCX content-sniff: `finfo` returns this for OOXML packages
+        // whose first member is `word/document.xml`. Office Open XML
+        // files share a ZIP container with XLSX/PPTX, so the sniff is
+        // type-specific (not just `application/zip`).
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
     ];
 
     // Mirrors `DocumentReferenceWriteService::DOC_TYPE_*` so the
@@ -72,6 +77,7 @@ final readonly class DocumentUploadController
     // `kickoffExtraction` handoff.
     public const DOC_TYPE_LAB_PDF = 'lab_pdf';
     public const DOC_TYPE_INTAKE_FORM = 'intake_form';
+    public const DOC_TYPE_REFERRAL_LETTER = 'referral_letter';
 
     public function __construct(
         private SpacesUploadService $uploadService,
@@ -201,21 +207,27 @@ final readonly class DocumentUploadController
      * agent-side `kickoffExtraction` handoff carries `doc_type` in its
      * args, so a wrong guess here is recoverable.
      *
-     * PDF defaults to `lab_pdf` (the dominant case in the W2 fixture
-     * set); images default to `intake_form` (intake-form pages are
-     * commonly photographed). Filename tokens override the
-     * MIME-derived default.
+     * DOCX defaults to `referral_letter` (the dominant DOCX shape in
+     * clinical workflows). PDFs default to `lab_pdf`; images default to
+     * `intake_form` (intake-form pages are commonly photographed).
+     * Filename tokens override the MIME-derived default.
      */
     private function guessDocType(?string $filename, string $mime): string
     {
         $lower = is_string($filename) ? strtolower($filename) : '';
         if ($lower !== '') {
+            if (str_contains($lower, 'referral') || str_contains($lower, 'consult')) {
+                return self::DOC_TYPE_REFERRAL_LETTER;
+            }
             if (str_contains($lower, 'intake') || str_contains($lower, 'form') || str_contains($lower, 'questionnaire')) {
                 return self::DOC_TYPE_INTAKE_FORM;
             }
             if (str_contains($lower, 'lab') || str_contains($lower, 'cbc') || str_contains($lower, 'a1c') || str_contains($lower, 'panel')) {
                 return self::DOC_TYPE_LAB_PDF;
             }
+        }
+        if ($mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            return self::DOC_TYPE_REFERRAL_LETTER;
         }
         return $mime === 'application/pdf' ? self::DOC_TYPE_LAB_PDF : self::DOC_TYPE_INTAKE_FORM;
     }

@@ -167,6 +167,29 @@ const intakeFormDeltas = (
     };
 };
 
+/**
+ * Compute the referral-letter delta. Referral letters carry the same
+ * categories an intake form does (allergies, current meds, past medical
+ * history) plus pertinent labs — the latter are surfaced via the
+ * extracted-document citation chips on the briefing rather than as a
+ * `new*` array, because labs only become chart records on Tier-3
+ * promotion (matching the lab-PDF stance in `labPdfDeltas`). Patient
+ * identifiers appear under `patient_identifiers`, not
+ * `patient_demographics`, so demographics-deltas don't apply directly
+ * to this doc-type.
+ */
+const referralLetterDeltas = (
+    schema: unknown,
+    chart: ChartSnapshot,
+): ExtractedFactsDelta => {
+    return {
+        newAllergies: newAllergies(schema, chart),
+        newDiagnoses: newDiagnoses(schema, chart),
+        newMedications: newMedications(schema, chart),
+        demographicsChanges: [],
+    };
+};
+
 const newAllergies = (schema: unknown, chart: ChartSnapshot): readonly NewAllergyDelta[] => {
     const known = new Set(
         chart.allergies.map((a) => normalizeForCompare(a.substance)).filter((s) => s.length > 0),
@@ -253,11 +276,19 @@ const demographicsDeltas = (
 };
 
 const dispatchDeltas = (
-    docType: 'lab_pdf' | 'intake_form',
+    docType: 'lab_pdf' | 'intake_form' | 'referral_letter',
     schema: unknown,
     chart: ChartSnapshot,
-): ExtractedFactsDelta =>
-    docType === 'lab_pdf' ? labPdfDeltas(schema) : intakeFormDeltas(schema, chart);
+): ExtractedFactsDelta => {
+    switch (docType) {
+        case 'lab_pdf':
+            return labPdfDeltas(schema);
+        case 'intake_form':
+            return intakeFormDeltas(schema, chart);
+        case 'referral_letter':
+            return referralLetterDeltas(schema, chart);
+    }
+};
 
 export const emitDeltas = async (
     state: PipelineState,

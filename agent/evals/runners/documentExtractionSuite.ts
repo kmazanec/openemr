@@ -43,15 +43,15 @@ import {
     type UploadResult,
 } from './shared.js';
 
-export const DATASET_NAME = 'clinical-copilot-document-extraction-v1';
+export const DATASET_NAME = 'clinical-copilot-document-extraction-v2';
 
 const DATASET_DESCRIPTION =
-    'Document-extraction pipeline evals - 26 cases (8 lab PDF + 8 intake form + 6 degraded + 4 adversarial). Inputs encode the manifest entry; outputs encode expectedStatus + expectedErrorCode the pipeline must reach. The per-MR Vitest layer runs the same case set with the stub vision invoker (deterministic); the nightly experiment runs against real Anthropic Sonnet 4.x. Bump DATASET_NAME from -v1 when the input/output shape changes so prior experiments stay comparable.';
+    'Document-extraction pipeline evals - 29 cases (8 lab PDF + 8 intake form + 3 referral letter + 6 degraded + 4 adversarial). Inputs encode the manifest entry; outputs encode expectedStatus + expectedErrorCode the pipeline must reach. The per-MR Vitest layer runs the same case set with the stub vision invoker (deterministic); the nightly experiment runs against real Anthropic Sonnet 4.x. Bump DATASET_NAME when the input/output shape changes so prior experiments stay comparable.';
 
 interface DocumentExtractionInputs {
     readonly caseId: string;
     readonly caseKind: string;
-    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     readonly archetype: string;
     /** Plain-language description so the LangSmith UI is readable without a code crossreference. */
     readonly description: string;

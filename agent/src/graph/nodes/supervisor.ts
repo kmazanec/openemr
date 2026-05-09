@@ -97,7 +97,7 @@ export interface SupervisorStateObservation {
      */
     readonly pendingUploads: readonly {
         readonly documentUuid: string;
-        readonly docType: 'lab_pdf' | 'intake_form';
+        readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     }[];
     /**
      * `kickoffExtraction` results appended on this turn, projected
@@ -254,7 +254,9 @@ const presentCategoryFlags = (state: BriefingState): readonly string[] => {
  * entry; multi-doc turns get a generic phrasing.
  */
 const buildImplicitQuestion = (
-    pendingUploads: readonly { readonly docType: 'lab_pdf' | 'intake_form' }[],
+    pendingUploads: readonly {
+        readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
+    }[],
 ): string | null => {
     if (pendingUploads.length === 0) return null;
     if (pendingUploads.length > 1) {
@@ -262,11 +264,14 @@ const buildImplicitQuestion = (
     }
     const first = pendingUploads[0];
     if (first === undefined) return null;
-    if (first.docType === 'lab_pdf') {
-        return 'What does this lab tell us about the patient, how does it compare to prior results, and what should I consider doing about it given applicable guidelines?';
+    switch (first.docType) {
+        case 'lab_pdf':
+            return 'What does this lab tell us about the patient, how does it compare to prior results, and what should I consider doing about it given applicable guidelines?';
+        case 'intake_form':
+            return 'What does this intake form tell us about the patient, and what should I consider doing given the chart and applicable guidelines?';
+        case 'referral_letter':
+            return 'What does this referral letter tell us about the patient, what is the referring provider asking us to address, and what should I consider doing given the chart and applicable guidelines?';
     }
-    // intake_form
-    return 'What does this intake form tell us about the patient, and what should I consider doing given the chart and applicable guidelines?';
 };
 
 const observeState = (state: BriefingState): SupervisorStateObservation => {

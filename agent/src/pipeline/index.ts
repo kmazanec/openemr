@@ -52,6 +52,7 @@ export const PipelineStateAnnotation = Annotation.Root({
     pid: Annotation<number>,
     triggerSource: Annotation<TriggerSource>,
     pages: lastValueChannel<readonly PageImage[]>(() => []),
+    documentText: lastValueChannel<string | null>(() => null),
     schema: lastValueChannel<unknown>(() => null),
     artifactId: lastValueChannel<string | null>(() => null),
     confidenceSignal: lastValueChannel<ConfidenceSignal | null>(() => null),

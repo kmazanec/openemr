@@ -9,6 +9,7 @@ import {
   overlayStyleForBbox,
   type Bbox,
 } from '../lib/bbox';
+import { extractDocxText, DocxParseError } from '../lib/docxText';
 import { classifyMime, type DocumentMimeKind } from '../lib/mime';
 import { loadPdfJs, type PdfJsImporter } from '../lib/pdfjsLoader';
 import { restoreTopSession } from '../lib/restoreTopSession';
@@ -59,6 +60,12 @@ interface FetchedDocument {
  *   - `image/tiff` → "preview not supported" placeholder + download
  *     link. The PHP responder normally TIFF→PNG decodes server-side;
  *     this branch is the fallback when decoding is unavailable.
+ *   - `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+ *     (DOCX) → extracts plain text in the browser via
+ *     `lib/docxText.ts` and renders it in a `<pre>` block. The cited
+ *     span lives in `bbox = [charStart, charEnd, 0, 0]` (the agent's
+ *     DOCX text-mode encoding) — the renderer slices the text by
+ *     those offsets and wraps the slice in a highlighted `<mark>`.
  *   - Anything else → "preview not supported".
  *
  * The bbox overlay is the same primitive across PDF and image
@@ -66,6 +73,8 @@ interface FetchedDocument {
  * page element's containing block. Coordinates ride on the same
  * 0..1000 grid the vision pipeline records, so a single CSS
  * percentage scales with whatever pixel size the page renders at.
+ * The DOCX branch reads the same `bbox` slot but interprets the
+ * first two components as `[charStart, charEnd]` rather than `[x, y]`.
  */
 export function DocumentViewerDrawer({
   args,
@@ -284,6 +293,8 @@ function DocumentBody({
           downloadUrl={downloadUrl}
         />
       );
+    case 'docx':
+      return <DocxBody blob={doc.blob} bbox={args.bbox} downloadUrl={downloadUrl} />;
     case 'unsupported':
       return (
         <UnsupportedPlaceholder
@@ -460,6 +471,113 @@ function PdfBody({
           {phase.error}
         </div>
       )}
+    </div>
+  );
+}
+
+function DocxBody({
+  blob,
+  bbox,
+  downloadUrl,
+}: {
+  blob: Blob;
+  bbox: Bbox | null;
+  downloadUrl: string;
+}): ReactElement {
+  const [state, setState] = useState<
+    | { kind: 'extracting' }
+    | { kind: 'ready'; text: string }
+    | { kind: 'error'; message: string }
+  >({ kind: 'extracting' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: 'extracting' });
+    void (async () => {
+      try {
+        const buf = await blob.arrayBuffer();
+        const text = await extractDocxText(buf);
+        if (!cancelled) setState({ kind: 'ready', text });
+      } catch (err) {
+        if (cancelled) return;
+        const message =
+          err instanceof DocxParseError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'DOCX extraction failed';
+        setState({ kind: 'error', message });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [blob]);
+
+  if (state.kind === 'extracting') {
+    return <div className="text-body-secondary small">Extracting document text…</div>;
+  }
+  if (state.kind === 'error') {
+    return <ErrorPlaceholder message={state.message} downloadUrl={downloadUrl} />;
+  }
+
+  // Highlight the cited span if bbox is shaped as [charStart, charEnd, *, *]
+  // (the agent encodes DOCX citations with character offsets in the
+  // first two bbox slots). A bbox that's missing or doesn't slice into
+  // the text falls through to plain rendering — the verifier's
+  // tuple-equality check is what validates the slice integrity, not
+  // the renderer.
+  const text = state.text;
+  let before = text;
+  let highlight = '';
+  let after = '';
+  if (bbox !== null && isFiniteBbox(bbox)) {
+    const start = Math.max(0, Math.floor(bbox[0]));
+    const end = Math.max(start, Math.floor(bbox[1]));
+    if (end > start && start < text.length) {
+      const safeEnd = Math.min(end, text.length);
+      before = text.slice(0, start);
+      highlight = text.slice(start, safeEnd);
+      after = text.slice(safeEnd);
+    }
+  }
+
+  return (
+    <div
+      className="copilot-doc-viewer__docx"
+      data-testid="copilot-doc-docx-wrapper"
+      style={{ position: 'relative', maxWidth: '100%' }}
+    >
+      <pre
+        data-testid="copilot-doc-docx-body"
+        style={{
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          fontFamily:
+            '"SFMono-Regular", "Menlo", "Consolas", monospace',
+          fontSize: '0.85rem',
+          background: '#fff',
+          border: '1px solid #dee2e6',
+          borderRadius: 4,
+          padding: '0.75rem',
+          margin: 0,
+        }}
+      >
+        {before}
+        {highlight !== '' && (
+          <mark
+            data-testid="copilot-doc-docx-highlight"
+            style={{
+              background: 'rgba(255, 215, 0, 0.45)',
+              padding: '0 1px',
+              borderRadius: 2,
+            }}
+          >
+            {highlight}
+          </mark>
+        )}
+        {after}
+      </pre>
     </div>
   );
 }

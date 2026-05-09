@@ -37,7 +37,7 @@ final readonly class ExtractController
 {
     public const ACTION = 'extract';
 
-    private const VALID_DOC_TYPES = ['lab_pdf', 'intake_form'];
+    private const VALID_DOC_TYPES = ['lab_pdf', 'intake_form', 'referral_letter'];
     private const VALID_TRIGGER_SOURCES = ['panel', 'autosweep', 'cli'];
     private const MAX_DOCUMENT_UUID_LEN = 200;
     private const MAX_CONVERSATION_ID_LEN = 200;

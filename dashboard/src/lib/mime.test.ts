@@ -25,6 +25,14 @@ describe('classifyMime', () => {
     expect(classifyMime('image/tiff')).toBe('tiff');
   });
 
+  it('classifies DOCX so the side panel can text-render referrals', () => {
+    expect(
+      classifyMime(
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ),
+    ).toBe('docx');
+  });
+
   it('returns unsupported for anything else', () => {
     expect(classifyMime('text/html')).toBe('unsupported');
     expect(classifyMime('image/gif')).toBe('unsupported');

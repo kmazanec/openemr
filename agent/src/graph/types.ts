@@ -209,7 +209,7 @@ export interface PriorTurnContext {
  */
 export interface PendingUpload {
     readonly documentUuid: string;
-    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     /**
      * File extension of the canonical Spaces object the upload landed
      * at — `pdf`, `png`, `jpg`, `jpeg`, `tiff`. The pipeline's rasterize
@@ -410,7 +410,7 @@ export interface EvidenceRetrieverOutput {
 export interface ExtractedFactSnippet {
     readonly artifactId: string;
     readonly documentUuid: string;
-    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     readonly fieldPath: string;
     readonly value: unknown;
     readonly page: number;
@@ -797,7 +797,7 @@ export type KickoffExtractionArgs = z.infer<typeof KickoffExtractionArgsSchema>;
  */
 export interface KickoffExtractionResult {
     readonly documentUuid: string;
-    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     readonly status: 'persisted' | 'failed';
     readonly artifactId: string | null;
     /**

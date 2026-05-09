@@ -24,6 +24,9 @@ const COVERED_CASE_KINDS = new Set([
     'intake-form-clean',
     'intake-form-image',
     'intake-form-demographics-delta',
+    // referral-letter/
+    'referral-letter-clean',
+    'referral-letter-wrong-patient',
     // degraded/
     'degraded-smudged',
     'degraded-rotated',
@@ -45,12 +48,12 @@ describe('§B.10 stubbed-only coverage', () => {
         expect(uncovered.map((e) => `${e.id}/${e.caseKind}`)).toEqual([]);
     });
 
-    it('exactly 26 cases land', async () => {
+    it('exactly 29 cases land', async () => {
         const entries = await allEntries();
-        expect(entries.length).toBe(26);
+        expect(entries.length).toBe(29);
     });
 
-    it('case-kind balance matches the W2 plan: 8 lab + 8 intake + 6 degraded + 4 adversarial', async () => {
+    it('case-kind balance: 8 lab + 8 intake + 3 referral + 6 degraded + 4 adversarial', async () => {
         const entries = await allEntries();
         const labKinds = new Set([
             'lab-pdf-clean',
@@ -62,6 +65,10 @@ describe('§B.10 stubbed-only coverage', () => {
             'intake-form-clean',
             'intake-form-image',
             'intake-form-demographics-delta',
+        ]);
+        const referralKinds = new Set([
+            'referral-letter-clean',
+            'referral-letter-wrong-patient',
         ]);
         const degradedKinds = new Set([
             'degraded-smudged',
@@ -79,10 +86,12 @@ describe('§B.10 stubbed-only coverage', () => {
         ]);
         const labCount = entries.filter((e) => labKinds.has(e.caseKind)).length;
         const intakeCount = entries.filter((e) => intakeKinds.has(e.caseKind)).length;
+        const referralCount = entries.filter((e) => referralKinds.has(e.caseKind)).length;
         const degradedCount = entries.filter((e) => degradedKinds.has(e.caseKind)).length;
         const adversarialCount = entries.filter((e) => adversarialKinds.has(e.caseKind)).length;
         expect(labCount).toBe(8);
         expect(intakeCount).toBe(8);
+        expect(referralCount).toBe(3);
         expect(degradedCount).toBe(6);
         expect(adversarialCount).toBe(4);
     });

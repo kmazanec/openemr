@@ -88,13 +88,12 @@ final readonly class DocumentReferenceController
         }
 
         $docTypeRaw = $body['doc_type'] ?? null;
-        if (
-            !is_string($docTypeRaw)
-            || (
-                $docTypeRaw !== DocumentReferenceWriteService::DOC_TYPE_LAB_PDF
-                && $docTypeRaw !== DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM
-            )
-        ) {
+        $validDocTypes = [
+            DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
+            DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM,
+            DocumentReferenceWriteService::DOC_TYPE_REFERRAL_LETTER,
+        ];
+        if (!is_string($docTypeRaw) || !in_array($docTypeRaw, $validDocTypes, true)) {
             $this->respondError(400, 'invalid_doc_type');
             return;
         }

@@ -129,14 +129,19 @@ interface AppDeps {
  */
 const pendingUploadSchema = z.object({
     documentUuid: z.string().min(1).max(200),
-    docType: z.union([z.literal('lab_pdf'), z.literal('intake_form')]),
+    docType: z.union([
+        z.literal('lab_pdf'),
+        z.literal('intake_form'),
+        z.literal('referral_letter'),
+    ]),
     // Canonical Spaces object extension. Constrained to the set the
     // upload endpoint returns; rasterize's image-passthrough path
     // hinges on this matching the actual stored bytes (PDF gets
     // multi-page rasterized, image extensions pass through as one
-    // page). Without this the supervisor's kickoffExtraction call
-    // would default to `.pdf` and 404 on every PNG/JPEG upload.
-    canonicalExt: z.enum(['pdf', 'png', 'jpg', 'jpeg', 'tiff']),
+    // page, DOCX text-extracted). Without this the supervisor's
+    // kickoffExtraction call would default to `.pdf` and 404 on every
+    // PNG/JPEG/DOCX upload.
+    canonicalExt: z.enum(['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'docx']),
 });
 
 const briefingRequestSchema = z

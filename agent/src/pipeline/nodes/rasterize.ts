@@ -28,6 +28,7 @@ import {
     type CanonicalDocumentFallbackClient,
 } from '../../storage/canonicalDocumentFallback.js';
 import { keyForCanonical, keyForTransientPage, type SpacesClient } from '../../storage/spaces.js';
+import { DocxParseError, extractDocxText } from '../docxText.js';
 import { type PageImage, type PipelineError, type PipelineState } from '../state.js';
 import { type Rasterizer } from '../rasterizer.js';
 
@@ -104,6 +105,8 @@ const isImageExt = (ext: string): boolean => {
 
 const isPdfExt = (ext: string): boolean => ext.replace(/^\.+/, '').toLowerCase() === 'pdf';
 
+const isDocxExt = (ext: string): boolean => ext.replace(/^\.+/, '').toLowerCase() === 'docx';
+
 const deriveContentType = (ext: string): string => {
     const e = ext.replace(/^\.+/, '').toLowerCase();
     switch (e) {
@@ -113,6 +116,8 @@ const deriveContentType = (ext: string): string => {
         case 'jpeg': return 'image/jpeg';
         case 'tiff':
         case 'tif': return 'image/tiff';
+        case 'docx':
+            return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         default: return 'application/octet-stream';
     }
 };
@@ -226,6 +231,49 @@ export const rasterize = async (
             return fail(state, {
                 code: 'storage-unreachable',
                 message: 'failed to mint signed URL for canonical image',
+            });
+        }
+    }
+
+    if (isDocxExt(canonicalExt)) {
+        // Text-mode extraction: DOCX is machine-readable, so we skip
+        // rasterization + signed-URL minting entirely and hand the
+        // extracted plain text to the vision node, which dispatches on
+        // docType to use a text-only Anthropic call. The cost-cap
+        // pre-flight does not apply (no per-page image tokens).
+        try {
+            const payload = extractDocxText(canonicalBytes);
+            logger.info(
+                {
+                    documentUuid: state.documentUuid,
+                    textLength: payload.text.length,
+                    sourceXmlBytes: payload.sourceXmlByteCount,
+                    mode: 'docx-text-passthrough',
+                },
+                'rasterize: DOCX bytes converted to plain text',
+            );
+            return { documentText: payload.text, status: 'rasterized' };
+        } catch (err) {
+            // Distinguish DocxParseError (corrupted/non-DOCX bytes —
+            // the same shape as a corrupted PDF) from anything else
+            // (logic bug — surface as rasterize_failed for visibility).
+            if (err instanceof DocxParseError) {
+                logger.error(
+                    { documentUuid: state.documentUuid, err: err.message },
+                    'rasterize: DOCX parse failed',
+                );
+                return fail(state, {
+                    code: 'rasterize_failed',
+                    message: 'DOCX parse failed (corrupted bytes?)',
+                });
+            }
+            logger.error(
+                { documentUuid: state.documentUuid, err: String(err) },
+                'rasterize: unexpected DOCX text extraction error',
+            );
+            return fail(state, {
+                code: 'rasterize_failed',
+                message: 'DOCX text extraction failed unexpectedly',
             });
         }
     }

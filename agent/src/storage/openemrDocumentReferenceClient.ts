@@ -27,7 +27,7 @@ const TIER1_PATH =
 
 export interface WriteDocumentReferenceInput {
     readonly pid: number;
-    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     readonly documentUuid: string;
     readonly token: string;
     readonly siteId: string;

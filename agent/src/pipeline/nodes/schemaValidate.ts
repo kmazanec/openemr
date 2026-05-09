@@ -27,6 +27,7 @@ import type { z } from 'zod';
 import { setRunMetadata } from '../../observability/traceMetadata.js';
 import { intakeFormSchema } from '../schemas/intakeForm.js';
 import { labPdfSchema } from '../schemas/labPdf.js';
+import { referralLetterSchema } from '../schemas/referralLetter.js';
 import {
     type PipelineError,
     type PipelineState,
@@ -120,6 +121,8 @@ const schemaForDocType = (docType: PipelineState['docType']): z.ZodTypeAny => {
             return labPdfSchema;
         case 'intake_form':
             return intakeFormSchema;
+        case 'referral_letter':
+            return referralLetterSchema;
     }
 };
 

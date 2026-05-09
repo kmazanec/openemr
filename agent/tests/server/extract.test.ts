@@ -19,6 +19,7 @@ const baseFinalState = (overrides: Partial<PipelineState> = {}): PipelineState =
     pid: baseRequest.pid,
     triggerSource: baseRequest.trigger_source,
     pages: [],
+    documentText: null,
     schema: null,
     artifactId: 'artifact-1',
     confidenceSignal: null,

@@ -55,17 +55,29 @@ interface CitedField {
 const looksLikeCitedField = (v: unknown): v is CitedField =>
     v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>);
 
+/**
+ * Pull a cited demographic string out of the extracted schema.
+ *
+ * Lab and intake-form schemas group these under
+ * `patient_demographics`. Referral letters group them under
+ * `patient_identifiers` (with the same `{value, page, bbox, quote,
+ * confidence}` envelope). Fall back from one to the other so the same
+ * matcher serves all three doc types.
+ */
 const extractCitedString = (
     schema: unknown,
     field: 'name' | 'dob',
 ): string | null => {
     if (schema === null || typeof schema !== 'object') return null;
     const root = schema as Record<string, unknown>;
-    const demographics = root['patient_demographics'];
-    if (demographics === null || typeof demographics !== 'object') return null;
-    const cited = (demographics as Record<string, unknown>)[field];
-    if (!looksLikeCitedField(cited)) return null;
-    return typeof cited.value === 'string' ? cited.value : null;
+    for (const containerKey of ['patient_demographics', 'patient_identifiers'] as const) {
+        const container = root[containerKey];
+        if (container === null || typeof container !== 'object') continue;
+        const cited = (container as Record<string, unknown>)[field];
+        if (!looksLikeCitedField(cited)) continue;
+        if (typeof cited.value === 'string') return cited.value;
+    }
+    return null;
 };
 
 const fail = (state: PipelineState, error: PipelineError): Partial<PipelineState> => ({

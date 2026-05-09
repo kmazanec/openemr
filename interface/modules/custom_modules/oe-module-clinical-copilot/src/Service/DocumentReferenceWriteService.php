@@ -45,6 +45,13 @@ final readonly class DocumentReferenceWriteService
 {
     public const DOC_TYPE_LAB_PDF = 'lab_pdf';
     public const DOC_TYPE_INTAKE_FORM = 'intake_form';
+    public const DOC_TYPE_REFERRAL_LETTER = 'referral_letter';
+
+    private const VALID_DOC_TYPES = [
+        self::DOC_TYPE_LAB_PDF,
+        self::DOC_TYPE_INTAKE_FORM,
+        self::DOC_TYPE_REFERRAL_LETTER,
+    ];
 
     public function __construct(
         private DocumentTableWriter $tableWriter,
@@ -69,7 +76,7 @@ final readonly class DocumentReferenceWriteService
      * fresh UUID.
      *
      * @param int $pid Patient row id (`documents.foreign_id`).
-     * @param string $docType Either {@see DOC_TYPE_LAB_PDF} or {@see DOC_TYPE_INTAKE_FORM}.
+     * @param string $docType One of {@see DOC_TYPE_LAB_PDF}, {@see DOC_TYPE_INTAKE_FORM}, {@see DOC_TYPE_REFERRAL_LETTER}.
      * @param string $url Local file URL (`file://<absolute-path>`).
      * @param string $mimeType MIME type of the canonical bytes (e.g. `application/pdf`).
      * @param string $filename Display filename for the document UI.
@@ -91,7 +98,7 @@ final readonly class DocumentReferenceWriteService
         if ($pid <= 0) {
             throw new \DomainException('pid must be positive');
         }
-        if ($docType !== self::DOC_TYPE_LAB_PDF && $docType !== self::DOC_TYPE_INTAKE_FORM) {
+        if (!in_array($docType, self::VALID_DOC_TYPES, true)) {
             throw new \DomainException("unknown docType '{$docType}'");
         }
         if ($url === '' || $mimeType === '' || $filename === '') {
@@ -188,7 +195,7 @@ final readonly class DocumentReferenceWriteService
         if ($pid <= 0) {
             throw new \DomainException('pid must be positive');
         }
-        if ($docType !== self::DOC_TYPE_LAB_PDF && $docType !== self::DOC_TYPE_INTAKE_FORM) {
+        if (!in_array($docType, self::VALID_DOC_TYPES, true)) {
             throw new \DomainException("unknown docType '{$docType}'");
         }
         if ($documentUuid === '') {
