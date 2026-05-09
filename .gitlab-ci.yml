@@ -285,6 +285,16 @@ test:agent-evals-gate:
         npm run evals:upload-dataset && \
         npm run evals:gate
       '
+  # `runGate` writes the rendered markdown report to this path before
+  # returning. Archiving it as an artifact makes the verdict, slice
+  # rates, removed cases, and flipped-cell list recoverable past the
+  # job log + MR comment — useful when triaging a regression weeks
+  # later. `when: always` so a gate-fail job (exit 1) still uploads.
+  artifacts:
+    paths:
+    - agent/eval-gate-report.md
+    expire_in: 90 days
+    when: always
 
 deploy:
   <<: *runner-tags
