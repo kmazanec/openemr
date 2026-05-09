@@ -32,7 +32,7 @@
  * lives in `runGate()` and `main()`, neither of which the tests touch.
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -55,6 +55,8 @@ import { DATASET_NAME as DOCUMENT_EXTRACTION_DATASET_NAME } from '../evals/runne
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASELINE_PATH = join(HERE, '..', 'evals', 'baselines', 'eval-suite.json');
+/** Markdown report path. The CI job declares this file as an artifact so it survives past the job log. */
+const REPORT_PATH = join(HERE, '..', 'eval-gate-report.md');
 
 /** Tolerance: > 5% of scored cells flipped → fail the gate. */
 export const REGRESSION_RATE_TOLERANCE = 0.05;
@@ -98,6 +100,34 @@ export interface SkippedCell {
     readonly reason: string;
 }
 
+/**
+ * Per-(dataset, rubric) regression slice. The pooled denominator can
+ * mask a single rubric collapsing on a small dataset — a slice that
+ * regresses 100% on a 5-case dataset looks like 5/100 = 5% globally.
+ * The brief's "no category regresses by more than 5%" reading is per
+ * (dataset, rubric); both the pooled and the per-slice rule must pass.
+ */
+export interface RegressionSlice {
+    readonly dataset: string;
+    readonly rubric: RubricKey;
+    readonly totalScoredCells: number;
+    readonly flippedCells: number;
+    readonly regressionRate: number;
+    readonly underTolerance: boolean;
+}
+
+/**
+ * A baselined case whose live counterpart has zero cells. A
+ * fully-removed case is a structural change to the eval surface and
+ * requires an explicit rebaseline step; it is not absorbed by the
+ * cell-level missing-from-live treatment because the case may have had
+ * baseline-`false` cells that today aren't punished for going missing.
+ */
+export interface RemovedBaselineCase {
+    readonly dataset: string;
+    readonly caseId: string;
+}
+
 export interface CompareResult {
     readonly flipped: readonly FlippedCell[];
     readonly skipped: readonly SkippedCell[];
@@ -113,6 +143,10 @@ export interface CompareResult {
      * specific cause rather than silently ignoring rows.
      */
     readonly unknownLiveCells: readonly { dataset: string; caseId: string; rubric: RubricKey }[];
+    /** Per-(dataset, rubric) slice rates. The gate fails if any slice trips. */
+    readonly slices: readonly RegressionSlice[];
+    /** Baselined cases with zero live cells. Forces rebaseline on case removal. */
+    readonly removedBaselineCases: readonly RemovedBaselineCase[];
 }
 
 const isRubricKey = (key: string): key is RubricKey =>
@@ -122,6 +156,17 @@ const isRubricKey = (key: string): key is RubricKey =>
  * Pure comparison: takes a baseline shape, a list of live cells, and
  * the set of (dataset, caseId) pairs to skip. Returns the regression
  * decision. Has no I/O — eval-gate.test.ts feeds it synthetic shapes.
+ *
+ * The gate enforces three rules and fails when any trips:
+ *   1. Pooled regression rate ≤ tolerance.
+ *   2. Per-(dataset, rubric) slice regression rate ≤ tolerance — a
+ *      single rubric collapsing on a small dataset must not hide
+ *      under the global denominator.
+ *   3. No baselined case fully disappears from live (case removal
+ *      requires an explicit rebaseline step).
+ *
+ * Plus the existing drift checks (unknown live cells, missing-from-live
+ * for baseline-`true` cells).
  */
 export const compareLiveAgainstBaseline = (
     baseline: BaselineFile,
@@ -130,12 +175,19 @@ export const compareLiveAgainstBaseline = (
 ): CompareResult => {
     // Index live cells for O(1) lookup keyed by `${dataset}::${caseId}::${rubric}`.
     const liveByKey = new Map<string, boolean>();
+    // Track which (dataset, caseId) pairs have any live cells at all
+    // for the M15 case-removal check.
+    const liveCasePresent = new Set<string>();
     for (const c of liveCells) {
         liveByKey.set(`${c.dataset}::${c.caseId}::${c.rubric}`, c.score);
+        liveCasePresent.add(`${c.dataset}::${c.caseId}`);
     }
 
     const flipped: FlippedCell[] = [];
     const unknownLiveCells: { dataset: string; caseId: string; rubric: RubricKey }[] = [];
+    const removedBaselineCases: RemovedBaselineCase[] = [];
+    // Per-slice tallies: key `${dataset}::${rubric}` → (total, flipped).
+    const sliceTallies = new Map<string, { total: number; flipped: number }>();
     let totalScoredCells = 0;
 
     // Walk baseline. Each baselined cell that is not skipped contributes
@@ -145,10 +197,21 @@ export const compareLiveAgainstBaseline = (
         for (const [caseId, row] of Object.entries(dataset.cases)) {
             const skipKey = `${datasetName}::${caseId}`;
             if (skippedCases.has(skipKey)) continue;
+            // M15: a baselined case with zero live cells (post-skip) is
+            // a structural removal that must force a rebaseline. We
+            // record it once per case; cell-level missing-from-live
+            // logic still runs below for baseline-`true` cells that
+            // would otherwise hide a regression.
+            if (!liveCasePresent.has(skipKey)) {
+                removedBaselineCases.push({ dataset: datasetName, caseId });
+            }
             for (const [rubricStr, baselineScore] of Object.entries(row)) {
                 if (!isRubricKey(rubricStr)) continue;
                 const rubric: RubricKey = rubricStr;
                 totalScoredCells++;
+                const sliceKey = `${datasetName}::${rubric}`;
+                const tally = sliceTallies.get(sliceKey) ?? { total: 0, flipped: 0 };
+                tally.total++;
                 const key = `${datasetName}::${caseId}::${rubric}`;
                 const liveScore = liveByKey.get(key);
                 if (liveScore === undefined) {
@@ -157,8 +220,8 @@ export const compareLiveAgainstBaseline = (
                     // either dropped the case or LangSmith dropped the
                     // feedback. Either way, treat as flipped iff the
                     // baseline was `true` (we don't punish baseline-`false`
-                    // cells for going missing — they were already
-                    // failing).
+                    // cells for going missing — the M15 case-removal
+                    // check covers that gap structurally).
                     if (baselineScore === true) {
                         flipped.push({
                             dataset: datasetName,
@@ -167,7 +230,9 @@ export const compareLiveAgainstBaseline = (
                             baseline: baselineScore,
                             live: 'missing',
                         });
+                        tally.flipped++;
                     }
+                    sliceTallies.set(sliceKey, tally);
                     continue;
                 }
                 if (baselineScore === true && liveScore === false) {
@@ -178,7 +243,9 @@ export const compareLiveAgainstBaseline = (
                         baseline: baselineScore,
                         live: liveScore,
                     });
+                    tally.flipped++;
                 }
+                sliceTallies.set(sliceKey, tally);
             }
         }
     }
@@ -209,11 +276,45 @@ export const compareLiveAgainstBaseline = (
         skipped.push({ dataset, caseId, reason: 'vendor-outage' });
     }
 
-    const regressionRate = totalScoredCells === 0 ? 0 : flipped.length / totalScoredCells;
-    const underTolerance =
-        regressionRate <= REGRESSION_RATE_TOLERANCE && unknownLiveCells.length === 0;
+    // Materialize per-slice rates. Sort for stable test + report output.
+    const slices: RegressionSlice[] = [];
+    for (const [sliceKey, tally] of sliceTallies) {
+        const [datasetName, rubricStr] = sliceKey.split('::');
+        if (datasetName === undefined || rubricStr === undefined) continue;
+        if (!isRubricKey(rubricStr)) continue;
+        const rate = tally.total === 0 ? 0 : tally.flipped / tally.total;
+        slices.push({
+            dataset: datasetName,
+            rubric: rubricStr,
+            totalScoredCells: tally.total,
+            flippedCells: tally.flipped,
+            regressionRate: rate,
+            underTolerance: rate <= REGRESSION_RATE_TOLERANCE,
+        });
+    }
+    slices.sort((a, b) => {
+        if (a.dataset !== b.dataset) return a.dataset.localeCompare(b.dataset);
+        return a.rubric.localeCompare(b.rubric);
+    });
 
-    return { flipped, skipped, totalScoredCells, regressionRate, underTolerance, unknownLiveCells };
+    const regressionRate = totalScoredCells === 0 ? 0 : flipped.length / totalScoredCells;
+    const allSlicesUnder = slices.every((s) => s.underTolerance);
+    const underTolerance =
+        regressionRate <= REGRESSION_RATE_TOLERANCE
+        && allSlicesUnder
+        && unknownLiveCells.length === 0
+        && removedBaselineCases.length === 0;
+
+    return {
+        flipped,
+        skipped,
+        totalScoredCells,
+        regressionRate,
+        underTolerance,
+        unknownLiveCells,
+        slices,
+        removedBaselineCases,
+    };
 };
 
 /**
@@ -305,6 +406,29 @@ export const renderMarkdownReport = (
     lines.push(
         `Estimated cost: $${costSummary.totalUsd.toFixed(2)} / $${costSummary.hardCapUsd.toFixed(2)} cap.`,
     );
+    const failingSlices = result.slices.filter((s) => !s.underTolerance);
+    if (failingSlices.length > 0) {
+        lines.push('');
+        lines.push(`### Per-(dataset, rubric) slice regressions`);
+        lines.push(
+            'Each slice is checked against the same tolerance as the pooled rate. A small dataset where one rubric collapses can pass the pooled rule but fail here.',
+        );
+        for (const s of failingSlices) {
+            lines.push(
+                `- \`${s.dataset}::${s.rubric}\` — **${(s.regressionRate * 100).toFixed(1)}%** (${s.flippedCells}/${s.totalScoredCells})`,
+            );
+        }
+    }
+    if (result.removedBaselineCases.length > 0) {
+        lines.push('');
+        lines.push(`### Removed baseline cases`);
+        lines.push(
+            'Cases present in the baseline produced zero live cells. Case removal is a structural change to the eval surface — rebaseline (deliberate) or restore the missing case.',
+        );
+        for (const c of result.removedBaselineCases) {
+            lines.push(`- \`${c.dataset}::${c.caseId}\``);
+        }
+    }
     if (result.unknownLiveCells.length > 0) {
         lines.push('');
         lines.push(`### Drift detected (live cells with no baseline counterpart)`);
@@ -413,11 +537,21 @@ export const runGate = async (
         readonly clientFactory?: (apiKey: string) => Client;
         readonly baselinePath?: string;
         readonly vendorReports?: readonly VendorReport[];
+        /** Test seam: override the cost estimator so the runGate path stays hermetic. */
+        readonly estimateCostImpl?: typeof estimateCost;
+        /**
+         * Path to write the rendered markdown report to. Defaults to
+         * `agent/eval-gate-report.md`; the CI job declares this file as
+         * an `artifacts.paths` entry so it survives past the job log.
+         * Tests pass a tmp path to assert the file is written.
+         */
+        readonly reportPath?: string;
     } = {},
 ): Promise<RunGateResult> => {
     const baseline = await loadBaseline(options.baselinePath);
 
-    const cost = await estimateCost();
+    const costEstimator = options.estimateCostImpl ?? estimateCost;
+    const cost = await costEstimator();
     if (!cost.underCap) {
         throw new Error(
             `eval-gate: cost estimate $${cost.totalUsd.toFixed(2)} exceeds hard cap $${cost.hardCapUsd.toFixed(2)}`,
@@ -458,6 +592,18 @@ export const runGate = async (
         totalUsd: cost.totalUsd,
         hardCapUsd: cost.hardCapUsd,
     });
+    // Persist the rendered report so the CI job can declare it as an
+    // artifact. Failure to write is non-fatal — the markdown is still
+    // returned to the caller and printed to stdout in `main`. Tests
+    // pass `reportPath` explicitly to assert the file lands.
+    const reportPath = options.reportPath ?? REPORT_PATH;
+    try {
+        await writeFile(reportPath, `${markdown}\n`, 'utf8');
+    } catch (err) {
+        process.stderr.write(
+            `eval-gate: failed to persist markdown report to ${reportPath}: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+    }
     return { compare, markdown, costUsd: cost.totalUsd };
 };
 
@@ -466,9 +612,27 @@ const main = async (): Promise<void> => {
     process.stdout.write(`${result.markdown}\n`);
     await postGitlabComment(result.markdown);
     if (!result.compare.underTolerance) {
-        process.stderr.write(
-            `eval-gate: regression rate ${(result.compare.regressionRate * 100).toFixed(1)}% > ${(REGRESSION_RATE_TOLERANCE * 100).toFixed(0)}% tolerance, OR drift detected\n`,
-        );
+        const reasons: string[] = [];
+        if (result.compare.regressionRate > REGRESSION_RATE_TOLERANCE) {
+            reasons.push(
+                `pooled regression rate ${(result.compare.regressionRate * 100).toFixed(1)}% > ${(REGRESSION_RATE_TOLERANCE * 100).toFixed(0)}%`,
+            );
+        }
+        const failingSlices = result.compare.slices.filter((s) => !s.underTolerance);
+        if (failingSlices.length > 0) {
+            reasons.push(
+                `${failingSlices.length} (dataset, rubric) slice${failingSlices.length === 1 ? '' : 's'} over tolerance`,
+            );
+        }
+        if (result.compare.removedBaselineCases.length > 0) {
+            reasons.push(
+                `${result.compare.removedBaselineCases.length} baseline case${result.compare.removedBaselineCases.length === 1 ? '' : 's'} removed from live`,
+            );
+        }
+        if (result.compare.unknownLiveCells.length > 0) {
+            reasons.push(`${result.compare.unknownLiveCells.length} drift cell${result.compare.unknownLiveCells.length === 1 ? '' : 's'}`);
+        }
+        process.stderr.write(`eval-gate: ${reasons.join('; ')}\n`);
         process.exit(1);
     }
 };
