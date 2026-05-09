@@ -80,37 +80,71 @@ type Materialized =
     | { readonly error: string };
 
 /**
+ * Read `patientMatchPartial` off the artifact's `confidenceSignal`
+ * JSONB blob. Returns `true` when the pipeline flagged a partial
+ * match (name typo, off-by-one DOB) at extraction time, `false`
+ * otherwise (confident match, or no signal recorded — confident-
+ * mismatch artifacts never reach Tier-3 because the pipeline writes
+ * `status='failed'` for those).
+ *
+ * The signal is `unknown` at the type level (JSONB column), so we
+ * narrow defensively. A malformed blob is treated as "not partial"
+ * — a permission gate failing-open on a corrupt signal is no worse
+ * than the existing pre-gate behavior, and the chart-level audit
+ * still records the actor and source document.
+ */
+const isPartialMatchArtifact = (artifact: ExtractionArtifact): boolean => {
+    const signal = artifact.confidenceSignal;
+    if (signal === null || typeof signal !== 'object' || Array.isArray(signal)) {
+        return false;
+    }
+    return (signal as Record<string, unknown>)['patientMatchPartial'] === true;
+};
+
+/**
  * Materialize the F.2 lab promotion body from `schemaJson` +
- * `fieldPath`. The panel cites a single `results[<idx>]` entry from
- * the lab schema, but the F.2 promote endpoint takes a whole panel
- * (`pid`, `source_document_uuid`, `panel_code`, `collection_date`,
- * `results: [...]`). So one accepted fact promotes the whole panel:
- * the F.2 idempotency key (`source_document_uuid`, `panel_code`,
- * `collection_date`) ensures a re-promote of a different fact on the
+ * `fieldPath`. Two source shapes feed this materializer:
+ *
+ *   - `lab_pdf` — schema.results[<idx>], panel + ordering provider
+ *     authored by the lab. The fieldPath is `results.<n>`; the F.2
+ *     body takes the whole results array.
+ *   - `referral_letter` — schema.pertinent_labs[<idx>], a snippet of
+ *     labs the referring provider chose to include in the letter.
+ *     The fieldPath is `pertinent_labs.<n>`. The same F.2 body shape
+ *     applies; collection_date may be absent on referrals
+ *     (referring providers don't always record it inline) — when it
+ *     is, we fall back to the artifact's createdAt date so the F.2
+ *     idempotency key still resolves.
+ *
+ * F.2 idempotency key (`source_document_uuid`, `panel_code`,
+ * `collection_date`) means a re-promote of a different fact on the
  * same panel returns the existing IDs without writing a duplicate row.
  */
 const materializeLabPromotionBody = (
     artifact: ExtractionArtifact,
     fieldPath: string,
 ): Materialized => {
-    if (artifact.docType !== 'lab_pdf') {
+    let resultsKey: 'results' | 'pertinent_labs';
+    if (artifact.docType === 'lab_pdf') {
+        resultsKey = 'results';
+    } else if (artifact.docType === 'referral_letter') {
+        resultsKey = 'pertinent_labs';
+    } else {
         return { error: 'fact_type_mismatch' };
     }
+
     const schema = artifact.schemaJson;
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
         return { error: 'schema_invalid' };
     }
     const schemaRecord = schema as Record<string, unknown>;
-    const resultsRaw = schemaRecord['results'];
+    const resultsRaw = schemaRecord[resultsKey];
     if (!Array.isArray(resultsRaw) || resultsRaw.length === 0) {
         return { error: 'schema_invalid' };
     }
 
-    // The fieldPath the panel cites is `results.<n>`. We don't need it
-    // for the body shape (F.2 takes the whole results array), but
-    // validating it points into a real result keeps the panel from
-    // promoting a phantom row the verifier would have rejected.
-    const fieldMatch = /^results\.(\d+)/.exec(fieldPath);
+    const fieldPathPattern = new RegExp(`^${resultsKey}\\.(\\d+)`);
+    const fieldMatch = fieldPathPattern.exec(fieldPath);
     if (fieldMatch === null) {
         return { error: 'unsupported_field_path' };
     }
@@ -119,9 +153,6 @@ const materializeLabPromotionBody = (
         return { error: 'unsupported_field_path' };
     }
 
-    // Per-result rows. The lab schema marks every column except panel_code,
-    // ref_range_*, and abnormal_flag as required, so missing-required is a
-    // schema-drift bug not a normal path — surface as `schema_invalid`.
     const results: Record<string, unknown>[] = [];
     let panelCode: string | null = null;
     let collectionDate: string | null = null;
@@ -138,11 +169,17 @@ const materializeLabPromotionBody = (
             typeof analyteName !== 'string'
             || typeof value !== 'string'
             || typeof unit !== 'string'
-            || typeof collectionDateRow !== 'string'
         ) {
             return { error: 'schema_invalid' };
         }
-        collectionDate ??= collectionDateRow;
+        // collection_date is required on lab_pdf rows; optional on
+        // referral pertinent_labs (the schema allows it to be absent).
+        if (artifact.docType === 'lab_pdf' && typeof collectionDateRow !== 'string') {
+            return { error: 'schema_invalid' };
+        }
+        if (typeof collectionDateRow === 'string') {
+            collectionDate ??= collectionDateRow;
+        }
         if (panelCode === null && typeof r['panel_code'] === 'string') {
             panelCode = r['panel_code'];
         }
@@ -158,7 +195,13 @@ const materializeLabPromotionBody = (
     }
 
     if (collectionDate === null) {
-        return { error: 'schema_invalid' };
+        if (artifact.docType === 'lab_pdf') {
+            return { error: 'schema_invalid' };
+        }
+        // Referral fallback: the letter date is the closest signal we
+        // have to when the labs were drawn. Better than refusing the
+        // promotion and losing the cited values entirely.
+        collectionDate = artifact.createdAt.slice(0, 10);
     }
 
     return {
@@ -174,20 +217,21 @@ const materializeLabPromotionBody = (
 
 /**
  * Materialize the F.5d past-medical-history promotion body from
- * `schemaJson` + `fieldPath`. The panel cites one
- * `past_medical_history[<idx>]` entry from the intake-form schema;
- * F.5d's `?type=past_medical_history` endpoint takes a single condition
- * (`pid`, `source_document_uuid`, `title`, optional `diagnosis` /
- * `verification_option_id` / `comments` / `onset_date`) — one accepted
- * fact promotes one row, idempotent on
- * `(source_document_uuid, lower(trim(title)))`.
+ * `schemaJson` + `fieldPath`. Two source shapes feed this materializer:
  *
- * The intake-form schema (see `pipeline/schemas/intakeForm.ts`) carries
- * a free-text `condition` string (mapped to `title`), an optional
- * `onset_year` (mapped to `onset_date` as `YYYY-01-01`), and optional
- * `notes` (mapped to `comments`). The agent does not currently extract
- * ICD/SNOMED codes from intake forms, so `diagnosis` is omitted; the
- * PHP service treats the column as nullable / empty by default.
+ *   - `intake_form` — schema.past_medical_history[<idx>], with
+ *     `condition`, optional `onset_year`, optional `notes`. No ICD
+ *     code (intake forms don't ask the patient to code their PMH).
+ *   - `referral_letter` — schema.past_medical_history[<idx>], same
+ *     `condition` field plus an optional `icd10` string the
+ *     referring provider already coded. When present, the code
+ *     passes through as `diagnosis` on the F.5d body so OpenEMR's
+ *     `lists.diagnosis` column lands populated rather than empty.
+ *
+ * F.5d body: `pid`, `source_document_uuid`, `title`, optional
+ * `diagnosis` / `verification_option_id` / `comments` /
+ * `onset_date`. One accepted fact promotes one row, idempotent on
+ * `(source_document_uuid, lower(trim(title)))`.
  *
  * `onset_year` normalization: an intake form's "Year of onset: 2014"
  * becomes `onset_date: '2014-01-01'`. We accept any 4-digit year that
@@ -201,7 +245,7 @@ const materializeMedicalProblemPromotionBody = (
     artifact: ExtractionArtifact,
     fieldPath: string,
 ): Materialized => {
-    if (artifact.docType !== 'intake_form') {
+    if (artifact.docType !== 'intake_form' && artifact.docType !== 'referral_letter') {
         return { error: 'fact_type_mismatch' };
     }
     const schema = artifact.schemaJson;
@@ -244,6 +288,9 @@ const materializeMedicalProblemPromotionBody = (
     const normalizedOnset = normalizeOnsetYear(r['onset_year']);
     if (normalizedOnset !== null) {
         body['onset_date'] = normalizedOnset;
+    }
+    if (typeof r['icd10'] === 'string' && r['icd10'].trim() !== '') {
+        body['diagnosis'] = r['icd10'].trim();
     }
     return { body };
 };
@@ -293,7 +340,10 @@ const materializeMedicationStatementPromotionBody = (
     artifact: ExtractionArtifact,
     fieldPath: string,
 ): Materialized => {
-    if (artifact.docType !== 'intake_form') {
+    // Both intake forms (patient-reported) and referral letters
+    // (referring-provider-reported) carry `current_medications`. The
+    // chart shape is identical — `MedicationStatement` either way.
+    if (artifact.docType !== 'intake_form' && artifact.docType !== 'referral_letter') {
         return { error: 'fact_type_mismatch' };
     }
     const schema = artifact.schemaJson;
@@ -442,7 +492,10 @@ const materializeAllergyPromotionBody = (
     artifact: ExtractionArtifact,
     fieldPath: string,
 ): Materialized => {
-    if (artifact.docType !== 'intake_form') {
+    // Allergies show up on intake forms (patient self-report) and on
+    // referral letters (referring provider's verified list). Both
+    // map to the same `lists` allergy row shape.
+    if (artifact.docType !== 'intake_form' && artifact.docType !== 'referral_letter') {
         return { error: 'fact_type_mismatch' };
     }
     const schema = artifact.schemaJson;
@@ -592,12 +645,27 @@ export const createAcceptFactHandler = (
             return c.json({ error: 'artifact_not_found' }, 404);
         }
 
-        // F.5a shipped the lab materializer; F.5b ships allergy; F.5c
-        // ships medication_statement; F.5d ships past_medical_history;
-        // F.5e ships family_history; F.6 ships demographics. Every
-        // fact type is now wired — the function is exhaustive over
-        // the closed factType union and returns `Materialized`
-        // unconditionally, so the post-switch narrowing works.
+        // Patient-match gate: the pipeline records
+        // `patientMatchPartial = true` on the artifact's
+        // confidenceSignal when the extracted demographics matched the
+        // chart only loosely (name typo, off-by-one DOB). Tier-3
+        // writes are too consequential to land on a partial match —
+        // refuse with HTTP 409 and a typed error the panel surfaces
+        // as "verify the patient identity before accepting." The
+        // architecture's hard-stop posture treats partial-match as a
+        // routing signal at retrieval time; this is the same signal
+        // applied to writes.
+        if (isPartialMatchArtifact(artifact)) {
+            logger.warn(
+                { artifactId, fieldPath, factType, principal: principal.sub },
+                'accept_fact: refusing — artifact has partial patient match',
+            );
+            return c.json({ error: 'low_match_confidence' }, 409);
+        }
+
+        // Each materializer below is exhaustive over the closed
+        // factType union and returns `Materialized` unconditionally,
+        // so the post-switch narrowing works.
         const materialize = (
             type: typeof factType,
         ): Materialized => {
