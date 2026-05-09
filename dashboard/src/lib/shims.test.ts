@@ -69,32 +69,44 @@ describe('buildTopShims — clearPatient', () => {
   });
 });
 
-describe('buildTopShims — restoreSession', () => {
-  // restoreSession is a no-op in the SPA host. The legacy
-  // /library/restoreSession.php is a PHP-rendered JS file (not an
-  // HTTP endpoint), so any attempt to POST to it 500s. Legacy
-  // iframe AJAX traffic keeps the PHP session alive on its own;
-  // the SPA never has to ping anything.
-  it('resolves without invoking fetch (no-op contract)', async () => {
-    const fetchImpl = vi.fn();
-    const shims = buildTopShims({
-      router: mockRouter(),
-      win: fakeWindow(),
-      fetchImpl,
-    });
+describe('installTopShims — restoreSession handling', () => {
+  // restoreSession is intentionally NOT a shim we install. The real
+  // implementation comes from main_v2.php's inlined
+  // library/restoreSession.php and is the parallel-login support
+  // backbone. We must not overwrite it. Tests pin both branches:
+  //  - if a real one is already present, leave it alone
+  //  - if not (standalone test host), install a no-op fallback
+  it('preserves an existing restoreSession when main_v2.php inlined one', () => {
+    const win = fakeWindow();
+    const realRestoreSession = vi.fn(() => true);
+    (win as unknown as { top: Record<string, unknown> }).top['restoreSession'] =
+      realRestoreSession;
 
-    await expect(shims.restoreSession()).resolves.toBeUndefined();
-    expect(fetchImpl).not.toHaveBeenCalled();
+    installTopShims({ router: mockRouter(), win });
+
+    const top = (win as unknown as { top: Record<string, unknown> }).top;
+    expect(top['restoreSession']).toBe(realRestoreSession);
+  });
+
+  it('installs a no-op fallback when no restoreSession is present', () => {
+    const win = fakeWindow();
+    // Standalone host: no main_v2.php-inlined function. The fallback
+    // returns true synchronously so legacy callers that
+    // fire-and-forget `top.restoreSession()` don't crash.
+    installTopShims({ router: mockRouter(), win });
+
+    const top = (win as unknown as { top: Record<string, unknown> }).top;
+    expect(typeof top['restoreSession']).toBe('function');
+    expect((top['restoreSession'] as () => unknown)()).toBe(true);
   });
 });
 
 describe('installTopShims', () => {
-  it('exposes the three top.* methods on the target window', () => {
+  it('exposes set_pid and clearPatient on the target window', () => {
     const win = fakeWindow();
     const shims = installTopShims({ router: mockRouter(), win });
 
     const top = (win as unknown as { top: Record<string, unknown> }).top;
-    expect(top['restoreSession']).toBe(shims.restoreSession);
     expect(top['set_pid']).toBe(shims.set_pid);
     expect(top['clearPatient']).toBe(shims.clearPatient);
   });

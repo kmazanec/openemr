@@ -80,18 +80,25 @@ export interface RTopShims {
  * `top.*`. Every method is required so callers see strongly-typed
  * compile errors when a shim signature drifts from the legacy
  * contract.
+ *
+ * `restoreSession` is intentionally NOT in this interface even
+ * though every legacy iframe calls `top.restoreSession()` before
+ * each AJAX request: that function is **already provided** by
+ * main_v2.php through the inlined `library/restoreSession.php`
+ * which OEGlobalsBag's `restore_sessions` global enables by
+ * default. Its job is to rewrite `document.cookie` back to *this
+ * tab's* PHP-assigned session id whenever another tab in the same
+ * browser has overwritten it (a fresh login mints a new session id
+ * and clobbers the shared cookie). Replacing it with our own shim
+ * — which an earlier version of this file did, mistakenly thinking
+ * it was an HTTP-endpoint ping — broke parallel-login support: the
+ * SPA's tab couldn't reclaim the cookie when a second tab logged
+ * in, and every subsequent request landed on the *other* tab's
+ * session, often producing "Site ID is missing from session data!".
+ * The installer below leaves `top.restoreSession` alone if it
+ * already exists.
  */
 export interface TopShims {
-  /**
-   * Pings /library/restoreSession.php to keep the PHP session alive
-   * mid-iframe. Returns a promise that resolves on 2xx; legacy
-   * callers tend to await it (or fire-and-forget).
-   *
-   * Declared `this: void` because legacy callers detach these
-   * methods (e.g. assign `top.restoreSession` to a local variable)
-   * and we don't depend on `this`.
-   */
-  restoreSession(this: void): Promise<void>;
   /**
    * Set the active patient by id. Legacy callers pass an integer or
    * a numeric string; we accept both and normalize.
@@ -134,18 +141,6 @@ export function buildTopShims(deps: ShimDeps): TopShims {
   // (e.g. `const f = top.set_pid; f(123)`). Legacy callers do
   // exactly that, and method-style `function` declarations would
   // bind `this` to the undefined detached call site.
-  //
-  // restoreSession is a no-op in the SPA host. The legacy
-  // /library/restoreSession.php is not an HTTP endpoint — it's a
-  // PHP-rendered JS file that main.php inlines via <script src>.
-  // POST'ing to it 500s because the file has no globals.php
-  // bootstrap. The session is kept alive by the legacy iframes'
-  // own AJAX traffic, which all goes through normal PHP entry
-  // points. Returning a resolved promise satisfies callers that
-  // `await top.restoreSession()` without doing harm.
-  const restoreSession = async (): Promise<void> => {
-    return Promise.resolve();
-  };
 
   const set_pid = (pid: number | string): void => {
     const normalized = typeof pid === 'number' ? String(pid) : pid;
@@ -156,15 +151,26 @@ export function buildTopShims(deps: ShimDeps): TopShims {
     router.navigateToDashboardRoot();
   };
 
-  return { restoreSession, set_pid, clearPatient };
+  return { set_pid, clearPatient };
 }
 
 /**
- * Install `top.restoreSession`, `top.set_pid`, `top.clearPatient` on
- * the window's `top`. Legacy iframes reach for these via `top.*` so
- * we must install on the top-level window — which is the SPA when
- * we're hosted inside main_v2.php (per the migration doc, "our SPA
- * is `top`").
+ * Install `top.set_pid` and `top.clearPatient` on the window's
+ * `top`. Legacy iframes reach for these via `top.*` so we must
+ * install on the top-level window — which is the SPA when we're
+ * hosted inside main_v2.php (per the migration doc, "our SPA is
+ * `top`").
+ *
+ * `top.restoreSession` is left alone. main_v2.php inlines a real
+ * implementation from `library/restoreSession.php` that rewrites
+ * `document.cookie` back to this tab's session id when a parallel
+ * login in another tab has clobbered it. We MUST NOT replace that
+ * function — doing so silently breaks parallel-login support and
+ * surfaces as "Site ID is missing from session data!" 400s on the
+ * tab whose cookie got overwritten. As a defensive fallback for
+ * test/standalone hosts where main_v2.php's restoreSession.php
+ * wasn't inlined, we install a no-op only when nothing else has
+ * already defined the function.
  */
 export function installTopShims(deps: ShimDeps): TopShims {
   const win = deps.win ?? (globalThis as unknown as Window & typeof globalThis);
@@ -174,9 +180,15 @@ export function installTopShims(deps: ShimDeps): TopShims {
   // hosted-SPA setup top === window, but being explicit guards
   // against future hosting changes.
   const target = (win.top ?? win) as unknown as Record<string, unknown>;
-  target['restoreSession'] = shims.restoreSession;
   target['set_pid'] = shims.set_pid;
   target['clearPatient'] = shims.clearPatient;
+  if (typeof target['restoreSession'] !== 'function') {
+    // Standalone/test host without main_v2.php's inlined real
+    // restoreSession — fall back to a no-op so callers that fire-
+    // and-forget `top.restoreSession()` don't crash. Production
+    // hosts skip this branch and keep the genuine function intact.
+    target['restoreSession'] = (): true => true;
+  }
   return shims;
 }
 
