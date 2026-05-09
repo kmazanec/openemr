@@ -112,4 +112,89 @@ describe('logger', () => {
         expect(entry['response']).toBe('[REDACTED]');
         expect(entry['message']).toBe('[REDACTED]');
     });
+
+    it('redacts patientMatch dev-diagnostic fields', () => {
+        // The pipeline's patientMatch node logs these alongside the
+        // mismatch reason on a confident-mismatch refusal. Pre-fix the
+        // dev Pino log captured `{"extractedName":"CHEN, MARGARET","dob":...}`
+        // verbatim. Pin every leaf the diagnostic helper emits.
+        const entries = captureLogs((logger) => {
+            logger.warn(
+                {
+                    documentUuid: 'd-1',
+                    pid: 1,
+                    mismatchReason: 'name+dob',
+                    extractedName: 'CHEN, MARGARET',
+                    extractedDob: '1967-08-14',
+                    extractedDateOfBirth: '1967-08-14',
+                    chartDisplayName: 'Belford, Phil',
+                    chartDateOfBirth: '1972-02-09',
+                    chartName: 'Belford, Phil',
+                    displayName: 'Belford, Phil',
+                },
+                'patientMatch: confident mismatch — refusing extraction',
+            );
+        });
+
+        const entry = entries[0]!;
+        expect(entry['extractedName']).toBe('[REDACTED]');
+        expect(entry['extractedDob']).toBe('[REDACTED]');
+        expect(entry['extractedDateOfBirth']).toBe('[REDACTED]');
+        expect(entry['chartDisplayName']).toBe('[REDACTED]');
+        expect(entry['chartDateOfBirth']).toBe('[REDACTED]');
+        expect(entry['chartName']).toBe('[REDACTED]');
+        expect(entry['displayName']).toBe('[REDACTED]');
+        expect(entry['mismatchReason']).toBe('name+dob');
+        expect(entry['documentUuid']).toBe('d-1');
+        expect(entry['pid']).toBe(1);
+    });
+
+    it('redacts free-text user turns and payload preview fields', () => {
+        // `question` and `text` are user-typed conversation turns;
+        // `documentText` carries raw DOCX bytes; `rawValue` is
+        // priorTurnContext citation values; `bodyPreview` is the
+        // upstream-error preview on snapshot/promote HTTP error classes.
+        const entries = captureLogs((logger) => {
+            logger.info(
+                {
+                    question: 'What did Phil mention about lisinopril?',
+                    text: 'Patient reports new chest pain at 2am.',
+                    documentText: 'Patient: Margaret Chen DOB: 1967-08-14',
+                    rawValue: 'CHEN, MARGARET — DOB 1967-08-14',
+                    bodyPreview: '<html>Internal error: pid=104 user=...',
+                },
+                'mixed PHI surfaces',
+            );
+        });
+
+        const entry = entries[0]!;
+        expect(entry['question']).toBe('[REDACTED]');
+        expect(entry['text']).toBe('[REDACTED]');
+        expect(entry['documentText']).toBe('[REDACTED]');
+        expect(entry['rawValue']).toBe('[REDACTED]');
+        expect(entry['bodyPreview']).toBe('[REDACTED]');
+    });
+
+    it('does NOT globally redact `reason` and `narration` — used as enum tags in many call sites', () => {
+        // Internal error-classification tags like `{reason: 'rate_limited'}`
+        // and supervisor `narration` short-strings are debugging
+        // load-bearing. The LLM-emitted variants reach LangSmith
+        // metadata via setRunMetadata, NOT Pino — that channel is
+        // scrubbed at the supervisor metadata-write site. Pin this
+        // explicitly so a future contributor doesn't add them to
+        // PHI_LEAFS without surveying call sites.
+        const entries = captureLogs((logger) => {
+            logger.warn(
+                {
+                    reason: 'rate_limited',
+                    narration: 'Pulling chart snapshot…',
+                },
+                'chart-docs discovery unavailable',
+            );
+        });
+
+        const entry = entries[0]!;
+        expect(entry['reason']).toBe('rate_limited');
+        expect(entry['narration']).toBe('Pulling chart snapshot…');
+    });
 });

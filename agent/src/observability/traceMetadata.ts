@@ -2,6 +2,8 @@ import { createHmac } from 'node:crypto';
 
 import { getCurrentRunTree } from 'langsmith/traceable';
 
+import { scanForPhi } from './phiTraceScanner.js';
+
 /**
  * §6.1 LangSmith trace metadata helpers.
  *
@@ -142,3 +144,43 @@ export const setRunMetadata = (extra: Record<string, unknown>): void => {
         // traceable. Nothing to do.
     }
 };
+
+const PHI_SCRUB_SENTINEL = '[redacted: phi-detected]';
+
+/**
+ * Scrub an LLM-emitted value before it lands on a LangSmith trace. The
+ * trace metadata channel bypasses both Pino redaction (logger-only) and
+ * `LANGSMITH_HIDE_INPUTS / OUTPUTS` (which only blanks the `inputs` and
+ * `outputs` fields, not `metadata`). When the supervisor's free-text
+ * `reason` / `narration` / `args` blend a patient name into the model
+ * output, that string lands on the trace indefinitely.
+ *
+ * Strategy: walk the value with `scanForPhi`. If it contains a PHI-shaped
+ * key, an SSN/MRN/phone pattern, or a configured canary, replace the
+ * whole value with a sentinel. Cardinality is preserved at the field
+ * level (the trace still records "this slot exists") without leaking
+ * the offending content.
+ *
+ * Strings, arrays, and plain objects are all supported; primitives that
+ * cannot carry PHI (numbers, booleans, null/undefined) pass through
+ * unchanged. Configurable canaries allow tests to seed known fixture
+ * names so a regression that uploads a real prompt is caught.
+ */
+export const scrubLlmTextForTrace = <T,>(
+    value: T,
+    options: {
+        readonly canaries?: readonly string[];
+    } = {},
+): T | typeof PHI_SCRUB_SENTINEL => {
+    if (value === null || value === undefined) return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return value;
+    const findings = scanForPhi(value, {
+        ...(options.canaries !== undefined ? { canaries: options.canaries } : {}),
+    });
+    if (findings.length > 0) {
+        return PHI_SCRUB_SENTINEL;
+    }
+    return value;
+};
+
+export { PHI_SCRUB_SENTINEL };

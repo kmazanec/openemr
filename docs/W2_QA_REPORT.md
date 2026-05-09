@@ -88,6 +88,7 @@ There are, however, **9 bugs / risks worth fixing before final submission**, ran
 - Concrete leak observed: `{"extractedName":"CHEN, MARGARET","extractedDob":"1967-08-14","chartDisplayName":"Belford, Phil","chartDateOfBirth":"1972-02-09"}` written to the local Pino dev log.
 - W2 brief explicitly says **"Logs must not contain raw PHI."**
 - **Fix:** add `extractedName`, `extractedDob`, `chartDisplayName`, `chartDateOfBirth`, `displayName`, `chartName`, `extractedDateOfBirth` to `PHI_LEAFS`.
+- ✅ **RESOLVED (2026-05-09).** Added 12 leaves to `agent/src/observability/logger.ts` `PHI_LEAFS`: the 7 patientMatch / projection names called out above, plus `question`, `text`, `documentText`, `rawValue`, and `bodyPreview` (free-text user turns, raw DOCX bytes, citation values, upstream-error previews). Two pinned tests in `agent/tests/observability/logger.test.ts`: one asserts every new leaf renders as `[REDACTED]` even nested under `extractedDateOfBirth` etc.; a second deliberately pins that `reason` and `narration` are *not* globally redacted at the Pino layer — they're enum tags in many internal call sites (`{reason: 'rate_limited'}`) and the LLM-emitted variants land on LangSmith metadata, not Pino. That metadata channel is closed by C6.
 
 ### H4. Tier-3 promotions only check read-level ACL — clinician with read-only chart access could trigger writes
 - `AgentEndpointAuth::authorize` calls `AclMain::aclCheckCore('patients', 'demo')` which is a read bit (`SqlAgentActorResolver.php:49`). The same gate covers Tier-3 promotion endpoints that mutate `lists`, `family_history`, `procedure_report`, demographics.
@@ -326,6 +327,7 @@ The single-pass redaction list at `agent/src/observability/logger.ts:4-23` cover
 ### 🔴 Critical / hard-gate-risking (additions)
 
 - **C6. Supervisor reason/args → LangSmith metadata is an open PHI channel.** Bypasses Pino redaction AND `LANGSMITH_HIDE_INPUTS/OUTPUTS`. The W2 brief's `no_phi_in_logs` rubric assumes traces are PHI-clean. **Fix:** filter `setRunMetadata` payload at `supervisor.ts:589-606` to drop or hash `decision.reason`, `decision.args`, and `narration`; or apply a pre-emit scrub via `phiTraceScanner` to the metadata object.
+- ✅ **RESOLVED (2026-05-09).** Added `scrubLlmTextForTrace(value, opts)` in `agent/src/observability/traceMetadata.ts`: the helper walks the value through `scanForPhi` (PHI-shaped keys, SSN/MRN/phone patterns, configurable canaries) and replaces the whole value with `'[redacted: phi-detected]'` if any finding fires. Cardinality at the field level is preserved so dashboards still see "this slot exists this iteration." Wired through `supervisor.ts`'s per-iteration `setRunMetadata` call: `decision.reason`, `decision.narration` (now also surfaced on the trace), and `decision.args` all pass through the scrubber. Eight pinned tests in `agent/tests/observability/traceMetadata.test.ts` cover SSN / MRN / phone / canary / nested PHI-key / clean-passthrough cases.
 
 ### 🟠 High (additions)
 
