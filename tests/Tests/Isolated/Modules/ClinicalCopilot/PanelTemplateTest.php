@@ -194,7 +194,7 @@ final class PanelTemplateTest extends TestCase
         // The hidden file input must declare the MIME allowlist as a
         // hint to the browser picker; the server still content-sniffs.
         self::assertMatchesRegularExpression(
-            '/<input[^>]*data-role="file"[^>]*accept="application\/pdf,image\/png,image\/jpeg,image\/tiff"/',
+            '/<input[^>]*data-role="file"[^>]*accept="application\/pdf,image\/png,image\/jpeg,image\/tiff,application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document,\.docx"/',
             $html,
         );
         // The toast renders hidden by default so an empty <div> doesn't
