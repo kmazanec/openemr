@@ -485,11 +485,20 @@ $session->set('token_main_php', $tokenMainPhp);
 // hidden form field that the login template propagates from the
 // initial login URL's query string. Without either signal, route to
 // the legacy main.php exactly as before.
+// The `dashboard_v2_pref` session value (set by the in-app banner via
+// dashboard_toggle.php) takes precedence over both the env default and
+// the login-time hint, so a user who logged in under one shell can
+// flip to the other without re-authenticating.
 $v2QueryParam = filter_input(INPUT_GET, 'v2');
 $v2BodyParam = filter_input(INPUT_POST, 'v2');
-$dashboardV2Toggle = OEEnvBag::getInstance()->getBoolean('OPENEMR_DASHBOARD_V2')
-    || $v2QueryParam === '1'
-    || $v2BodyParam === '1';
+$dashboardV2Pref = $session->get('dashboard_v2_pref');
+if (is_bool($dashboardV2Pref)) {
+    $dashboardV2Toggle = $dashboardV2Pref;
+} else {
+    $dashboardV2Toggle = OEEnvBag::getInstance()->getBoolean('OPENEMR_DASHBOARD_V2')
+        || $v2QueryParam === '1'
+        || $v2BodyParam === '1';
+}
 $mainScript = $dashboardV2Toggle ? 'main_v2.php' : 'main.php';
 
 header('Location: ' . $web_root . "/interface/main/tabs/" . $mainScript . "?token_main=" . urlencode($tokenMainPhp));

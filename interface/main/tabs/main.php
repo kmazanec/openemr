@@ -488,6 +488,10 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
     ?>
     <!-- Below iframe is to support logout, which needs to be run in an inner iframe to work as intended -->
     <iframe name="logoutinnerframe" id="logoutinnerframe" style="visibility:hidden; position:absolute; left:0; top:0; height:0; width:0; border:none;" src="about:blank"></iframe>
+    <?php
+    $bannerIsV2 = false;
+    require __DIR__ . '/_dashboard_toggle_banner.php';
+    ?>
     <?php // mdsupport - app settings
     $disp_mainBox = '';
     $app1 = $session->get('app1');
