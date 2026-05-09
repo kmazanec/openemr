@@ -79,19 +79,50 @@ final class AgentEndpointBootstrap
         return new ParsedAgentRequest($bearer, $pid, $conversationId, $siteId);
     }
 
-    public static function buildVerifier(string $siteId): OpenEmrJwtVerifier
+    /**
+     * Resolve the JWT issuer string used for both minting (in
+     * `agent.php`) and verifying (in `snapshot.php` and the narrow
+     * endpoint controllers via `buildVerifier()` below).
+     *
+     * Both sides MUST agree byte-for-byte. When `OE_AGENT_JWT_ISSUER`
+     * is set on the OpenEMR container, that value wins — it pins the
+     * issuer to whatever the agent service is configured to expect via
+     * its own `AGENT_JWT_ISSUER` env var. Without the override we
+     * compose the historical default (`site_addr_oath + webroot +
+     * /oauth2/{site}`) so test fixtures and installs that haven't been
+     * migrated keep working.
+     *
+     * Why an override is needed at all: in container deployments the
+     * URL OpenEMR sees itself as (e.g. `http://openemr` on the docker
+     * network) is different from the URL the *user's browser* and the
+     * agent's JWKS-fetcher use (e.g. `https://localhost:9300` or
+     * `https://emr.biograph.dev`). The agent service is configured
+     * with the externally-facing URL, so the JWT must carry that exact
+     * string in the `iss` claim — derived-from-globals is wrong on
+     * any deploy where `site_addr_oath` differs from the agent's
+     * `AGENT_JWT_ISSUER`. The minter side honored this via
+     * `OE_AGENT_JWT_ISSUER` since 744a888b6; the verifier sides
+     * (snapshot.php, AgentEndpointBootstrap::buildVerifier) were
+     * missed and 401'd every snapshot read with `invalid_token` until
+     * this helper centralized the logic.
+     */
+    public static function resolveIssuer(string $siteId): string
     {
+        $override = getenv('OE_AGENT_JWT_ISSUER');
+        if (is_string($override) && $override !== '') {
+            return $override;
+        }
         $globals = OEGlobalsBag::getInstance();
         $siteAddr = $globals->getString('site_addr_oath');
         $webroot = $globals->getWebRoot();
-        // Issuer derivation matches AgentTokenMinter exactly: minter
-        // stamps `site_addr_oath + webroot + /oauth2/{site}` so the
-        // verifier composes the same string.
-        $issuer = $siteAddr . $webroot . '/oauth2/' . $siteId;
+        return $siteAddr . $webroot . '/oauth2/' . $siteId;
+    }
 
+    public static function buildVerifier(string $siteId): OpenEmrJwtVerifier
+    {
         return new OpenEmrJwtVerifier(
             publicKeyPem: AgentSigningKey::fromOAuth2KeyConfig()->publicKeyPem,
-            issuer: $issuer,
+            issuer: self::resolveIssuer($siteId),
             audience: AgentTokenMinter::AGENT_CLIENT_ID,
         );
     }

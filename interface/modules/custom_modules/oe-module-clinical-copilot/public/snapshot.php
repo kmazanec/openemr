@@ -54,6 +54,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\AgentTokenMinter;
 use OpenEMR\Modules\ClinicalCopilot\Auth\OpenEmrJwtVerifier;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SqlAgentActorResolver;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SystemClock;
+use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\AgentSnapshotController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDisclosedEvent;
@@ -115,12 +116,12 @@ $conversationId = is_string($conversationParam) && $conversationParam !== ''
 $siteIdRaw = $request->query->get('site');
 $siteId = is_string($siteIdRaw) && $siteIdRaw !== '' ? $siteIdRaw : 'default';
 
-// Issuer derivation matches AgentProxyController exactly: the minter
-// stamps `site_addr_oath + webroot + /oauth2/{site}` so the verifier
-// has to compose the same string.
-$siteAddr = $globals->getString('site_addr_oath');
-$webroot = $globals->getWebRoot();
-$issuer = $siteAddr . $webroot . '/oauth2/' . $siteId;
+// Resolve the JWT issuer through the shared helper so the verifier
+// and the minter (in agent.php) compose the exact same string. The
+// helper honors OE_AGENT_JWT_ISSUER when set; otherwise it falls
+// back to `site_addr_oath + webroot + /oauth2/{site}`. See the
+// rationale on `AgentEndpointBootstrap::resolveIssuer`.
+$issuer = AgentEndpointBootstrap::resolveIssuer($siteId);
 
 $connection = AgentDbalConnection::get();
 $logger = ServiceContainer::getLogger();

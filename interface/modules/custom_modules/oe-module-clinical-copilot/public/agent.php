@@ -23,6 +23,7 @@ use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolutionException;
 use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolver;
 use OpenEMR\Modules\ClinicalCopilot\Auth\PolicyGate;
 use OpenEMR\Modules\ClinicalCopilot\Auth\SessionContext;
+use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\AgentProxyController;
 use OpenEMR\Modules\ClinicalCopilot\RequestLog\AgentDbalConnection;
 use OpenEMR\Modules\ClinicalCopilot\Schedule\MorningPrepGate;
@@ -71,25 +72,14 @@ $sessionPid = (is_scalar($sessionPidRaw) && $sessionPidRaw !== '' && $sessionPid
 $siteAddr = $globals->getString('site_addr_oath');
 $webroot = $globals->getWebRoot();
 $fhirBaseUrl = $siteAddr . $webroot . '/apis/' . $siteId . '/fhir';
-// The agent service is configured (via AGENT_JWT_ISSUER on its
-// container) with a single canonical issuer URL. PHP must mint
-// tokens with that exact string — deriving the issuer from
-// $_SERVER means a request to http://localhost:8300 mints with
-// http://... while a request to https://localhost:9300 mints with
-// https://..., and only one of those matches the agent's expected
-// issuer. The mismatch shows up as an opaque
-// `unexpected "iss" claim value` in agent logs and a 401 from
-// every action that actually reaches the agent service.
-//
-// OE_AGENT_JWT_ISSUER is the override knob; set it in the openemr
-// container's environment to whatever AGENT_JWT_ISSUER is on the
-// agent container. Without the override we fall back to the
-// request-derived value for backwards compatibility (and so test
-// fixtures that do not set the env var keep working).
-$issuerOverride = getenv('OE_AGENT_JWT_ISSUER');
-$issuer = is_string($issuerOverride) && $issuerOverride !== ''
-    ? $issuerOverride
-    : $siteAddr . $webroot . '/oauth2/' . $siteId;
+// Resolve the JWT issuer through the shared helper. The minter side
+// here and the verifier side in snapshot.php / the narrow endpoints
+// MUST agree byte-for-byte; centralizing the logic on
+// AgentEndpointBootstrap::resolveIssuer keeps them locked together.
+// The helper honors OE_AGENT_JWT_ISSUER when set so the issuer
+// can be pinned to the agent container's AGENT_JWT_ISSUER even when
+// `site_addr_oath` (OpenEMR's self-URL) differs.
+$issuer = AgentEndpointBootstrap::resolveIssuer($siteId);
 
 $resolvedFhirUser = null;
 if ($authUserId !== '') {
