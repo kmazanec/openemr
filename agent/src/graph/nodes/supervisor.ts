@@ -5,7 +5,11 @@ import { traceable } from 'langsmith/traceable';
 import type { Counters } from '../../observability/counters.js';
 import { createNoopCounters } from '../../observability/counters.js';
 import { createLogger } from '../../observability/logger.js';
-import { costForUsage, setRunMetadata } from '../../observability/traceMetadata.js';
+import {
+    costForUsage,
+    scrubLlmTextForTrace,
+    setRunMetadata,
+} from '../../observability/traceMetadata.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import { structuredOutputParseError } from './structuredOutputError.js';
 import {
@@ -586,14 +590,23 @@ export const createSupervisor = (
                 cacheReadInputTokens,
             });
         }
+        // `decision.reason`, `decision.args`, and `decision.narration` are
+        // unbounded LLM output. The trace-metadata channel bypasses both
+        // Pino redaction (logger-only) and `LANGSMITH_HIDE_INPUTS/OUTPUTS`
+        // (which only blanks inputs/outputs, not metadata). Scrub each
+        // through `scrubLlmTextForTrace` so a model that blends a patient
+        // name into the rationale lands a sentinel on the trace, not
+        // free-text PHI. Cardinality at the field level is preserved so
+        // dashboards still see "this slot exists this iteration."
         setRunMetadata({
             supervisor_event: 'iteration',
             supervisor_iteration: observation.iteration,
             supervisor_state_observed: observation,
             supervisor_handoff_manifest: HANDOFF_MANIFEST.map((m) => m.handoff),
             supervisor_decision: decision.handoff,
-            supervisor_reason: decision.reason,
-            supervisor_args: decision.args ?? null,
+            supervisor_reason: scrubLlmTextForTrace(decision.reason),
+            supervisor_narration: scrubLlmTextForTrace(decision.narration),
+            supervisor_args: scrubLlmTextForTrace(decision.args ?? null),
             ...(usage !== undefined
                 ? {
                       supervisor_input_tokens: usage.inputTokens,

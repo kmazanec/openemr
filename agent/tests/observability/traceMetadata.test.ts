@@ -5,7 +5,9 @@ import {
     CACHE_WRITE_MULTIPLIER,
     costForUsage,
     hashIdForTrace,
+    PHI_SCRUB_SENTINEL,
     PRICE_TABLE_USD_PER_MILLION,
+    scrubLlmTextForTrace,
 } from '../../src/observability/traceMetadata.js';
 
 describe('costForUsage', () => {
@@ -126,5 +128,73 @@ describe('hashIdForTrace', () => {
         const hashed = hashIdForTrace(raw, 'salt');
         expect(hashed).not.toContain('user-with');
         expect(hashed).not.toContain('12345');
+    });
+});
+
+describe('scrubLlmTextForTrace', () => {
+    // Trace metadata bypasses Pino redaction AND LANGSMITH_HIDE_*; the
+    // scrubber is the last line of defense for LLM-emitted free text
+    // (supervisor `reason` / `narration` / `args`) before it lands on
+    // a LangSmith run's `metadata` field.
+
+    it('passes plain non-PHI strings through unchanged', () => {
+        expect(scrubLlmTextForTrace('checking USPSTF on statin primary prevention')).toBe(
+            'checking USPSTF on statin primary prevention',
+        );
+    });
+
+    it('passes primitives through unchanged', () => {
+        expect(scrubLlmTextForTrace(42)).toBe(42);
+        expect(scrubLlmTextForTrace(true)).toBe(true);
+        expect(scrubLlmTextForTrace(null)).toBe(null);
+        expect(scrubLlmTextForTrace(undefined)).toBe(undefined);
+    });
+
+    it('returns the sentinel when a string contains an SSN', () => {
+        expect(scrubLlmTextForTrace('Looking up record for 123-45-6789')).toBe(PHI_SCRUB_SENTINEL);
+    });
+
+    it('returns the sentinel when a string contains an MRN-prefix', () => {
+        expect(scrubLlmTextForTrace('Pulling chart for MRN-12345')).toBe(PHI_SCRUB_SENTINEL);
+    });
+
+    it('returns the sentinel when a string contains a US phone', () => {
+        expect(scrubLlmTextForTrace('Caller ID 555-867-5309')).toBe(PHI_SCRUB_SENTINEL);
+    });
+
+    it('returns the sentinel when a configured canary appears', () => {
+        // The supervisor's narration could blend a fixture name into
+        // its rationale ("Checking Maya's prior A1c…"). Configurable
+        // canaries seed those fixture identifiers.
+        expect(
+            scrubLlmTextForTrace("Checking Maya's prior A1c", {
+                canaries: ['Maya', 'Patel'],
+            }),
+        ).toBe(PHI_SCRUB_SENTINEL);
+    });
+
+    it('returns the sentinel for an object with a PHI-shaped key (deep)', () => {
+        // Supervisor `args` is a record. A model that emits {patient:
+        // {firstName: 'Maya'}} as part of args lands a PHI-named slot
+        // in the trace; the scrubber drops the whole value.
+        const value = { lookup: { patient: { firstName: 'Maya' } } };
+        expect(scrubLlmTextForTrace(value)).toBe(PHI_SCRUB_SENTINEL);
+    });
+
+    it('passes a clean object through unchanged', () => {
+        const args = { handoff: 'evidenceRetriever', query: 'statin primary prevention' };
+        expect(scrubLlmTextForTrace(args)).toEqual(args);
+    });
+
+    it('returns the sentinel for a clean string when paired with a matching canary set', () => {
+        // Sanity: canaries tighten the gate; without one the same
+        // string passes; with one the same string is sentinelled.
+        const text = 'rate_limited on getLabHistory';
+        expect(scrubLlmTextForTrace(text)).toBe(text);
+        expect(
+            scrubLlmTextForTrace('querying labs for Margaret', {
+                canaries: ['Margaret'],
+            }),
+        ).toBe(PHI_SCRUB_SENTINEL);
     });
 });

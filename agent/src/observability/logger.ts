@@ -20,6 +20,35 @@ const PHI_LEAFS = [
     'response',
     'message',
     'notes',
+    // patientMatch dev-diagnostics + projections. The pipeline's
+    // patient-match step logs these alongside score/reason on a
+    // confident mismatch; without redaction the dev-only Pino log
+    // captured raw extracted vs. chart demographics in plain text.
+    'extractedName',
+    'extractedDob',
+    'extractedDateOfBirth',
+    'chartDisplayName',
+    'chartDateOfBirth',
+    'chartName',
+    'displayName',
+    // Free-text user input + payload fields that reach Pino. `question`
+    // and `text` are user-typed conversation turns; `documentText`
+    // carries raw DOCX bytes when the referral-letter pipeline runs in
+    // text mode; `rawValue` shows up in priorTurnContext citation
+    // values; `bodyPreview` is the upstream error-response preview the
+    // snapshot/promote clients carry on their HTTP error classes.
+    //
+    // `reason` and `narration` are deliberately NOT redacted globally —
+    // they're typed enum/short-string tags in many internal call sites
+    // (e.g. `{reason: 'rate_limited'}`), and global redaction would
+    // hide load-bearing debug signal. The LLM-emitted variants (the
+    // supervisor's `decision.reason` / `decision.narration`) leak into
+    // LangSmith metadata, not Pino, and are scrubbed at that site.
+    'question',
+    'text',
+    'documentText',
+    'rawValue',
+    'bodyPreview',
 ];
 
 /**
