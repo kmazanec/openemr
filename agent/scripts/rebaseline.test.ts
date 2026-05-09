@@ -47,7 +47,7 @@ describe('caseIdFromRun', () => {
 
     it('document-extraction: pulls inputs.caseId verbatim', () => {
         const id = caseIdFromRun(
-            'clinical-copilot-document-extraction-v1',
+            'clinical-copilot-document-extraction-v2',
             stubRun({ caseId: 'lab-chen-lipid-panel' }),
         );
         expect(id).toBe('lab-chen-lipid-panel');
@@ -151,7 +151,7 @@ describe('sortCases', () => {
 describe('sortDatasets', () => {
     it('sorts dataset-name keys alphabetically', () => {
         const input = {
-            'clinical-copilot-document-extraction-v1': { cases: {} },
+            'clinical-copilot-document-extraction-v2': { cases: {} },
             'clinical-copilot-briefing-graph-v2': { cases: {} },
             'clinical-copilot-conversational-graph-v5': { cases: {} },
         };
@@ -159,7 +159,7 @@ describe('sortDatasets', () => {
         expect(Object.keys(sorted)).toEqual([
             'clinical-copilot-briefing-graph-v2',
             'clinical-copilot-conversational-graph-v5',
-            'clinical-copilot-document-extraction-v1',
+            'clinical-copilot-document-extraction-v2',
         ]);
     });
 
@@ -168,7 +168,7 @@ describe('sortDatasets', () => {
             'archetype:diabetic': { no_phi_in_logs: true } as Record<RubricKey, boolean>,
         };
         const input = {
-            'clinical-copilot-document-extraction-v1': { cases: {} },
+            'clinical-copilot-document-extraction-v2': { cases: {} },
             'clinical-copilot-briefing-graph-v2': { cases },
         };
         const sorted = sortDatasets(input);

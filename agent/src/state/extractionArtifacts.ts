@@ -29,7 +29,7 @@ import { createLogger } from '../observability/logger.js';
  * returns the cached artifact id.
  */
 
-export type DocumentType = 'lab_pdf' | 'intake_form';
+export type DocumentType = 'lab_pdf' | 'intake_form' | 'referral_letter';
 
 export type ArtifactStatus =
     | 'pending_confirmation'

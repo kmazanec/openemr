@@ -336,7 +336,7 @@
         }
       }
     },
-    "clinical-copilot-document-extraction-v1": {
+    "clinical-copilot-document-extraction-v2": {
       "cases": {
         "adversarial-corrupted": {
           "no_phi_in_logs": true,
@@ -441,6 +441,18 @@
         "lab-whitaker-fax-packet": {
           "no_phi_in_logs": true,
           "schema_valid": true
+        },
+        "referral-chen-cardiology": {
+          "no_phi_in_logs": true,
+          "schema_valid": true
+        },
+        "referral-whitaker": {
+          "no_phi_in_logs": true,
+          "schema_valid": true
+        },
+        "referral-wrong-patient": {
+          "no_phi_in_logs": true,
+          "schema_valid": false
         }
       }
     }

@@ -999,7 +999,12 @@ const computeAllergyExceptionStops = (
         const fieldPath = ref.locator.field;
         if (fieldPath === undefined) continue;
         const snippet = extractedIdx.byKey.get(`${ref.source_id}::${fieldPath}`);
-        if (snippet?.docType !== 'intake_form') continue;
+        // Intake forms and referral letters both surface allergy lists
+        // that should fail-closed on low confidence. Lab PDFs do not
+        // (they don't carry allergy fields), so the check stays gated
+        // on a closed set rather than open across all extracted-doc
+        // sources.
+        if (snippet?.docType !== 'intake_form' && snippet?.docType !== 'referral_letter') continue;
         const signal = composeConfidenceSignal(snippet, ctx);
         if (signal === null || isLowConfidence(signal)) {
             return [HARD_STOP_ALLERGIES_UNAVAILABLE];

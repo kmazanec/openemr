@@ -12,6 +12,10 @@ import { describe, expect, it } from 'vitest';
 
 import { intakeFormSchema, type IntakeFormExtraction } from '../../src/pipeline/schemas/intakeForm.js';
 import { labPdfSchema, type LabPdfExtraction } from '../../src/pipeline/schemas/labPdf.js';
+import {
+    referralLetterSchema,
+    type ReferralLetterExtraction,
+} from '../../src/pipeline/schemas/referralLetter.js';
 
 const validLabPdf = (): LabPdfExtraction => ({
     patient_demographics: {
@@ -268,6 +272,137 @@ describe('intakeFormSchema', () => {
             },
         };
         const result = intakeFormSchema.safeParse(withContact);
+        expect(result.success).toBe(true);
+    });
+});
+
+const validReferralLetter = (): ReferralLetterExtraction => ({
+    sender_provider: {
+        name: {
+            value: 'Helen Park, MD',
+            page: 1,
+            bbox: [400, 450, 0, 0],
+            quote: 'Helen Park, MD',
+            confidence: 0.95,
+        },
+        npi: {
+            value: '1618829315',
+            page: 1,
+            bbox: [415, 425, 0, 0],
+            quote: 'NPI: 1618829315',
+            confidence: 0.93,
+        },
+    },
+    recipient_provider: {
+        name: {
+            value: 'Jonathan Liu, MD',
+            page: 1,
+            bbox: [120, 137, 0, 0],
+            quote: 'Jonathan Liu, MD, FACC',
+            confidence: 0.96,
+        },
+    },
+    patient_identifiers: {
+        name: {
+            value: 'Margaret Chen',
+            page: 1,
+            bbox: [255, 268, 0, 0],
+            quote: 'Margaret Chen',
+            confidence: 0.97,
+        },
+        dob: {
+            value: '1968-03-12',
+            page: 1,
+            bbox: [277, 287, 0, 0],
+            quote: '03/12/1968',
+            confidence: 0.95,
+        },
+        mrn: {
+            value: 'BHS-2847163',
+            page: 1,
+            bbox: [299, 310, 0, 0],
+            quote: 'MRN: BHS-2847163',
+            confidence: 0.93,
+        },
+    },
+    reason_for_referral: {
+        value: 'Evaluation of statin-refractory hyperlipidemia',
+        page: 1,
+        bbox: [320, 410, 0, 0],
+        quote: 'evaluation and co-management of statin-refractory hyperlipidemia',
+        confidence: 0.91,
+    },
+    past_medical_history: [
+        {
+            condition: 'Hyperlipidemia',
+            icd10: 'E78.5',
+            page: 1,
+            bbox: [800, 818, 0, 0],
+            quote: 'Hyperlipidemia (E78.5)',
+            confidence: 0.92,
+        },
+    ],
+    current_medications: [
+        {
+            name: 'atorvastatin',
+            dose: '40 mg',
+            route: 'PO',
+            frequency: 'daily',
+            page: 1,
+            bbox: [900, 928, 0, 0],
+            quote: 'atorvastatin 40 mg PO daily',
+            confidence: 0.92,
+        },
+    ],
+    allergies: [],
+    pertinent_labs: [
+        {
+            analyte_name: 'LDL-C',
+            value: '142',
+            unit: 'mg/dL',
+            collection_date: '2026-04-12',
+            abnormal_flag: 'high',
+            page: 1,
+            bbox: [1100, 1124, 0, 0],
+            quote: 'LDL-C: 142 mg/dL [HIGH]',
+            confidence: 0.93,
+        },
+    ],
+});
+
+describe('referralLetterSchema', () => {
+    it('accepts a fully-populated referral letter', () => {
+        const result = referralLetterSchema.safeParse(validReferralLetter());
+        expect(result.success).toBe(true);
+    });
+
+    it('rejects a referral missing patient_identifiers', () => {
+        const broken: Record<string, unknown> = { ...validReferralLetter() };
+        delete broken['patient_identifiers'];
+        const result = referralLetterSchema.safeParse(broken);
+        expect(result.success).toBe(false);
+    });
+
+    it('rejects a referral missing reason_for_referral', () => {
+        const broken: Record<string, unknown> = { ...validReferralLetter() };
+        delete broken['reason_for_referral'];
+        const result = referralLetterSchema.safeParse(broken);
+        expect(result.success).toBe(false);
+    });
+
+    it('drops unknown top-level fields silently (.passthrough())', () => {
+        const withExtra = { ...validReferralLetter(), unknown_field: 'should be ignored' };
+        const result = referralLetterSchema.safeParse(withExtra);
+        expect(result.success).toBe(true);
+    });
+
+    it('accepts wider DOCX bbox character offsets (>1000)', () => {
+        const withWideBbox = validReferralLetter();
+        // The pertinent-lab bbox in this test sits at ~1100; verify that
+        // the schema's wider DOCX-mode bbox cap (0..1_000_000) accepts
+        // it where the lab/intake schemas (capped at 1000) would not.
+        expect(withWideBbox.pertinent_labs[0]?.bbox[0]).toBeGreaterThan(1000);
+        const result = referralLetterSchema.safeParse(withWideBbox);
         expect(result.success).toBe(true);
     });
 });

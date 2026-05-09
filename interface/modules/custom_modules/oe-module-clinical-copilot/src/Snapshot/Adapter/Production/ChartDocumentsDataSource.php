@@ -38,9 +38,10 @@ final readonly class ChartDocumentsDataSource implements ChartDocumentsDataSourc
 
     private const LEAF_LAB = 'Lab PDF';
     private const LEAF_INTAKE = 'Intake Form';
+    private const LEAF_REFERRAL = 'Referral Letter';
 
     /** Set of file extensions the agent's rasterizer accepts (must stay in sync with `agent/src/pipeline/nodes/rasterize.ts`). */
-    private const ALLOWED_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'tif'];
+    private const ALLOWED_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'tif', 'docx'];
 
     public function listForPid(int $pid): array
     {
@@ -60,13 +61,14 @@ final readonly class ChartDocumentsDataSource implements ChartDocumentsDataSourc
               WHERE d.foreign_id = ?
                 AND d.deleted = 0
                 AND root.name = ?
-                AND leaf.name IN (?, ?)
+                AND leaf.name IN (?, ?, ?)
               ORDER BY d.date DESC",
             [
                 $pid,
                 self::ROOT_CATEGORY_NAME,
                 self::LEAF_LAB,
                 self::LEAF_INTAKE,
+                self::LEAF_REFERRAL,
             ],
             true,
         );
@@ -87,7 +89,12 @@ final readonly class ChartDocumentsDataSource implements ChartDocumentsDataSourc
             );
 
             $leaf = is_string($row['leaf_name'] ?? null) ? $row['leaf_name'] : '';
-            $docType = $leaf === self::LEAF_LAB ? 'lab_pdf' : ($leaf === self::LEAF_INTAKE ? 'intake_form' : null);
+            $docType = match ($leaf) {
+                self::LEAF_LAB => 'lab_pdf',
+                self::LEAF_INTAKE => 'intake_form',
+                self::LEAF_REFERRAL => 'referral_letter',
+                default => null,
+            };
             if ($docType === null) {
                 continue;
             }

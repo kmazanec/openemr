@@ -206,6 +206,26 @@ const DEMOGRAPHICS_BY_FIXTURE_PATH: Record<string, DemographicsFixture> = Object
         dateOfBirth: '1997-10-19',
         ageYears: 28,
     },
+    // Referral-letter DOCX identities. Each letter pins its own
+    // patient-identifiers block (`RE: <name> | DOB: <m/d/y> | MRN: <id>`).
+    'referrals/p01-chen-referral.docx': {
+        displayName: 'Margaret Chen',
+        sex: 'female',
+        dateOfBirth: '1968-03-12',
+        ageYears: 58,
+    },
+    'referrals/p02-whitaker-referral.docx': {
+        displayName: 'James Whitaker',
+        sex: 'male',
+        dateOfBirth: '1958-11-22',
+        ageYears: 67,
+    },
+    'referrals/p03-reyes-referral.docx': {
+        displayName: 'Sofia Reyes',
+        sex: 'female',
+        dateOfBirth: '1983-07-04',
+        ageYears: 42,
+    },
 });
 
 export const demographicsForArchetype = (archetype: string): Demographics => {
@@ -233,6 +253,7 @@ export const demographicsForArchetype = (archetype: string): Demographics => {
  */
 const CROSS_IDENTITY_CASE_KINDS: ReadonlySet<CaseKind> = new Set<CaseKind>([
     'adversarial-wrong-patient',
+    'referral-letter-wrong-patient',
 ]);
 
 /**
@@ -272,6 +293,24 @@ export const chartDemographicsForCase = (entry: ManifestEntry): Demographics => 
 export const documentDemographicsForCase = (entry: ManifestEntry): Demographics => {
     if (entry.caseKind === 'adversarial-wrong-patient') {
         return demographicsForArchetype('p01-chen');
+    }
+    if (entry.caseKind === 'referral-letter-wrong-patient') {
+        // Document is Reyes' referral; envelope is Kowalski. The
+        // override on the referral's path returns Reyes' identity for
+        // the document side, which is what the stub vision invoker
+        // surfaces.
+        const referralOverride = DEMOGRAPHICS_BY_FIXTURE_PATH[entry.path];
+        if (referralOverride !== undefined) {
+            return {
+                pid: pidForArchetype('p03-reyes'),
+                uuid: `uuid-p03-reyes`,
+                displayName: referralOverride.displayName,
+                sex: referralOverride.sex,
+                dateOfBirth: referralOverride.dateOfBirth,
+                ageYears: referralOverride.ageYears,
+                source: dummySource(),
+            };
+        }
     }
     const override = DEMOGRAPHICS_BY_FIXTURE_PATH[entry.path];
     if (override === undefined) {

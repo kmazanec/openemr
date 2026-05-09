@@ -34,6 +34,7 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
     private const ROOT_CATEGORY_NAME = 'Clinical Copilot';
     private const LEAF_CATEGORY_NAME_LAB = 'Lab PDF';
     private const LEAF_CATEGORY_NAME_INTAKE = 'Intake Form';
+    private const LEAF_CATEGORY_NAME_REFERRAL = 'Referral Letter';
 
     public function __construct(private Connection $connection)
     {
@@ -42,9 +43,12 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
     public function ensureCategory(string $docType): int
     {
         $rootId = $this->findOrCreateCategory(self::ROOT_CATEGORY_NAME, parentId: 1);
-        $leafName = $docType === DocumentReferenceWriteService::DOC_TYPE_LAB_PDF
-            ? self::LEAF_CATEGORY_NAME_LAB
-            : self::LEAF_CATEGORY_NAME_INTAKE;
+        $leafName = match ($docType) {
+            DocumentReferenceWriteService::DOC_TYPE_LAB_PDF => self::LEAF_CATEGORY_NAME_LAB,
+            DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM => self::LEAF_CATEGORY_NAME_INTAKE,
+            DocumentReferenceWriteService::DOC_TYPE_REFERRAL_LETTER => self::LEAF_CATEGORY_NAME_REFERRAL,
+            default => throw new \DomainException("ensureCategory: unknown docType '{$docType}'"),
+        };
         return $this->findOrCreateCategory($leafName, parentId: $rootId);
     }
 
@@ -145,6 +149,7 @@ final readonly class DbalDocumentTableWriter implements DocumentTableWriter
         $docType = match ($categoryName) {
             self::LEAF_CATEGORY_NAME_LAB => DocumentReferenceWriteService::DOC_TYPE_LAB_PDF,
             self::LEAF_CATEGORY_NAME_INTAKE => DocumentReferenceWriteService::DOC_TYPE_INTAKE_FORM,
+            self::LEAF_CATEGORY_NAME_REFERRAL => DocumentReferenceWriteService::DOC_TYPE_REFERRAL_LETTER,
             default => '',
         };
 

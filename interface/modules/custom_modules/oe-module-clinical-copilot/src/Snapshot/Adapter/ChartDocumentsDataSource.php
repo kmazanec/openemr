@@ -27,11 +27,11 @@ interface ChartDocumentsDataSource
      * Each row carries:
      *   - `document_uuid` — canonical 36-char UUID (the BINARY(16) in
      *     `documents.uuid`, decoded).
-     *   - `doc_type` — `'lab_pdf'` or `'intake_form'`, derived from the
-     *     leaf category name on `categories_to_documents`.
+     *   - `doc_type` — `'lab_pdf'`, `'intake_form'`, or `'referral_letter'`,
+     *     derived from the leaf category name on `categories_to_documents`.
      *   - `canonical_ext` — file extension the rasterizer expects
-     *     (`pdf` / `png` / `jpg` / `jpeg` / `tiff` / `tif`), derived
-     *     from `documents.url` (the canonical legacy filename).
+     *     (`pdf` / `png` / `jpg` / `jpeg` / `tiff` / `tif` / `docx`),
+     *     derived from `documents.url` (the canonical legacy filename).
      *
      * @return list<array{document_uuid: string, doc_type: string, canonical_ext: string}>
      */

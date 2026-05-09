@@ -144,8 +144,8 @@ describe('conversationalGraphSuite', () => {
 });
 
 describe('documentExtractionSuite', () => {
-    it('uses a v1 dataset name (schema-bump contract: rename when shape changes)', () => {
-        expect(DOCUMENT_EXTRACTION_DATASET_NAME.endsWith('-v1')).toBe(true);
+    it('uses a v2 dataset name (bumped from -v1 when referral_letter docType joined the input shape)', () => {
+        expect(DOCUMENT_EXTRACTION_DATASET_NAME.endsWith('-v2')).toBe(true);
     });
 });
 

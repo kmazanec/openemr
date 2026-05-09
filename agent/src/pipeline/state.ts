@@ -98,6 +98,14 @@ export interface PipelineState {
     readonly triggerSource: TriggerSource;
     /** Empty until `rasterize` writes; final length === page count on success. */
     readonly pages: readonly PageImage[];
+    /**
+     * Plain-text body of the canonical document for text-mode
+     * extraction (DOCX referral letters). Null on image/PDF doctypes,
+     * which use `pages` instead. The vision node dispatches on
+     * `docType` to pick text-mode (one Anthropic text call) vs
+     * image-mode (multimodal call referencing PageImage URLs).
+     */
+    readonly documentText: string | null;
     /** Set by `vision` (raw structured-output) and re-checked by `schemaValidate`. Null until vision runs. */
     readonly schema: unknown;
     /** Set by `persist` after the Tier-2 row is inserted (or cached id returned). */
@@ -119,6 +127,7 @@ export const initialPipelineState = (input: {
     pid: input.pid,
     triggerSource: input.triggerSource,
     pages: [],
+    documentText: null,
     schema: null,
     artifactId: null,
     confidenceSignal: null,

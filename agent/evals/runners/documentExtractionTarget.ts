@@ -239,6 +239,61 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
         confidence: conf,
     });
 
+    if (entry.docType === 'referral_letter') {
+        return {
+            sender_provider: {
+                name: cited('Helen Park, MD'),
+                npi: cited('1618829315'),
+            },
+            recipient_provider: {
+                name: cited('Jonathan Liu, MD'),
+                npi: cited('1748392758'),
+            },
+            patient_identifiers: {
+                name: cited(demo.displayName),
+                dob: cited(demo.dateOfBirth ?? '1900-01-01'),
+            },
+            reason_for_referral: cited(
+                'Evaluation of statin-refractory hyperlipidemia',
+            ),
+            past_medical_history: [
+                {
+                    condition: 'Hyperlipidemia',
+                    icd10: 'E78.5',
+                    page: 1,
+                    bbox: [0, 0, 1, 1] as const,
+                    quote: 'Hyperlipidemia (E78.5)',
+                    confidence: 0.92,
+                },
+            ],
+            current_medications: [
+                {
+                    name: 'atorvastatin',
+                    dose: '40 mg',
+                    route: 'PO',
+                    frequency: 'daily',
+                    page: 1,
+                    bbox: [0, 0, 1, 1] as const,
+                    quote: 'atorvastatin 40 mg PO daily',
+                    confidence: 0.92,
+                },
+            ],
+            allergies: [],
+            pertinent_labs: [
+                {
+                    analyte_name: 'LDL-C',
+                    value: '142',
+                    unit: 'mg/dL',
+                    abnormal_flag: 'high',
+                    page: 1,
+                    bbox: [0, 0, 1, 1] as const,
+                    quote: 'LDL-C: 142 mg/dL',
+                    confidence: 0.93,
+                },
+            ],
+        };
+    }
+
     if (entry.docType === 'lab_pdf') {
         const isMultiPanel = entry.caseKind === 'lab-pdf-multi-panel';
         const baseResults = [
@@ -405,6 +460,12 @@ const canonicalExtFor = (entry: ManifestEntry): string => {
     if (entry.mime === 'image/png') return 'png';
     if (entry.mime === 'image/jpeg') return 'jpg';
     if (entry.mime === 'image/tiff') return 'tiff';
+    if (
+        entry.mime ===
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+        return 'docx';
+    }
     return 'pdf';
 };
 

@@ -61,7 +61,11 @@ export interface PipelineRunner {
 const extractRequestSchema = z.object({
     pid: z.number().int().positive(),
     document_uuid: z.string().min(1).max(200),
-    doc_type: z.union([z.literal('lab_pdf'), z.literal('intake_form')]),
+    doc_type: z.union([
+        z.literal('lab_pdf'),
+        z.literal('intake_form'),
+        z.literal('referral_letter'),
+    ]),
     trigger_source: z.union([
         z.literal('panel'),
         z.literal('autosweep'),

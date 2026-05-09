@@ -273,7 +273,7 @@ describe('resolveSkippedCases', () => {
             'clinical-copilot-conversational-graph-v5': {
                 cases: { 'multi-retriever': { citation_present: true } },
             },
-            'clinical-copilot-document-extraction-v1': {
+            'clinical-copilot-document-extraction-v2': {
                 cases: { 'lab-chen-lipid-panel': { schema_valid: true } },
             },
         },

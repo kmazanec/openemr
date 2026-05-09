@@ -56,6 +56,8 @@ export type CaseKind =
     | 'intake-form-clean'
     | 'intake-form-image'
     | 'intake-form-demographics-delta'
+    | 'referral-letter-clean'
+    | 'referral-letter-wrong-patient'
     | 'degraded-smudged'
     | 'degraded-rotated'
     | 'degraded-blank'
@@ -67,7 +69,7 @@ export type CaseKind =
     | 'adversarial-oversized'
     | 'adversarial-corrupted';
 
-export type DocType = 'lab_pdf' | 'intake_form';
+export type DocType = 'lab_pdf' | 'intake_form' | 'referral_letter';
 
 /**
  * Manifest entry shape. The `path` is relative to `source/`. Patient
@@ -286,6 +288,47 @@ const ENTRIES: readonly ManifestEntry[] = [
         patient: { archetype: 'p06-johnson', displayName: 'Johnson' },
         expectedStatus: 'persisted',
         notes: 'Fax intake-shape - Johnson archetype.',
+    },
+
+    // ---- 3 referral-letter cases ----
+    {
+        id: 'referral-chen-cardiology',
+        caseKind: 'referral-letter-clean',
+        path: 'referrals/p01-chen-referral.docx',
+        docType: 'referral_letter',
+        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        pageCount: 1,
+        patient: { archetype: 'p01-chen', displayName: 'Chen' },
+        expectedStatus: 'persisted',
+        notes:
+            'Berkeley Health System cardiology referral for statin-refractory hyperlipidemia. DOCX text-mode extraction (no rasterization).',
+    },
+    {
+        id: 'referral-whitaker',
+        caseKind: 'referral-letter-clean',
+        path: 'referrals/p02-whitaker-referral.docx',
+        docType: 'referral_letter',
+        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        pageCount: 1,
+        patient: { archetype: 'p02-whitaker', displayName: 'Whitaker' },
+        expectedStatus: 'persisted',
+        notes: 'Whitaker referral letter - DOCX text-mode happy path.',
+    },
+    {
+        id: 'referral-wrong-patient',
+        caseKind: 'referral-letter-wrong-patient',
+        path: 'referrals/p03-reyes-referral.docx',
+        docType: 'referral_letter',
+        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        pageCount: 1,
+        // The fixture is Reyes; the eval target sets the envelope pid
+        // to Kowalski. patientMatch refuses with `patient_mismatch`.
+        // Mirrors the lab-pdf adversarial-wrong-patient shape.
+        patient: { archetype: 'p04-kowalski', displayName: 'Kowalski' },
+        expectedStatus: 'failed',
+        expectedErrorCode: 'patient_mismatch',
+        notes:
+            'Cross-patient referral refuse - Reyes referral letter uploaded against Kowalski envelope. patientMatch refuses with `patient_mismatch`.',
     },
 
     // ---- 6 degraded-input cases ----

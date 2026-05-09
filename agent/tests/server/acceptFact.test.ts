@@ -1269,6 +1269,422 @@ describe('POST /v1/agent/accept_fact — happy path (demographics)', () => {
     });
 });
 
+describe('POST /v1/agent/accept_fact — happy path (referral_letter)', () => {
+    const baseReferralArtifact = (
+        overrides: Partial<ExtractionArtifact> = {},
+    ): ExtractionArtifact => ({
+        artifactId: 'artifact-referral-1',
+        documentUuid: 'doc-uuid-referral',
+        pid: 4242,
+        docType: 'referral_letter',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            sender_provider: {
+                name: { value: 'Helen Park, MD', page: 1, bbox: [0, 0, 0, 0], quote: 'Helen Park, MD', confidence: 0.95 },
+            },
+            recipient_provider: {
+                name: { value: 'Jonathan Liu, MD', page: 1, bbox: [0, 0, 0, 0], quote: 'Jonathan Liu, MD', confidence: 0.95 },
+            },
+            patient_identifiers: {
+                name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 0, 0], quote: 'Margaret Chen', confidence: 0.97 },
+                dob: { value: '1968-03-12', page: 1, bbox: [0, 0, 0, 0], quote: '03/12/1968', confidence: 0.95 },
+            },
+            reason_for_referral: { value: 'eval', page: 1, bbox: [0, 0, 0, 0], quote: 'eval', confidence: 0.9 },
+            past_medical_history: [
+                {
+                    condition: 'Hyperlipidemia',
+                    icd10: 'E78.5',
+                    page: 1,
+                    bbox: [800, 818, 0, 0],
+                    quote: 'Hyperlipidemia (E78.5)',
+                    confidence: 0.92,
+                },
+            ],
+            current_medications: [
+                {
+                    name: 'atorvastatin',
+                    dose: '40 mg',
+                    route: 'PO',
+                    frequency: 'daily',
+                    page: 1,
+                    bbox: [900, 928, 0, 0],
+                    quote: 'atorvastatin 40 mg PO daily',
+                    confidence: 0.92,
+                },
+            ],
+            allergies: [],
+            pertinent_labs: [
+                {
+                    analyte_name: 'LDL-C',
+                    value: '142',
+                    unit: 'mg/dL',
+                    collection_date: '2026-04-12',
+                    abnormal_flag: 'high',
+                    page: 1,
+                    bbox: [1100, 1124, 0, 0],
+                    quote: 'LDL-C: 142 mg/dL',
+                    confidence: 0.93,
+                },
+            ],
+        },
+        deltasJson: null,
+        confidenceSignal: null,
+        status: 'pending_confirmation',
+        documentHash: 'hash',
+        createdAt: '2026-05-04T12:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+        ...overrides,
+    });
+
+    it('promotes pertinent_labs through the lab materializer', async () => {
+        const deps = makeDeps({
+            artifact: baseReferralArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'chart-ref-lab-1',
+                chartRecordType: 'diagnostic_report',
+                observationUuids: ['obs-ldl'],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-referral-1',
+                fieldPath: 'pertinent_labs.0',
+                factType: 'lab',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls).toHaveLength(1);
+        expect(deps.promoteCalls[0]?.type).toBe('lab');
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-referral',
+            panel_code: null,
+            collection_date: '2026-04-12',
+            results: [
+                {
+                    analyte_name: 'LDL-C',
+                    value: '142',
+                    unit: 'mg/dL',
+                    abnormal_flag: 'high',
+                },
+            ],
+        });
+    });
+
+    it('falls back to the artifact createdAt date when a referral pertinent_lab omits collection_date', async () => {
+        const noDate = baseReferralArtifact({
+            schemaJson: {
+                ...(baseReferralArtifact().schemaJson as Record<string, unknown>),
+                pertinent_labs: [
+                    {
+                        analyte_name: 'LDL-C',
+                        value: '142',
+                        unit: 'mg/dL',
+                        page: 1,
+                        bbox: [1100, 1124, 0, 0],
+                        quote: 'LDL-C: 142 mg/dL',
+                        confidence: 0.93,
+                    },
+                ],
+            },
+        });
+        const deps = makeDeps({ artifact: noDate });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-referral-1',
+                fieldPath: 'pertinent_labs.0',
+                factType: 'lab',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.body).toMatchObject({
+            collection_date: '2026-05-04',
+        });
+    });
+
+    it('promotes current_medications through the medication_statement materializer', async () => {
+        const deps = makeDeps({
+            artifact: baseReferralArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'chart-ref-med-1',
+                chartRecordType: 'list_medication',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-referral-1',
+                fieldPath: 'current_medications.0',
+                factType: 'medication_statement',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.type).toBe('medication_statement');
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-referral',
+            drug_name: 'atorvastatin',
+            dosage_instructions: '40 mg daily PO',
+        });
+    });
+
+    it('promotes past_medical_history through the medical_problem materializer with ICD-10 pass-through', async () => {
+        const deps = makeDeps({
+            artifact: baseReferralArtifact(),
+            promoteResponse: {
+                chartRecordUuid: 'chart-ref-pmh-1',
+                chartRecordType: 'list_medical_problem',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-referral-1',
+                fieldPath: 'past_medical_history.0',
+                factType: 'past_medical_history',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.type).toBe('past_medical_history');
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-referral',
+            title: 'Hyperlipidemia',
+            diagnosis: 'E78.5',
+        });
+    });
+
+    it('omits diagnosis when a referral PMH entry has no icd10 code', async () => {
+        const noIcd = baseReferralArtifact({
+            schemaJson: {
+                ...(baseReferralArtifact().schemaJson as Record<string, unknown>),
+                past_medical_history: [
+                    {
+                        condition: 'Hypertension',
+                        page: 1,
+                        bbox: [820, 832, 0, 0],
+                        quote: 'Hypertension',
+                        confidence: 0.9,
+                    },
+                ],
+            },
+        });
+        const deps = makeDeps({ artifact: noIcd });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-referral-1',
+                fieldPath: 'past_medical_history.0',
+                factType: 'past_medical_history',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-referral',
+            title: 'Hypertension',
+        });
+    });
+
+    it('promotes referral allergies through the allergy materializer', async () => {
+        const withAllergy = baseReferralArtifact({
+            schemaJson: {
+                ...(baseReferralArtifact().schemaJson as Record<string, unknown>),
+                allergies: [
+                    {
+                        substance: 'sulfa',
+                        reaction: 'rash',
+                        page: 1,
+                        bbox: [950, 960, 0, 0],
+                        quote: 'sulfa — rash',
+                        confidence: 0.91,
+                    },
+                ],
+            },
+        });
+        const deps = makeDeps({
+            artifact: withAllergy,
+            promoteResponse: {
+                chartRecordUuid: 'chart-ref-allergy-1',
+                chartRecordType: 'list_allergy',
+                observationUuids: [],
+                idempotentHit: false,
+            },
+        });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-referral-1',
+                fieldPath: 'allergies.0',
+                factType: 'allergy',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls[0]?.type).toBe('allergy');
+        expect(deps.promoteCalls[0]?.body).toEqual({
+            pid: 4242,
+            source_document_uuid: 'doc-uuid-referral',
+            substance: 'sulfa',
+            reaction_option_id: 'rash',
+        });
+    });
+});
+
+describe('POST /v1/agent/accept_fact — patient-match gate', () => {
+    const partialMatchArtifact = (): ExtractionArtifact => ({
+        artifactId: 'artifact-partial-1',
+        documentUuid: 'doc-uuid-partial',
+        pid: 4242,
+        docType: 'lab_pdf',
+        extractorVersion: 'v1.0.0',
+        schemaJson: {
+            results: [
+                {
+                    analyte_name: 'HbA1c',
+                    value: '6.1',
+                    unit: '%',
+                    collection_date: '2026-04-15',
+                    page: 1,
+                    bbox: [0, 0, 0, 0],
+                    quote: 'HbA1c 6.1 %',
+                    confidence: 0.93,
+                },
+            ],
+        },
+        deltasJson: null,
+        confidenceSignal: {
+            patientMatchScore: 0.8,
+            patientMatchPartial: true,
+            demographicsWarnings: ['name_partial_match'],
+        },
+        status: 'pending_confirmation',
+        documentHash: 'hash',
+        createdAt: '2026-05-04T12:00:00.000Z',
+        confirmedAt: null,
+        confirmedByUser: null,
+    });
+
+    it('refuses promotion with 409 low_match_confidence when patientMatchPartial is true', async () => {
+        const deps = makeDeps({ artifact: partialMatchArtifact() });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-partial-1',
+                fieldPath: 'results.0',
+                factType: 'lab',
+            }),
+        });
+        expect(res.status).toBe(409);
+        expect(await res.json()).toEqual({ error: 'low_match_confidence' });
+        // No promote.php call, no disposition recorded — the gate
+        // short-circuits before either side effect.
+        expect(deps.promoteCalls).toHaveLength(0);
+        expect(deps.dispositionCalls).toHaveLength(0);
+    });
+
+    it('allows promotion when patientMatchPartial is false (confident match)', async () => {
+        const confident: ExtractionArtifact = {
+            ...partialMatchArtifact(),
+            confidenceSignal: {
+                patientMatchScore: 1.0,
+                patientMatchPartial: false,
+                demographicsWarnings: [],
+            },
+        };
+        const deps = makeDeps({ artifact: confident });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-partial-1',
+                fieldPath: 'results.0',
+                factType: 'lab',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls).toHaveLength(1);
+    });
+
+    it('allows promotion when confidenceSignal is null (no signal recorded)', async () => {
+        const noSignal: ExtractionArtifact = {
+            ...partialMatchArtifact(),
+            confidenceSignal: null,
+        };
+        const deps = makeDeps({ artifact: noSignal });
+        const { app, privateKey } = await buildAuthedApp({
+            extractionArtifactStore: deps.store,
+            promoteClient: deps.promoteClient,
+        });
+        const token = await issueToken(privateKey);
+        const res = await app.request('/v1/agent/accept_fact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+                artifactId: 'artifact-partial-1',
+                fieldPath: 'results.0',
+                factType: 'lab',
+            }),
+        });
+        expect(res.status).toBe(200);
+        expect(deps.promoteCalls).toHaveLength(1);
+    });
+});
+
 describe('POST /v1/agent/accept_fact — artifact + materialization errors', () => {
     it('returns 404 artifact_not_found when the store has no such id', async () => {
         const deps = makeDeps({ artifact: null });
