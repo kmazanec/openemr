@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 
+import { assembleFullSnapshot } from '../graph/nodes/retrieveChart.js';
 import type {
     AssistantMessage,
     BriefingSnapshot,
@@ -17,8 +18,11 @@ import type {
     SupervisorDecision,
     VerifiedLedger,
 } from '../graph/types.js';
+import type { Counters } from '../observability/counters.js';
 import { loadPriorContext } from '../state/loadPriorContext.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
+import { loadChartSnapshot } from '../tools/loadChartSnapshot.js';
+import type { SnapshotClient } from '../tools/snapshotClient.js';
 
 /**
  * Runner-side seed for the briefing graph. Replaces the W1 graph nodes
@@ -77,10 +81,26 @@ export interface PreparedBriefingState {
     readonly kickoffExtractionResults: readonly KickoffExtractionResult[];
 }
 
+/**
+ * Optional snapshot-prefetch deps. When supplied, `prepareBriefingState`
+ * runs `loadChartSnapshot` in parallel with `loadPriorContext` so the
+ * `retrieveChart` graph node has nothing to do on its first traversal —
+ * the supervisor sees real chart context on iteration 1 without the
+ * runner paying for a serialized HTTP hop. On prefetch failure we log
+ * and fall through, leaving the graph to run `retrieveChart` as before.
+ */
+export interface SnapshotPrefetchDeps {
+    readonly client: SnapshotClient;
+    readonly token: string;
+    readonly siteId: string;
+    readonly counters?: Counters;
+}
+
 export interface PrepareBriefingStateInput {
     readonly envelope: RequestEnvelope;
     readonly conversationMessages?: ConversationMessagesStore;
     readonly logger?: Logger;
+    readonly snapshotPrefetch?: SnapshotPrefetchDeps;
 }
 
 const buildPerTurnReset = (): Omit<PreparedBriefingState, 'envelope' | 'priorTurnContext'> => ({
@@ -112,6 +132,38 @@ const buildPerTurnReset = (): Omit<PreparedBriefingState, 'envelope' | 'priorTur
     kickoffExtractionResults: [],
 });
 
+/**
+ * Run the snapshot prefetch if deps are wired. Fails soft: a thrown
+ * error from the snapshot endpoint becomes `null`, the graph then runs
+ * `retrieveChart` against the same client and gets the real error
+ * surface there. Logging the failure here at warn level gives the
+ * operator a signal that prefetch isn't covering its share of the
+ * latency budget, without changing user-visible behavior.
+ */
+const runPrefetch = async (
+    deps: SnapshotPrefetchDeps | undefined,
+    pid: number,
+    logger: Logger | undefined,
+): Promise<BriefingSnapshot | null> => {
+    if (deps === undefined) return null;
+    try {
+        const chart = await loadChartSnapshot({
+            client: deps.client,
+            token: deps.token,
+            siteId: deps.siteId,
+            pid,
+            ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+        });
+        return assembleFullSnapshot(chart, null);
+    } catch (err) {
+        logger?.warn(
+            { err: err instanceof Error ? err.message : String(err) },
+            'prepareBriefingState: snapshot prefetch failed; graph will retry in retrieveChart',
+        );
+        return null;
+    }
+};
+
 export const prepareBriefingState = async (
     input: PrepareBriefingStateInput,
 ): Promise<PreparedBriefingState> => {
@@ -121,30 +173,39 @@ export const prepareBriefingState = async (
     }
 
     // Default-briefing turns always start a fresh conversation row, so
-    // there is by definition no prior context to load.
-    if (
+    // there is by definition no prior context to load. Follow-ups
+    // without a wired conversation store / logger likewise skip the
+    // prior-turn projection (test-only path).
+    const skipPriorContext =
         task === 'default_briefing'
         || input.conversationMessages === undefined
-        || input.logger === undefined
-    ) {
-        return {
-            envelope: input.envelope,
-            priorTurnContext: { turns: [] },
-            ...buildPerTurnReset(),
-        };
-    }
+        || input.logger === undefined;
 
-    const priorTurnContext = await loadPriorContext({
-        conversationId: input.envelope.conversationId,
-        currentQuestion: input.envelope.question ?? null,
-        snapshot: null,
-        listForConversation: input.conversationMessages.listForConversation,
-        logger: input.logger,
-    });
+    const priorContextPromise: Promise<PriorTurnContext> = skipPriorContext
+        ? Promise.resolve({ turns: [] })
+        : loadPriorContext({
+            conversationId: input.envelope.conversationId,
+            currentQuestion: input.envelope.question ?? null,
+            snapshot: null,
+            listForConversation: input.conversationMessages.listForConversation,
+            logger: input.logger,
+        });
 
+    const [priorTurnContext, prefetchedSnapshot] = await Promise.all([
+        priorContextPromise,
+        runPrefetch(input.snapshotPrefetch, input.envelope.patient.pid, input.logger),
+    ]);
+
+    const reset = buildPerTurnReset();
     return {
         envelope: input.envelope,
         priorTurnContext,
-        ...buildPerTurnReset(),
+        ...reset,
+        // When prefetch landed, hand the graph a populated snapshot and
+        // bump the call counter so the `retrieveChart` node's no-op
+        // fast-path triggers on its first traversal.
+        ...(prefetchedSnapshot !== null
+            ? { snapshot: prefetchedSnapshot, retrieveChartCallCount: 1 }
+            : {}),
     };
 };

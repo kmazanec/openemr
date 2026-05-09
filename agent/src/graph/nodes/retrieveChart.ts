@@ -70,7 +70,7 @@ const toSnapshotCategories = (
     return requested.map((c) => (c === 'medication' ? 'prescription' : c));
 };
 
-const assembleFullSnapshot = (
+export const assembleFullSnapshot = (
     chart: ChartSnapshot,
     labHistory: LabHistorySeries | Gap | null,
 ): BriefingSnapshot => ({
@@ -161,6 +161,15 @@ export const createRetrieveChart = (
             return runFirstCall(deps, state);
         }
         const args = state.retrieveChartArgs;
+        // Runner-side prefetch fast-path. When `prepareBriefingState`
+        // ran the snapshot fetch in parallel with `loadPriorContext`,
+        // it seeds `snapshot` and bumps `retrieveChartCallCount` to 1
+        // before the graph starts. The first traversal of this node
+        // then has nothing to do — return an empty update so the
+        // supervisor sees the populated snapshot on iteration 1.
+        if (args === null && callCount === 1 && state.snapshot !== null) {
+            return {};
+        }
         if (args === null) {
             throw new Error(
                 'retrieveChart: subsequent invocation requires retrieveChartArgs',

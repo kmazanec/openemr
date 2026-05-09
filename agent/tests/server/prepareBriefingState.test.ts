@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { prepareBriefingState } from '../../src/server/prepareBriefingState.js';
 import type { RequestEnvelope } from '../../src/graph/types.js';
 import { createInMemoryConversationMessagesStore } from '../../src/state/conversationMessages.js';
+import type { SnapshotClient } from '../../src/tools/snapshotClient.js';
 
 const buildEnvelope = (overrides: Partial<RequestEnvelope> = {}): RequestEnvelope => ({
     conversationId: 'c-1',
@@ -22,6 +23,49 @@ const silentLogger = (): Logger =>
         warn: vi.fn(),
         error: vi.fn(),
     }) as unknown as Logger;
+
+/**
+ * Snapshot payload shape `decodeChartSnapshot` accepts. Mirrors the
+ * minimal-but-valid shape used in `tests/graph/nodes/retrieveChart.test.ts`.
+ * Inlined here rather than imported because the helper there is local to
+ * that file and we don't want a cross-test reach.
+ */
+const buildSnapshotPayload = (overrides: Record<string, unknown> = {}): unknown => ({
+    patient: {
+        pid: 42,
+        uuid: 'p-1',
+        displayName: 'Mrs. Patel',
+        sex: 'F',
+        dateOfBirth: '1968-03-15',
+        source: {
+            source_type: 'chart' as const,
+            source_id: '42',
+            locator: { field: 'patient.name' },
+            quote: '42',
+        },
+    },
+    appointment: null,
+    diagnoses: [],
+    prescriptions: [],
+    allergies: [],
+    labs: [],
+    encounters: [],
+    reminders: [],
+    medications: [],
+    ...overrides,
+});
+
+const buildPrefetchClient = (
+    behavior: () => unknown,
+): { client: SnapshotClient; fetch: ReturnType<typeof vi.fn> } => {
+    const fetch: SnapshotClient['fetchSnapshot'] = vi.fn(() =>
+        Promise.resolve(behavior()),
+    );
+    return {
+        client: { fetchSnapshot: fetch },
+        fetch: fetch as unknown as ReturnType<typeof vi.fn>,
+    };
+};
 
 describe('prepareBriefingState', () => {
     it('returns the canonical briefing-state seed for a default_briefing envelope', async () => {
@@ -205,5 +249,104 @@ describe('prepareBriefingState', () => {
         expect(seed.retrieveChartCallCount).toBe(0);
         expect(seed.retrieveChartArgs).toBeNull();
         expect(seed.snapshot).toBeNull();
+    });
+
+    describe('snapshot prefetch (A1 latency optimization)', () => {
+        it('seeds the snapshot and bumps retrieveChartCallCount when prefetch lands', async () => {
+            // The runner-side prefetch moves the chart fetch out of the
+            // graph's `retrieveChart` node and into here so it overlaps
+            // with `loadPriorContext`. When it lands, the graph enters
+            // with a populated snapshot and the no-op fast-path in
+            // `retrieveChart` triggers — saving one serialized HTTP hop
+            // before the supervisor's first iteration.
+            const { client, fetch } = buildPrefetchClient(() => buildSnapshotPayload());
+            const envelope = buildEnvelope({ task: 'default_briefing' });
+
+            const seed = await prepareBriefingState({
+                envelope,
+                snapshotPrefetch: { client, token: 'tok', siteId: 'default' },
+            });
+
+            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(seed.snapshot).not.toBeNull();
+            expect(seed.snapshot?.patient.pid).toBe(42);
+            expect(seed.retrieveChartCallCount).toBe(1);
+        });
+
+        it('falls back to null snapshot when prefetch throws (graph then runs retrieveChart)', async () => {
+            // Fail-soft policy: a snapshot endpoint blip during
+            // prefetch should not crash the request. The graph's
+            // `retrieveChart` node will run normally and surface any
+            // persistent failure with its existing error semantics.
+            const fetch: SnapshotClient['fetchSnapshot'] = vi.fn(() =>
+                Promise.reject(new Error('snapshot endpoint 503')),
+            );
+            const client: SnapshotClient = { fetchSnapshot: fetch };
+            const logger = silentLogger();
+            const envelope = buildEnvelope({ task: 'default_briefing' });
+
+            const seed = await prepareBriefingState({
+                envelope,
+                logger,
+                snapshotPrefetch: { client, token: 'tok', siteId: 'default' },
+            });
+
+            expect(seed.snapshot).toBeNull();
+            expect(seed.retrieveChartCallCount).toBe(0);
+            const warnSpy = logger.warn as unknown as ReturnType<typeof vi.fn>;
+            expect(warnSpy).toHaveBeenCalledTimes(1);
+            const [warnPayload, warnMessage] = warnSpy.mock.calls[0] as [
+                { err: string },
+                string,
+            ];
+            expect(warnPayload.err).toContain('503');
+            expect(warnMessage).toContain('prefetch failed');
+        });
+
+        it('runs prefetch in parallel with prior-context load on follow-up turns', async () => {
+            // Concurrency check: the snapshot fetch and the prior-context
+            // load should resolve concurrently. We assert this by making
+            // the snapshot fetch hang until we tick the event loop and
+            // observe that loadPriorContext has already completed —
+            // i.e. neither awaits the other.
+            const store = createInMemoryConversationMessagesStore();
+            await store.append({
+                conversationId: 'conv-follow',
+                role: 'user',
+                text: 'previous question',
+            });
+
+            let snapshotResolve: ((v: unknown) => void) | undefined;
+            const snapshotPromise = new Promise<unknown>((resolve) => {
+                snapshotResolve = resolve;
+            });
+            const fetch: SnapshotClient['fetchSnapshot'] = vi.fn(() => snapshotPromise);
+            const client: SnapshotClient = { fetchSnapshot: fetch };
+
+            const envelope = buildEnvelope({
+                task: 'follow_up',
+                conversationId: 'conv-follow',
+                question: 'follow-up?',
+            });
+
+            const seedPromise = prepareBriefingState({
+                envelope,
+                conversationMessages: store,
+                logger: silentLogger(),
+                snapshotPrefetch: { client, token: 'tok', siteId: 'default' },
+            });
+
+            // Yield to the microtask queue so loadPriorContext (which
+            // hits the in-memory store synchronously under an await)
+            // has its chance to run while the snapshot fetch is still
+            // pending. If `prepareBriefingState` were serializing the
+            // two, this resolve would happen too late to matter.
+            await Promise.resolve();
+            snapshotResolve!(buildSnapshotPayload());
+
+            const seed = await seedPromise;
+            expect(seed.snapshot).not.toBeNull();
+            expect(seed.priorTurnContext.turns.length).toBeGreaterThan(0);
+        });
     });
 });

@@ -335,28 +335,47 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             clinicianId: envelope.actor.userId,
             patientId: envelope.patient.uuid,
         });
-        // W2 §"Conversational graph": loadState/planContext are no
-        // longer graph nodes. The runner-side seed validates the task
-        // (defense-in-depth against an unknown-task envelope reaching
-        // the graph), projects `conversation_messages` into the §A.5
-        // `priorTurnContext` slot, and produces the BriefingState
-        // slot map the graph invokes against.
-        const initialState = await prepareBriefingState({
-            envelope: canonicalEnvelope,
-            conversationMessages: deps.conversationMessages,
-            logger,
-        });
         // Emit `meta` first so the panel adopts the canonical
-        // conversationId before any progress paints.
+        // conversationId before any progress paints. We do this BEFORE
+        // `prepareBriefingState` so the panel can paint "Reading the
+        // chart…" while the snapshot prefetch + prior-context load
+        // happen in parallel — otherwise the user sees nothing during
+        // a 200–400 ms HTTP hop.
         await emit({
             type: 'meta',
             conversationId: canonicalEnvelope.conversationId,
             requestId: canonicalEnvelope.requestId,
             siteId: canonicalEnvelope.siteId,
         });
-        // Open the first user-visible stage immediately so the panel
-        // shows progress as soon as the stream starts.
         await emit(startedEvent('retrieve'));
+
+        // W2 §"Conversational graph": loadState/planContext are no
+        // longer graph nodes. The runner-side seed validates the task
+        // (defense-in-depth against an unknown-task envelope reaching
+        // the graph), projects `conversation_messages` into the §A.5
+        // `priorTurnContext` slot, and produces the BriefingState
+        // slot map the graph invokes against.
+        //
+        // The `snapshotPrefetch` deps move the chart fetch out of the
+        // `retrieveChart` graph node and into here so it runs in
+        // parallel with `loadPriorContext`. When prefetch lands, the
+        // graph's `retrieveChart` node sees a populated snapshot on
+        // entry and short-circuits to a no-op; the supervisor's first
+        // iteration sees real chart context without an extra serial
+        // HTTP hop. On prefetch failure, `prepareBriefingState` logs
+        // and returns a null snapshot, so the graph falls back to the
+        // legacy retrieve path with no behavioral change.
+        const initialState = await prepareBriefingState({
+            envelope: canonicalEnvelope,
+            conversationMessages: deps.conversationMessages,
+            logger,
+            snapshotPrefetch: {
+                client: deps.snapshotClient,
+                token,
+                siteId: envelope.siteId,
+                ...(deps.counters !== undefined ? { counters: deps.counters } : {}),
+            },
+        });
         let openStage: ProgressStage | null = 'retrieve';
 
         // Stream the graph in `updates` mode so we see one chunk per

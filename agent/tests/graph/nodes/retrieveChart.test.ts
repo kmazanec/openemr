@@ -208,13 +208,41 @@ describe('createRetrieveChart (§A.4)', () => {
             expect(fetch).toHaveBeenCalledTimes(1);
         });
 
-        it('throws when retrieveChartArgs is null on a subsequent call', async () => {
+        it('no-ops on the runner-prefetch fast-path (callCount === 1, snapshot already populated, no args)', async () => {
+            // When `prepareBriefingState` ran the snapshot fetch in
+            // parallel with `loadPriorContext`, the graph enters with
+            // `snapshot !== null` and `retrieveChartCallCount === 1`.
+            // The first traversal of this node has nothing to do — the
+            // supervisor's iteration 1 will see real chart context
+            // without an extra HTTP hop.
+            const { client, fetch } = buildClient(() => baseSnapshot());
+            const retrieve = createRetrieveChart({ client, token: TOKEN, siteId: 'default' });
+
+            const first = await retrieve(firstCallState());
+            const update = await retrieve(stateAfterFirstCall(first));
+
+            // Empty update — the fast-path doesn't touch state.
+            expect(update).toEqual({});
+            // And the snapshot endpoint was called exactly once (the
+            // first call), not twice.
+            expect(fetch).toHaveBeenCalledTimes(1);
+        });
+
+        it('throws when retrieveChartArgs is null AND no snapshot is already populated on a subsequent call', async () => {
+            // The legacy contract: once the supervisor starts re-picking
+            // retrieveChart (callCount > 0), it must supply args. The
+            // only relaxation is the prefetch fast-path above, which
+            // requires snapshot !== null. A null-args, null-snapshot
+            // call past iteration 0 is still a contract violation.
             const { client } = buildClient(() => baseSnapshot());
             const retrieve = createRetrieveChart({ client, token: TOKEN, siteId: 'default' });
 
             const first = await retrieve(firstCallState());
             await expect(
-                retrieve(stateAfterFirstCall(first)),
+                retrieve({
+                    ...stateAfterFirstCall(first),
+                    snapshot: null,
+                }),
             ).rejects.toThrow(/retrieveChartArgs/);
         });
 
