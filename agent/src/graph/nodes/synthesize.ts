@@ -95,6 +95,54 @@ const synthesisOutputSchema = z.object({
         ),
 });
 
+type SynthesisOutput = z.infer<typeof synthesisOutputSchema>;
+
+/**
+ * One-shot repair for an Anthropic tool-use failure mode we've seen on
+ * the long extraction-follow-up prompt: the model sometimes emits the
+ * `ledger` field as a JSON-encoded string instead of as a structured
+ * object, which makes `withStructuredOutput`'s zod parser fail and cost
+ * us the whole turn. When `parsed` is null and the raw tool input has
+ * `ledger: "<json>"` with `segments` already a proper array, try to
+ * `JSON.parse` the ledger string and re-validate against the full
+ * schema. If the inner JSON is itself malformed (also seen — model
+ * forgets to escape inner quotes inside the stringified blob), we
+ * return null and the caller falls back to today's typed error.
+ *
+ * Scoped to `ledger`-as-string only — that's the one shape we've
+ * actually observed in traces. Broader repair (segments-as-string,
+ * partial structures, etc.) belongs behind another trace.
+ */
+export const repairStringEncodedLedger = (raw: unknown): SynthesisOutput | null => {
+    const content = (raw as { content?: unknown } | null | undefined)?.content;
+    if (!Array.isArray(content)) return null;
+    for (const block of content) {
+        if (
+            typeof block !== 'object' ||
+            block === null ||
+            (block as { type?: unknown }).type !== 'tool_use'
+        ) {
+            continue;
+        }
+        const input = (block as { input?: unknown }).input;
+        if (typeof input !== 'object' || input === null) continue;
+        const ledger = (input as { ledger?: unknown }).ledger;
+        const segments = (input as { segments?: unknown }).segments;
+        if (typeof ledger !== 'string' || !Array.isArray(segments)) continue;
+        let decodedLedger: unknown;
+        try {
+            decodedLedger = JSON.parse(ledger);
+        } catch {
+            return null;
+        }
+        const candidate = { segments, ledger: decodedLedger };
+        const result = synthesisOutputSchema.safeParse(candidate);
+        if (result.success) return result.data;
+        return null;
+    }
+    return null;
+};
+
 export interface SynthesizerUsage {
     readonly model: string;
     readonly inputTokens: number;
@@ -361,18 +409,20 @@ export const createAnthropicSynthesizer = (options?: {
             }),
             new HumanMessage(userMessage),
         ]);
-        const parsed = result.parsed;
         const raw = result.raw;
+        // `withStructuredOutput({ includeRaw: true })` sets `parsed`
+        // to null when JSON-coercion fails (or LangChain exhausts
+        // its retry budget). Try the ledger-as-string repair before
+        // giving up — see `repairStringEncodedLedger`. On failure,
+        // surface a typed error rather than dereferencing: the
+        // runner's error classifier maps it to `briefing_failed` and
+        // the panel shows the generic retry message instead of
+        // crashing the SSE stream. The thrown error carries a
+        // bounded excerpt of the raw model output so the LangSmith
+        // trace (and eval failure card) has enough signal to
+        // diagnose without re-running.
+        const parsed = result.parsed ?? repairStringEncodedLedger(raw);
         if (parsed === null || parsed === undefined) {
-            // `withStructuredOutput({ includeRaw: true })` sets `parsed`
-            // to null when JSON-coercion fails (or LangChain exhausts
-            // its retry budget). Surface a typed error rather than
-            // dereferencing — the runner's error classifier maps it to
-            // `briefing_failed` and the panel shows the generic retry
-            // message instead of crashing the SSE stream. The thrown
-            // error carries a bounded excerpt of the raw model output
-            // so the LangSmith trace (and eval failure card) has
-            // enough signal to diagnose without re-running.
             throw structuredOutputParseError('synthesizer', raw);
         }
         const usageMeta = (
