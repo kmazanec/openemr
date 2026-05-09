@@ -11,6 +11,7 @@ import {
 } from '../lib/bbox';
 import { classifyMime, type DocumentMimeKind } from '../lib/mime';
 import { loadPdfJs, type PdfJsImporter } from '../lib/pdfjsLoader';
+import { restoreTopSession } from '../lib/restoreTopSession';
 
 // Same-origin endpoint that returns the document bytes. The OpenEMR
 // session cookie authenticates the request; the responder ACL-checks
@@ -124,6 +125,7 @@ function DocumentViewerOpen({
     const url = buildDocumentUrl(documentViewUrl, args.documentUuid, args.page);
     void (async () => {
       try {
+        restoreTopSession();
         const response = await fetch(url, { credentials: 'same-origin' });
         if (!response.ok) {
           if (!cancelled) {

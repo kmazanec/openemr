@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SseParser } from './sseParser';
+import { restoreTopSession } from './restoreTopSession';
 import type {
   AssistantMessage,
   CopilotStreamEvent,
@@ -12,6 +13,7 @@ import type {
 // proxy mints the agent JWT itself.
 const PROXY_URL =
   '/interface/modules/custom_modules/oe-module-clinical-copilot/public/agent.php';
+
 
 export type CopilotTurn =
   | { kind: 'user'; text: string }
@@ -167,6 +169,7 @@ export function useCopilotStream({
 
       void (async () => {
         try {
+          restoreTopSession();
           const response = await fetch(url, {
             method: 'POST',
             credentials: 'same-origin',
