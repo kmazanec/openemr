@@ -100,3 +100,235 @@
   border-color: #cfe6ee;
   color: #1c5e72;
 }
+
+/* ───────── Clinical Co-Pilot — port of legacy panel.css tokens ─────────
+   The dashboard's React port renders the same chip/sidebar/composer DOM
+   as the legacy chart-tab panel, but the React source uses Bootstrap
+   utility classes only. These rules layer the legacy palette + sticky
+   sidebar geometry on top of the Bootstrap classes so the two surfaces
+   read as the same product. */
+
+.copilot-bubble--assistant {
+  background: #f4f6f9;
+  border: 1px solid #e3e7ee;
+  color: #1c232e;
+}
+
+.copilot-bubble--user {
+  background: #2058a8;
+  border: 1px solid #1d4f95;
+  color: #fff;
+}
+
+/* Source chips: per-source-type palette. The chip class is added on top
+   of Bootstrap's `.badge` so font-size/line-height stay consistent with
+   inline prose. */
+.copilot-source {
+  display: inline-block;
+  margin-left: 0.25em;
+  padding: 0 0.4em;
+  font-family: inherit;
+  font-size: 0.78em;
+  font-weight: 400;
+  line-height: 1.5;
+  text-decoration: none;
+  border-radius: 3px;
+  vertical-align: 0.05em;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.copilot-source--chart {
+  color: #2058a8;
+  background: #eef3fb;
+  border-color: #c7d4e8;
+}
+
+.copilot-source--chart:hover {
+  background: #dfe9f7;
+}
+
+.copilot-source--document {
+  color: #6a3c00;
+  background: #fff1d9;
+  border-color: #e9c884;
+}
+
+.copilot-source--document:hover {
+  background: #fbe5ba;
+}
+
+.copilot-source--guideline {
+  color: #1f6a3d;
+  background: #e6f5ec;
+  border-color: #b6dcc4;
+}
+
+.copilot-source--guideline:hover {
+  background: #d4ecdc;
+}
+
+/* History sidebar: 240px sticky column with independent scroll. */
+.copilot-history {
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e3e7ee;
+  padding: 1em 1em 0.5em;
+  min-height: 0;
+}
+
+.copilot-history__title {
+  margin: 0 0 0.4em;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.copilot-history__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.4em 0;
+}
+
+.copilot-history__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  padding: 0.55em 0.6em;
+  margin: 0.15em 0;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.copilot-history__row:hover {
+  background: #f4f6f9;
+  border-color: #e3e7ee;
+}
+
+.copilot-history__row[data-active="true"] {
+  background: #e6efff;
+  border-color: #b9cdee;
+}
+
+.copilot-history__row-snippet {
+  font-size: 0.9em;
+  color: #1c232e;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.copilot-history__row-snippet--briefing {
+  font-style: italic;
+  color: #6b6e74;
+}
+
+.copilot-history__row-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  font-size: 0.78em;
+  color: #6b6e74;
+}
+
+.copilot-history__row-count {
+  background: #eef1f5;
+  color: #4a5260;
+  padding: 0.05em 0.45em;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.copilot-history__empty {
+  margin: 0.6em 0.4em;
+  font-size: 0.85em;
+  color: #6b6e74;
+  font-style: italic;
+}
+
+/* Suggestion follow-ups: pill-shaped, light-blue chips that read as
+   inline tappable text rather than full Bootstrap buttons. */
+.copilot-suggestion {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35em 0.75em;
+  font-size: 0.85em;
+  color: #2058a8;
+  background: #eef3fb;
+  border: 1px solid #c7d4e8;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.3;
+}
+
+.copilot-suggestion:hover:not(:disabled) {
+  background: #dfe9f7;
+}
+
+.copilot-suggestion:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Composer: paperclip attach button styled like the legacy panel. */
+.copilot-composer__attach {
+  padding: 0.55em 0.75em;
+  border-radius: 6px;
+  border: 1px solid #c7d0d9;
+  background: #f6f7f9;
+  color: #2058a8;
+  font: inherit;
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.copilot-composer__attach:hover:not(:disabled) {
+  background: #e8edf3;
+  border-color: #a8b3c2;
+}
+
+.copilot-composer__attach:disabled {
+  background: #e8edf3;
+  border-color: #c7d0d9;
+  color: #8a8f97;
+  cursor: not-allowed;
+}
+
+.copilot-composer__file {
+  /* Visually hidden but kept in the a11y tree for keyboard users. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.copilot-toast {
+  margin: 0.4em 0.2em 0;
+  padding: 0.6em 0.75em;
+  border-radius: 6px;
+  border: 1px solid #f5c2c7;
+  background: #f8d7da;
+  color: #58151c;
+  font-size: 0.9em;
+  line-height: 1.35;
+}

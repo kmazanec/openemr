@@ -232,35 +232,50 @@ describe('CopilotPanel', () => {
 
   it('typing in the composer and pressing Enter submits a follow-up', async () => {
     const message = buildAssistantMessage();
-    let calls = 0;
+    // `briefingCalls` ignores the history-sidebar's `conversation_history`
+    // request — that fires on mount but is not what this test is
+    // covering. The first briefing call is the auto-fired
+    // default_briefing; the second is the follow-up under test.
+    let briefingCalls = 0;
     let lastBody = '';
-    global.fetch = vi.fn((_url: unknown, init?: RequestInit) => {
-      calls += 1;
-      lastBody = typeof init?.body === 'string' ? init.body : '';
+    global.fetch = vi.fn((url: unknown, init?: RequestInit) => {
+      const urlStr = typeof url === 'string' ? url : '';
+      if (urlStr.includes('action=briefing')) {
+        briefingCalls += 1;
+        lastBody = typeof init?.body === 'string' ? init.body : '';
+        return Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    sseFrames([
+                      { type: 'meta', conversationId: 'conv-1', requestId: 'rn', siteId: 'default' },
+                      { type: 'assistantMessage', message },
+                      { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
+                    ]),
+                  ),
+                );
+                controller.close();
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+          ),
+        );
+      }
+      // History sidebar's GET — return an empty list so the sidebar
+      // renders its empty state without throwing.
       return Promise.resolve(
-        new Response(
-          new ReadableStream({
-            start(controller) {
-              controller.enqueue(
-                new TextEncoder().encode(
-                  sseFrames([
-                    { type: 'meta', conversationId: 'conv-1', requestId: 'rn', siteId: 'default' },
-                    { type: 'assistantMessage', message },
-                    { type: 'done', persistedAt: '2026-05-08T00:00:00Z' },
-                  ]),
-                ),
-              );
-              controller.close();
-            },
-          }),
-          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
-        ),
+        new Response(JSON.stringify({ items: [], nextBefore: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
       );
     });
 
     render(<CopilotPanel pid={42} />);
     await waitFor(() => screen.getByTestId('copilot-bubble-assistant'));
-    expect(calls).toBe(1);
+    expect(briefingCalls).toBe(1);
 
     const composer = screen.getByTestId('copilot-composer');
     fireEvent.change(composer, { target: { value: 'When is the next visit?' } });
@@ -271,7 +286,7 @@ describe('CopilotPanel', () => {
     // dance.
     fireEvent.click(screen.getByTestId('copilot-submit'));
 
-    await waitFor(() => expect(calls).toBe(2));
+    await waitFor(() => expect(briefingCalls).toBe(2));
     const parsed = JSON.parse(lastBody) as { task: string; question?: string };
     expect(parsed.task).toBe('follow_up');
     expect(parsed.question).toBe('When is the next visit?');
@@ -406,7 +421,9 @@ describe('CopilotPanel', () => {
 
     const chip = screen.getByTestId('copilot-chip');
     expect(chip).toHaveAttribute('data-source-type', 'guideline');
-    expect(chip).toHaveTextContent('USPSTF');
+    // Inline chip uses the literal `[source]` label (matching the
+    // legacy panel); the publication name shows in the drawer.
+    expect(chip).toHaveTextContent('[source]');
     fireEvent.click(chip);
 
     await waitFor(() =>

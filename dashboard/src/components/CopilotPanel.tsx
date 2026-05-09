@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
-import { useCopilotStream, type CopilotTurn as Turn } from '../lib/useCopilotStream';
+import {
+  useCopilotStream,
+  type CopilotTurn as Turn,
+  type PendingUpload,
+} from '../lib/useCopilotStream';
 import type {
   AssistantMessage,
   AssistantMessageSegment,
@@ -12,7 +16,21 @@ import {
   type DocumentViewerArgs,
 } from './DocumentViewerDrawer';
 import { GuidelineDrawer } from './GuidelineDrawer';
+import { CopilotHistory } from './CopilotHistory';
 import type { PdfJsImporter } from '../lib/pdfjsLoader';
+
+const PROXY_URL =
+  '/interface/modules/custom_modules/oe-module-clinical-copilot/public/agent.php';
+const DOCUMENT_UPLOAD_URL =
+  '/interface/modules/custom_modules/oe-module-clinical-copilot/public/document_upload.php';
+
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/tiff',
+]);
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export interface CopilotPanelProps {
   pid: number;
@@ -50,11 +68,14 @@ export function CopilotPanel({
   documentViewUrl,
   pdfjsImporter,
 }: CopilotPanelProps): ReactElement {
-  const { state, submit, reset } = useCopilotStream(
+  const { state, submit, reset, loadConversation } = useCopilotStream(
     proxyUrl !== undefined
       ? { pid, siteId, proxyUrl }
       : { pid, siteId },
   );
+  const effectiveProxyUrl = proxyUrl ?? PROXY_URL;
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Side-drawer state. Per-source-type so a guideline chip click
   // doesn't tear down a document drawer mid-render (the drawers
@@ -128,52 +149,209 @@ export function CopilotPanel({
     setComposer('');
   };
 
+  const onAttachClick = useCallback((): void => {
+    setUploadError(null);
+    fileInputRef.current?.click();
+  }, []);
+
+  const onFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+      const file = e.target.files?.[0];
+      // Reset so picking the same file twice still fires `change`.
+      e.target.value = '';
+      if (!file) return;
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setUploadError('File is too large. Maximum is 10 MB.');
+        return;
+      }
+      if (!ALLOWED_UPLOAD_MIMES.has(file.type)) {
+        setUploadError('Unsupported file type. Use PDF, PNG, JPEG, or TIFF.');
+        return;
+      }
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const response = await fetch(DOCUMENT_UPLOAD_URL, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body: form,
+        });
+        const body = (await response.json().catch(() => null)) as
+          | { document_uuid?: string; doc_type_guess?: string; canonical_ext?: string; error?: string }
+          | null;
+        if (!response.ok || body === null) {
+          setUploadError(body?.error ?? 'Upload failed. Try again.');
+          return;
+        }
+        if (
+          typeof body.document_uuid !== 'string' ||
+          typeof body.doc_type_guess !== 'string' ||
+          typeof body.canonical_ext !== 'string'
+        ) {
+          setUploadError('Upload failed. Try again.');
+          return;
+        }
+        const upload: PendingUpload = {
+          documentUuid: body.document_uuid,
+          docType: body.doc_type_guess,
+          canonicalExt: body.canonical_ext,
+        };
+        submit({
+          task: 'follow_up',
+          question: `📎 ${file.name}`,
+          pendingUploads: [upload],
+        });
+      } catch {
+        setUploadError('Upload failed. Try again.');
+      }
+    },
+    [submit],
+  );
+
   const lastAssistant = lastAssistantTurn(state.turns);
 
   return (
     <div
-      className="copilot-panel d-flex flex-column"
+      className="copilot-panel d-flex"
       data-testid="copilot-panel"
       data-pid={pid}
       data-site-id={siteId}
       style={{ height: '100%', minHeight: 0 }}
     >
-      <header className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom bg-body">
-        <div>
-          <h2 className="h5 mb-0 text-primary">Clinical Co-Pilot</h2>
-          <p className="small text-body-secondary mb-0" data-testid="copilot-status">
-            {state.inFlight
-              ? 'Composing briefing…'
-              : state.turns.length === 0
-                ? 'Loading briefing…'
-                : 'Ready'}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn btn-sm btn-outline-secondary"
-          onClick={reset}
-          disabled={state.inFlight}
-        >
-          New conversation
-        </button>
-      </header>
+      <CopilotHistory
+        pid={pid}
+        proxyUrl={effectiveProxyUrl}
+        activeConversationId={state.conversationId}
+        onResume={(id) => {
+          void loadConversation(id);
+        }}
+      />
 
       <div
-        className="flex-grow-1 overflow-auto px-3 py-3"
-        data-testid="copilot-thread"
-        style={{ minHeight: 0 }}
+        className="d-flex flex-column flex-grow-1"
+        style={{ minWidth: 0, minHeight: 0 }}
       >
-        {state.turns.length === 0 && !state.inFlight ? (
-          <div className="text-center text-body-secondary p-4">
-            <p>The Co-Pilot will summarize this patient&rsquo;s chart for you.</p>
+        <header className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom bg-body">
+          <div>
+            <h2 className="h5 mb-0 text-primary">Clinical Co-Pilot</h2>
+            <p className="small text-body-secondary mb-0" data-testid="copilot-status">
+              {state.inFlight
+                ? 'Composing briefing…'
+                : state.turns.length === 0
+                  ? 'Loading briefing…'
+                  : 'Ready'}
+            </p>
           </div>
-        ) : (
-          state.turns.map((turn, i) => (
-            <TurnView key={i} turn={turn} onChipClick={onChipClick} />
-          ))
-        )}
-        <div ref={threadEndRef} />
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={reset}
+            disabled={state.inFlight}
+          >
+            New conversation
+          </button>
+        </header>
+
+        {/* Scrollable column that contains the thread, the suggestion
+            rail, and the composer. The composer flows naturally below
+            the conversation rather than being pinned to the viewport
+            bottom. */}
+        <div
+          className="flex-grow-1 overflow-auto px-3 py-3"
+          data-testid="copilot-thread"
+          style={{ minHeight: 0 }}
+        >
+          {state.turns.length === 0 && !state.inFlight ? (
+            <div className="text-center text-body-secondary p-4">
+              <p>The Co-Pilot will summarize this patient&rsquo;s chart for you.</p>
+            </div>
+          ) : (
+            state.turns.map((turn, i) => (
+              <TurnView key={i} turn={turn} onChipClick={onChipClick} />
+            ))
+          )}
+
+          {lastAssistant !== null && lastAssistant.message.suggestedFollowUps.length > 0 && (
+            <div
+              className="copilot-suggestions d-flex flex-wrap gap-2 mt-2 mb-3"
+              data-testid="copilot-suggestions"
+            >
+              {lastAssistant.message.suggestedFollowUps.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="copilot-suggestion"
+                  data-testid="copilot-suggestion"
+                  disabled={state.inFlight}
+                  onClick={() => submit({ task: 'follow_up', question: s.displayText })}
+                >
+                  {s.displayText}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {uploadError !== null && (
+            <div className="copilot-toast" role="alert" data-testid="copilot-upload-error">
+              {uploadError}
+            </div>
+          )}
+
+          <form
+            className="d-flex gap-2 align-items-end mt-3"
+            onSubmit={onSubmit}
+          >
+            <textarea
+              className="form-control"
+              rows={2}
+              maxLength={2000}
+              value={composer}
+              onChange={(e) => setComposer(e.target.value)}
+              placeholder="Ask a follow-up question about this patient… (Shift+Enter for newline)"
+              data-testid="copilot-composer"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  const form = e.currentTarget.form;
+                  if (form !== null) {
+                    form.requestSubmit();
+                  }
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="copilot-composer__attach"
+              onClick={onAttachClick}
+              disabled={state.inFlight}
+              aria-label="Attach a document"
+              title="Attach a document"
+              data-testid="copilot-attach"
+            >
+              📎
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="copilot-composer__file"
+              accept="application/pdf,image/png,image/jpeg,image/tiff"
+              onChange={(e) => {
+                void onFileChange(e);
+              }}
+              data-testid="copilot-file"
+            />
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={state.inFlight || composer.trim() === ''}
+              data-testid="copilot-submit"
+            >
+              Ask
+            </button>
+          </form>
+
+          <div ref={threadEndRef} />
+        </div>
       </div>
 
       <DocumentViewerDrawer
@@ -187,55 +365,6 @@ export function CopilotPanel({
         claimText={guidelineSource?.claimText ?? ''}
         onClose={() => setGuidelineSource(null)}
       />
-
-      {lastAssistant !== null && lastAssistant.message.suggestedFollowUps.length > 0 && (
-        <div
-          className="copilot-suggestions border-top px-3 py-2 d-flex flex-wrap gap-2 bg-light"
-          data-testid="copilot-suggestions"
-        >
-          {lastAssistant.message.suggestedFollowUps.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className="btn btn-sm btn-outline-primary"
-              data-testid="copilot-suggestion"
-              disabled={state.inFlight}
-              onClick={() => submit({ task: 'follow_up', question: s.displayText })}
-            >
-              {s.displayText}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <form className="border-top p-2 d-flex gap-2 align-items-end" onSubmit={onSubmit}>
-        <textarea
-          className="form-control"
-          rows={2}
-          maxLength={2000}
-          value={composer}
-          onChange={(e) => setComposer(e.target.value)}
-          placeholder="Ask a follow-up question about this patient… (Shift+Enter for newline)"
-          data-testid="copilot-composer"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              const form = e.currentTarget.form;
-              if (form !== null) {
-                form.requestSubmit();
-              }
-            }
-          }}
-        />
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={state.inFlight || composer.trim() === ''}
-          data-testid="copilot-submit"
-        >
-          Ask
-        </button>
-      </form>
     </div>
   );
 }
@@ -436,7 +565,7 @@ function SourceChip({
   const url = sourceLinkUrl(reference);
   const tooltip = chipTooltipText(reference);
   const label = chipLabel(reference);
-  const cls = 'badge text-decoration-none ms-1 ' + chipColorClass(reference);
+  const cls = 'copilot-source ' + chipColorClass(reference);
   // Chart chips with a known deep link render as anchors so the user
   // gets the native middle-click / open-in-new-tab affordance.
   if (url !== null) {
@@ -465,7 +594,7 @@ function SourceChip({
     return (
       <button
         type="button"
-        className={cls + ' border-0'}
+        className={cls}
         title={tooltip}
         data-testid="copilot-chip"
         data-claim-id={claim.id}
@@ -474,10 +603,6 @@ function SourceChip({
           e.preventDefault();
           onClick();
         }}
-        // Buttons inside flowing text shouldn't disturb the line
-        // height; collapse browser-default button padding so the chip
-        // sits inline with the surrounding badge styles.
-        style={{ padding: '0.15em 0.5em', cursor: 'pointer' }}
       >
         {label}
       </button>
@@ -497,30 +622,25 @@ function SourceChip({
 }
 
 function chipColorClass(ref: SourceReference): string {
-  // Loose visual distinction by source type: chart=blue, doc=teal,
-  // guideline=violet. All Bootstrap subtle backgrounds so the chip
-  // stays unobtrusive.
+  // Per-source-type palette ported from the legacy panel's
+  // `.copilot-source--{chart|document|guideline}` rules. Keeps the
+  // three sections visually scannable: chart = blue, extracted
+  // document = brown/amber, guideline = green.
   switch (ref.source_type) {
     case 'chart':
-      return 'bg-primary-subtle text-primary-emphasis border border-primary-subtle';
+      return 'copilot-source--chart';
     case 'extracted_document':
-      return 'bg-info-subtle text-info-emphasis border border-info-subtle';
+      return 'copilot-source--document';
     case 'guideline':
-      return 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+      return 'copilot-source--guideline';
   }
 }
 
-function chipLabel(ref: SourceReference): string {
-  switch (ref.source_type) {
-    case 'chart':
-      return 'chart';
-    case 'extracted_document':
-      return 'document';
-    case 'guideline': {
-      const pub = ref.meta?.publication;
-      return typeof pub === 'string' && pub !== '' ? pub : 'guideline';
-    }
-  }
+function chipLabel(_ref: SourceReference): string {
+  // The legacy panel always renders a literal `[source]` label; the
+  // visual differentiation between source types is carried entirely by
+  // the chip color (blue / amber / green).
+  return '[source]';
 }
 
 function chipTooltipText(ref: SourceReference): string {

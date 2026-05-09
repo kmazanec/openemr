@@ -89,14 +89,25 @@ function newRequestId(pid: number): string {
  * proxy validates the session, mints a 5-minute JWT for the agent,
  * and forwards. No bearer token is held in the SPA.
  */
+export interface PendingUpload {
+  documentUuid: string;
+  docType: string;
+  canonicalExt: string;
+}
+
 export function useCopilotStream({
   pid,
   siteId,
   proxyUrl = PROXY_URL,
 }: UseCopilotStreamArgs): {
   state: CopilotState;
-  submit: (input: { task: 'default_briefing' | 'follow_up'; question?: string }) => void;
+  submit: (input: {
+    task: 'default_briefing' | 'follow_up';
+    question?: string;
+    pendingUploads?: PendingUpload[];
+  }) => void;
   reset: () => void;
+  loadConversation: (conversationId: string) => Promise<boolean>;
 } {
   const [state, setState] = useState<CopilotState>(() => ({
     turns: [],
@@ -128,7 +139,11 @@ export function useCopilotStream({
   }, []);
 
   const submit = useCallback(
-    (input: { task: 'default_briefing' | 'follow_up'; question?: string }) => {
+    (input: {
+      task: 'default_briefing' | 'follow_up';
+      question?: string;
+      pendingUploads?: PendingUpload[];
+    }) => {
       // Cancel any in-flight turn before starting a new one.
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -161,6 +176,9 @@ export function useCopilotStream({
         task: input.task,
         ...(input.question !== undefined && input.question !== ''
           ? { question: input.question }
+          : {}),
+        ...(input.pendingUploads !== undefined && input.pendingUploads.length > 0
+          ? { pendingUploads: input.pendingUploads }
           : {}),
       });
 
@@ -255,7 +273,53 @@ export function useCopilotStream({
     });
   }, [pid]);
 
-  return { state, submit, reset };
+  const loadConversation = useCallback(
+    async (conversationId: string): Promise<boolean> => {
+      abortRef.current?.abort();
+      const params = new URLSearchParams({
+        action: 'latest_conversation',
+        pid: String(pid),
+        conversation: conversationId,
+      });
+      try {
+        const response = await fetch(`${proxyUrl}?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return false;
+        const payload = (await response.json()) as {
+          conversationId?: string;
+          thread?: Array<
+            | { role: 'assistant'; message: AssistantMessage }
+            | { role: 'user'; text: string }
+          >;
+        };
+        if (typeof payload.conversationId !== 'string') return false;
+        const items = Array.isArray(payload.thread) ? payload.thread : [];
+        const turns: CopilotTurn[] = [];
+        for (const item of items) {
+          if (item.role === 'user' && typeof item.text === 'string') {
+            turns.push({ kind: 'user', text: item.text });
+          } else if (item.role === 'assistant' && item.message) {
+            turns.push({ kind: 'assistant', message: item.message });
+          }
+        }
+        setState({
+          turns,
+          conversationId: payload.conversationId,
+          inFlight: false,
+          lastTransportError: null,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [pid, proxyUrl],
+  );
+
+  return { state, submit, reset, loadConversation };
 }
 
 function replacePlaceholder(
