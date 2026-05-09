@@ -25,6 +25,8 @@ import type { ConversationStore } from '../state/conversationStore.js';
 import type { ExtractionArtifactStore } from '../state/extractionArtifacts.js';
 import type { PipelineStreamEvent } from './pipelineStream.js';
 import type { PipelineRunner } from './routes/extract.js';
+import type { AgentHttpClient } from '../tools/agentHttp.js';
+import { createAgentHttpClient } from '../tools/agentHttp.js';
 import { createSnapshotClient } from '../tools/snapshotClient.js';
 import type { SnapshotClient } from '../tools/snapshotClient.js';
 import type { UnverifiedClaimsLog } from '../verify/unverifiedClaimsLog.js';
@@ -36,6 +38,7 @@ import {
     startedEvent,
 } from './briefingProgress.js';
 import { eventsForBriefing, type BriefingStreamEvent, type ProgressStage } from './briefingStream.js';
+import { enrichPendingUploadsWithChartDocuments } from './enrichPendingUploads.js';
 import { prepareBriefingState } from './prepareBriefingState.js';
 
 /**
@@ -145,6 +148,25 @@ export interface BriefingRunnerDeps {
      * share one factory.
      */
     readonly pipeline?: PipelineRunner;
+    /**
+     * Chart-document discovery seam. When wired, the runner queries
+     * OpenEMR's `documents` table for Clinical-Copilot-categorized
+     * chart documents and splices unprocessed ones onto
+     * `envelope.pendingUploads` before the graph runs. Optional —
+     * tests that don't exercise this path can omit it; the briefing
+     * runs without enrichment and behaves as it did before the fix.
+     *
+     * Both `httpClient` and `extractionArtifactStore` are required
+     * together: the HTTP client fetches the chart-document list from
+     * OpenEMR's MySQL via the snapshot endpoint, and the store
+     * filters out already-extracted documents on the agent's
+     * Postgres. Each side stays responsible for its own database.
+     */
+    readonly chartDocumentDiscovery?: {
+        readonly httpClient: AgentHttpClient;
+        readonly extractionArtifactStore: ExtractionArtifactStore;
+        readonly openEmrBaseUrl: string;
+    };
 }
 
 /**
@@ -227,10 +249,30 @@ export const createBriefingRunner = (deps: BriefingRunnerDeps): BriefingRunner =
             }
             conversationId = owned.id;
         }
-        const canonicalEnvelope: RequestEnvelope = {
+        let canonicalEnvelope: RequestEnvelope = {
             ...envelope,
             conversationId,
         };
+
+        // Discover Clinical-Copilot-categorized chart documents that
+        // haven't been extracted yet and splice them onto
+        // `pendingUploads`. The supervisor's existing routing rule
+        // ("when pendingUploads has an unprocessed entry, fire
+        // kickoffExtraction") then handles chart-uploaded documents
+        // exactly the way it handles chat-panel uploads. Best-effort:
+        // failures fail open and the briefing proceeds with the
+        // un-enriched envelope.
+        if (deps.chartDocumentDiscovery !== undefined) {
+            canonicalEnvelope = await enrichPendingUploadsWithChartDocuments(
+                {
+                    httpClient: deps.chartDocumentDiscovery.httpClient,
+                    extractionArtifactStore: deps.chartDocumentDiscovery.extractionArtifactStore,
+                    openEmrBaseUrl: deps.chartDocumentDiscovery.openEmrBaseUrl,
+                    logger,
+                },
+                { envelope: canonicalEnvelope, token },
+            );
+        }
 
         // §4.6: persist the user turn (free-text follow-up) before the
         // graph runs, so a mid-flight failure still leaves the question
@@ -576,6 +618,16 @@ export const buildProductionBriefingRunner = async (
         store: options.extractionArtifactStore,
     };
 
+    // Chart-side document discovery. Reuses the same OpenEMR base URL
+    // every other snapshot tool uses; a dedicated logger-name on the
+    // HTTP client lets operators distinguish chart-doc 5xx's from
+    // briefing-snapshot 5xx's in the agent log.
+    const chartDocumentDiscovery = {
+        httpClient: createAgentHttpClient({ loggerName: 'agentHttp:chart-documents' }),
+        extractionArtifactStore: options.extractionArtifactStore,
+        openEmrBaseUrl: options.openEmrBaseUrl,
+    };
+
     return createBriefingRunner({
         snapshotClient,
         synthesizer,
@@ -586,6 +638,7 @@ export const buildProductionBriefingRunner = async (
         counters: options.counters,
         supervisor,
         documentEvidenceRetriever,
+        chartDocumentDiscovery,
         ...(evidenceRetriever !== null ? { evidenceRetriever } : {}),
         ...(options.pipeline !== undefined ? { pipeline: options.pipeline } : {}),
     });

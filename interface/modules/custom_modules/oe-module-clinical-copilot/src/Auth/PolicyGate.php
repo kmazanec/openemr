@@ -74,6 +74,15 @@ final readonly class PolicyGate
             // chose to extract — a no-doc briefing never reaches the
             // callback.
             'user/DocumentReference.cs',
+            // Chart-side document discovery: the agent's
+            // `getChartDocuments` tool calls
+            // `public/snapshot/chart-documents.php` on every briefing
+            // so it can detect documents the clinician uploaded
+            // through OpenEMR's legacy Documents UI (rather than
+            // through the chat panel) and route them through the same
+            // `kickoffExtraction` path. Read-only — the snapshot
+            // endpoint never writes.
+            'user/DocumentReference.rs',
         ],
         // §4.6 resume lookup: read-only JSON, no chart access. The
         // agent reads its own conversation tables; no SMART scopes

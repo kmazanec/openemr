@@ -51,6 +51,23 @@ export interface ReminderDetail {
 }
 
 /**
+ * One chart-side document returned by the
+ * `chart-documents.php` endpoint. The PHP side restricts to documents
+ * filed under the `Clinical Copilot` category root and emits exactly
+ * the three slots `pendingUploads` needs so the agent can splice them
+ * onto the envelope without further transformation.
+ *
+ * The agent's `getChartDocuments` tool drops any row whose
+ * `documentUuid` already has an `extraction_artifacts` entry, so the
+ * supervisor only sees still-unprocessed documents.
+ */
+export interface ChartDocument {
+    readonly documentUuid: string;
+    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly canonicalExt: string;
+}
+
+/**
  * Provenance for a single patient-reported medication returned by
  * the §4.6.6 `medication_statement_provenance.php` endpoint. Mirrors
  * the PHP-side `MedicationStatementProvenance::toArray()` shape.
@@ -216,6 +233,30 @@ export const decodePrescriptionProvenanceResponse = (raw: unknown): Prescription
         ),
         doseAdjustments,
     };
+};
+
+export const decodeChartDocumentsResponse = (raw: unknown): readonly ChartDocument[] => {
+    const obj = expectObject('chartDocumentsResponse', raw);
+    const arr = expectArray(
+        'chartDocumentsResponse.documents',
+        requireKey('chartDocumentsResponse', obj, 'documents'),
+    );
+    return arr.map((item, idx) => {
+        const path = `chartDocumentsResponse.documents[${String(idx)}]`;
+        const row = expectObject(path, item);
+        const docType = expectString(`${path}.doc_type`, row['doc_type']);
+        if (docType !== 'lab_pdf' && docType !== 'intake_form') {
+            throw new ChartSnapshotDecodeError(
+                `${path}.doc_type`,
+                'expected "lab_pdf" or "intake_form"',
+            );
+        }
+        return {
+            documentUuid: expectString(`${path}.document_uuid`, row['document_uuid']),
+            docType,
+            canonicalExt: expectString(`${path}.canonical_ext`, row['canonical_ext']),
+        };
+    });
 };
 
 export const decodeReminderDetailResponse = (raw: unknown): ReminderDetail => {
