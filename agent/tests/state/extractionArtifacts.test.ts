@@ -264,6 +264,28 @@ describe('createExtractionArtifactStoreFromPool — findArtifactByDocumentHash',
         ).rejects.toThrow(/unexpected doc_type/);
     });
 
+    it('parses every supported doc_type — referral_letter must not throw', async () => {
+        // Without referral_letter in parseDocType, searchArtifacts throws
+        // for any patient with a referral_letter row. enrichPendingUploads
+        // catches that error and treats it as "nothing extracted", which
+        // re-floods the supervisor with already-processed chart docs.
+        for (const docType of ['lab_pdf', 'intake_form', 'referral_letter']) {
+            const pool = buildFakePool([
+                {
+                    rowCount: 1,
+                    rows: [{ ...insertedRow(fixtureArtifact()), doc_type: docType }],
+                },
+            ]);
+            const store = createExtractionArtifactStoreFromPool(pool);
+            const found = await store.findArtifactByDocumentHash(
+                'a'.repeat(64),
+                'v1.0.0',
+                1,
+            );
+            expect(found?.docType).toBe(docType);
+        }
+    });
+
     it('throws on an unknown status — defends against schema drift', async () => {
         const pool = buildFakePool([
             {

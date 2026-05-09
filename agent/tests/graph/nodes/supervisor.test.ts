@@ -371,6 +371,7 @@ describe('createSupervisor (§A.7)', () => {
                     status: 'persisted',
                     artifactId: 'a-1',
                     errorCode: null,
+                    idempotencyHit: false,
                 },
             ],
         }));
@@ -444,6 +445,38 @@ describe('createSupervisor (§A.7)', () => {
         const obs = observed[0] as { question: string | null; implicitQuestion: string | null };
         expect(obs.question).toBe('Should we increase metformin?');
         expect(obs.implicitQuestion).toBeNull();
+    });
+
+    it('honors a non-kickoff routing choice on a follow-up turn with an explicit question + chart-side pendingUploads', async () => {
+        // Regression: chart-side documents enriched by the briefing
+        // runner re-appear in `envelope.pendingUploads` on every follow-
+        // up turn. When the user asks an explicit question that does
+        // not reference those documents, the supervisor must be free to
+        // route the question through evidenceRetriever / synthesize
+        // instead of being forced into kickoffExtraction. The node
+        // honors whatever decision the LLM (steered by the prompt)
+        // returns; it does not second-guess `handoff: 'synthesize'`
+        // when pendingUploads is non-empty.
+        const llm = decide({
+            handoff: 'synthesize',
+            reason: 'explicit follow-up question — answering directly',
+            narration: 'Answering your question.',
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState({
+            envelope: {
+                ...envelope,
+                task: 'follow_up',
+                question: 'Why was Metformin prescribed?',
+                pendingUploads: [
+                    { documentUuid: 'chart-doc-1', docType: 'intake_form', canonicalExt: 'pdf' },
+                ],
+            },
+            kickoffExtractionResults: [],
+        }));
+
+        expect(out.supervisorDecisionHistory?.at(-1)?.handoff).toBe('synthesize');
     });
 
     it('observation has null implicitQuestion when there are no pending uploads', async () => {

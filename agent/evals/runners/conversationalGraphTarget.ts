@@ -624,6 +624,7 @@ export const runConversationalGraphCase = async (
                     status: 'persisted',
                     artifactId: DOC_AFTER_KICKOFF_ARTIFACT_ID,
                     errorCode: null,
+                    idempotencyHit: false,
                 },
             ],
         });

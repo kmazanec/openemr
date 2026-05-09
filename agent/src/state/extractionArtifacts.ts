@@ -452,7 +452,7 @@ interface DispositionRow {
 }
 
 const parseDocType = (raw: string): DocumentType => {
-    if (raw === 'lab_pdf' || raw === 'intake_form') return raw;
+    if (raw === 'lab_pdf' || raw === 'intake_form' || raw === 'referral_letter') return raw;
     throw new Error(`unexpected doc_type from extraction_artifacts row: ${raw}`);
 };
 

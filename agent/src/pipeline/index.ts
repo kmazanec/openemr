@@ -56,6 +56,7 @@ export const PipelineStateAnnotation = Annotation.Root({
     schema: lastValueChannel<unknown>(() => null),
     artifactId: lastValueChannel<string | null>(() => null),
     confidenceSignal: lastValueChannel<ConfidenceSignal | null>(() => null),
+    idempotencyHit: lastValueChannel<boolean | null>(() => null),
     status: lastValueChannel<PipelineStatus>(() => 'pending'),
     errors: lastValueChannel<readonly PipelineError[]>(() => []),
 });

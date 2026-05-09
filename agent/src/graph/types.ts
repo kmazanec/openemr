@@ -849,4 +849,19 @@ export interface KickoffExtractionResult {
      * union.
      */
     readonly errorCode: KickoffExtractionErrorCode | null;
+    /**
+     * `true` when the persist node short-circuited on the
+     * `(document_hash, extractor_version, pid)` idempotency key — i.e.
+     * the bytes the pipeline just rasterized were already extracted
+     * for this patient under a different `documents.uuid` (typical
+     * scenario: the clinician re-uploaded the same PDF a second time
+     * via the legacy Documents UI, producing a fresh `documents` row
+     * with a new uuid but identical content). The synthesizer treats
+     * this as "already presented to the clinician on a prior turn" and
+     * suppresses the chart-write proposals + findings narration the
+     * artifact would otherwise re-emit. `false` on a fresh persist;
+     * `null` on the `failed` status (persist never ran or no signal
+     * available).
+     */
+    readonly idempotencyHit: boolean | null;
 }

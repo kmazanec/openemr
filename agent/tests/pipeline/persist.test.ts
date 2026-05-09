@@ -189,6 +189,8 @@ describe('persist node', () => {
         expect(out.status).toBe('persisted');
         expect(out.artifactId).toBe('artifact-1');
         expect(out.documentUuid).toBe('canonical-uuid-1');
+        // Fresh persist (not a re-upload of already-extracted content).
+        expect(out.idempotencyHit).toBe(false);
         expect(calls.findCalls).toBe(2); // pre-lock + under-lock
         expect(calls.lockCalls).toBe(1);
         expect(calls.lockReleases).toBe(1);
@@ -237,6 +239,10 @@ describe('persist node', () => {
         expect(out.artifactId).toBe('cached-artifact');
         expect(out.documentUuid).toBe('cached-uuid');
         expect(out.status).toBe('persisted');
+        // Cache-hit signal flows up to KickoffExtractionResult so the
+        // synthesizer suppresses chart-write proposals the artifact
+        // already produced on the original turn.
+        expect(out.idempotencyHit).toBe(true);
         expect(calls.lockCalls).toBe(0);
         expect(rpc.writeDocumentReference).not.toHaveBeenCalled();
     });
@@ -276,6 +282,7 @@ describe('persist node', () => {
 
         expect(out.artifactId).toBe('racing-winner');
         expect(out.documentUuid).toBe('racing-uuid');
+        expect(out.idempotencyHit).toBe(true);
         expect(storeCalls.lockCalls).toBe(1);
         expect(storeCalls.lockReleases).toBe(1);
         expect(storeCalls.insertCalls).toHaveLength(0);

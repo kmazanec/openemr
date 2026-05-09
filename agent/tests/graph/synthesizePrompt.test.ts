@@ -284,6 +284,7 @@ describe('synthesize prompt — extraction follow-up (post-kickoffExtraction)', 
         status: 'persisted',
         artifactId: 'a-1',
         errorCode: null,
+        idempotencyHit: false,
     };
 
     it('user message includes attachedDocuments summary inside the chart delimiter', () => {
@@ -305,6 +306,34 @@ describe('synthesize prompt — extraction follow-up (post-kickoffExtraction)', 
         expect(message).not.toContain('a-1');
     });
 
+    it('idempotency-hit artifacts surface the alreadyPresentedInPriorTurn flag so the synthesizer can suppress re-narration', () => {
+        // Re-uploaded chart documents (same content under a fresh
+        // documents.uuid) hit the persist cache. Without this signal
+        // in the prompt body the synthesizer re-emits the same
+        // findings + chart-write proposals on every follow-up turn.
+        const cached: KickoffExtractionResult = {
+            documentUuid: 'doc-cached',
+            docType: 'intake_form',
+            status: 'persisted',
+            artifactId: 'a-cached',
+            errorCode: null,
+            idempotencyHit: true,
+        };
+        const message = buildExtractionFollowUpUserMessage(snapshot, [cached]);
+        expect(message).toContain('"alreadyPresentedInPriorTurn": true');
+    });
+
+    it('fresh persists serialize alreadyPresentedInPriorTurn=false so the model knows to fully present the findings', () => {
+        const message = buildExtractionFollowUpUserMessage(snapshot, [persistedResult]);
+        expect(message).toContain('"alreadyPresentedInPriorTurn": false');
+    });
+
+    it('system prompt explains how to handle the alreadyPresentedInPriorTurn flag', () => {
+        // Pin the contract so a future prompt edit can't silently drop
+        // the suppress-re-narration rule and reintroduce the bug.
+        expect(EXTRACTION_FOLLOW_UP_SYSTEM_PROMPT).toContain('alreadyPresentedInPriorTurn');
+    });
+
     it('failed extractions surface the error code so the model can frame the failure honestly', () => {
         const failed: KickoffExtractionResult = {
             documentUuid: 'doc-2',
@@ -312,6 +341,7 @@ describe('synthesize prompt — extraction follow-up (post-kickoffExtraction)', 
             status: 'failed',
             artifactId: null,
             errorCode: 'patient_mismatch',
+            idempotencyHit: null,
         };
         const message = buildExtractionFollowUpUserMessage(snapshot, [failed]);
         expect(message).toContain('"status": "failed"');

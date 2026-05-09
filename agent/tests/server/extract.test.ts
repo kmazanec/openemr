@@ -23,6 +23,7 @@ const baseFinalState = (overrides: Partial<PipelineState> = {}): PipelineState =
     schema: null,
     artifactId: 'artifact-1',
     confidenceSignal: null,
+    idempotencyHit: false,
     status: 'persisted',
     errors: [],
     ...overrides,

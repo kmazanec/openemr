@@ -165,6 +165,7 @@ export const persist = async (
             artifactId: cached.artifactId,
             documentUuid: cached.documentUuid,
             status: 'persisted',
+            idempotencyHit: true,
         };
     }
 
@@ -218,6 +219,7 @@ export const persist = async (
                 artifactId: cachedAfterLock.artifactId,
                 documentUuid: cachedAfterLock.documentUuid,
                 status: 'persisted',
+                idempotencyHit: true,
             };
         }
 
@@ -289,6 +291,7 @@ export const persist = async (
             artifactId: inserted.artifactId,
             documentUuid: inserted.documentUuid,
             status: 'persisted',
+            idempotencyHit: false,
         };
     } finally {
         try {

@@ -120,7 +120,7 @@ const stubRunner = (chunks: readonly ScriptedChunk[]): PipelineRunner => ({
     stream: vi.fn(() => Promise.resolve(asAsyncIterable(chunks))),
 });
 
-const persistedState = (artifactId: string): PipelineState => ({
+const persistedState = (artifactId: string, idempotencyHit = false): PipelineState => ({
     ...initialPipelineState({
         documentUuid: 'doc-uuid-1',
         docType: 'lab_pdf',
@@ -129,6 +129,7 @@ const persistedState = (artifactId: string): PipelineState => ({
     }),
     artifactId,
     status: 'persisted',
+    idempotencyHit,
 });
 
 const failedState = (
@@ -175,6 +176,7 @@ describe('kickoffExtraction node (§B.9)', () => {
                 status: 'persisted',
                 artifactId: 'art-1',
                 errorCode: null,
+                idempotencyHit: false,
             },
         ]);
         expect(events.map((e) => e.type)).toEqual([
@@ -219,6 +221,7 @@ describe('kickoffExtraction node (§B.9)', () => {
                 status: 'failed',
                 artifactId: null,
                 errorCode: 'cost-cap-exceeded',
+                idempotencyHit: null,
             },
         ]);
         const errorEvent = events.find((e) => e.type === 'pipeline.error');
@@ -231,6 +234,29 @@ describe('kickoffExtraction node (§B.9)', () => {
         if (exit?.type === 'pipeline.exit') {
             expect(exit.status).toBe('failed');
         }
+    });
+
+    it('forwards the persist nodes idempotency-hit signal to the kickoff result', async () => {
+        // Re-uploaded chart documents (same content under a fresh
+        // documents.uuid) hit the persist node's
+        // (document_hash, extractor_version, pid) cache. The kickoff
+        // result must surface that signal so the synthesizer suppresses
+        // the chart-write proposals + findings narration the artifact
+        // already produced on the original turn.
+        const runner = stubRunner([
+            { mode: 'values', payload: persistedState('art-cached', true) },
+        ]);
+        const node = createKickoffExtraction({
+            pipeline: runner,
+            openemrToken: 'tok',
+            openemrSiteId: 'default',
+        });
+
+        const update = await node(baseState());
+
+        expect(update.kickoffExtractionResults?.[0]?.idempotencyHit).toBe(true);
+        expect(update.kickoffExtractionResults?.[0]?.status).toBe('persisted');
+        expect(update.kickoffExtractionResults?.[0]?.artifactId).toBe('art-cached');
     });
 
     it('appends a failed result with errorCode=invalid_args when args are malformed', async () => {
@@ -452,6 +478,7 @@ describe('kickoffExtraction node (§B.9)', () => {
             status: 'persisted',
             artifactId: 'art-prior',
             errorCode: null,
+            idempotencyHit: false,
         };
 
         const update = await node(baseState({ kickoffExtractionResults: [prior] }));

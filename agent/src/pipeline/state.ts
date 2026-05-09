@@ -112,6 +112,21 @@ export interface PipelineState {
     readonly artifactId: string | null;
     /** Set by `patientMatch` on confident-or-partial match; null on refuse or before the node runs. */
     readonly confidenceSignal: ConfidenceSignal | null;
+    /**
+     * `true` when persist short-circuited on the
+     * `(document_hash, extractor_version, pid)` idempotency key — the
+     * same content under this patient was already extracted in a prior
+     * pipeline run, so this node returned the cached artifact instead
+     * of writing a new row. The supervisor surface this through to
+     * `KickoffExtractionResult.idempotencyHit` so the synthesizer can
+     * suppress chart-write proposals and findings narration that the
+     * clinician already saw on the original turn (re-uploading the
+     * same document under a new `documents.uuid` would otherwise
+     * re-trigger the full presentation).
+     *
+     * `false` on a fresh persist; null before the node runs.
+     */
+    readonly idempotencyHit: boolean | null;
     readonly status: PipelineStatus;
     readonly errors: readonly PipelineError[];
 }
@@ -131,6 +146,7 @@ export const initialPipelineState = (input: {
     schema: null,
     artifactId: null,
     confidenceSignal: null,
+    idempotencyHit: null,
     status: 'pending',
     errors: [],
 });

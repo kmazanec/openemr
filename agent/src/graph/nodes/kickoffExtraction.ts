@@ -106,6 +106,7 @@ const buildResult = (
             status: 'failed',
             artifactId: null,
             errorCode: 'pipeline_no_terminal_state',
+            idempotencyHit: null,
         };
     }
     if (final.status === 'persisted') {
@@ -115,6 +116,7 @@ const buildResult = (
             status: 'persisted',
             artifactId: final.artifactId,
             errorCode: null,
+            idempotencyHit: final.idempotencyHit,
         };
     }
     // Failed path. Pipeline error codes flow through to the node's
@@ -130,6 +132,7 @@ const buildResult = (
         status: 'failed',
         artifactId: final.artifactId,
         errorCode,
+        idempotencyHit: null,
     };
 };
 
@@ -174,6 +177,7 @@ export const createKickoffExtraction = (
                 status: 'failed',
                 artifactId: null,
                 errorCode: 'invalid_args',
+                idempotencyHit: null,
             });
         }
         const args = parsedArgs.data;
@@ -264,6 +268,7 @@ export const createKickoffExtraction = (
                 status: 'failed',
                 artifactId: null,
                 errorCode: 'pipeline_runtime_error',
+                idempotencyHit: null,
             });
         }
 

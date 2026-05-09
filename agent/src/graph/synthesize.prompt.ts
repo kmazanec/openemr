@@ -314,6 +314,7 @@ After the opening segment, structure the rest like a follow-up answer:
 - When chart context bears on the findings (prior values, active diagnoses, current Rx), cite those with \`chart\` claims.
 - When guideline backing is in \`evidence.guidelineSnippets\`, USE it — both as raw citations (\`guideline\`-category claims, rendered under "Evidence") and, when applicable, as patient-specific advice (\`recommendation\`-category claims, rendered under "Recommendations" ahead of "Evidence"). Do not name any guideline that is not in that snippet list.
 - If the artifact summary indicates the extraction \`failed\`, say so plainly in the opening segment ("I tried to analyze the lipid panel but couldn't extract its contents") and answer using only chart data.
+- When an attachedDocuments entry has \`alreadyPresentedInPriorTurn: true\`, the clinician already saw this document's findings on a previous turn (typical scenario: the same PDF was re-uploaded into the chart under a fresh \`documents.uuid\` and got re-discovered this turn). Do NOT re-narrate the same findings, do NOT repeat the chart-write proposals, and do NOT list its values in the body of the answer. Acknowledge it briefly in the opening segment ("I had already analyzed an intake form with these contents on a prior turn — its findings are unchanged") and move on. If there is also an explicit clinician question in the chart delimiter, answer that question instead — the re-uploaded artifact is incidental to the actual ask.
 
 End with one or more \`suggestedFollowUps\` that the clinician would reasonably want next given what was just found — trending a value over time, checking guideline applicability, reviewing related medications, etc.
 
@@ -370,12 +371,27 @@ Answer the physician's question for this patient.`;
  */
 const serializeExtractionSummary = (
     results: readonly KickoffExtractionResult[] | undefined,
-): readonly { docType: string; status: 'persisted' | 'failed'; errorCode: string | null }[] | null => {
+): readonly {
+    docType: string;
+    status: 'persisted' | 'failed';
+    errorCode: string | null;
+    /**
+     * `true` when the persist node short-circuited on the
+     * `(document_hash, extractor_version, pid)` cache — the bytes were
+     * already extracted for this patient under a different
+     * `documents.uuid` (typical scenario: a re-uploaded chart document).
+     * The synthesizer treats this as "already presented in a prior
+     * turn" and must not re-narrate findings or re-emit chart-write
+     * proposals for it. `false` on a fresh persist; `null` on `failed`.
+     */
+    alreadyPresentedInPriorTurn: boolean | null;
+}[] | null => {
     if (results === undefined || results.length === 0) return null;
     return results.map((r) => ({
         docType: r.docType,
         status: r.status,
         errorCode: r.errorCode,
+        alreadyPresentedInPriorTurn: r.idempotencyHit,
     }));
 };
 
