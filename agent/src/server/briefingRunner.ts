@@ -20,6 +20,7 @@ import { buildIdentityTags } from '../observability/traceMetadata.js';
 import { createCohereRerankClient } from '../retrievers/cohere.js';
 import { loadCorpusBM25Stats } from '../retrievers/corpusLoader.js';
 import { createPineconeRetriever } from '../retrievers/pinecone.js';
+import { createAnthropicQueryRewriter } from '../retrievers/queryRewriter.js';
 import type { ConversationMessagesStore } from '../state/conversationMessages.js';
 import type { ConversationStore } from '../state/conversationStore.js';
 import type { ExtractionArtifactStore } from '../state/extractionArtifacts.js';
@@ -544,7 +545,25 @@ const buildEvidenceRetrieverDeps = async (): Promise<EvidenceRetrieverDeps | nul
         bm25Stats: stats,
     });
     const cohereRerank = createCohereRerankClient({ apiKey: cohereKey });
-    return { pineconeRetriever, cohereRerank };
+    // Multi-query rewriter — widens recall against the guideline corpus
+    // by paraphrasing the original query into three variants. Wired
+    // when ANTHROPIC_API_KEY is present; otherwise the retriever runs
+    // single-query (legacy posture). See `queryRewriter.ts` and
+    // `W2_ARCHITECTURE.md` §"Query rewriting and fusion".
+    const anthropicKey = process.env['ANTHROPIC_API_KEY'] ?? '';
+    const queryRewriter = anthropicKey.length > 0
+        ? createAnthropicQueryRewriter({ apiKey: anthropicKey })
+        : undefined;
+    if (queryRewriter === undefined) {
+        logger.warn(
+            'evidenceRetriever query rewriter not wired — set ANTHROPIC_API_KEY to enable multi-query expansion',
+        );
+    }
+    return {
+        pineconeRetriever,
+        cohereRerank,
+        ...(queryRewriter !== undefined ? { queryRewriter } : {}),
+    };
 };
 
 /**

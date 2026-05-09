@@ -299,20 +299,46 @@ Model-driven. The supervisor passes structured args:
   source_filter?: ('USPSTF' | 'ADA' | 'ACC-AHA' | 'AGS-Beers' | 'CDC')[] }
 ```
 
-Hybrid sparse-dense retrieval over the guideline corpus in Pinecone, with Cohere rerank.
+Hybrid sparse-dense retrieval over the guideline corpus in Pinecone, expanded by a multi-query rewriter and reranked by Cohere.
 
 | Layer | Implementation |
 |---|---|
-| Embedding (dense) | OpenAI `text-embedding-3-large` (3072d). Computed at index time per chunk; per-query at retrieval time. |
+| Query rewriting | Claude Haiku 4.5 with `withStructuredOutput`, generates three variants (paraphrase, step-back, terminology shift) from the supervisor's `query`. Original query is retained alongside the variants. See "Query rewriting and fusion" below. |
+| Embedding (dense) | OpenAI `text-embedding-3-large` (3072d). Computed at index time per chunk; per-query at retrieval time, once per variant (parallelized). |
 | Sparse | BM25 vectors via `pinecone-text` SDK, stored alongside dense vectors in the same Pinecone hybrid index. |
-| Fusion | Pinecone-native sparse-dense fusion. Top-20 returned. |
-| Rerank | Cohere `rerank-v3.5` over the top-20 → `top_k` (default 3) returned to the synthesizer. |
+| Fusion (sparse↔dense) | Pinecone-native sparse-dense fusion. Top-20 returned per variant. |
+| Fusion (across variants) | Reciprocal Rank Fusion (RRF; Cormack et al. 2009, k=60) over the per-variant top-20 lists, deduplicated by `chunk.id`. Capped at 100 fused candidates so the downstream rerank stays at one Cohere search unit. |
+| Rerank | Cohere `rerank-v3.5` over the fused, deduplicated candidates → `top_k` (default 5) returned to the synthesizer. **The rerank query is the original user query, not a rewrite** — the rewrites' job is to widen Pinecone recall; final ordering is the cross-encoder's call against the user's actual intent. |
 
 The corpus is sourced one publisher at a time, not bulk-ingested across publishers. MVP ships with USPSTF only (public domain). Within a publisher, all published recommendations are fetched and chunked deterministically — every chunk body is verbatim text from the publisher's site, never model-authored. (C.2 implementation: chunk count for USPSTF is whatever the publisher has — typically ~100 active recommendations × 2 sections each ≈ 200 chunks, superseding the earlier "~50–80" hand-curation target.) Subsequent phases add ADA Standards of Care, ACC/AHA hypertension, AGS Beers Criteria (license-conditional), CDC vaccine schedules — one publisher at a time, eval-validated between each. The corpus regenerator records `(source, version, ingested_at)` per chunk so a single source can be re-ingested when it updates.
 
 Each chunk carries metadata: `{publication, year, section, url?, license_tier}`. `license_tier` is one of `public_domain` or `fair_use_cds` — surfaced in the renderer's section-snippet popover so the user knows the licensing posture of the cited source.
 
-The model decides the `query` and (optionally) the `source_filter`. Picking a sensible query is a real responsibility — eval cases pin the supervisor against degenerate queries ("query too generic," "query references PHI that wasn't in the user's question") via downstream retrieval-quality assertions.
+The model decides the `query` and (optionally) the `source_filter`. Picking a sensible query is a real responsibility — eval cases pin the supervisor against degenerate queries ("query too generic," "query references PHI that wasn't in the user's question") via downstream retrieval-quality assertions. The downstream rewriter further widens the candidate set so an over-specified or off-vocabulary user query still has a path to the right chunk; the supervisor doesn't need to phrase its own query in publisher terms.
+
+#### Query rewriting and fusion
+
+Hybrid retrieval already covers the BM25 keyword vs. dense semantic complementarity. The remaining failure mode on a clinical-guideline corpus is **the user's phrasing not matching the publisher's phrasing** — "heart attack" vs "myocardial infarction", "high blood pressure" vs "hypertension", "sugar diabetes" vs "type 2 diabetes mellitus", "water pill" vs "diuretic". A single-query retrieval can miss the load-bearing chunk entirely when the lay term has no direct embedding alignment with the clinical term, and BM25's exact-match lane has no signal to lean on either.
+
+The rewriter expands one user-shaped query into N variants (default 3, plus the original = 4 lanes):
+
+1. **Paraphrase** — same intent and specificity, different wording. Closes the "the user phrased the question differently from the guideline body" gap.
+2. **Step-back** — a more general framing of the question. Drops patient-specific details and asks the underlying clinical-policy question. Helps when the user's question is over-specified relative to how guidelines are written ("statin for 52-year-old with LDL 145" → "USPSTF statin primary prevention").
+3. **Terminology shift** — lay ↔ clinical translation. The dominant lever for the medical-synonym mismatch.
+
+The choice of multi-query over alternatives:
+- **Multi-query over HyDE.** HyDE (generate a fake answer, embed that) is a dense-only lever; it does nothing for BM25 and we already have BM25 covering exact-term recall. HyDE also introduces hallucination risk — a hypothetical answer can name the wrong drug or dose, biasing retrieval toward fiction. On a clinical corpus that's a real risk.
+- **Multi-query over domain-synonym expansion at query time.** UMLS/MeSH-style synonym injection helps BM25 but is neutral-to-harmful for dense (you're already getting semantic coverage). Worth doing later as an offline expansion at *index* time over chunks; not the cheapest first lever.
+- **RRF over rerank-then-fuse.** RRF only uses ranks, so the cross-query comparison is well-defined regardless of how each variant's hybrid scores happen to land — Pinecone hybrid scores are not calibrated across queries. Reranking each lane separately and then fusing rerank scores spends N× the Cohere search units and reintroduces the cross-query score-normalization problem.
+- **Single rerank with the original query over per-lane rerank.** The cross-encoder's job is to rank the fused candidates by relevance to the user's actual question, not to the rewrites. Reranking with the original query keeps semantic intent load-bearing on ordering; the rewrites' contribution is bounded to "this chunk made it into the candidate set" via RRF.
+
+Cost shape per `evidenceRetriever` invocation:
+- **+1 LLM call** for query rewriting (~150 input + ~120 output tokens on Haiku, system prompt prompt-cached for ~10% read rate on subsequent turns within the cache TTL). Sub-cent per turn.
+- **+(N−1) Pinecone calls** in parallel. ~100ms wall-clock added (parallelized, not N×).
+- **0 extra Cohere calls** — single rerank over the fused, deduplicated candidates. Capped at 100 docs to stay within one Cohere search unit ($0.002).
+- **No additional embedding cost** beyond the per-variant query embeddings (one OpenAI embed call per variant, included in the Pinecone fan-out).
+
+Eval methodology: the per-MR Vitest gate at `agent/evals/cases/conversational-graph/guidelines/queryRewriting.test.ts` measures **recall@K pre-rerank** on a synonym-mismatch case set. The metric is the cleanest signal that *rewriting* (not reranking) is doing the work — it isolates the candidate-set effect from the cross-encoder's contribution. The gate asserts treatment (multi-query+RRF) beats control (single-query) on aggregate recall@K and pins per-case non-regression. Real-vendor coverage (Anthropic Haiku for rewriting + real Pinecone + real Cohere) lives in the nightly LangSmith experiment per §"Eval Architecture".
 
 ### Synthesize
 
@@ -550,8 +576,9 @@ Demographics deltas have their own inline controls — accepting writes the demo
 | Patient mismatch | Pipeline refuses at `patientMatch` step. `failed` artifact with `mismatch_reason`. UI surfaces "This document does not appear to belong to this patient." |
 | Schema-invalid model output | Zod parse fails → pipeline retries once with a stronger prompt → on second failure, `failed` artifact with `errors=['schema_invalid']`. No partial-schema acceptance. |
 | Bbox missing for a field | Field dropped during validation. Strict-schema requires bbox+page on every cited field. |
-| Pinecone outage | `evidenceRetriever` fail-open with explicit gap. Briefing renders without the evidence section; supervisor logs the gap. |
-| Cohere outage | Rerank falls through — top-3 by Pinecone hybrid score, no rerank applied. Logged as a degraded-mode event. |
+| Pinecone outage | `evidenceRetriever` fail-open with explicit gap. Briefing renders without the evidence section; supervisor logs the gap. A failure on *any* of the parallel per-variant Pinecone calls escalates to the gap (fail-closed, partial recall is worse than a clean degraded signal the supervisor can route around). |
+| Cohere outage | Rerank falls through — top-`k` by RRF score over the fused candidates, no rerank applied. Each snippet tagged `degradedRerank: true`. Logged as a degraded-mode event. |
+| Query rewriter outage | Falls back to single-query retrieval (just the original user query). Each trace event tagged `degradedRewrite: true`; the retriever still produces snippets, just with the legacy recall posture. Not a Gap. |
 | Spaces outage during pipeline | Pipeline can't read the document. `failed` artifact with `errors=['storage-unreachable']`. Pipeline resumes on retry once Spaces is back. |
 | Document over $1 cost cap | Pipeline refuses at `rasterize` step (page count × estimated tokens > $1). `failed` artifact with `errors=['cost-cap-exceeded']`. UI surfaces "document too large for automatic extraction." |
 
@@ -591,7 +618,7 @@ W1 §6.1 metadata path carries forward. W2 additions in `agent/src/observability
 - **Per-retriever-invocation trace event:**
   - `retrieveChart` (after the first call): the model's chosen `categories` + per-tool latency + tokens fetched.
   - `documentEvidenceRetriever`: the model's `query` (hashed, no PHI), `doc_types` filter, `lookback_days`, `top_k`, count of artifacts returned, latency.
-  - `evidenceRetriever`: the model's `query` (hashed), `source_filter`, `top_k`, the Pinecone top-20 chunk ids, the Cohere rerank top-3 chunk ids, embedding cost, rerank cost, latency.
+  - `evidenceRetriever`: the model's `query` (hashed), `source_filter`, `top_k`, the rewriter's variant kinds (`paraphrase`, `step_back`, `terminology`) and variant count, the per-variant Pinecone chunk-id lists union'd as `evidence_pinecone_chunk_ids`, the RRF-fused unique-candidate count, the Cohere rerank top-`k` chunk ids, embedding cost, rerank cost, latency. `evidence_degraded_rewrite` is true when the rewriter LLM call failed and the retriever fell back to single-query mode; `evidence_degraded_rerank` is true when Cohere fell through to the RRF order.
 - **Cycle-detection metadata** — when the supervisor re-picks the same handoff with no meaningful state change, a `degenerate-loop` warning event is emitted with the pair of decisions and the iteration counter.
 - **Cap-hit metadata** — when iteration 10 binds and the graph forces synthesize, a `cap-hit` event records the supervisor's last decision attempt and the state at termination.
 - **Per-extraction trace metadata** (pipeline graph): `doc_type`, `page_count`, `extractor_version`, `vision_input_tokens`, `vision_output_tokens`, `vision_dollar_cost`, `schema_validation_warnings`, `patient_match_score`, `confidence_distribution` (histogram of per-field confidence values).
@@ -601,9 +628,10 @@ W1 §6.1 metadata path carries forward. W2 additions in `agent/src/observability
 
 `docs/COST_ANALYSIS.md` (the W2 deliverable) breaks out cost per stage at 100 / 1K / 10K / 100K user tiers:
 - **Supervisor** — Claude Sonnet 4.x for handoff selection. ~3–6 iterations per typical turn × short prompt + structured-output response. Real meaningful line item at high tier counts; we instrument supervisor token counts on every iteration so the cost-per-turn rollup reflects actual usage.
-- **Embedding** — OpenAI `text-embedding-3-large`. Index-time cost (one-time per corpus version) + per-query embed cost on each `evidenceRetriever` invocation.
-- **Pinecone** — serverless billing (stored vectors + reads). Tiny at MVP corpus size.
-- **Rerank** — Cohere `rerank-v3.5` per `evidenceRetriever` invocation.
+- **Query rewriter** — Claude Haiku 4.5 per `evidenceRetriever` invocation. Sub-cent per turn (~150 input + ~120 output tokens with prompt-caching breakpoint on the system prompt for ~10% read rate within the cache TTL). Override model via `ANTHROPIC_MODEL_QUERY_REWRITER`.
+- **Embedding** — OpenAI `text-embedding-3-large`. Index-time cost (one-time per corpus version) + per-query embed cost on each `evidenceRetriever` invocation; multi-query expansion multiplies the per-invocation embedding count by the variant count (1 + N, default 4 = original + 3 rewrites).
+- **Pinecone** — serverless billing (stored vectors + reads). Tiny at MVP corpus size; multi-query expansion runs N+1 reads in parallel per `evidenceRetriever` invocation.
+- **Rerank** — Cohere `rerank-v3.5` per `evidenceRetriever` invocation. Single rerank call per turn regardless of variant count — the RRF-fused candidate set is capped at 100 to stay within one Cohere search unit.
 - **Synthesizer** — Claude Sonnet 4.x per conversational turn (W1 carry-forward).
 - **Vision** — Claude Sonnet 4.x per `attach_and_extract` call (pipeline graph, deterministic — one call per extraction).
 - **CI gate** — ~$2.50 per PR × PR cadence.
@@ -714,7 +742,8 @@ W1 deployment on a single DigitalOcean Droplet carries forward. W2 additions:
 `docs/RUNBOOK.md` gains:
 - **Spaces unreachable** — pipeline fails closed, conversation degrades. Recovery: check Spaces credentials, retry pipeline.
 - **Pinecone unreachable** — `evidenceRetriever` fails open. Recovery: check `PINECONE_API_KEY` validity, retry conversation.
-- **Cohere unreachable** — degraded-mode (no rerank). Recovery: optional — convo still works.
+- **Cohere unreachable** — degraded-mode (no rerank, RRF-fused order returned). Recovery: optional — convo still works.
+- **Query rewriter unreachable** — `evidenceRetriever` falls back to single-query. Recovery: optional — retrieval still runs with the legacy recall posture; check `ANTHROPIC_API_KEY` validity if degradation persists across turns.
 - **Vision API rate-limited** — pipeline retries with backoff; second failure surfaces structured error. Recovery: monitor Anthropic spend dashboard.
 - **Regression-injection drill** — procedure for verifying the CI gate catches injected regressions.
 

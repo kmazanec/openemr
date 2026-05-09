@@ -14,6 +14,11 @@ import {
     type PineconeRetriever,
     type PineconeQueryOptions,
 } from '../../../src/retrievers/pinecone.js';
+import {
+    QueryRewriterUnavailableError,
+    createStubQueryRewriter,
+    type QueryRewriter,
+} from '../../../src/retrievers/queryRewriter.js';
 
 const PID = 42;
 
@@ -347,5 +352,205 @@ describe('createEvidenceRetriever (§C.3)', () => {
         await expect(node(baseState({ evidenceRetrieverArgs: args() }))).rejects.toBeInstanceOf(
             TypeError,
         );
+    });
+});
+
+describe('createEvidenceRetriever — multi-query rewriting', () => {
+    const COLORECTAL_HIT: PineconeHybridHit = {
+        id: 'uspstf::colorectal-cancer-screening--recommendation-summary',
+        score: 0.91,
+        publication: 'USPSTF',
+        year: 2021,
+        section: 'recommendation-summary',
+        section_label: 'Recommendation Summary',
+        title: 'Colorectal Cancer: Screening',
+        url: 'https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening',
+        license_tier: 'public_domain',
+        chunk_text:
+            'The USPSTF recommends screening for colorectal cancer in adults aged 45 to 75 years. (B recommendation)',
+    };
+    const STATIN_HIT: PineconeHybridHit = {
+        ...COLORECTAL_HIT,
+        id: 'uspstf::statin--recommendation',
+        title: 'Statin Use for Primary Prevention',
+        chunk_text: 'The USPSTF recommends statins for primary prevention in adults aged 40-75.',
+    };
+    const SCREENING_GENERAL_HIT: PineconeHybridHit = {
+        ...COLORECTAL_HIT,
+        id: 'uspstf::cancer-screening--overview',
+        title: 'Cancer Screening Overview',
+        chunk_text: 'Cancer screening recommendations vary by age and risk profile.',
+    };
+
+    const stubRewriter: QueryRewriter = createStubQueryRewriter((q) => ({
+        original: q,
+        variants: [
+            { kind: 'paraphrase', text: 'colon cancer screening age recommendations' },
+            { kind: 'step_back', text: 'cancer screening guidelines' },
+            { kind: 'terminology', text: 'colorectal cancer prevention screening' },
+        ],
+        queries: [
+            q,
+            'colon cancer screening age recommendations',
+            'cancer screening guidelines',
+            'colorectal cancer prevention screening',
+        ],
+    }));
+
+    it('fans out one Pinecone call per rewritten variant', async () => {
+        const pinecone = buildPineconeRetriever(() => Promise.resolve([COLORECTAL_HIT]));
+        const cohere = buildCohereStub(() =>
+            Promise.resolve([{ index: 0, relevanceScore: 0.95 }]),
+        );
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            queryRewriter: stubRewriter,
+        });
+
+        await node(baseState({ evidenceRetrieverArgs: args({ top_k: 1 }) }));
+
+        // 1 original + 3 variants = 4 Pinecone calls.
+        expect(pinecone.calls).toHaveLength(4);
+        expect(pinecone.calls.map((c) => c.query)).toEqual([
+            'colorectal cancer screening',
+            'colon cancer screening age recommendations',
+            'cancer screening guidelines',
+            'colorectal cancer prevention screening',
+        ]);
+    });
+
+    it('reranks against the ORIGINAL user query, not a rewrite', async () => {
+        const pinecone = buildPineconeRetriever(() => Promise.resolve([COLORECTAL_HIT]));
+        const seenQueries: string[] = [];
+        const cohere = buildCohereStub((input) => {
+            seenQueries.push(input.query);
+            return Promise.resolve([{ index: 0, relevanceScore: 0.95 }]);
+        });
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            queryRewriter: stubRewriter,
+        });
+
+        await node(
+            baseState({ evidenceRetrieverArgs: args({ query: 'is colon cancer screening at 45?' }) }),
+        );
+
+        // The rerank query must be the user's original phrasing, not
+        // any of the rewritten variants. The cross-encoder makes the
+        // final ordering call against the user's actual intent.
+        expect(seenQueries).toEqual(['is colon cancer screening at 45?']);
+    });
+
+    it('RRF-fuses overlapping per-variant hits — a chunk in multiple variants outranks a one-off hit', async () => {
+        // q1 (original): [colorectal, statin]
+        // q2 (paraphrase): [colorectal, screening_general]
+        // q3 (step_back): [statin, colorectal]
+        // q4 (terminology): [colorectal]
+        // colorectal appears in 4 lanes; statin in 2; screening_general in 1.
+        const responses: Record<string, readonly PineconeHybridHit[]> = {
+            'colorectal cancer screening': [COLORECTAL_HIT, STATIN_HIT],
+            'colon cancer screening age recommendations': [COLORECTAL_HIT, SCREENING_GENERAL_HIT],
+            'cancer screening guidelines': [STATIN_HIT, COLORECTAL_HIT],
+            'colorectal cancer prevention screening': [COLORECTAL_HIT],
+        };
+        const pinecone = buildPineconeRetriever((opts) =>
+            Promise.resolve(responses[opts.query] ?? []),
+        );
+        // Cohere "outage" so we observe the RRF-fused order directly
+        // (degraded mode returns top-`k` by RRF score).
+        const cohere = buildCohereStub(() => Promise.resolve(null));
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            queryRewriter: stubRewriter,
+        });
+
+        const out = await node(baseState({ evidenceRetrieverArgs: args({ top_k: 3 }) }));
+        const result = out.evidenceRetrieverOutput;
+        expect(result?.snippets).toHaveLength(3);
+        // Colorectal is in 4 of 4 lanes — RRF score dominates.
+        expect(result?.snippets[0]?.chunkId).toBe(COLORECTAL_HIT.id);
+        // Statin is in 2 of 4; screening_general in 1 — statin ranks above.
+        expect(result?.snippets[1]?.chunkId).toBe(STATIN_HIT.id);
+        expect(result?.snippets[2]?.chunkId).toBe(SCREENING_GENERAL_HIT.id);
+        expect(result?.snippets.every((s) => s.degradedRerank)).toBe(true);
+    });
+
+    it('rewriter outage: falls back to single-query, retriever still produces snippets', async () => {
+        const failingRewriter: QueryRewriter = {
+            rewrite: () =>
+                Promise.reject(new QueryRewriterUnavailableError('rewriter timeout')),
+        };
+        const pinecone = buildPineconeRetriever(() => Promise.resolve([COLORECTAL_HIT]));
+        const cohere = buildCohereStub(() =>
+            Promise.resolve([{ index: 0, relevanceScore: 0.9 }]),
+        );
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            queryRewriter: failingRewriter,
+        });
+
+        const out = await node(baseState({ evidenceRetrieverArgs: args({ top_k: 1 }) }));
+        // Single Pinecone call — only the original query ran.
+        expect(pinecone.calls).toHaveLength(1);
+        expect(pinecone.calls[0]?.query).toBe('colorectal cancer screening');
+        // Snippet still produced — rewriter outage is degraded, not a Gap.
+        expect(out.evidenceRetrieverOutput?.snippets).toHaveLength(1);
+        expect(out.evidenceRetrieverOutput?.gap).toBeNull();
+    });
+
+    it('rethrows non-QueryRewriterUnavailableError (unexpected bugs surface loudly)', async () => {
+        const failingRewriter: QueryRewriter = {
+            rewrite: () => Promise.reject(new TypeError('boom')),
+        };
+        const pinecone = buildPineconeRetriever(() => Promise.resolve([]));
+        const cohere = buildCohereStub(() => Promise.resolve([]));
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            queryRewriter: failingRewriter,
+        });
+        await expect(node(baseState({ evidenceRetrieverArgs: args() }))).rejects.toBeInstanceOf(
+            TypeError,
+        );
+    });
+
+    it('Pinecone outage on any variant escalates to a Gap (fail-closed)', async () => {
+        let call = 0;
+        const pinecone = buildPineconeRetriever(() => {
+            // First two variants return hits; third one fails.
+            if (++call === 3) {
+                return Promise.reject(new PineconeUnavailableError('connection reset'));
+            }
+            return Promise.resolve([COLORECTAL_HIT]);
+        });
+        const cohere = buildCohereStub(() => Promise.resolve(null));
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            queryRewriter: stubRewriter,
+        });
+
+        const out = await node(baseState({ evidenceRetrieverArgs: args() }));
+        expect(out.evidenceRetrieverOutput?.snippets).toEqual([]);
+        expect(out.evidenceRetrieverOutput?.gap?.reason).toBe('evidence-retrieval-unavailable');
+    });
+
+    it('without a rewriter: falls back to single-query (legacy posture)', async () => {
+        const pinecone = buildPineconeRetriever(() => Promise.resolve([COLORECTAL_HIT]));
+        const cohere = buildCohereStub(() =>
+            Promise.resolve([{ index: 0, relevanceScore: 0.95 }]),
+        );
+        const node = createEvidenceRetriever({
+            pineconeRetriever: pinecone,
+            cohereRerank: cohere,
+            // queryRewriter omitted
+        });
+
+        await node(baseState({ evidenceRetrieverArgs: args({ top_k: 1 }) }));
+        expect(pinecone.calls).toHaveLength(1);
     });
 });

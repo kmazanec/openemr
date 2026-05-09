@@ -13,6 +13,12 @@ import {
     type PineconeRetriever,
 } from '../../retrievers/pinecone.js';
 import type { CohereRerankClient } from '../../retrievers/cohere.js';
+import {
+    QueryRewriterUnavailableError,
+    type QueryRewriter,
+    type RewriteResult,
+} from '../../retrievers/queryRewriter.js';
+import { fuseReciprocalRank, RRF_DEFAULT_TOP_M } from '../../retrievers/rrf.js';
 import type { BriefingState, BriefingStateUpdate } from '../state.js';
 import type {
     EvidenceArgs,
@@ -21,22 +27,50 @@ import type {
 } from '../types.js';
 
 /**
- * §C.3 `evidenceRetriever` node — replaces the A.7 stub.
+ * `evidenceRetriever` node — guideline RAG with multi-query rewriting.
  *
  * The supervisor narrows its structured-output args into
  * `state.evidenceRetrieverArgs` (a typed {@link EvidenceArgs}); this
- * node reads the slot, runs Pinecone hybrid retrieval (top-20) over
- * the `guidelines-v1` namespace, reranks via Cohere `rerank-v3.5` to
- * `args.top_k` (default 5), and writes the result to
- * `state.evidenceRetrieverOutput`.
+ * node reads the slot, expands the original query into N rewritten
+ * variants via {@link QueryRewriter}, runs Pinecone hybrid retrieval
+ * (top-20) for each variant in parallel over the `guidelines-v1`
+ * namespace, fuses the per-variant results with Reciprocal Rank
+ * Fusion, then reranks the deduplicated top-M against the **original**
+ * user query via Cohere `rerank-v3.5` to `args.top_k` (default 5), and
+ * writes the result to `state.evidenceRetrieverOutput`.
+ *
+ * Why multi-query + RRF + single rerank with the original query:
+ *  - Hybrid (BM25 + dense) retrieval already covers BM25 keyword vs.
+ *    dense semantic complementarity. The remaining failure mode on a
+ *    clinical-guideline corpus is *the user's phrasing not matching
+ *    the publisher's phrasing* — "heart attack" vs "myocardial
+ *    infarction", "high blood pressure" vs "hypertension", etc.
+ *    Generating paraphrase, step-back, and terminology-shifted
+ *    variants attacks that mismatch directly.
+ *  - RRF fuses ranks (not raw scores) across the per-variant lists, so
+ *    the cross-query comparison stays well-defined even though the
+ *    Pinecone hybrid scores are not calibrated across queries.
+ *  - Rerank runs *once* against the fused, deduplicated candidate
+ *    list, with the **original** user query as the rerank query (not
+ *    one of the rewrites). The rewrites' job is to widen recall in
+ *    Pinecone; final ordering is the cross-encoder's call against the
+ *    user's actual intent. This stays at one Cohere search unit
+ *    (≤100 docs per call) for the same per-call cost as the single-
+ *    query path.
  *
  * Failure modes per `W2_ARCHITECTURE.md` §"Failure Modes":
+ *  - **Query rewriter outage** → degraded mode. Fall back to
+ *    single-query retrieval (just the original query). Tagged
+ *    `degradedRewrite: true` in trace metadata. Pinecone + Cohere
+ *    proceed normally.
  *  - **Pinecone outage** → output carries a `Gap`, `snippets` is
  *    empty. The supervisor sees the gap on its next iteration and
- *    routes around the retriever.
- *  - **Cohere outage** → degraded mode. The Pinecone hybrid order is
- *    used as the rerank order (top-`k` by hybrid score), each snippet
- *    is tagged `degradedRerank: true`, and a `degraded-mode` trace
+ *    routes around the retriever. A failure on *any* of the parallel
+ *    Pinecone calls (rewriter present or absent) escalates to a Gap —
+ *    same fail-closed posture as the single-query path.
+ *  - **Cohere outage** → degraded rerank. The fused RRF order is used
+ *    as the rerank order (top-`k` by RRF score), each snippet is
+ *    tagged `degradedRerank: true`, and a `degraded-mode` trace
  *    event fires. The synthesizer treats the snippets identically.
  *
  * Quote excerpt: the chunk body can run to a few KB (USPSTF
@@ -60,6 +94,13 @@ const DEFAULT_TOP_K = 5;
 export interface EvidenceRetrieverDeps {
     readonly pineconeRetriever: PineconeRetriever;
     readonly cohereRerank: CohereRerankClient;
+    /**
+     * Optional query rewriter. When undefined, the retriever runs in
+     * single-query mode (just the original query). Production wiring
+     * supplies one; the per-MR Vitest gate's structural tests pass it
+     * as a stub or omit it to assert the legacy single-query path.
+     */
+    readonly queryRewriter?: QueryRewriter;
 }
 
 const resolveArgs = (state: BriefingState): {
@@ -97,6 +138,36 @@ const projectHit = (
     degradedRerank: degraded,
 });
 
+/**
+ * Try to expand the original query via the rewriter. On failure, fall
+ * back to single-query mode (just the original query). The retriever
+ * never escalates a rewriter outage to a Gap — the user's question
+ * still works, just with the legacy recall posture.
+ */
+const expandQuery = async (
+    rewriter: QueryRewriter | undefined,
+    original: string,
+): Promise<{ readonly result: RewriteResult; readonly degraded: boolean }> => {
+    if (rewriter === undefined) {
+        return {
+            result: { original, variants: [], queries: [original] },
+            degraded: false,
+        };
+    }
+    try {
+        const result = await rewriter.rewrite(original);
+        return { result, degraded: false };
+    } catch (err) {
+        if (err instanceof QueryRewriterUnavailableError) {
+            return {
+                result: { original, variants: [], queries: [original] },
+                degraded: true,
+            };
+        }
+        throw err;
+    }
+};
+
 export const createEvidenceRetriever = (
     deps: EvidenceRetrieverDeps,
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
@@ -105,15 +176,35 @@ export const createEvidenceRetriever = (
         const { args, topK } = resolveArgs(state);
         const queryHash = hashIdForTrace(args.query, tagSalt());
 
-        // Phase 1 — Pinecone hybrid. A retriever-level error becomes a
-        // gap on the output; the supervisor's next iteration sees it.
-        let hits: readonly PineconeHybridHit[];
+        const { result: rewrite, degraded: degradedRewrite } = await expandQuery(
+            deps.queryRewriter,
+            args.query,
+        );
+        if (degradedRewrite) {
+            logger.warn(
+                { queryHash },
+                'evidenceRetriever: query rewriter unavailable — falling back to single-query retrieval',
+            );
+        }
+
+        // Phase 1 — Pinecone hybrid, fanned out across the rewritten
+        // query set. Failure on *any* variant escalates to a Gap (same
+        // fail-closed posture as the single-query path) — partial
+        // recall on a guideline lookup is worse than a clean degraded
+        // signal that the supervisor can route around.
+        let perQueryHits: readonly (readonly PineconeHybridHit[])[];
         try {
-            hits = await deps.pineconeRetriever.query({
-                query: args.query,
-                topK: PINECONE_HYBRID_TOP_K,
-                ...(args.source_filter !== undefined ? { publicationFilter: args.source_filter } : {}),
-            });
+            perQueryHits = await Promise.all(
+                rewrite.queries.map((q) =>
+                    deps.pineconeRetriever.query({
+                        query: q,
+                        topK: PINECONE_HYBRID_TOP_K,
+                        ...(args.source_filter !== undefined
+                            ? { publicationFilter: args.source_filter }
+                            : {}),
+                    }),
+                ),
+            );
         } catch (err) {
             if (err instanceof PineconeUnavailableError) {
                 setRunMetadata({
@@ -121,6 +212,8 @@ export const createEvidenceRetriever = (
                     evidence_query_hash: queryHash,
                     evidence_event: 'pinecone-outage',
                     evidence_returned_count: 0,
+                    evidence_query_variants: rewrite.queries.length,
+                    evidence_degraded_rewrite: degradedRewrite,
                     latency_ms: Date.now() - startedAt,
                 });
                 logger.warn(
@@ -140,7 +233,19 @@ export const createEvidenceRetriever = (
             throw err;
         }
 
-        if (hits.length === 0) {
+        // Phase 2 — RRF-fuse the per-query lists. The original query is
+        // queries[0], so the original-query hits are the first lane the
+        // fuser sees; RRF ties resolve on first-seen, preserving the
+        // single-query path's ordering when no variant adds a stronger
+        // candidate.
+        const fused = fuseReciprocalRank({
+            perQueryHits,
+            topM: RRF_DEFAULT_TOP_M,
+        });
+
+        const totalRawHits = perQueryHits.reduce((sum, hits) => sum + hits.length, 0);
+
+        if (fused.length === 0) {
             // Empty Pinecone result is a legitimate "no matching chunk"
             // signal — distinct from an outage. Emit an empty snippet
             // list with no gap so the supervisor can choose to widen
@@ -150,7 +255,11 @@ export const createEvidenceRetriever = (
                 evidence_query_hash: queryHash,
                 evidence_top_k: topK,
                 evidence_source_filter: args.source_filter ?? null,
-                evidence_pinecone_count: 0,
+                evidence_query_variants: rewrite.queries.length,
+                evidence_query_variant_kinds: rewrite.variants.map((v) => v.kind),
+                evidence_degraded_rewrite: degradedRewrite,
+                evidence_pinecone_count: totalRawHits,
+                evidence_fused_unique_count: 0,
                 evidence_returned_count: 0,
                 evidence_degraded_rerank: false,
                 latency_ms: Date.now() - startedAt,
@@ -158,11 +267,15 @@ export const createEvidenceRetriever = (
             return { evidenceRetrieverOutput: { snippets: [], gap: null } };
         }
 
-        // Phase 2 — Cohere rerank. A null return is the degraded-mode
-        // signal; on degraded mode we use Pinecone's hybrid order as
-        // the rerank order and tag each snippet so the synthesizer's
-        // trace surface shows the path that ran.
-        const rerankInput = hits.map((h) => h.chunk_text);
+        // Phase 3 — Cohere rerank against the **original** user query.
+        // The rewrites widened recall in Pinecone; the cross-encoder
+        // makes the final ordering call against the user's actual
+        // intent, not against a paraphrase. A null return is the
+        // degraded-mode signal; on degraded mode we keep the RRF order
+        // and tag each snippet so the trace surface shows the path
+        // that ran.
+        const fusedHits = fused.map((f) => f.hit);
+        const rerankInput = fusedHits.map((h) => h.chunk_text);
         const reranked = await deps.cohereRerank.rerank({
             query: args.query,
             documents: rerankInput,
@@ -170,20 +283,34 @@ export const createEvidenceRetriever = (
         });
 
         let snippets: readonly EvidenceSnippet[];
-        let degraded: boolean;
+        let degradedRerank: boolean;
         if (reranked === null) {
-            degraded = true;
-            snippets = hits.slice(0, topK).map((hit) => projectHit(hit, hit.score, true));
+            degradedRerank = true;
+            // On degraded rerank, surface Pinecone's hybrid score for the
+            // single-query path (preserves the legacy contract — eval
+            // cases assert exact hybrid scores) and the RRF score when
+            // multiple queries fed the fusion (no single hybrid score
+            // makes sense across variants).
+            const useHybridScore = rewrite.queries.length === 1;
+            snippets = fusedHits
+                .slice(0, topK)
+                .map((hit, i) =>
+                    projectHit(
+                        hit,
+                        useHybridScore ? hit.score : fused[i]!.rrfScore,
+                        true,
+                    ),
+                );
             logger.warn(
-                { queryHash, pineconeCount: hits.length },
-                'evidenceRetriever: Cohere unavailable — degraded mode (Pinecone hybrid order)',
+                { queryHash, fusedCount: fused.length, useHybridScore },
+                'evidenceRetriever: Cohere unavailable — degraded mode',
             );
         } else {
-            degraded = false;
+            degradedRerank = false;
             // Trust Cohere's ordering. flatMap silently drops out-of-bound
             // indices so a malformed response can't read undefined hits.
             snippets = reranked.flatMap((r) => {
-                const hit = hits[r.index];
+                const hit = fusedHits[r.index];
                 return hit === undefined ? [] : [projectHit(hit, r.relevanceScore, false)];
             });
         }
@@ -193,12 +320,16 @@ export const createEvidenceRetriever = (
             evidence_query_hash: queryHash,
             evidence_top_k: topK,
             evidence_source_filter: args.source_filter ?? null,
-            evidence_pinecone_count: hits.length,
-            evidence_pinecone_chunk_ids: hits.map((h) => h.id),
+            evidence_query_variants: rewrite.queries.length,
+            evidence_query_variant_kinds: rewrite.variants.map((v) => v.kind),
+            evidence_degraded_rewrite: degradedRewrite,
+            evidence_pinecone_count: totalRawHits,
+            evidence_fused_unique_count: fused.length,
+            evidence_pinecone_chunk_ids: fusedHits.map((h) => h.id),
             evidence_returned_chunk_ids: snippets.map((s) => s.chunkId),
             evidence_returned_count: snippets.length,
-            evidence_degraded_rerank: degraded,
-            ...(degraded ? { evidence_event: 'degraded-mode' } : {}),
+            evidence_degraded_rerank: degradedRerank,
+            ...(degradedRerank || degradedRewrite ? { evidence_event: 'degraded-mode' } : {}),
             latency_ms: Date.now() - startedAt,
         });
 
