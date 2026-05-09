@@ -90,17 +90,52 @@ if (!AclMain::aclCheckCore('admin', 'super')) {
     $allowRegisterDialog = false;
 }
 
-// Ensure token_main matches so this script can not be run by itself
-//  If tokens do not match, then destroy the session and go back to log in screen
+// Ensure token_main matches so this script can not be run by itself.
+// If tokens do not match, redirect to the login screen — but leave
+// the session row intact.
+//
+// This deliberately diverges from main.php's behavior, which calls
+// `authCloseSession()` (destroying the server-side session row)
+// before redirecting. main.php's intent is to prevent stale-URL
+// replay: a bookmarked main.php URL with an old `token_main` should
+// not be reusable. Destroying the session enforces that — but it
+// also enforces it for any *other* tab in the same browser that's
+// holding the same session id in its own cookie. Two tabs (e.g.
+// legacy main.php and v2 main_v2.php) sharing one OpenEMR core
+// session — which is the design — fall over each other: the older
+// tab refreshes, hits the token mismatch (because the newer login
+// rotated the session id and `token_main_php`), destroys the
+// session, and the newer tab's next request lands on a destroyed
+// session row producing "Site ID is missing from session data!"
+// from globals.php.
+//
+// Removing `authCloseSession()` breaks that domino. The user still
+// has to re-authenticate (the redirect to login forces it), and
+// the token-mismatch case still gates re-entry — but the session
+// row stays alive for whichever tab is using it correctly. The
+// stale-URL replay defense is preserved: re-authentication mints
+// a fresh `token_main_php`, so the stolen URL still won't work.
 $token_main_php = $session->get('token_main_php');
 if (
     $token_main_php === null ||
     (!array_key_exists('token_main', $_GET) || $_GET['token_main'] === '') ||
     $_GET['token_main'] !== $token_main_php
 ) {
-// Below functions are from auth.inc, which is included in globals.php
-    authCloseSession();
-    authLoginScreen(false);
+    // Redirect via the same JS pattern authLoginScreen() uses, but
+    // without first destroying the session. Stays compatible with
+    // main_v2.php loaded from a popup or a frame; `w.top.location`
+    // walks up to the outermost window and navigates it.
+    $loginScreen = OEGlobalsBag::getInstance()->getString('login_screen');
+    $rawSiteId = $session->get('site_id');
+    $incomingSiteId = is_string($rawSiteId) ? $rawSiteId : '';
+    ?>
+<script>
+ var w = window;
+ while (w.opener) { var wtmp = w; w = w.opener; wtmp.close(); }
+ w.top.location.href = <?php echo json_encode($loginScreen . "?error=1&site=" . $incomingSiteId); ?>;
+</script>
+    <?php
+    exit;
 }
 // this will not allow copy/paste of the link to this main.php page or a refresh of this main.php page
 //  (default behavior, however, this behavior can be turned off in the prevent_browser_refresh global)

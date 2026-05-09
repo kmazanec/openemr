@@ -73,17 +73,43 @@ if (!AclMain::aclCheckCore('admin', 'super')) {
     $allowRegisterDialog = false;
 }
 
-// Ensure token_main matches so this script can not be run by itself
-//  If tokens do not match, then destroy the session and go back to log in screen
+// Ensure token_main matches so this script can not be run by itself.
+// If tokens do not match, redirect to the login screen — but leave
+// the session row intact.
+//
+// This deliberately diverges from the upstream behavior of calling
+// `authCloseSession()` (destroying the server-side session row)
+// before redirecting. The destroy-on-mismatch enforced "stale URL
+// can't be replayed" — but it also caught a legitimate cross-tab
+// case: when a sibling tab (e.g. main_v2.php after main_v2_resume.php
+// minted a fresh `token_main_php`) rotates the session's
+// `token_main_php`, *this* tab's now-stale `token_main` URL can't
+// match. The original code then destroys the session row both tabs
+// share, breaking both with "Site ID is missing from session data!"
+// from globals.php on subsequent requests.
+//
+// The stale-URL replay defense is preserved by the redirect: the
+// user must re-authenticate, which mints a fresh `token_main_php`,
+// so the stolen URL still doesn't work. We just don't take down
+// the cross-tab session as collateral damage. Mirrors the same fix
+// applied in main_v2.php.
 $token_main_php = $session->get('token_main_php');
 if (
     $token_main_php === null ||
     (!array_key_exists('token_main', $_GET) || $_GET['token_main'] === '') ||
     $_GET['token_main'] !== $token_main_php
 ) {
-// Below functions are from auth.inc, which is included in globals.php
-    authCloseSession();
-    authLoginScreen(false);
+    $loginScreen = OEGlobalsBag::getInstance()->getString('login_screen');
+    $rawSiteId = $session->get('site_id');
+    $incomingSiteId = is_string($rawSiteId) ? $rawSiteId : '';
+    ?>
+<script>
+ var w = window;
+ while (w.opener) { var wtmp = w; w = w.opener; wtmp.close(); }
+ w.top.location.href = <?php echo json_encode($loginScreen . "?error=1&site=" . $incomingSiteId); ?>;
+</script>
+    <?php
+    exit;
 }
 // this will not allow copy/paste of the link to this main.php page or a refresh of this main.php page
 //  (default behavior, however, this behavior can be turned off in the prevent_browser_refresh global)
