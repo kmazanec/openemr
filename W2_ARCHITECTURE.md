@@ -50,6 +50,7 @@ The W1 architecture stays load-bearing. W2 adds new graph topology, new persiste
 - **Side-by-side PDF.js pane** in the panel for extracted-document citation overlays.
 - **Inline accept/reject controls** in the panel for Tier-3 promotion.
 - **Runner-side `loadPriorContext`** projects `conversation_messages` into a `PriorTurnContext` state slot before the graph runs. User turns replay as text; assistant turns replay as `{citations, facts}` (no prose). Both the supervisor and the synthesizer read it.
+- **Inline trend-chart attachment** on assistant messages — `Format` derives an optional single `trendChart` slot from the verified ledger + snapshot for fresh-lab-vs-history and trend-question turns. Old copilot panel renders it as an inline SVG line chart inside the assistant bubble; dashboard-React port deferred. See "Inline trend chart attachment" below.
 
 ### Frozen (regression-only during W2 sprint)
 
@@ -358,6 +359,46 @@ Walks the verified ledger and groups claims by `source_type` for the UI:
 - **Evidence** (guideline chunks with section-snippet chips).
 
 The "From documents" section's facts carry inline accept/reject buttons for Tier-3 promotion (see "Click-to-source UI" below).
+
+### Inline trend chart attachment
+
+`Format` may also attach an optional `trendChart` field to the `AssistantMessage` it emits. Single value per turn, never an array — the "one chart per response" cap is structural, not a runtime check.
+
+```ts
+interface AssistantMessageTrendChart {
+  analyte: string;                  // "Hemoglobin A1c"
+  unit: string | null;              // "%", "mg/dL", null
+  referenceRange: string | null;    // "<5.7", "70-180", null
+  points: ReadonlyArray<{
+    observedAt: string;             // ISO-8601
+    value: number;                  // finite, parsed from snapshot
+    abnormal: boolean;              // mirrors LabObservation.abnormalFlag
+  }>;
+  reason: 'fresh_lab_with_history' | 'follow_up_lab_question';
+  groundedInClaimIds: readonly string[];
+}
+```
+
+**Decision rules** (deterministic, evaluated in order; the first match wins):
+
+1. **`fresh_lab_with_history`.** A `lab` claim was accepted and the snapshot has ≥2 numeric observations sharing that analyte (case-insensitive). The most-recently-observed accepted lab claim wins when multiple analytes qualify, mirroring the typical use case: a clinician uploads a lab PDF, we extract the new value, the chart now reads as "new value in context" against historical readings. Series merges `snapshot.labs` with `snapshot.labHistory.observations` and dedupes by `observedAt`.
+
+2. **`follow_up_lab_question`.** Envelope is `task: 'follow_up'` and at least one accepted `lab` claim's analyte already has ≥2 numeric observations on file. **No keyword check.** "How is A1c trending?", "What's her A1c?", "Show me LDL", and "How was her sodium last visit?" all qualify — any time the doctor asks about a metric we have ≥2 numeric points for, the chart attaches. The numeric-points threshold + single-chart cap are the gates; demanding trend-style phrasing on top would silently drop the chart on natural lookup questions even though the data is already in the chart. Source-of-truth-agnostic: the values can come from a recent uploaded document, a clinic observation entered manually, or a labHistory pull — the rule fires the same way.
+
+3. **No chart.** Default. Default briefings (rule 2 is gated on `task === 'follow_up'` so routine briefings stay clean), snapshots without enough numeric history, follow-ups whose ledger has no `lab` claim, and non-numeric values (`positive`, `trace`; `<0.01` survives via qualifier strip) all fall through.
+
+**Why decision lives in `Format`.** It's a pure function over `(verified, snapshot, envelope)` — no I/O, no model call. Trivially testable, observable in trace metadata, and impossible for the synthesizer to fabricate (the chart can't disagree with the citations because it derives from the same source rows). The synthesizer's prose remains the load-bearing answer; the chart is an additive visual.
+
+**Renderer.** The old copilot panel (`interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js`) renders the slot as a hand-rolled inline SVG line chart inside the assistant bubble — no external charting library. Hand-rolled SVG over Chart.js / D3 because:
+
+- Zero new asset to ship; no script-load timing or CDN dependency.
+- Pure-string output: testable from node alongside the other panel-renderer helpers (`tests/js/copilot-panel-trend-chart.test.js`), no DOM stub needed.
+- The bubble re-renders on every event in the chat thread; a chart-instance lifecycle would need teardown plumbing for nothing.
+- The chart is intentionally simple — single line over time, ≤24 points, optional reference-range band overlay.
+
+If a future requirement (rich tooltips, multi-series overlays) outgrows the hand-rolled SVG, swapping in Chart.js is a self-contained renderer change — the wire contract (`AssistantMessageTrendChart`) is renderer-agnostic.
+
+**Scope note: old copilot only.** This iteration ships only the wire contract (server) and the old-panel renderer. The dashboard React `CopilotPanel` ignores the unknown property until ported — a follow-up MR will add the React-side renderer.
 
 ### Prior-turn context
 

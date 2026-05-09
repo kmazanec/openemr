@@ -590,3 +590,59 @@ describe('format — claim groups by source_type (§C.6)', () => {
         expect(categories).toEqual(['diagnosis']);
     });
 });
+
+describe('format — trend chart attachment', () => {
+    it('attaches a trend chart when the snapshot has multiple numeric points for the cited analyte', async () => {
+        const snapshotWithA1cTrend: BriefingSnapshot = {
+            ...snapshot,
+            labs: [
+                {
+                    analyte: 'A1c',
+                    value: '7.4',
+                    unit: '%',
+                    referenceRange: '<5.7',
+                    abnormalFlag: 'H',
+                    observedAt: '2024-09-01T00:00:00Z',
+                    source: sourceRef('Observation', 'lab-old'),
+                },
+                {
+                    analyte: 'A1c',
+                    value: '8.4',
+                    unit: '%',
+                    referenceRange: '<5.7',
+                    abnormalFlag: 'H',
+                    observedAt: '2025-04-01T00:00:00Z',
+                    source: sourceRef('Observation', 'lab-1'),
+                },
+            ],
+        };
+        const draft = draftSegments({
+            text: 'A1c is 8.4%, up from 7.4% in September.',
+            claimIds: ['lab-1'],
+        });
+        const out = await format(
+            baseState({
+                draft,
+                snapshot: snapshotWithA1cTrend,
+            }),
+        );
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        expect(f.trendChart).toBeDefined();
+        expect(f.trendChart?.analyte).toBe('A1c');
+        expect(f.trendChart?.points).toHaveLength(2);
+        expect(f.trendChart?.reason).toBe('fresh_lab_with_history');
+    });
+
+    it('does not attach a trend chart when only a single numeric point is on file', async () => {
+        const draft = draftSegments({
+            text: 'A1c is 8.4%.',
+            claimIds: ['lab-1'],
+        });
+        const out = await format(baseState({ draft, snapshot: snapshotWithA1cLab }));
+        const f = out.formatted;
+        if (f === null || f === undefined) throw new Error('formatted missing');
+        // Slot is omitted entirely, not present-with-undefined-points.
+        expect(Object.prototype.hasOwnProperty.call(f, 'trendChart')).toBe(false);
+    });
+});

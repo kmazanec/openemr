@@ -103,13 +103,14 @@ suites: `schema_valid`, `citation_present`, `factually_consistent`,
 | `archetypes/malformedModelOutput.test.ts` | 3 | Three malformed synthesizer outputs (missing `sourceReferences`, extra unknown field, wrong enum value); verifier rejects all three. |
 | `archetypes/authTier.test.ts` | 1 | Non-clinician principal (receptionist role) cannot invoke the briefing endpoint; 403 returned before the graph runs. |
 
-### W1 — lab/vitals trend (6 tests across 3 files)
+### W1 — lab/vitals trend (8 tests across 4 files)
 
 | Case file | Tests | What it pins |
 | --- | ---: | --- |
 | `lab-trends/trendUp.test.ts` | 2 | A1c trend up on the `diabetic_uncontrolled` archetype. Faithful claim accepted; adversarial (fabricated value, wrong date, hallucinated record id) rejected. |
 | `lab-trends/trendStable.test.ts` | 2 | A1c trend stable on the `diabetic` archetype, same accept/reject pattern. |
 | `lab-trends/noHistory.test.ts` | 2 | `healthy_adult` — no lab history available; agent emits a `gap` claim, never a fabricated trend. |
+| `lab-trends/trendChart.test.ts` | 2 | Format node attaches a single inline trend chart to the assistant message when the verifier accepts a lab claim against a series with ≥2 numeric points. Wire shape is a single value, not an array — pinned structurally. |
 
 ### W1 — morning-prep precompute (2 tests across 2 files)
 
