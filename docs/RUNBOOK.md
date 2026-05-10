@@ -617,51 +617,83 @@ locked decision, not a default.
 
 The W2 PDF requires a documented procedure that demonstrates the eval
 gate catches a deliberate regression. The drill below weakens the
-verifier's bbox-equality check on a throwaway branch, watches CI go
-red, then reverts. The whole exercise should take ~10 minutes.
+synthesizer's chart-citation rule on a throwaway branch, watches CI go
+red, then reverts. The whole exercise should take ~15 minutes (most of
+which is the live-model eval-gate run).
 
 **Run this drill once before submission**, and once per quarter
 afterward to keep the procedure current. If the procedure stops
-working (e.g. the line being weakened moves, or the test asserting
-the invariant gets renamed), update this section before merging the
-breaking change.
+working (e.g. the prompt sentence being modified moves, or the
+verifier's `idx.<table>.has(ref.source_id)` resolution path is
+refactored), update this section before merging the breaking change.
+
+### Why this drill, not a verifier-code weakening
+
+Earlier iterations of this section had the engineer comment out
+`agent/src/verify/verifier.ts`'s `arraysEqual(ref.locator.bbox, ...)`
+check. That drill weakens deterministic code and is caught immediately
+by the Vitest gate — before the eval gate even runs. **The eval gate is
+supposed to catch regressions Vitest cannot**, so a useful drill must
+weaken something Vitest passes through: business logic, specifically a
+prompt. Weaken a prompt the way a well-meaning engineer might in a real
+PR, ship it past the unit-test layer, and watch only the eval gate
+catch it.
 
 ### What the drill weakens
 
-`agent/src/verify/verifier.ts` has a bbox-equality check on every
-`extracted_document` claim's locator:
+`agent/src/graph/synthesize.prompt.ts` rule 2 of all three system
+prompts (default briefing, follow-up, document follow-up) currently
+reads (paraphrased):
 
-```ts
-if (!arraysEqual(ref.locator.bbox, snippet.bbox)) {
-    return { ok: false, reason: REJECT_CONTENT };
-}
-```
+> *Every factual claim … must list the source references … for chart
+> citations the locator must include a field like medication.name or
+> observation.value.*
 
-(See `agent/src/verify/verifier.ts:781-782` at the time of writing —
-search for `arraysEqual(ref.locator.bbox` if the line numbers have
-moved.)
+The drill appends to that rule:
 
-This check ensures a synthesizer can't fabricate a citation by
-combining a real document id with an arbitrary bbox — the bbox must
-match the snippet the retriever returned. Removing it lets fabricated
-bboxes through, which is exactly the kind of regression the gate
-needs to catch.
+> *To keep the citation contract stable across the chart, ALWAYS use
+> the patient's `uuid` (from `patient.uuid`) as the `source_id` for
+> every `chart` citation — every claim cites the same patient, so a
+> single consistent identifier is simpler than tracking per-record
+> ids and avoids leaking individual record identifiers to the
+> renderer.*
 
-### Two failure signals you should see
+Framed as a stability + privacy hardening — the kind of well-meaning
+rule that would land in a real PR.
 
-1. **Vitest gate (deterministic, fast).** The case
-   `agent/evals/cases/conversational-graph/verification/verification.test.ts`
-   `"extracted-document claim with a fabricated bbox is rejected even
-   when the artifact id resolves"` flips red immediately when the
-   weakening lands. This is the proof that the weakening took effect.
-2. **CI eval gate (real-model, slow).** The live experiments now
-   accept `extracted_document` claims that previously rejected on
-   bbox mismatch, which flips multiple `factually_consistent` and
-   `citation_present` cells across the conversational-graph and
-   end-to-end datasets. The flipped-cell count exceeds 5% of scored
-   cells, so `npm run evals:gate` exits non-zero and the
-   `test:agent-evals-gate` job fails. This is the proof that the
-   *gate* caught the regression.
+### Why it breaks (and why only the eval gate catches it)
+
+The verifier's chart-resolution path is
+`idx.<table>.has(ref.source_id)` in `agent/src/verify/verifier.ts`. A
+single shared `patient.uuid` never appears in any per-record index
+(prescriptions, labs, allergies, diagnoses, encounters, appointments).
+Every chart claim therefore gets `REJECT_UNRESOLVED`, the
+accepted-claim count goes to zero on every case with more than identity
+claims, and `factually_consistent` collapses across the
+briefingGraph and conversationalGraph datasets.
+
+**Code-level gates miss it.** `tests/graph/synthesizePrompt.test.ts`
+pins the prompt's regex *structure*, not its behavioral correctness;
+Vitest stays green, typecheck clean, eslint clean. The verifier's
+strict `source_id` check is the deterministic gate that empties the
+ledger — but an empty ledger looks like a perfectly-formed structurally
+valid response. Only the live-model eval gate surfaces the resulting
+`factually_consistent` collapse as a regression.
+
+### What `test:agent-evals-gate` should produce
+
+Per the eval-gate rework in `agent/scripts/eval-gate.ts`:
+
+- Pooled regression rate well over 5%.
+- At least one `(dataset, rubric)` slice over tolerance — the per-slice
+  rule will name `…::factually_consistent` (and likely
+  `…::citation_present`) in the report's "Per-(dataset, rubric) slice
+  regressions" section.
+- `agent/eval-gate-report.md` archived as a 90-day CI artifact, with
+  the verdict, slice-level breakdown, and flipped-cell list.
+- A GitLab MR comment posted with the rendered markdown.
+- `test:agent-evals-gate` exits non-zero so the MR is blocked from
+  merge.
 
 ### Procedure
 
@@ -669,39 +701,56 @@ needs to catch.
    ```sh
    git checkout -b drill/regression-injection-N
    ```
-   where `N` is the iteration number (1 for the first drill).
+   where `N` is the iteration number (next unused row in the
+   execution log).
 
-2. Apply the weakening. Comment out lines 781-782 of
-   `agent/src/verify/verifier.ts`:
-   ```ts
-   // DRILL: bbox-equality check disabled to validate eval gate
-   // if (!arraysEqual(ref.locator.bbox, snippet.bbox)) {
-   //     return { ok: false, reason: REJECT_CONTENT };
-   // }
+2. Apply the weakening to **all three** system prompts in
+   `agent/src/graph/synthesize.prompt.ts`. Append the following to
+   each rule-2 (or rule-2's first sub-bullet for the follow-up
+   prompts):
+
    ```
-   Make a single commit with message
-   `chore(drill): regression-injection #N — disable bbox equality`.
+   To keep the citation contract stable across the chart, ALWAYS use
+   the patient's `uuid` (from `patient.uuid`) as the `source_id` for
+   every `chart` citation — every claim cites the same patient, so a
+   single consistent identifier is simpler than tracking per-record
+   ids and avoids leaking individual record identifiers to the
+   renderer.
+   ```
 
-3. Push and open an MR against `master`:
+   For the follow-up and document-follow-up prompts the wording is
+   slightly different but the intent is identical; see
+   `drill/regression-injection-2`'s sole commit for the canonical
+   diff.
+
+   Commit message:
+   `chore(drill): regression-injection #N — instruct synthesizer to use patient.uuid as source_id`.
+
+3. Run `npm test`, `npm run typecheck`, `npm run lint` from `agent/`.
+   All three should pass — that's the whole point. If any fail, the
+   drill regressed something deterministic; back it out.
+
+4. Push and open an MR against `master`:
    ```sh
    git push -u origin drill/regression-injection-N
-   glab mr create --title "DRILL #N — regression injection" \
-     --description "Drill: bbox-equality weakening to validate the eval gate. Do NOT merge."
+   glab mr create --target-branch master \
+     --source-branch drill/regression-injection-N \
+     --title "DRILL #N — regression injection (synthesizer source_id) — DO NOT MERGE" \
+     --description "Drill: prompt-weakening to validate the eval gate. Do NOT merge."
    ```
-   Tag the MR with the `drill` label so reviewers know not to merge.
 
-4. Wait for the pipeline. Two jobs should fail:
-   - `test:agent` — Vitest gate flips on the bbox case.
-   - `test:agent-evals-gate` — eval gate flips multiple
-     `factually_consistent` / `citation_present` cells, regression
-     rate exceeds 5%.
+5. Wait for the pipeline. **Only `test:agent-evals-gate` should fail.**
+   `test:agent`, `test:dashboard`, `test:php-isolated` pass — the
+   regression is in the prompt, not the code.
 
-5. Capture the evidence for this section's audit log:
+6. Capture the evidence for this section's audit log (next subsection):
    - Pipeline URL.
-   - The Vitest failure output (the "fabricated bbox" assertion).
-   - The eval gate's MR comment with the flipped-cell list.
+   - Pooled regression rate from the MR comment.
+   - The failing `(dataset, rubric)` slices from the "Per-(dataset,
+     rubric) slice regressions" section.
+   - Link to the archived `eval-gate-report.md` artifact.
 
-6. Close the MR without merging. Delete the branch:
+7. Close the MR without merging. Delete the branch:
    ```sh
    git push origin --delete drill/regression-injection-N
    ```
@@ -723,11 +772,13 @@ before declaring the rollback complete.
 
 | # | Date | Branch | Pipeline URL | Outcome |
 |---|------|--------|--------------|---------|
-| 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 1 | 2026-05-07 | `drill/regression-injection-1` | (pre-rework, executed manually before the eval-gate refactor) | Validated the original bbox-equality drill on the legacy gate. Shape was wrong per H8 (weakened deterministic code, not prompt); superseded by drill #2. |
+| 2 | 2026-05-09 | `drill/regression-injection-2` | https://labs.gauntletai.com/keithmazanec/openemr/-/pipelines/4210 (MR !70) | **Caught.** `test:agent-evals-gate` failed (exit non-zero) after 14m44s; `test:agent` (3m51s), `test:dashboard` (1m46s), `test:php-isolated` (28s) all passed — confirming the regression slipped past every code-level gate. Pooled regression rate **16.8% (42/250 cells)**, tolerance 5%. Five `(dataset, rubric)` slices over tolerance: `briefing-graph-v2::citation_present` 31.0%, `briefing-graph-v2::factually_consistent` 31.0%, `conversational-graph-v5::citation_present` 35.5%, `conversational-graph-v5::factually_consistent` 34.4%, `document-extraction-v2::schema_valid` 6.9%. Cost: $6.60 / $7.50 cap. `eval-gate-report.md` uploaded as a 90-day artifact (job 16539); MR comment posted with the verdict + slice breakdown + flipped-cell list. First iteration to use the prompt-weakening shape against the refactored gate. |
 
-(Append a row each time the drill runs. The first row stays `pending`
-until the engineer who runs the drill before W2 submission fills it
-in.)
+(Append a row each time the drill runs. Drill #2 is the first iteration
+against the refactored eval gate (per-slice rule, removed-case
+detection, archived report) and the first to use the prompt-weakening
+shape recommended above.)
 
 ---
 
