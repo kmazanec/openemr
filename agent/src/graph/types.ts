@@ -46,7 +46,32 @@ export const SourceReferenceSchema = z
         source_id: z.string().min(1),
         locator: z.object({
             page: z.number().int().nonnegative().optional(),
-            bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
+            // bbox accepts either:
+            //   4-tuple `[x, y, w, h]` — legacy axis-aligned (vision-v1/v2
+            //     image-mode, and the referralLetter docx character-offset
+            //     `[charStart, charEnd, 0, 0]` shape);
+            //   8-tuple `[x1, y1, x2, y2, x3, y3, x4, y4]` — `vision-v3-quad`
+            //     row-spanning quad following page skew.
+            // The verifier (`resolveExtractedDocument`) deep-equals the
+            // synthesizer's bbox against the snippet's bbox, so the
+            // shape that arrives here must round-trip the snippet's
+            // bbox exactly. Renderers branch on `length === 4` vs
+            // `=== 8`.
+            bbox: z
+                .union([
+                    z.tuple([z.number(), z.number(), z.number(), z.number()]),
+                    z.tuple([
+                        z.number(),
+                        z.number(),
+                        z.number(),
+                        z.number(),
+                        z.number(),
+                        z.number(),
+                        z.number(),
+                        z.number(),
+                    ]),
+                ])
+                .optional(),
             section: z.string().min(1).optional(),
             field: z.string().min(1).optional(),
         }),
