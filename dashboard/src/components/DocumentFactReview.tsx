@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from 'react';
+import { Fragment, useCallback, useState, type ReactElement } from 'react';
 import type {
   Claim,
   ClaimCategory,
@@ -58,6 +58,11 @@ export interface DocumentFactReviewProps {
   proxyUrl: string;
   pid: number;
   conversationId: string | null;
+  // Click handler for the per-claim `[source]` chips. Same shape as
+  // the inline-prose chip handler in CopilotPanel — opens the
+  // DocumentViewerDrawer at the cited page+bbox so the doctor can
+  // verify the extracted fact in context before accepting.
+  onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
   // Test-only override; production omits.
   fetchFn?: typeof fetch;
 }
@@ -69,20 +74,13 @@ export function DocumentFactReview({
   proxyUrl,
   pid,
   conversationId,
+  onChipClick,
   fetchFn,
 }: DocumentFactReviewProps): ReactElement | null {
   if (group.cards.length === 0) return null;
   return (
-    <section
-      className="copilot-fact-review mt-3 border rounded p-3 bg-body-tertiary"
-      data-testid="copilot-fact-review"
-    >
-      <header className="d-flex align-items-baseline justify-content-between mb-2">
-        <h3 className="h6 mb-0">Review extracted facts</h3>
-        <span className="small text-body-secondary">
-          Accept to add to the chart · Reject to dismiss
-        </span>
-      </header>
+    <section className="copilot-fact-review" data-testid="copilot-fact-review">
+      <h3 className="copilot-fact-review__heading">From documents</h3>
       {group.cards.map((card, idx) => (
         <DocumentFactCard
           key={card.documentUuid ?? `card-${String(idx)}`}
@@ -90,6 +88,7 @@ export function DocumentFactReview({
           proxyUrl={proxyUrl}
           pid={pid}
           conversationId={conversationId}
+          onChipClick={onChipClick}
           {...(fetchFn !== undefined ? { fetchFn } : {})}
         />
       ))}
@@ -102,12 +101,14 @@ function DocumentFactCard({
   proxyUrl,
   pid,
   conversationId,
+  onChipClick,
   fetchFn,
 }: {
   card: DocumentClaimCard;
   proxyUrl: string;
   pid: number;
   conversationId: string | null;
+  onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
   fetchFn?: typeof fetch;
 }): ReactElement {
   const label =
@@ -120,10 +121,8 @@ function DocumentFactCard({
       data-testid="copilot-fact-review-card"
       data-document-uuid={card.documentUuid ?? ''}
     >
-      <h4 className="copilot-fact-review__doc-label small text-body-secondary fw-semibold mb-1">
-        {label}
-      </h4>
-      <ul className="copilot-fact-review__list list-unstyled mb-0">
+      <h4 className="copilot-fact-review__doc-label">{label}</h4>
+      <ul className="copilot-fact-review__list">
         {card.claims.map((claim) => (
           <DocumentFactRow
             key={claim.id}
@@ -131,6 +130,7 @@ function DocumentFactCard({
             proxyUrl={proxyUrl}
             pid={pid}
             conversationId={conversationId}
+            onChipClick={onChipClick}
             {...(fetchFn !== undefined ? { fetchFn } : {})}
           />
         ))}
@@ -144,12 +144,14 @@ function DocumentFactRow({
   proxyUrl,
   pid,
   conversationId,
+  onChipClick,
   fetchFn,
 }: {
   claim: Claim;
   proxyUrl: string;
   pid: number;
   conversationId: string | null;
+  onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
   fetchFn?: typeof fetch;
 }): ReactElement {
   const [status, setStatus] = useState<FactStatus>('idle');
@@ -212,7 +214,7 @@ function DocumentFactRow({
     status === 'submitting' || status === 'accepted' || status === 'rejected';
 
   const rowClass =
-    'copilot-fact-review__row d-flex flex-wrap align-items-baseline gap-2 py-2 border-top' +
+    'copilot-fact-review__row' +
     (status === 'rejected' ? ' copilot-fact-review__row--rejected' : '') +
     (status === 'accepted' ? ' copilot-fact-review__row--accepted' : '');
 
@@ -223,22 +225,38 @@ function DocumentFactRow({
       data-claim-id={claim.id}
       data-status={status}
     >
-      <span className="copilot-fact-review__category badge bg-secondary text-uppercase">
+      <span className="copilot-fact-review__category">
         {prettyCategory(claim.category)}
-      </span>
-      <span className="copilot-fact-review__text flex-grow-1">{claim.text}</span>
+      </span>{' '}
+      <span className="copilot-fact-review__text">{claim.text}</span>
+      {claim.sourceReferences.map((ref, ri) => (
+        <Fragment key={`${claim.id}-chip-${String(ri)}`}>
+          {' '}
+          <ChipForRef
+            claim={claim}
+            reference={ref}
+            onClick={(anchor) => onChipClick(claim, ref, anchor)}
+          />
+        </Fragment>
+      ))}
       {target === null ? (
         <span
-          className="copilot-fact-review__not-promotable small text-body-secondary"
+          className="copilot-fact-review__not-promotable"
           title="This fact category is not promotable to the chart from this UI."
         >
           Not promotable
         </span>
       ) : (
-        <div className="copilot-fact-review__actions d-flex gap-2" role="group">
+        <span
+          className={
+            'copilot-fact-actions' +
+            (status === 'accepted' ? ' copilot-fact-actions--accepted' : '')
+          }
+          role="group"
+        >
           <button
             type="button"
-            className="btn btn-sm btn-success"
+            className="copilot-fact-actions__btn copilot-fact-actions__btn--accept"
             onClick={() => {
               void onAccept();
             }}
@@ -253,7 +271,7 @@ function DocumentFactRow({
           </button>
           <button
             type="button"
-            className="btn btn-sm btn-outline-secondary"
+            className="copilot-fact-actions__btn copilot-fact-actions__btn--reject"
             onClick={() => {
               void onReject();
             }}
@@ -262,11 +280,11 @@ function DocumentFactRow({
           >
             {status === 'rejected' ? 'Rejected' : 'Reject'}
           </button>
-        </div>
+        </span>
       )}
       {error !== null && (
         <p
-          className="copilot-fact-review__error w-100 small text-danger mb-0"
+          className="copilot-fact-review__error"
           role="alert"
           data-testid="copilot-fact-error"
         >
@@ -342,4 +360,50 @@ function prettyCategory(category: ClaimCategory): string {
     default:
       return category.charAt(0).toUpperCase() + category.slice(1);
   }
+}
+
+/**
+ * Per-claim `[source]` chip in the fact-review list. Same visual
+ * treatment as the inline-prose chips in CopilotPanel — color
+ * variants are keyed off `source_type` so the doc-card chip reads as
+ * the brown "extracted document" variant. Clicking dispatches up to
+ * the panel's `onChipClick` handler, which opens the document viewer
+ * drawer at the cited page+bbox so the doctor can verify the
+ * extracted fact in context before accepting.
+ */
+function ChipForRef({
+  claim,
+  reference,
+  onClick,
+}: {
+  claim: Claim;
+  reference: SourceReference;
+  onClick: (anchor: HTMLElement) => void;
+}): ReactElement {
+  const tooltip =
+    reference.quote.length > 220
+      ? reference.quote.slice(0, 217) + '…'
+      : reference.quote;
+  const variant =
+    reference.source_type === 'extracted_document'
+      ? 'copilot-source--document'
+      : reference.source_type === 'guideline'
+        ? 'copilot-source--guideline'
+        : 'copilot-source--chart';
+  return (
+    <button
+      type="button"
+      className={`copilot-source ${variant}`}
+      title={tooltip}
+      data-testid="copilot-chip"
+      data-claim-id={claim.id}
+      data-source-type={reference.source_type}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick(e.currentTarget);
+      }}
+    >
+      [source]
+    </button>
+  );
 }

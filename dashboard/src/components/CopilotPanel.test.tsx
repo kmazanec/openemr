@@ -138,10 +138,28 @@ describe('CopilotPanel', () => {
     const prose = screen.getByTestId('copilot-prose').textContent ?? '';
     expect(prose).toContain('Patient has type 2 diabetes');
     expect(prose).toContain('A1c was 7.2%.');
-    // The redacted segment is replaced by an "unverified" chip, not
-    // rendered inline as the redaction text.
+    // The redacted segment is replaced by an "additional statement
+    // could not be verified" advisory chip, not rendered inline as
+    // the redaction placeholder text.
     expect(prose).not.toContain('[redacted segment]');
-    expect(screen.getByTestId('copilot-redacted-chip')).toHaveTextContent(/1 unverified/);
+    expect(screen.getByTestId('copilot-redacted-chip')).toHaveTextContent(
+      /1 additional statement could not be verified/,
+    );
+
+    // Clicking the chip opens the explanatory popover (anchored over
+    // the chip) and Escape dismisses it. Mirrors the legacy panel's
+    // openUnverifiedPopover behavior.
+    fireEvent.click(screen.getByTestId('copilot-redacted-chip'));
+    await waitFor(() =>
+      expect(screen.getByTestId('copilot-unverified-popover')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('copilot-unverified-popover')).toHaveTextContent(
+      /1 statement was withheld/,
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByTestId('copilot-unverified-popover')).not.toBeInTheDocument(),
+    );
 
     // Claim chips render with source-type metadata.
     const chips = screen.getAllByTestId('copilot-chip');

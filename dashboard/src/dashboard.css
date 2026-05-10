@@ -573,15 +573,109 @@
   margin-bottom: 0;
 }
 
-/* Document fact review (the dashboard equivalent of the legacy
-   "From documents" cards). One card per uploaded document; each row
-   is a single extracted fact with Accept / Reject buttons. */
-.copilot-fact-review__card + .copilot-fact-review__card {
-  margin-top: 0.75rem;
+/* Bubble-level "could not be verified" chip. Amber pill with a ⚠
+   prefix so it reads as an advisory, distinct from the blue source
+   chips. Mirrors the legacy panel.css `.copilot-unverified` rule so
+   the two interfaces stay visually consistent. */
+.copilot-unverified {
+  display: inline-block;
+  margin-left: 0.25em;
+  padding: 0.05em 0.55em;
+  font-family: inherit;
+  font-size: 0.82em;
+  line-height: 1.5;
+  color: #7a4a00;
+  background: #fff3d6;
+  border: 1px solid #f0c66a;
+  border-radius: 999px;
+  white-space: nowrap;
+  vertical-align: 0.05em;
+  cursor: pointer;
 }
 
-.copilot-fact-review__row:first-of-type {
-  border-top: none !important;
+.copilot-unverified::before {
+  content: '⚠';
+  margin-right: 0.35em;
+  font-size: 0.95em;
+}
+
+.copilot-unverified:hover {
+  background: #ffe6a8;
+}
+
+.copilot-unverified:focus-visible {
+  outline: 2px solid #c79610;
+  outline-offset: 1px;
+}
+
+/* Document fact review — the dashboard port of the legacy
+   "From documents" cards. One card per uploaded document; each row
+   is one extracted fact rendered inline (category prefix + claim
+   text + small Accept/Reject pills) so a 6-fact intake still fits in
+   ~6 lines instead of 6 full-width slabs. Token palette mirrors the
+   legacy panel.css `.copilot-claim-groups__doc-card` and
+   `.copilot-fact-actions` rules. */
+.copilot-fact-review {
+  margin-top: 0.9em;
+  padding-top: 0.9em;
+  border-top: 1px solid #e3e7ee;
+}
+
+.copilot-fact-review__heading {
+  margin: 0 0 0.3em;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #2c3340;
+}
+
+.copilot-fact-review__card {
+  margin: 0 0 0.5em;
+  padding: 0.5em 0.7em;
+  background: #fffaf0;
+  border: 1px solid #f1e0bf;
+  border-radius: 4px;
+}
+
+.copilot-fact-review__card:last-child {
+  margin-bottom: 0;
+}
+
+.copilot-fact-review__doc-label {
+  margin: 0 0 0.2em;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: #4a5360;
+}
+
+.copilot-fact-review__list {
+  margin: 0;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.copilot-fact-review__row {
+  margin: 0 0 0.2em;
+  line-height: 1.45;
+}
+
+.copilot-fact-review__row:last-child {
+  margin-bottom: 0;
+}
+
+.copilot-fact-review__category {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-right: 0.25em;
+}
+
+.copilot-fact-review__not-promotable {
+  margin-left: 0.6em;
+  font-size: 0.85em;
+  color: #6c757d;
+  font-style: italic;
 }
 
 .copilot-fact-review__row--rejected {
@@ -589,15 +683,65 @@
   text-decoration: line-through;
 }
 
+.copilot-fact-review__row--rejected .copilot-fact-actions,
 .copilot-fact-review__row--rejected .copilot-fact-review__category {
   text-decoration: none;
 }
 
-.copilot-fact-review__row--accepted {
-  background-color: #f0fdf4;
+.copilot-fact-review__error {
+  margin: 0.25em 0 0;
+  font-size: 0.85em;
+  color: #b91c1c;
 }
 
-.copilot-fact-review__category {
-  font-size: 0.65rem;
-  letter-spacing: 0.04em;
+/* Inline accept/reject pill buttons. Sit inline-right of the fact
+   text so a 6-fact card stays compact. Mirrors panel.css
+   `.copilot-fact-actions` token-for-token. */
+.copilot-fact-actions {
+  display: inline-flex;
+  gap: 0.4em;
+  margin-left: 0.6em;
+  vertical-align: baseline;
+}
+
+.copilot-fact-actions__btn {
+  font: inherit;
+  font-size: 0.8em;
+  line-height: 1.2;
+  padding: 0.15em 0.6em;
+  border-radius: 0.3em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.copilot-fact-actions__btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.copilot-fact-actions__btn--accept {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.copilot-fact-actions__btn--accept:not(:disabled):hover {
+  background: #1d4ed8;
+}
+
+.copilot-fact-actions__btn--reject {
+  background: transparent;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.copilot-fact-actions__btn--reject:not(:disabled):hover {
+  background: #f1f5f9;
+}
+
+.copilot-fact-actions--accepted .copilot-fact-actions__btn--accept {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #6ee7b7;
 }

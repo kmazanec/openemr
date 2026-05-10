@@ -98,6 +98,29 @@ export function CopilotPanel({
     ref: SourceReference;
     anchor: HTMLElement;
   } | null>(null);
+  // "Could not be verified" chip popover. Shares the same anchor-and-
+  // dismiss machinery as the chart chip popover but renders a fixed
+  // explanatory body keyed by the redacted-segment count.
+  const [unverifiedPopover, setUnverifiedPopover] = useState<{
+    count: number;
+    anchor: HTMLElement;
+  } | null>(null);
+  const onUnverifiedClick = useCallback(
+    (count: number, anchor: HTMLElement): void => {
+      if (
+        unverifiedPopover !== null &&
+        unverifiedPopover.anchor === anchor
+      ) {
+        setUnverifiedPopover(null);
+        return;
+      }
+      setUnverifiedPopover({ count, anchor });
+      setChartPopover(null);
+      setDocArgs(null);
+      setGuidelineSource(null);
+    },
+    [unverifiedPopover],
+  );
 
   const onChipClick = useCallback(
     (claim: Claim, ref: SourceReference, anchor: HTMLElement): void => {
@@ -299,6 +322,7 @@ export function CopilotPanel({
                 key={i}
                 turn={turn}
                 onChipClick={onChipClick}
+                onUnverifiedClick={onUnverifiedClick}
                 proxyUrl={effectiveProxyUrl}
                 pid={pid}
                 conversationId={state.conversationId}
@@ -408,6 +432,13 @@ export function CopilotPanel({
           onClose={() => setChartPopover(null)}
         />
       )}
+      {unverifiedPopover !== null && (
+        <UnverifiedPopover
+          count={unverifiedPopover.count}
+          anchor={unverifiedPopover.anchor}
+          onClose={() => setUnverifiedPopover(null)}
+        />
+      )}
     </div>
   );
 }
@@ -425,12 +456,14 @@ function lastAssistantTurn(turns: readonly Turn[]): { message: AssistantMessage 
 function TurnView({
   turn,
   onChipClick,
+  onUnverifiedClick,
   proxyUrl,
   pid,
   conversationId,
 }: {
   turn: Turn;
   onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
+  onUnverifiedClick: (count: number, anchor: HTMLElement) => void;
   proxyUrl: string;
   pid: number;
   conversationId: string | null;
@@ -453,6 +486,7 @@ function TurnView({
         <AssistantBubble
           message={turn.message}
           onChipClick={onChipClick}
+          onUnverifiedClick={onUnverifiedClick}
           proxyUrl={proxyUrl}
           pid={pid}
           conversationId={conversationId}
@@ -541,12 +575,14 @@ function TurnView({
 function AssistantBubble({
   message,
   onChipClick,
+  onUnverifiedClick,
   proxyUrl,
   pid,
   conversationId,
 }: {
   message: AssistantMessage;
   onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
+  onUnverifiedClick: (count: number, anchor: HTMLElement) => void;
   proxyUrl: string;
   pid: number;
   conversationId: string | null;
@@ -580,13 +616,22 @@ function AssistantBubble({
             onChipClick={onChipClick}
           />
           {redactedCount > 0 && (
-            <span
-              className="badge bg-secondary ms-1"
+            <button
+              type="button"
+              className="copilot-unverified"
               data-testid="copilot-redacted-chip"
-              title={`${redactedCount} statement${redactedCount === 1 ? '' : 's'} could not be verified.`}
+              data-count={redactedCount}
+              aria-haspopup="dialog"
+              title={`${String(redactedCount)} additional statement${redactedCount === 1 ? '' : 's'} could not be verified.`}
+              onClick={(e) => {
+                e.preventDefault();
+                onUnverifiedClick(redactedCount, e.currentTarget);
+              }}
             >
-              {redactedCount} unverified
-            </span>
+              {redactedCount === 1
+                ? '1 additional statement could not be verified'
+                : `${String(redactedCount)} additional statements could not be verified`}
+            </button>
           )}
         </div>
         <TrendChart chart={message.trendChart} />
@@ -596,6 +641,7 @@ function AssistantBubble({
             proxyUrl={proxyUrl}
             pid={pid}
             conversationId={conversationId}
+            onChipClick={onChipClick}
           />
         )}
       </div>
@@ -1025,6 +1071,125 @@ function titleCaseCategory(category: string): string {
     .split('_')
     .map((part) => (part.length === 0 ? '' : part[0]!.toUpperCase() + part.slice(1)))
     .join(' ');
+}
+
+/**
+ * Popover for the "could not be verified" chip. Same anchor / dismiss
+ * machinery as `ChartChipPopover`; the body is a fixed explanatory
+ * blurb keyed only by the redacted-segment count. Mirrors the legacy
+ * panel.js `openUnverifiedPopover` flow so the two interfaces tell
+ * the doctor the same thing on click.
+ */
+function UnverifiedPopover({
+  count,
+  anchor,
+  onClose,
+}: {
+  count: number;
+  anchor: HTMLElement;
+  onClose: () => void;
+}): ReactElement {
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    placement: 'above' | 'below';
+  } | null>(null);
+
+  useEffect(() => {
+    const el = popoverRef.current;
+    if (el === null) return;
+    const rect = anchor.getBoundingClientRect();
+    const popRect = el.getBoundingClientRect();
+    const margin = 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove =
+      spaceBelow < popRect.height + margin && rect.top > popRect.height + margin;
+    const top = placeAbove
+      ? rect.top - popRect.height - margin
+      : rect.bottom + margin;
+    const rawLeft = rect.left + rect.width / 2 - popRect.width / 2;
+    const left = Math.max(
+      margin,
+      Math.min(window.innerWidth - popRect.width - margin, rawLeft),
+    );
+    setPosition({
+      top: top + window.scrollY,
+      left: left + window.scrollX,
+      placement: placeAbove ? 'above' : 'below',
+    });
+    const raf = window.requestAnimationFrame(() => {
+      el.focus();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [anchor]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent): void => {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      if (popoverRef.current?.contains(target) === true) return;
+      if (
+        target instanceof HTMLElement &&
+        target.closest('[data-testid="copilot-redacted-chip"]') !== null
+      ) {
+        return;
+      }
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    const onScroll = (): void => onClose();
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [onClose]);
+
+  const heading =
+    count === 1 ? '1 statement was withheld' : `${String(count)} statements were withheld`;
+  const style: React.CSSProperties =
+    position !== null
+      ? { top: position.top, left: position.left, position: 'absolute' }
+      : { visibility: 'hidden', position: 'absolute', top: 0, left: 0 };
+
+  return (
+    <div
+      ref={popoverRef}
+      className="copilot-source-popover"
+      role="dialog"
+      aria-modal="false"
+      tabIndex={-1}
+      data-testid="copilot-unverified-popover"
+      data-placement={position?.placement ?? 'below'}
+      style={style}
+    >
+      <header className="copilot-source-popover__header">
+        <span className="copilot-source-popover__category">Could not be verified</span>
+        <button
+          type="button"
+          className="copilot-source-popover__close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </header>
+      <p className="copilot-source-popover__claim">{heading}</p>
+      <p className="copilot-source-popover__record">
+        The Co-Pilot drafted additional statements that could not be backed by a
+        source in this chart, so they were withheld from the briefing. Open the
+        chart to confirm anything you need.
+      </p>
+    </div>
+  );
 }
 
 /**

@@ -28,6 +28,10 @@ function makeGroup(claims: Claim[] = [makeClaim()]): DocumentClaimGroup {
   };
 }
 
+// Most tests don't care about chip clicks; the dedicated chip test
+// uses a `vi.fn()` instead.
+const noopChipClick = (): void => undefined;
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -40,12 +44,34 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId="conv-1"
+        onChipClick={noopChipClick}
       />,
     );
     expect(screen.getByTestId('copilot-fact-review')).toBeInTheDocument();
     expect(screen.getByTestId('copilot-fact-review-row')).toBeInTheDocument();
     expect(screen.getByTestId('copilot-fact-accept')).toBeEnabled();
     expect(screen.getByTestId('copilot-fact-reject')).toBeEnabled();
+  });
+
+  it('renders a per-claim [source] chip and dispatches its click to onChipClick', () => {
+    const onChipClick = vi.fn();
+    render(
+      <DocumentFactReview
+        group={makeGroup()}
+        proxyUrl="/proxy.php"
+        pid={42}
+        conversationId="conv-1"
+        onChipClick={onChipClick}
+      />,
+    );
+    const chip = screen.getByTestId('copilot-chip');
+    expect(chip).toHaveAttribute('data-source-type', 'extracted_document');
+    expect(chip).toHaveTextContent('[source]');
+    fireEvent.click(chip);
+    expect(onChipClick).toHaveBeenCalledTimes(1);
+    const call = onChipClick.mock.calls[0] as [Claim, unknown, HTMLElement];
+    expect(call[0].id).toBe('c1');
+    expect(call[2]).toBe(chip);
   });
 
   it('POSTs to ?action=accept_fact and locks the row on success', async () => {
@@ -62,6 +88,7 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId="conv-1"
+        onChipClick={noopChipClick}
         fetchFn={fetchMock as unknown as typeof fetch}
       />,
     );
@@ -96,6 +123,7 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId="conv-1"
+        onChipClick={noopChipClick}
         fetchFn={fetchMock as unknown as typeof fetch}
       />,
     );
@@ -117,6 +145,7 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId="conv-1"
+        onChipClick={noopChipClick}
         fetchFn={fetchMock as unknown as typeof fetch}
       />,
     );
@@ -148,6 +177,7 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId={null}
+        onChipClick={noopChipClick}
         fetchFn={fetchMock as unknown as typeof fetch}
       />,
     );
@@ -178,6 +208,7 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId={null}
+        onChipClick={noopChipClick}
       />,
     );
     expect(screen.getByText(/Not promotable/i)).toBeInTheDocument();
@@ -191,6 +222,7 @@ describe('DocumentFactReview', () => {
         proxyUrl="/proxy.php"
         pid={42}
         conversationId={null}
+        onChipClick={noopChipClick}
       />,
     );
     expect(container.firstChild).toBeNull();
