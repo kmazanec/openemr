@@ -206,7 +206,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'documentEvidenceRetriever',
         description:
-            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. Pick when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number, top_k?: number }.",
+            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. ALWAYS pick this immediately after a successful kickoffExtraction so the synthesizer can cite the specific values from the just-processed document — without retrieving, the synthesizer has no per-row data to surface and the briefing will say 'no document snippets returned'. Also pick when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number (1..365, default 90), top_k?: number (1..20, default 5) } — top_k MUST be 20 or less; if you want broader coverage, use a more generic query. For the post-kickoff retrieval, set top_k=20 and use a broad query like the patient's chief concern or 'recent values' so the retriever returns the most-relevant snippets from the new artifact.",
     },
     {
         handoff: 'retrieveChart',
@@ -218,7 +218,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'kickoffExtraction',
         description:
-            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on a document the clinician just attached. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' } — both fields MUST be copied verbatim from one of the entries in observation.pendingUploads. Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick FIRST whenever observation.pendingUploads contains an entry whose documentUuid does not yet appear in observation.kickoffExtractionResultsThisTurn — the clinician is waiting to find out what's in the document. Forbidden when no such pending entry exists, or when every pending entry has already been processed this turn. The patient pid is taken from the envelope, not the args.",
+            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on a document the clinician just attached. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' } — both fields MUST be copied verbatim from one of the entries in observation.pendingUploads. Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick FIRST whenever observation.pendingUploads contains an entry whose documentUuid does not yet appear in observation.kickoffExtractionResultsThisTurn — the clinician is waiting to find out what's in the document. Forbidden when no such pending entry exists, or when every pending entry has already been processed this turn. The patient pid is taken from the envelope, not the args. After every successful kickoffExtraction, your NEXT pick MUST be documentEvidenceRetriever to pull the per-row snippets; without that step the synthesizer has no per-field data to surface and the briefing will say 'no document snippets returned'.",
     },
     {
         handoff: 'synthesize',
@@ -440,6 +440,29 @@ const narrowDocumentEvidenceArgs = (
             { fallbackQueryLength: fallbackQuery.length },
             'supervisor: documentEvidenceRetriever picked without args.query — recovering with envelope question',
         );
+    }
+    // Clamp out-of-range numeric args before strict parse. The
+    // supervisor model occasionally emits a top_k well above the
+    // schema's `.max(20)` (it sees "every snippet from the new
+    // artifact" as the goal and reaches for 50+); a strict parse
+    // throws ZodError and crashes the turn. Clamp at the boundary so
+    // the retriever still runs, log so we can see when it happens.
+    const rawTopK = merged['top_k'];
+    if (typeof rawTopK === 'number' && Number.isFinite(rawTopK)) {
+        if (rawTopK > 20) {
+            logger.warn(
+                { rawTopK, clampedTopK: 20 },
+                'supervisor: documentEvidenceRetriever top_k exceeds schema max — clamping to 20',
+            );
+            merged['top_k'] = 20;
+        } else if (rawTopK < 1) {
+            merged['top_k'] = 1;
+        }
+    }
+    const rawLookback = merged['lookback_days'];
+    if (typeof rawLookback === 'number' && Number.isFinite(rawLookback)) {
+        if (rawLookback > 365) merged['lookback_days'] = 365;
+        else if (rawLookback < 1) merged['lookback_days'] = 1;
     }
     return DocumentEvidenceArgsSchema.parse(merged);
 };

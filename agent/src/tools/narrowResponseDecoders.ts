@@ -63,7 +63,7 @@ export interface ReminderDetail {
  */
 export interface ChartDocument {
     readonly documentUuid: string;
-    readonly docType: 'lab_pdf' | 'intake_form';
+    readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     readonly canonicalExt: string;
 }
 
@@ -245,10 +245,14 @@ export const decodeChartDocumentsResponse = (raw: unknown): readonly ChartDocume
         const path = `chartDocumentsResponse.documents[${String(idx)}]`;
         const row = expectObject(path, item);
         const docType = expectString(`${path}.doc_type`, row['doc_type']);
-        if (docType !== 'lab_pdf' && docType !== 'intake_form') {
+        if (
+            docType !== 'lab_pdf'
+            && docType !== 'intake_form'
+            && docType !== 'referral_letter'
+        ) {
             throw new ChartSnapshotDecodeError(
                 `${path}.doc_type`,
-                'expected "lab_pdf" or "intake_form"',
+                'expected "lab_pdf", "intake_form", or "referral_letter"',
             );
         }
         return {

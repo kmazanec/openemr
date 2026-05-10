@@ -145,6 +145,7 @@ final readonly class ChartDocumentsDataSource implements ChartDocumentsDataSourc
             'image/png' => 'png',
             'image/jpeg' => 'jpg',
             'image/tiff' => 'tiff',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
             default => null,
         };
     }

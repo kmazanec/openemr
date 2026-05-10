@@ -129,6 +129,28 @@ export const rasterize = async (
     const { openemrSpaces, agentSpaces, rasterizer, transientPrefix, logger, canonicalExt } = deps;
     const now = deps.now ?? ((): Date => new Date());
 
+    // Coherence check between docType and canonicalExt. Referral letters
+    // MUST arrive as DOCX (text-mode pipeline); routing one through the
+    // image branch sends raw .docx bytes to Anthropic Vision, which
+    // returns "invalid file format" with no useful diagnostic. This
+    // tends to happen when the chart-side `deriveExt` couldn't infer
+    // `docx` from URL/filename/mime — fail loudly instead of falling
+    // through to a misrouted vision call.
+    if (state.docType === 'referral_letter' && !isDocxExt(canonicalExt)) {
+        logger.error(
+            {
+                documentUuid: state.documentUuid,
+                docType: state.docType,
+                canonicalExt,
+            },
+            'rasterize: referral_letter docType requires docx canonical_ext',
+        );
+        return fail(state, {
+            code: 'rasterize_failed',
+            message: `referral_letter docType requires docx canonical_ext (got '${canonicalExt}')`,
+        });
+    }
+
     const canonicalKey = keyForCanonical(state.pid, state.documentUuid, canonicalExt);
 
     let canonicalBytes: Buffer;

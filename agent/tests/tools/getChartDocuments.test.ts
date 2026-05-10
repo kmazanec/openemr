@@ -119,7 +119,7 @@ describe('getChartDocuments (chart-side document discovery)', () => {
         });
         await expect(
             getChartDocuments({ client, token: TOKEN, siteId: SITE, pid: PID, openEmrBaseUrl: BASE }),
-        ).rejects.toThrow(/expected "lab_pdf" or "intake_form"/);
+        ).rejects.toThrow(/expected "lab_pdf", "intake_form", or "referral_letter"/);
     });
 
     it('throws on invalid pid (programmer error)', async () => {
