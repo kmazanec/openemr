@@ -167,8 +167,14 @@ echo
 echo "==> [1/4] Looking up current fixture pids"
 # `--print-pids` writes one space-separated line and exits without
 # making changes. Strip carriage returns in case docker exec gives us
-# CRLF, then split on whitespace.
-PIDS_LINE="$(run_console demo:reset-patients --print-pids 2>/dev/null | tr -d '\r' | tail -n 1 | tr -s ' ')"
+# CRLF, then collapse whitespace.
+#
+# Don't pipe through `tail` here: under `set -o pipefail`, if `tail -n 1`
+# closes its stdin before `tr` finishes writing, `tr` gets SIGPIPE (exit
+# 141), the pipeline fails, and `set -e` kills the script silently
+# (the `2>/dev/null` swallows the diagnostic).
+PIDS_RAW="$(run_console demo:reset-patients --print-pids 2>/dev/null || true)"
+PIDS_LINE="$(printf '%s' "${PIDS_RAW}" | tr -d '\r' | tr -s ' \n\t' ' ')"
 PIDS_LINE="${PIDS_LINE# }"
 PIDS_LINE="${PIDS_LINE% }"
 
