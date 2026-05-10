@@ -64,6 +64,28 @@ SessionUtil::setSession('dashboard_v2_pref', $wantV2);
 $tokenMainPhp = RandomGenUtils::createUniqueToken();
 SessionUtil::setSession('token_main_php', $tokenMainPhp);
 
+// Forward the active patient to the destination shell so the user
+// stays on the same chart across the toggle. Both shells keep
+// $_SESSION['pid'] in sync as the user picks patients (legacy via
+// setpid(), the SPA via library/ajax/set_pt.php from commitSessionPid),
+// so reading from session is the source of truth either direction.
+//
+// We pass it as a `pid` query param rather than relying on the
+// destination to re-read $_SESSION at boot because:
+//   - main_v2.php's React mount only auto-navigates to a patient when
+//     it sees an explicit signal (sessionStorage OE_LAUNCH_PID after
+//     OAuth, or — with this change — `?pid=` from the toggle URL).
+//   - main.php's Knockout attendant bar boots empty and waits for an
+//     iframe to call `top.set_pid()`; the legacy shell uses the same
+//     `?pid=` hint to fire setPatient() at body-ready.
+$sessionPid = $session->get('pid');
+$pidQuery = '';
+if (is_int($sessionPid) && $sessionPid > 0) {
+    $pidQuery = '&pid=' . urlencode((string) $sessionPid);
+} elseif (is_string($sessionPid) && ctype_digit($sessionPid) && $sessionPid !== '0') {
+    $pidQuery = '&pid=' . urlencode($sessionPid);
+}
+
 $shell = $wantV2 ? 'main_v2.php' : 'main.php';
-header('Location: ' . $webRoot . '/interface/main/tabs/' . $shell . '?token_main=' . urlencode($tokenMainPhp));
+header('Location: ' . $webRoot . '/interface/main/tabs/' . $shell . '?token_main=' . urlencode($tokenMainPhp) . $pidQuery);
 exit();

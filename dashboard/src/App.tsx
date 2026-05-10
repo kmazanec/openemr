@@ -4,6 +4,7 @@ import { routeTree } from './routes/routeTree';
 import { hydrateInitialTabs, installShims, type InitialTab } from './lib/bootShims';
 import { appTabsStore } from './lib/tabsStore';
 import { getLaunchPid } from './lib/fhir';
+import { readUrlPid } from './lib/launchPidHandoff';
 
 // main_v2.php emits window.OE_DEFAULT_TABS — the SPA's source of
 // truth for the user's seeded tab strip (Calendar, Message Inbox,
@@ -80,11 +81,17 @@ export function App(): ReactElement {
       hydrateInitialTabs(store, window.OE_DEFAULT_TABS ?? []);
     }
     window.__OE_DASHBOARD_TABS__ = store;
-    // If sessionStorage carries a launch pid (set by authorize() and
-    // surviving the OAuth round-trip), the user was viewing a patient
-    // before the redirect. Restore the dashboard tab + patient route
-    // so the post-redirect page lands them right back where they
-    // were, without requiring a second set_pid call from the iframe.
+    // Pick the initial patient pid from two possible signals:
+    //   1. URL `?pid=<n>` — set by interface/main/tabs/dashboard_toggle.php
+    //      when the user toggles into the SPA shell from legacy main.php.
+    //      The legacy shell already has $_SESSION['pid'], and main_v2.php
+    //      mints an OE_SMART_LAUNCH bound to that puuid, but the in-memory
+    //      router still needs to know which patient to land on. URL wins
+    //      over sessionStorage so a toggle into a different patient
+    //      overrides whatever a prior visit cached.
+    //   2. sessionStorage OE_LAUNCH_PID — set by authorize() before its
+    //      redirect, and survives the OAuth round-trip. Restores the
+    //      patient route post-callback without a second set_pid call.
     //
     // Skip when we're on /auth/callback — that route's component owns
     // the post-OAuth redirect to main_v2_resume.php; navigating away
@@ -92,11 +99,13 @@ export function App(): ReactElement {
     const onAuthCallback =
       typeof window !== 'undefined' &&
       window.location.pathname.endsWith('/auth/callback');
+    const urlPid = readUrlPid();
     const launchPid = getLaunchPid();
-    if (!onAuthCallback && launchPid !== null && launchPid !== '') {
+    const initialPid = urlPid ?? launchPid;
+    if (!onAuthCallback && initialPid !== null && initialPid !== '') {
       store.openDashboardTab();
       store.setActive('__dashboard');
-      void router.navigate({ to: '/patient/$pid', params: { pid: launchPid } });
+      void router.navigate({ to: '/patient/$pid', params: { pid: initialPid } });
     }
   }, []);
 

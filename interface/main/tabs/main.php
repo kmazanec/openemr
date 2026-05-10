@@ -26,6 +26,7 @@ require_once \OpenEMR\Core\OEGlobalsBag::getInstance()->getSrcDir() . '/ESign/Ap
 use ESign\Api;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Common\Csrf\CsrfUtils;
+use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Common\Session\SessionUtil;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Twig\TwigContainer;
@@ -559,6 +560,67 @@ $twig = (new TwigContainer(null, OEGlobalsBag::getInstance()->getKernel()))->get
     </div>
     <script>
         ko.applyBindings(app_view_model);
+
+        <?php
+        // Restore the active patient into the legacy attendant bar
+        // when arriving with a `?pid=<n>` hint (set by the dashboard
+        // toggle: dashboard_toggle.php hands the SPA's last patient
+        // back to legacy on the v2 → v1 flip). Without this, the
+        // Knockout shell boots empty and the user sees "no current
+        // patient" even though $_SESSION['pid'] is set — they'd have
+        // to re-pick the patient from the finder for the attendant
+        // bar to populate.
+        //
+        // We only honor `?pid=` from the toggle path; the legacy
+        // flow (iframe set_pid → top.set_pid → left_nav.setPatient)
+        // continues to drive runtime patient picks unchanged.
+        $togglePidParam = filter_input(INPUT_GET, 'pid', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (is_int($togglePidParam)) {
+            $toggleRows = QueryUtils::fetchRecords(
+                'SELECT fname, lname, pubpid, DOB FROM patient_data WHERE pid = ? LIMIT 1',
+                [$togglePidParam],
+            );
+            $toggleRow = $toggleRows[0] ?? null;
+            // Each column is mixed because fetchRecords returns
+            // list<array<mixed>>. Narrow each one explicitly so the
+            // string concatenation below is type-clean — `lname`
+            // gates the whole block since left_nav.setPatient renders
+            // an empty pill without a last name.
+            $toggleLnameRaw = $toggleRow['lname'] ?? null;
+            if (is_array($toggleRow) && is_string($toggleLnameRaw) && $toggleLnameRaw !== '') {
+                $toggleFnameRaw = $toggleRow['fname'] ?? '';
+                $togglePubpidRaw = $toggleRow['pubpid'] ?? '';
+                $toggleDobRaw = $toggleRow['DOB'] ?? '';
+                $toggleFname = is_string($toggleFnameRaw) ? $toggleFnameRaw : '';
+                $togglePubpid = is_string($togglePubpidRaw) ? $togglePubpidRaw : '';
+                $togglePname = trim($toggleFname . ' ' . $toggleLnameRaw);
+                // DOB in patient_data is stored as YYYY-MM-DD (or
+                // null). oeFormatShortDate accepts that shape and
+                // returns the user's preferred display format.
+                // oeFormatShortDate's docblock declares no return
+                // type; explicit string narrowing keeps the
+                // concatenation type-clean.
+                $toggleDobFormatted = is_string($toggleDobRaw) && $toggleDobRaw !== ''
+                    ? oeFormatShortDate($toggleDobRaw)
+                    : null;
+                $toggleDobLabel = is_string($toggleDobFormatted) && $toggleDobFormatted !== ''
+                    ? ' ' . xl('DOB') . ': ' . $toggleDobFormatted
+                    : '';
+                ?>
+        // Toggle handoff: legacy attendant bar pickup for pid=<?php echo $togglePidParam; ?>.
+        if (typeof left_nav !== 'undefined' && typeof left_nav.setPatient === 'function') {
+            left_nav.setPatient(
+                <?php echo js_escape($togglePname); ?>,
+                <?php echo js_escape((string) $togglePidParam); ?>,
+                <?php echo js_escape($togglePubpid); ?>,
+                '',
+                <?php echo js_escape($toggleDobLabel); ?>
+            );
+        }
+                <?php
+            }
+        }
+        ?>
 
         $(function () {
             $('.dropdown-toggle').dropdown();
