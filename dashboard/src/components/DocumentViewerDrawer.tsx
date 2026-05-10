@@ -489,6 +489,7 @@ function DocxBody({
     | { kind: 'ready'; text: string }
     | { kind: 'error'; message: string }
   >({ kind: 'extracting' });
+  const firstMarkRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -514,6 +515,18 @@ function DocxBody({
     };
   }, [blob]);
 
+  // Once the highlight lands in the DOM, scroll it into view. The
+  // agent's bbox is approximate (character offsets are produced
+  // against a paragraph-walk; the docx-to-text round-trip can drift
+  // by a few characters across runs), so `block: 'center'` keeps the
+  // span and the surrounding paragraph in the viewport.
+  useEffect(() => {
+    if (state.kind !== 'ready') return;
+    const mark = firstMarkRef.current;
+    if (mark === null) return;
+    mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [state]);
+
   if (state.kind === 'extracting') {
     return <div className="text-body-secondary small">Extracting document text…</div>;
   }
@@ -521,63 +534,103 @@ function DocxBody({
     return <ErrorPlaceholder message={state.message} downloadUrl={downloadUrl} />;
   }
 
-  // Highlight the cited span if bbox is shaped as [charStart, charEnd, *, *]
-  // (the agent encodes DOCX citations with character offsets in the
-  // first two bbox slots). A bbox that's missing or doesn't slice into
-  // the text falls through to plain rendering — the verifier's
-  // tuple-equality check is what validates the slice integrity, not
-  // the renderer.
+  // The agent encodes DOCX citations as `bbox = [charStart, charEnd, 0, 0]`
+  // — character offsets into the same plain text we extract here,
+  // produced by walking the docx XML in a paragraph-aware way (see
+  // agent/src/pipeline/docxText.ts). The verifier's tuple-equality
+  // check validates the slice integrity, so a bbox that doesn't
+  // intersect the text just falls through to plain rendering.
   const text = state.text;
-  let before = text;
-  let highlight = '';
-  let after = '';
+  let charStart = -1;
+  let charEnd = -1;
   if (bbox !== null && isFiniteBbox(bbox)) {
     const start = Math.max(0, Math.floor(bbox[0]));
     const end = Math.max(start, Math.floor(bbox[1]));
     if (end > start && start < text.length) {
-      const safeEnd = Math.min(end, text.length);
-      before = text.slice(0, start);
-      highlight = text.slice(start, safeEnd);
-      after = text.slice(safeEnd);
+      charStart = start;
+      charEnd = Math.min(end, text.length);
     }
+  }
+
+  // Walk paragraphs (split on `\n`) and emit each as its own <p>.
+  // The cited character range may start in one paragraph and end
+  // in a later one — we wrap each paragraph's slice that intersects
+  // the [charStart, charEnd] range in its own `<mark>` and remember
+  // the first one for the scroll-into-view effect above.
+  const paragraphs = text.split('\n');
+  const blocks: ReactElement[] = [];
+  let cursor = 0;
+  let firstMarkAssigned = false;
+  for (let i = 0; i < paragraphs.length; i += 1) {
+    const para = paragraphs[i] ?? '';
+    const paraStart = cursor;
+    const paraEnd = cursor + para.length;
+    const key = `p${String(i)}`;
+    if (para.length === 0) {
+      blocks.push(
+        <p key={key} className="copilot-doc-viewer__text-paragraph">
+          {' '}
+        </p>,
+      );
+    } else if (charStart < 0 || charEnd <= paraStart || charStart >= paraEnd) {
+      // No intersection with the cited range.
+      blocks.push(
+        <p key={key} className="copilot-doc-viewer__text-paragraph">
+          {para}
+        </p>,
+      );
+    } else {
+      const localStart = Math.max(0, charStart - paraStart);
+      const localEnd = Math.min(para.length, charEnd - paraStart);
+      const isFirstMark = !firstMarkAssigned;
+      firstMarkAssigned = true;
+      blocks.push(
+        <p key={key} className="copilot-doc-viewer__text-paragraph">
+          {localStart > 0 && para.slice(0, localStart)}
+          <mark
+            ref={
+              isFirstMark
+                ? (el): void => {
+                      firstMarkRef.current = el;
+                  }
+                : undefined
+            }
+            className="copilot-doc-viewer__bbox"
+            data-testid={isFirstMark ? 'copilot-doc-docx-highlight' : undefined}
+            style={{
+              background: 'rgba(255, 215, 0, 0.55)',
+              padding: '0.05em 0.15em',
+              borderRadius: 2,
+              color: 'inherit',
+            }}
+          >
+            {para.slice(localStart, localEnd)}
+          </mark>
+          {localEnd < para.length && para.slice(localEnd)}
+        </p>,
+      );
+    }
+    cursor = paraEnd + 1;
   }
 
   return (
     <div
-      className="copilot-doc-viewer__docx"
+      className="copilot-doc-viewer__text"
       data-testid="copilot-doc-docx-wrapper"
-      style={{ position: 'relative', maxWidth: '100%' }}
+      style={{
+        background: '#fff',
+        border: '1px solid #dee2e6',
+        borderRadius: 4,
+        padding: '1em 1.25em',
+        maxWidth: '100%',
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontSize: '0.95rem',
+        lineHeight: 1.55,
+        color: '#1c232e',
+      }}
     >
-      <pre
-        data-testid="copilot-doc-docx-body"
-        style={{
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          fontFamily:
-            '"SFMono-Regular", "Menlo", "Consolas", monospace',
-          fontSize: '0.85rem',
-          background: '#fff',
-          border: '1px solid #dee2e6',
-          borderRadius: 4,
-          padding: '0.75rem',
-          margin: 0,
-        }}
-      >
-        {before}
-        {highlight !== '' && (
-          <mark
-            data-testid="copilot-doc-docx-highlight"
-            style={{
-              background: 'rgba(255, 215, 0, 0.45)',
-              padding: '0 1px',
-              borderRadius: 2,
-            }}
-          >
-            {highlight}
-          </mark>
-        )}
-        {after}
-      </pre>
+      <div data-testid="copilot-doc-docx-body">{blocks}</div>
     </div>
   );
 }

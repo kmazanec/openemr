@@ -332,20 +332,28 @@ const __copilotDocumentViewer = (function () {
     };
 
     /**
-     * Render a docx referral letter as text with a character-range
-     * highlight. The server returns the same plain text the agent's
-     * docx text extractor produced; bboxes for this doctype are
+     * Render a docx referral letter as paragraph-broken text with a
+     * character-range highlight. The server returns the same plain
+     * text the agent's docx text extractor produced (paragraphs
+     * joined with `\n`); bboxes for this doctype are
      * `[charStart, charEnd, 0, 0]` where the first two ints are
-     * character offsets into that text. We render the body in a
-     * `<pre>`-like wrapper (preserving paragraph breaks) and wrap
-     * the cited substring in a highlighted `<mark>` so it scrolls
-     * into view the same way the image / PDF branches do.
+     * character offsets into that text. We split on `\n` so each
+     * paragraph renders as its own block (with empty paragraphs
+     * preserving spacing), and wrap the cited character range in
+     * a `<mark>` — possibly spanning multiple paragraphs.
+     *
+     * The wrapper class is `copilot-doc-viewer__text` only — NOT
+     * `copilot-doc-viewer__page`, because the page class is sized
+     * `display: inline-block` for image/PDF wrappers that host an
+     * absolute-positioned overlay; the text view wants block flow
+     * with full container width.
      */
     const renderText = async (mountEl, fetchedBlob, bbox) => {
         clearChildren(mountEl);
         const fullText = await fetchedBlob.text();
-        const wrapper = mountEl.ownerDocument.createElement('div');
-        wrapper.className = 'copilot-doc-viewer__page copilot-doc-viewer__text';
+        const doc = mountEl.ownerDocument;
+        const wrapper = doc.createElement('div');
+        wrapper.className = 'copilot-doc-viewer__text';
         wrapper.dataset.role = 'viewer-page';
 
         // Pull `[charStart, charEnd, 0, 0]` if it parses as a 4-tuple
@@ -364,24 +372,55 @@ const __copilotDocumentViewer = (function () {
             charEnd = Math.min(bbox[1], fullText.length);
         }
 
-        if (charStart >= 0 && charEnd > charStart) {
-            const before = fullText.slice(0, charStart);
-            const cited = fullText.slice(charStart, charEnd);
-            const after = fullText.slice(charEnd);
-            const beforeNode = mountEl.ownerDocument.createTextNode(before);
-            const mark = mountEl.ownerDocument.createElement('mark');
-            mark.className = 'copilot-doc-viewer__bbox';
-            mark.dataset.role = 'bbox-overlay';
-            mark.textContent = cited;
-            const afterNode = mountEl.ownerDocument.createTextNode(after);
-            wrapper.appendChild(beforeNode);
-            wrapper.appendChild(mark);
-            wrapper.appendChild(afterNode);
-            mountEl.appendChild(wrapper);
-            mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // Walk paragraphs (split on `\n`) and emit each as a <p>.
+        // The cited character range may start in one paragraph and
+        // end in a later one — we wrap each paragraph's slice that
+        // intersects the [charStart, charEnd] range in its own
+        // <mark>, and remember the first one so we can scroll it
+        // into view.
+        const paragraphs = fullText.split('\n');
+        let firstMark = null;
+        let cursor = 0;
+        for (const para of paragraphs) {
+            const paraStart = cursor;
+            const paraEnd = cursor + para.length;
+            const p = doc.createElement('p');
+            p.className = 'copilot-doc-viewer__text-paragraph';
+            // Empty paragraphs (intentional vertical spacing in the
+            // source docx) render as &nbsp; so the line height stays
+            // consistent and the overall page rhythm matches the
+            // source.
+            if (para.length === 0) {
+                p.appendChild(doc.createTextNode(' '));
+            } else if (charStart < 0 || charEnd <= paraStart || charStart >= paraEnd) {
+                // No intersection with the cited range.
+                p.textContent = para;
+            } else {
+                const localStart = Math.max(0, charStart - paraStart);
+                const localEnd = Math.min(para.length, charEnd - paraStart);
+                if (localStart > 0) {
+                    p.appendChild(doc.createTextNode(para.slice(0, localStart)));
+                }
+                const mark = doc.createElement('mark');
+                mark.className = 'copilot-doc-viewer__bbox';
+                mark.dataset.role = 'bbox-overlay';
+                mark.textContent = para.slice(localStart, localEnd);
+                p.appendChild(mark);
+                if (firstMark === null) firstMark = mark;
+                if (localEnd < para.length) {
+                    p.appendChild(doc.createTextNode(para.slice(localEnd)));
+                }
+            }
+            wrapper.appendChild(p);
+            // +1 for the `\n` separator that lived between this
+            // paragraph and the next in the source string.
+            cursor = paraEnd + 1;
+        }
+
+        mountEl.appendChild(wrapper);
+        if (firstMark !== null) {
+            firstMark.scrollIntoView({ block: 'center', behavior: 'smooth' });
         } else {
-            wrapper.textContent = fullText;
-            mountEl.appendChild(wrapper);
             wrapper.scrollIntoView({ block: 'start' });
         }
         return wrapper;

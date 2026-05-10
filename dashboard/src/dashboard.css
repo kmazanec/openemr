@@ -745,3 +745,29 @@
   color: #065f46;
   border-color: #6ee7b7;
 }
+
+/* DOCX (referral letter) viewer body. The wrapper sets font /
+ * padding inline in DocumentViewerDrawer.tsx; these rules govern
+ * paragraph spacing and the inline-mark highlight that should NOT
+ * inherit any absolute positioning from stray
+ * `.copilot-doc-viewer__bbox` rules elsewhere in the app. */
+.copilot-doc-viewer__text-paragraph {
+  margin: 0 0 0.6em 0;
+  /* Honor whitespace from the source docx (consecutive spaces,
+   * tab-separated layouts) but still wrap at the container edge. */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.copilot-doc-viewer__text-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.copilot-doc-viewer__text mark.copilot-doc-viewer__bbox {
+  /* Keep the highlight inline; never absolute. */
+  position: static;
+  display: inline;
+  border: 0;
+  box-shadow: none;
+  animation: none;
+}

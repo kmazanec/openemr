@@ -988,9 +988,10 @@ p.copilot-segment--chips-only {
 }
 
 /* Text-mode (referral letter / DOCX) viewer body. Renders the
- * extracted plain text as a left-aligned, paragraph-preserving block;
- * the cited character range is wrapped in a `<mark>` that inherits
- * the same amber palette as the rectangle / SVG-quad overlays. */
+ * extracted plain text as a left-aligned, paragraph-broken block;
+ * the cited character range is wrapped in inline `<mark>` runs
+ * that inherit the same amber palette as the image/PDF rectangle
+ * overlay. */
 .copilot-doc-viewer__text {
     display: block;
     max-width: 100%;
@@ -1002,20 +1003,36 @@ p.copilot-segment--chips-only {
     font-size: 0.95em;
     line-height: 1.55;
     color: #1c232e;
-    white-space: pre-wrap;
     word-break: break-word;
     background: #fff;
 }
 
+.copilot-doc-viewer__text-paragraph {
+    margin: 0 0 0.6em 0;
+    /* Honor whitespace from the source docx (e.g. consecutive
+     * spaces in addresses, `\t`-separated table-ish layouts) while
+     * still wrapping at the container edge. */
+    white-space: pre-wrap;
+}
+
+.copilot-doc-viewer__text-paragraph:last-child {
+    margin-bottom: 0;
+}
+
 mark.copilot-doc-viewer__bbox {
-    /* Inline-text highlight for the cited character range — same
-     * amber as the rectangle overlay so referral-letter citations
-     * read consistently with image/PDF citations. */
-    background: rgba(255, 217, 102, 0.45);
+    /* Inline-text highlight for the cited character range. Override
+     * the position/border/box-shadow set on the broader
+     * .copilot-doc-viewer__bbox rule (which is tuned for the
+     * absolute-positioned image/PDF overlay) so this stays inline
+     * with surrounding text. */
+    position: static !important;
+    background: rgba(255, 217, 102, 0.55);
     color: inherit;
-    padding: 0.05em 0.1em;
+    border: 0;
     border-radius: 2px;
-    box-shadow: 0 0 0 2px rgba(255, 217, 102, 0.18);
+    padding: 0.05em 0.15em;
+    box-shadow: none;
+    animation: none;
 }
 
 .copilot-doc-viewer__bbox {
