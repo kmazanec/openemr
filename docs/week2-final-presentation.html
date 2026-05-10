@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical Co-Pilot — Week 2 Final</title>
+  <style>
+    :root {
+      --bg-0: #07090f;
+      --bg-1: #0c111c;
+      --bg-2: #121828;
+      --ink: #f0f3fa;
+      --ink-dim: #aab3c5;
+      --ink-mute: #6f7a91;
+      --line: rgba(255, 255, 255, 0.08);
+      --line-strong: rgba(255, 255, 255, 0.16);
+      --accent: #6ea8ff;
+      --accent-2: #8be9d6;
+      --accent-3: #f5b969;
+      --danger: #ff7a8a;
+      --grad-blue: linear-gradient(135deg, #6ea8ff, #8be9d6);
+      --grad-warm: linear-gradient(135deg, #f5b969, #ff7a8a);
+      --grad-cool: linear-gradient(135deg, #8be9d6, #6ea8ff);
+      --shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      --radius: 1.1rem;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-feature-settings: "ss01", "cv11";
+      line-height: 1.5;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(110, 168, 255, 0.18), transparent 60%),
+        radial-gradient(ellipse 70% 50% at 110% 10%, rgba(139, 233, 214, 0.12), transparent 55%),
+        radial-gradient(ellipse 60% 50% at 50% 120%, rgba(245, 185, 105, 0.08), transparent 60%),
+        var(--bg-0);
+      min-height: 100vh;
+    }
+
+    .deck {
+      max-width: 92rem;
+      margin: 0 auto;
+      padding: 2.25rem clamp(1rem, 3vw, 2.5rem) 4rem;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0 0 1.5rem;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 2rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-dot {
+      width: 0.9rem;
+      height: 0.9rem;
+      border-radius: 50%;
+      background: var(--grad-blue);
+      box-shadow: 0 0 18px rgba(110, 168, 255, 0.6);
+    }
+
+    .brand small {
+      display: block;
+      color: var(--ink-mute);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+    }
+
+    .topnav {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .topnav a {
+      padding: 0.45rem 0.8rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-dim);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+
+    .topnav a:hover { color: var(--ink); border-color: var(--line-strong); }
+    .topnav a.active { color: var(--ink); border-color: rgba(110, 168, 255, 0.6); background: rgba(110, 168, 255, 0.08); }
+
+    .slide {
+      position: relative;
+      padding: clamp(1.4rem, 2.4vw, 2.4rem);
+      border: 1px solid var(--line);
+      border-radius: 1.6rem;
+      background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+        var(--bg-1);
+      box-shadow: var(--shadow);
+      margin-bottom: 1.6rem;
+      overflow: hidden;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 50% 40% at 0% 0%, rgba(110, 168, 255, 0.08), transparent 60%),
+        radial-gradient(ellipse 40% 30% at 100% 100%, rgba(139, 233, 214, 0.06), transparent 60%);
+    }
+
+    .slide-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.4rem;
+    }
+
+    .slide-head h2 {
+      margin: 0.2rem 0 0;
+      font-size: clamp(1.7rem, 3.2vw, 2.5rem);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+    }
+
+    .slide-head .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .slide-head .eyebrow::before {
+      content: "";
+      display: inline-block;
+      width: 1.6rem;
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+    }
+
+    .slide-head .lead {
+      max-width: 32rem;
+      margin: 0;
+      color: var(--ink-dim);
+      font-size: 0.98rem;
+    }
+
+    /* ── Headline / hero ───────────────────────────────────────── */
+    .hero h1 {
+      margin: 0.4rem 0 0.6rem;
+      font-size: clamp(2.4rem, 5.5vw, 4.4rem);
+      letter-spacing: -0.05em;
+      line-height: 0.98;
+      font-weight: 800;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      background: var(--grad-blue);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero p.lead {
+      max-width: 56rem;
+      color: var(--ink-dim);
+      font-size: 1.08rem;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.8rem;
+      margin-top: 1.6rem;
+    }
+
+    .meta-card {
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .meta-card strong {
+      display: block;
+      font-size: 1.6rem;
+      letter-spacing: -0.03em;
+      background: var(--grad-cool);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      line-height: 1;
+      margin-bottom: 0.35rem;
+    }
+
+    .meta-card span { color: var(--ink-mute); font-size: 0.82rem; }
+
+    /* ── Two-column body for the rubric slides ─────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      gap: 1.2rem;
+    }
+
+    .col-title {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin: 0 0 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+    }
+
+    .col-title .dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(110, 168, 255, 0.6);
+    }
+
+    .col-title.warm .dot { background: var(--accent-3); box-shadow: 0 0 10px rgba(245, 185, 105, 0.6); }
+    .col-title.cool .dot { background: var(--accent-2); box-shadow: 0 0 10px rgba(139, 233, 214, 0.6); }
+
+    /* ── Item rows ─────────────────────────────────────────────── */
+    .row-stack { display: grid; gap: 0.6rem; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 2.3rem minmax(0, 1fr);
+      gap: 0.85rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.02);
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .row:hover { border-color: var(--line-strong); background: rgba(255, 255, 255, 0.03); }
+
+    .row .num {
+      display: grid;
+      place-items: center;
+      width: 2.3rem;
+      height: 2.3rem;
+      border-radius: 0.7rem;
+      background: rgba(110, 168, 255, 0.08);
+      border: 1px solid rgba(110, 168, 255, 0.25);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.85rem;
+      letter-spacing: -0.02em;
+    }
+
+    .row.warm .num { background: rgba(245, 185, 105, 0.08); border-color: rgba(245, 185, 105, 0.28); color: var(--accent-3); }
+    .row.cool .num { background: rgba(139, 233, 214, 0.08); border-color: rgba(139, 233, 214, 0.28); color: var(--accent-2); }
+    .row.new   { background: linear-gradient(135deg, rgba(110, 168, 255, 0.07), rgba(139, 233, 214, 0.04)); border-color: rgba(110, 168, 255, 0.28); }
+
+    .row .body strong {
+      display: block;
+      font-size: 0.96rem;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+      margin-bottom: 0.1rem;
+    }
+
+    .row .body p {
+      margin: 0;
+      color: var(--ink-dim);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .row .tag {
+      display: inline-block;
+      margin-left: 0.4rem;
+      padding: 0.05rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(139, 233, 214, 0.12);
+      color: var(--accent-2);
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      vertical-align: 0.12em;
+    }
+
+    .row .tag.warm { background: rgba(245, 185, 105, 0.12); color: var(--accent-3); }
+    .row .tag.blue { background: rgba(110, 168, 255, 0.14); color: var(--accent); }
+
+    /* ── Dashboard slide layout ────────────────────────────────── */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 1.2rem;
+    }
+
+    .stack-card {
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .stack-card strong {
+      display: block;
+      font-size: 0.9rem;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.3rem;
+    }
+
+    .stack-card span { color: var(--ink-mute); font-size: 0.82rem; }
+
+    .stack-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.6rem;
+      margin-top: 0.85rem;
+    }
+
+    /* ── Coexistence diagram ──────────────────────────────────── */
+    .coexist {
+      padding: 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+    }
+
+    .coexist-title {
+      margin: 0 0 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+    }
+
+    .coexist-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.6rem 1fr;
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+
+    .panel {
+      padding: 0.85rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .panel.legacy { border-color: rgba(245, 185, 105, 0.32); background: rgba(245, 185, 105, 0.05); }
+    .panel.modern { border-color: rgba(110, 168, 255, 0.34); background: rgba(110, 168, 255, 0.06); }
+
+    .panel small {
+      display: block;
+      color: var(--ink-mute);
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 800;
+      margin-bottom: 0.25rem;
+    }
+
+    .panel strong { display: block; font-size: 0.95rem; letter-spacing: -0.015em; margin-bottom: 0.3rem; }
+
+    .panel ul { margin: 0; padding-left: 1rem; }
+    .panel li { color: var(--ink-dim); font-size: 0.82rem; line-height: 1.4; margin: 0.18rem 0; }
+
+    .toggle-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--ink-mute);
+      font-size: 1rem;
+    }
+
+    .toggle-arrow::before { content: "⇄"; }
+
+    .iframe-bridge {
+      margin-top: 0.7rem;
+      padding: 0.7rem 0.85rem;
+      border: 1px dashed rgba(139, 233, 214, 0.38);
+      border-radius: 0.8rem;
+      background: rgba(139, 233, 214, 0.05);
+      color: var(--ink-dim);
+      font-size: 0.83rem;
+    }
+
+    .iframe-bridge code {
+      color: var(--accent-2);
+      background: rgba(139, 233, 214, 0.08);
+      padding: 0.05rem 0.35rem;
+      border-radius: 0.35rem;
+      font-size: 0.78rem;
+    }
+
+    /* ── Footer note ──────────────────────────────────────────── */
+    .closer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding: 1.1rem 1.3rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(135deg, rgba(110, 168, 255, 0.08), rgba(139, 233, 214, 0.04));
+    }
+
+    .closer p { margin: 0; color: var(--ink-dim); font-size: 0.95rem; }
+    .closer strong { color: var(--ink); }
+
+    code { font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85em; }
+
+    @media (max-width: 980px) {
+      .two-col, .dash-grid, .hero-meta { grid-template-columns: 1fr; }
+      .hero-meta { grid-template-columns: 1fr 1fr; }
+      .coexist-grid { grid-template-columns: 1fr; }
+      .toggle-arrow { transform: rotate(90deg); }
+    }
+
+    @media print {
+      body { background: white; color: black; }
+      .topnav { display: none; }
+      .slide { background: white; box-shadow: none; border-color: #ddd; page-break-inside: avoid; page-break-after: always; }
+      .slide::before { display: none; }
+      .slide-head h2, .hero h1 { color: #0a1530; }
+      .row, .panel, .meta-card, .stack-card, .iframe-bridge, .closer { background: #f8fafc; border-color: #e1e6ef; }
+      .row:hover { background: #f8fafc; }
+      .row .body p, .panel li, .stack-card span, .meta-card span, .closer p, .slide-head .lead { color: #2a3550; }
+      .col-title, .coexist-title { color: #2a3550; }
+      .row .num, .row.warm .num, .row.cool .num { background: #eef3ff; border-color: #c8d6f7; color: #14398f; }
+      .hero h1 em { color: #14398f; -webkit-text-fill-color: #14398f; }
+      .meta-card strong { color: #0d8f75; -webkit-text-fill-color: #0d8f75; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <div>
+          Clinical Co-Pilot
+          <small>Week 2 · Final submission</small>
+        </div>
+      </div>
+      <nav class="topnav" aria-label="Slides">
+        <a href="#hero" class="active">Overview</a>
+        <a href="#agent">Agent rubric</a>
+        <a href="#dashboard">Dashboard rubric</a>
+        <a href="#since">Since Thursday</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="slide hero" id="hero">
+        <span class="eyebrow">Final submission · Sun 12:00 CT</span>
+        <h1>The Co-Pilot <em>Sees</em>, the Dashboard <em>Ports</em>, the Gate <em>Holds</em>.</h1>
+        <p class="lead">
+          A multimodal evidence agent grounded in chart, document, and guideline citations — now
+          fronted by a React/FHIR rebuild of the patient dashboard that runs side-by-side with
+          legacy OpenEMR. Every claim resolves to a source; every regression is blocked by CI.
+        </p>
+        <div class="hero-meta">
+          <div class="meta-card">
+            <strong>3</strong>
+            <span>Document types ingested with strict schemas — lab PDF, intake form, and DOCX referral.</span>
+          </div>
+          <div class="meta-card">
+            <strong>50+</strong>
+            <span>Eval cases on a per-rubric PR-blocking gate — categories now fail independently, not as a single 5% bundle.</span>
+          </div>
+          <div class="meta-card">
+            <strong>2</strong>
+            <span>Dashboards coexisting — legacy PHP and a React/FHIR SPA toggle freely while iframed legacy pages keep working.</span>
+          </div>
+          <div class="meta-card">
+            <strong>0</strong>
+            <span>Raw PHI in logs — scrubber now covers every supervisor and worker node; LangSmith I/O off in prod.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="agent">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Slide 1 · Multimodal evidence agent</span>
+            <h2>Every Week 2 agent rubric, in one line each.</h2>
+          </div>
+          <p class="lead">
+            Core requirements on the left, the polish that landed since Thursday on the right —
+            both halves are graded, both are shipped.
+          </p>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <p class="col-title"><span class="dot"></span> Core agent rubric</p>
+            <div class="row-stack">
+              <div class="row">
+                <div class="num">1</div>
+                <div class="body">
+                  <strong>Document ingestion &amp; extraction <span class="tag blue">3 doc types</span></strong>
+                  <p>A separate ingestion graph rasterises uploads, runs a vision LLM against a strict Zod schema with per-field page+bbox+quote, matches demographics, and persists to <code>extraction_artifacts</code> at <em>pending confirmation</em> — chart never auto-modified.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">2</div>
+                <div class="body">
+                  <strong>Hybrid RAG with rerank</strong>
+                  <p>108 USPSTF recommendations chunked deterministically, indexed dense+BM25 in one Pinecone serverless index, fused to top-20 then Cohere-reranked to top-3 — only top-3 reaches the synthesizer.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">3</div>
+                <div class="body">
+                  <strong>Supervisor + workers, inspectable</strong>
+                  <p>LangGraph supervisor chooses from a closed enum of handoffs (chart re-fetch, document evidence, guideline evidence, kickoff extraction, synthesize) with required rationale, capped iterations, and full LangSmith trace per decision.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">4</div>
+                <div class="body">
+                  <strong>Citation contract &amp; verifier</strong>
+                  <p>One <code>{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}</code> shape across chart / extracted_document / guideline; the verifier resolves every claim against its indexed source set, drops anything it can't anchor, no fallback path.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">5</div>
+                <div class="body">
+                  <strong>Eval-driven CI gate <span class="tag">per-category</span></strong>
+                  <p>50-case golden set with boolean rubrics (<code>schema_valid</code>, <code>citation_present</code>, <code>factually_consistent</code>, <code>safe_refusal</code>, <code>no_phi_in_logs</code>) — each category now fails independently instead of one bundled 5% gate, so a single rubric regression actually blocks the merge.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">6</div>
+                <div class="body">
+                  <strong>Observability + cost/latency</strong>
+                  <p>Every encounter emits tool sequence, per-step latency, token usage, cost estimate, retrieval hits, extraction confidence, and eval outcome to LangSmith — with PHI scrubbed at every boundary (see right column).</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p class="col-title cool"><span class="dot"></span> Sharpened since Thursday</p>
+            <div class="row-stack">
+              <div class="row cool new">
+                <div class="num">A</div>
+                <div class="body">
+                  <strong>Query rewriting + RRF fusion <span class="tag">retrieval</span></strong>
+                  <p>The evidence retriever now generates multiple paraphrased queries, runs each against the hybrid index, and fuses results with reciprocal-rank fusion — wider candidate pool reaches the reranker, sharper top-3 reaches the synthesizer.</p>
+                </div>
+              </div>
+              <div class="row cool new">
+                <div class="num">B</div>
+                <div class="body">
+                  <strong>Third doc type: DOCX referrals</strong>
+                  <p>Referral DOCX joins lab PDF and intake form on the same strict-schema → page+bbox citation path; the agent can also retrieve documents that were never uploaded through the chat panel.</p>
+                </div>
+              </div>
+              <div class="row cool new">
+                <div class="num">C</div>
+                <div class="body">
+                  <strong>In-chat metric trend charts</strong>
+                  <p>The synthesizer renders trends for any cited numeric Observation series inline in the answer, so "is her A1c trending up?" gets a chart anchored to the same chart citations as the prose.</p>
+                </div>
+              </div>
+              <div class="row cool new">
+                <div class="num">D</div>
+                <div class="body">
+                  <strong>PHI-safe logging, end to end</strong>
+                  <p>Patched the nodes that were emitting un-scrubbed inputs/outputs to LangSmith; production now defaults to inputs/outputs <em>off</em>, with redaction enforced on the paths still permitted to log.</p>
+                </div>
+              </div>
+              <div class="row cool new">
+                <div class="num">E</div>
+                <div class="body">
+                  <strong>Per-rubric eval gate</strong>
+                  <p>Replaced the single 5%-bundle threshold with per-category pass thresholds — <code>citation_present</code> regressing alone now blocks the merge instead of being averaged away.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="dashboard">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Slide 2 · Surprise challenge</span>
+            <h2>Patient dashboard ported, not redesigned — and shipped alongside the legacy one.</h2>
+          </div>
+          <p class="lead">
+            React 19 + Vite + TanStack Router on the OpenEMR FHIR API, mounted as a second
+            entry point so the legacy dashboard keeps working untouched.
+          </p>
+        </div>
+
+        <div class="dash-grid">
+          <div>
+            <p class="col-title"><span class="dot"></span> Required parity, on FHIR</p>
+            <div class="row-stack">
+              <div class="row">
+                <div class="num">1</div>
+                <div class="body">
+                  <strong>OAuth2 / OIDC sign-in</strong>
+                  <p>SPA authenticates via the existing OpenEMR OAuth2 server using <code>fhirclient</code>; legacy session cookies remain the fallback for pages still rendered server-side.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">2</div>
+                <div class="body">
+                  <strong>Persistent patient header</strong>
+                  <p>Name, DOB, sex, MRN, and active status pulled live from <code>Patient</code> — the React shell renders the header once and routes both native cards and iframed legacy pages underneath it.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">3</div>
+                <div class="body">
+                  <strong>Five FHIR-backed clinical cards</strong>
+                  <p>Allergies, Problem List, Medications, Prescriptions, and Care Team each consume the live FHIR resources directly; loading and empty states are first-class, not afterthoughts.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">4</div>
+                <div class="body">
+                  <strong>+1 chosen section: Clinical Co-Pilot tab</strong>
+                  <p>The new dashboard hosts a full clone of the Co-Pilot panel as its extra section, so the agent ships into the modernised UI from day one rather than waiting for a follow-on cutover.</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="num">5</div>
+                <div class="body">
+                  <strong><code>PATIENT_DASHBOARD_MIGRATION.md</code></strong>
+                  <p>Defends the React/Vite/TanStack/fhirclient choice, documents what we gave up by not touching the backend, and names the tradeoffs we took on by running two dashboards in parallel.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p class="col-title warm"><span class="dot"></span> The architectural bet</p>
+            <div class="coexist">
+              <p class="coexist-title">Two entry points, one EHR</p>
+              <div class="coexist-grid">
+                <div class="panel legacy">
+                  <small>Entry point A</small>
+                  <strong>Legacy PHP dashboard</strong>
+                  <ul>
+                    <li>Untouched server-rendered pages</li>
+                    <li>Same auth, same session, same workflow</li>
+                    <li>Available to every clinician on day one</li>
+                  </ul>
+                </div>
+                <div class="toggle-arrow" aria-hidden="true"></div>
+                <div class="panel modern">
+                  <small>Entry point B · new</small>
+                  <strong>React SPA on FHIR</strong>
+                  <ul>
+                    <li>Top-level + patient-level nav as React</li>
+                    <li>Native cards via FHIR + OAuth2</li>
+                    <li>Co-Pilot tab embedded natively</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="iframe-bridge">
+                <strong>Bridge:</strong> sub-nav pages not yet rebuilt render in iframes inside the SPA shell, talking to the host through shims that mirror legacy <code>top.restoreSession()</code>, patient-switch, and navigation events — gradual section-by-section rebuild, full workflow available from either entry point.
+              </div>
+            </div>
+
+            <div class="stack-row">
+              <div class="stack-card">
+                <strong>React 19 + Vite</strong>
+                <span>Fast HMR, modern hooks, small build surface.</span>
+              </div>
+              <div class="stack-card">
+                <strong>TanStack Router</strong>
+                <span>Type-safe routes for the new top-level shell.</span>
+              </div>
+              <div class="stack-card">
+                <strong>fhirclient + Medplum types</strong>
+                <span>Standards-based FHIR access against the existing API.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="since">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Closing · Why these specific changes</span>
+            <h2>What landed in the last 72 hours, and why each one mattered.</h2>
+          </div>
+        </div>
+
+        <div class="row-stack" style="grid-template-columns: repeat(2, minmax(0, 1fr)); display: grid; gap: 0.6rem;">
+          <div class="row warm new">
+            <div class="num">1</div>
+            <div class="body">
+              <strong>Multi-query rewriting + RRF fusion</strong>
+              <p>Single-query retrieval was missing relevant USPSTF recommendations on paraphrased asks; fanning out paraphrases and fusing by reciprocal rank gives the reranker a stronger candidate pool, which directly lifts <code>citation_present</code> and <code>factually_consistent</code> on the eval suite.</p>
+            </div>
+          </div>
+          <div class="row warm new">
+            <div class="num">2</div>
+            <div class="body">
+              <strong>DOCX referrals + retrieval of pre-existing docs</strong>
+              <p>Real charts have referrals scanned in months ago, not just today's chat upload — adding DOCX as a third strict-schema doc type and indexing the existing artifact set lets the agent pull from documents that were never dragged onto the panel.</p>
+            </div>
+          </div>
+          <div class="row warm new">
+            <div class="num">3</div>
+            <div class="body">
+              <strong>In-chat metric trend charts</strong>
+              <p>Trends are how clinicians actually read labs; the synthesizer now renders a chart for any cited numeric Observation series inline, anchored to the same chart citations as the prose around it.</p>
+            </div>
+          </div>
+          <div class="row warm new">
+            <div class="num">4</div>
+            <div class="body">
+              <strong>PHI scrubbing patched + LangSmith I/O off in prod</strong>
+              <p>Audit found a handful of nodes still emitting un-redacted inputs/outputs to LangSmith — patched, and production now defaults to inputs/outputs disabled, with the <code>no_phi_in_logs</code> rubric expanded to cover them.</p>
+            </div>
+          </div>
+          <div class="row warm new">
+            <div class="num">5</div>
+            <div class="body">
+              <strong>Per-category eval gate</strong>
+              <p>A single bundled 5% threshold could mask a citation regression behind a refusal improvement; the gate is now per-rubric, so each category fails on its own merits and the grading drill stops the relevant one cold.</p>
+            </div>
+          </div>
+          <div class="row warm new">
+            <div class="num">6</div>
+            <div class="body">
+              <strong>Dashboard V2 as a coexisting entry point</strong>
+              <p>Cutover-style dashboard rebuilds break clinics on day one; running the React SPA alongside the legacy dashboard with iframed bridges and a one-click toggle lets us beta-test in production without forcing reorientation.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="closer" style="margin-top: 1.4rem;">
+          <p>
+            <strong>Final note from the spec:</strong> "The best submissions will feel narrower
+            than the original spec and stronger because of it." Every change above tightened a
+            real edge — retrieval recall, document coverage, log safety, eval signal, rollout risk
+            — without expanding scope.
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const navLinks = Array.from(document.querySelectorAll('.topnav a[href^="#"]'));
+    const sections = navLinks
+      .map((link) => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+
+    const setActive = (id) => {
+      navLinks.forEach((link) => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+      });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((e) => e.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target?.id) setActive(visible.target.id);
+    }, {
+      rootMargin: '-30% 0px -55% 0px',
+      threshold: [0.1, 0.3, 0.6]
+    });
+
+    sections.forEach((s) => observer.observe(s));
+  </script>
+</body>
+</html>
