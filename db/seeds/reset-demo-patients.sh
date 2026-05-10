@@ -31,11 +31,18 @@
 #   --env=local  (default)  Compose stack at docker/development-easy/.
 #                           Run from the repo root on a dev machine.
 #
-#   --env=prod              Compose stack at /srv/openemr/current/docker/
-#                           digitalocean/. Run from the DO droplet
-#                           (`ssh deploy@<droplet>`, then either cd into
-#                           the deploy tree or run this script via its
-#                           full path — it resolves its own paths).
+#   --env=prod              Compose stack at /etc/openemr/. Run from
+#                           the DO droplet (`ssh deploy@<droplet>`,
+#                           then either cd anywhere or run this script
+#                           via its full path — it resolves its own
+#                           paths). On the droplet, infra/deploy.sh
+#                           copies docker-compose.yml from the release
+#                           tree into /etc/openemr/ where it sits next
+#                           to the .env file the compose runtime
+#                           interpolates from. Running compose from
+#                           the release tree (.../docker/digitalocean/)
+#                           skips that .env, which silently breaks
+#                           services with `env_file: - .env`.
 #
 # Usage:
 #   db/seeds/reset-demo-patients.sh                           # local dev
@@ -95,16 +102,16 @@ fi
 
 case "${ENV_NAME}" in
     local) COMPOSE_DIR="${REPO_ROOT}/docker/development-easy" ;;
-    prod)  COMPOSE_DIR="/srv/openemr/current/docker/digitalocean" ;;
+    prod)  COMPOSE_DIR="/etc/openemr" ;;
 esac
 
 if [[ ! -f "${COMPOSE_DIR}/docker-compose.yml" ]]; then
     echo "Error: docker-compose.yml not found at ${COMPOSE_DIR}." >&2
     if [[ "${ENV_NAME}" == "prod" ]]; then
         echo "       This script's --env=prod assumes it's being run from the" >&2
-        echo "       DigitalOcean droplet, where the deploy tree lives at" >&2
-        echo "       /srv/openemr/current/. If your deploy path differs, adjust" >&2
-        echo "       COMPOSE_DIR in this script." >&2
+        echo "       DigitalOcean droplet, where infra/deploy.sh copies the" >&2
+        echo "       compose file into /etc/openemr/ next to the .env file." >&2
+        echo "       If your deploy path differs, adjust COMPOSE_DIR in this script." >&2
     fi
     exit 1
 fi
