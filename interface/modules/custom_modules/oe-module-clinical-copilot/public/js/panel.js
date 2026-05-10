@@ -1972,7 +1972,11 @@ const __copilotPanel = (function () {
         const page = typeof locator.page === 'number' ? locator.page : null;
         const bbox = Array.isArray(locator.bbox) ? locator.bbox : null;
         const mime = typeof meta.mime_type === 'string' ? meta.mime_type : null;
-        return { documentUuid, page, bbox, mime };
+        // Forward the chip's quote so the docx text-mode renderer
+        // can locate the highlight by text search (the model's
+        // character offsets are unreliable for that doctype).
+        const quote = typeof source.quote === 'string' ? source.quote : null;
+        return { documentUuid, page, bbox, mime, quote };
     };
 
     /**

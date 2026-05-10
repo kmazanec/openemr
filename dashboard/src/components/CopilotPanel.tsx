@@ -866,7 +866,11 @@ function viewerArgsFromSource(ref: SourceReference): DocumentViewerArgs | null {
   if (Array.isArray(rawBbox) && rawBbox.length === 4 && isFiniteBbox(rawBbox)) {
     bbox = rawBbox as Bbox;
   }
-  return { documentUuid, page, bbox };
+  // Forward the chip's quote so the docx text-mode renderer can
+  // locate the highlight by text search (the model's character
+  // offsets are unreliable for that doctype).
+  const quote = typeof ref.quote === 'string' ? ref.quote : undefined;
+  return { documentUuid, page, bbox, ...(quote !== undefined ? { quote } : {}) };
 }
 
 /**

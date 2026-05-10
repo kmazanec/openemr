@@ -550,18 +550,20 @@ describe('closeViewer — clears the mount', () => {
 describe('Viewer-args extraction from a SourceReference', () => {
     const { viewerArgsFromSource } = require('../../interface/modules/custom_modules/oe-module-clinical-copilot/public/js/panel.js');
 
-    test('extracts uuid + page + bbox + mime from an extracted_document ref', () => {
+    test('extracts uuid + page + bbox + mime + quote from an extracted_document ref', () => {
         const ref = {
             source_type: 'extracted_document',
             source_id: 'art-1',
             locator: { page: 2, bbox: [1, 2, 3, 4], field: 'results.0.value' },
             meta: { document_uuid: 'doc-uuid-1', mime_type: 'application/pdf' },
+            quote: 'Essential hypertension (I10)',
         };
         expect(viewerArgsFromSource(ref)).toEqual({
             documentUuid: 'doc-uuid-1',
             page: 2,
             bbox: [1, 2, 3, 4],
             mime: 'application/pdf',
+            quote: 'Essential hypertension (I10)',
         });
     });
 
@@ -580,7 +582,7 @@ describe('Viewer-args extraction from a SourceReference', () => {
         expect(viewerArgsFromSource(ref)).toBeNull();
     });
 
-    test('tolerates missing page / bbox / mime', () => {
+    test('tolerates missing page / bbox / mime / quote', () => {
         const ref = {
             source_type: 'extracted_document',
             source_id: 'art-1',
@@ -592,6 +594,7 @@ describe('Viewer-args extraction from a SourceReference', () => {
             page: null,
             bbox: null,
             mime: null,
+            quote: null,
         });
     });
 });

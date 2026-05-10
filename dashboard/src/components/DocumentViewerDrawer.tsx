@@ -12,6 +12,7 @@ import {
 import { extractDocxText, DocxParseError } from '../lib/docxText';
 import { classifyMime, type DocumentMimeKind } from '../lib/mime';
 import { loadPdfJs, type PdfJsImporter } from '../lib/pdfjsLoader';
+import { findQuoteSpanInText } from '../lib/quoteSearch';
 import { restoreTopSession } from '../lib/restoreTopSession';
 
 // Same-origin endpoint that returns the document bytes. The OpenEMR
@@ -30,6 +31,15 @@ export interface DocumentViewerArgs {
   documentUuid: string;
   page: number | null;
   bbox: Bbox | null;
+  /**
+   * The exact text the model claimed to read at this citation.
+   * For DOCX referrals the model's `bbox = [charStart, charEnd, 0, 0]`
+   * is unreliable (it hallucinates offsets that don't line up with
+   * the extracted text), so the renderer locates the highlight by
+   * searching for `quote` in the docx text instead. Optional because
+   * older citations (and tests) may not carry it.
+   */
+  quote?: string;
 }
 
 export interface DocumentViewerDrawerProps {
@@ -294,7 +304,14 @@ function DocumentBody({
         />
       );
     case 'docx':
-      return <DocxBody blob={doc.blob} bbox={args.bbox} downloadUrl={downloadUrl} />;
+      return (
+        <DocxBody
+          blob={doc.blob}
+          bbox={args.bbox}
+          quote={args.quote ?? null}
+          downloadUrl={downloadUrl}
+        />
+      );
     case 'unsupported':
       return (
         <UnsupportedPlaceholder
@@ -478,10 +495,12 @@ function PdfBody({
 function DocxBody({
   blob,
   bbox,
+  quote,
   downloadUrl,
 }: {
   blob: Blob;
   bbox: Bbox | null;
+  quote: string | null;
   downloadUrl: string;
 }): ReactElement {
   const [state, setState] = useState<
@@ -534,23 +553,30 @@ function DocxBody({
     return <ErrorPlaceholder message={state.message} downloadUrl={downloadUrl} />;
   }
 
-  // The agent encodes DOCX citations as `bbox = [charStart, charEnd, 0, 0]`
-  // — character offsets into the same plain text we extract here,
-  // produced by walking the docx XML in a paragraph-aware way (see
-  // agent/src/pipeline/docxText.ts). The verifier's tuple-equality
-  // check validates the slice integrity, so a bbox that doesn't
-  // intersect the text just falls through to plain rendering.
+  // The agent's `bbox = [charStart, charEnd, 0, 0]` for docx
+  // citations is unreliable — the model hallucinates character
+  // offsets that don't line up with the extracted text. Locate the
+  // highlight by searching for the citation's `quote` string in
+  // the extracted text instead.
+  //
+  // Three lookup tiers:
+  //   1. Exact substring of `quote` in `text`.
+  //   2. Whitespace-tolerant: collapse runs of whitespace in both
+  //      sides and re-search, then walk back to map the normalized
+  //      offset to an original-text span.
+  //   3. Walk the whitespace-stripped versions of both — handles
+  //      docx walker's `<w:tab/>`-as-space vs. model's no-space.
+  //
+  // Falls through to no highlight if all three miss; bbox offsets
+  // are no longer used as a fallback because they're worse than
+  // showing the document with no highlight at all.
   const text = state.text;
-  let charStart = -1;
-  let charEnd = -1;
-  if (bbox !== null && isFiniteBbox(bbox)) {
-    const start = Math.max(0, Math.floor(bbox[0]));
-    const end = Math.max(start, Math.floor(bbox[1]));
-    if (end > start && start < text.length) {
-      charStart = start;
-      charEnd = Math.min(end, text.length);
-    }
-  }
+  const span = findQuoteSpanInText(text, quote);
+  const charStart = span?.[0] ?? -1;
+  const charEnd = span?.[1] ?? -1;
+  // bbox is intentionally ignored for docx now; keep the param so
+  // tests that pass a bbox still type-check.
+  void bbox;
 
   // Walk paragraphs (split on `\n`) and emit each as its own <p>.
   // The cited character range may start in one paragraph and end

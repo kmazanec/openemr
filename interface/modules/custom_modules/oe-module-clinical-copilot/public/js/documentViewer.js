@@ -348,7 +348,56 @@ const __copilotDocumentViewer = (function () {
      * absolute-positioned overlay; the text view wants block flow
      * with full container width.
      */
-    const renderText = async (mountEl, fetchedBlob, bbox) => {
+    /**
+     * Locate the citation quote inside the extracted docx text and
+     * return the [start, end] span in the original text. Robust to
+     * whitespace differences between the model's quote (which often
+     * joins paragraphs with a single space) and the docx walker's
+     * output (which emits `\n` between paragraphs and literal spaces
+     * for `<w:tab/>`). Returns null when no anchor is found; the
+     * renderer drops the highlight rather than placing it incorrectly.
+     */
+    const findQuoteSpanInText = (text, quote) => {
+        if (typeof quote !== 'string') return null;
+        const trimmed = quote.trim();
+        if (trimmed.length === 0) return null;
+        const exactIdx = text.indexOf(trimmed);
+        if (exactIdx >= 0) return [exactIdx, exactIdx + trimmed.length];
+        const collapsedChars = [];
+        const originIdx = [];
+        let lastWasWs = false;
+        for (let i = 0; i < text.length; i += 1) {
+            const ch = text.charAt(i);
+            if (/\s/.test(ch)) {
+                if (lastWasWs) continue;
+                if (collapsedChars.length === 0) {
+                    lastWasWs = true;
+                    continue;
+                }
+                collapsedChars.push(' ');
+                originIdx.push(i);
+                lastWasWs = true;
+            } else {
+                collapsedChars.push(ch);
+                originIdx.push(i);
+                lastWasWs = false;
+            }
+        }
+        while (collapsedChars.length > 0 && collapsedChars[collapsedChars.length - 1] === ' ') {
+            collapsedChars.pop();
+            originIdx.pop();
+        }
+        const collapsedText = collapsedChars.join('');
+        const collapsedQuote = trimmed.replace(/\s+/g, ' ');
+        const collapsedIdx = collapsedText.indexOf(collapsedQuote);
+        if (collapsedIdx < 0) return null;
+        const startOrigin = originIdx[collapsedIdx];
+        const endOriginInclusive = originIdx[collapsedIdx + collapsedQuote.length - 1];
+        if (startOrigin === undefined || endOriginInclusive === undefined) return null;
+        return [startOrigin, endOriginInclusive + 1];
+    };
+
+    const renderText = async (mountEl, fetchedBlob, bbox, quote) => {
         clearChildren(mountEl);
         const fullText = await fetchedBlob.text();
         const doc = mountEl.ownerDocument;
@@ -356,21 +405,15 @@ const __copilotDocumentViewer = (function () {
         wrapper.className = 'copilot-doc-viewer__text';
         wrapper.dataset.role = 'viewer-page';
 
-        // Pull `[charStart, charEnd, 0, 0]` if it parses as a 4-tuple
-        // with the trailing pair zeroed. Otherwise fall back to no
-        // highlight (still mount the text — the clinician can scroll).
-        let charStart = -1;
-        let charEnd = -1;
-        if (
-            Array.isArray(bbox)
-            && bbox.length === 4
-            && bbox.every((n) => typeof n === 'number' && Number.isFinite(n))
-            && bbox[2] === 0 && bbox[3] === 0
-            && bbox[0] >= 0 && bbox[1] > bbox[0]
-        ) {
-            charStart = Math.min(bbox[0], fullText.length);
-            charEnd = Math.min(bbox[1], fullText.length);
-        }
+        // Locate the highlight by quote-search. The agent's bbox for
+        // this doctype is `[charStart, charEnd, 0, 0]` but the model
+        // hallucinates the offsets, so they are intentionally
+        // ignored here in favor of the reliable quote text.
+        const span = findQuoteSpanInText(fullText, quote);
+        const charStart = span ? span[0] : -1;
+        const charEnd = span ? span[1] : -1;
+        // Reference unused parameter so linters don't flag it.
+        void bbox;
 
         // Walk paragraphs (split on `\n`) and emit each as a <p>.
         // The cited character range may start in one paragraph and
@@ -435,7 +478,7 @@ const __copilotDocumentViewer = (function () {
      */
     const openDocument = async (
         mountEl,
-        { documentUuid, page, bbox, mime, urlBase },
+        { documentUuid, page, bbox, mime, urlBase, quote },
         deps = {},
     ) => {
         if (!(mountEl instanceof HTMLElement)) {
@@ -482,7 +525,7 @@ const __copilotDocumentViewer = (function () {
             return { branch: 'image', mountedEl };
         }
         if (branch === 'text') {
-            const mountedEl = await renderText(mountEl, blob, bbox);
+            const mountedEl = await renderText(mountEl, blob, bbox, quote);
             return { branch: 'text', mountedEl };
         }
         return {
