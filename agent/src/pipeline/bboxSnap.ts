@@ -620,20 +620,44 @@ export const snapExtractionBboxes = (
     };
 
     /**
-     * Build the OCR needle for a cited field. We prefer the field's
-     * `value` over its `quote` because the value is the data point the
-     * clinician will validate ("5 mg", "Apixaban", "1958-11-03") —
-     * snapping the highlight onto that text is what makes the
-     * highlight read as "this is the data". The `quote` is often a
-     * row-level concatenation that includes the column label
-     * ("Apixaban  5 mg  PO twice daily ..."), which would smear the
-     * highlight across the entire row. Fall back to `quote` for
-     * fields that don't carry a stringifiable value (rare).
+     * Build the OCR needle for a cited field. The "value" — the data
+     * point the clinician will validate — is what we want the
+     * highlight to wrap, and it lives in different fields depending
+     * on the schema shape:
+     *
+     *   - Cited-field envelope (`{value, page, bbox, quote, ...}`):
+     *     use `value` (e.g. "5 mg", "1958-11-03", "Female").
+     *   - Row leaves (allergies, medications, family history, past
+     *     medical history): pick the most-specific identifying field
+     *     for that shape ("substance", "name", "condition") — these
+     *     come from our schemas and are well-defined. Fall through to
+     *     any first non-locator string field if the shape isn't
+     *     recognized.
+     *   - Last resort: the cited `quote` (often a row-shaped
+     *     concatenation, but better than nothing for unrecognized
+     *     shapes).
      */
+    const ROW_VALUE_PRIORITY = [
+        'name',         // medication.name
+        'substance',    // allergy.substance
+        'condition',    // family-history.condition, past-medical-history.condition
+        'analyte_name', // lab result row
+    ] as const;
     const needleForField = (obj: Record<string, unknown>): string => {
-        const value = obj['value'];
-        if (typeof value === 'string' && value.trim().length > 0) return value;
-        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        const directValue = obj['value'];
+        if (typeof directValue === 'string' && directValue.trim().length > 0) return directValue;
+        if (typeof directValue === 'number' || typeof directValue === 'boolean') {
+            return String(directValue);
+        }
+        for (const key of ROW_VALUE_PRIORITY) {
+            const v = obj[key];
+            if (typeof v === 'string' && v.trim().length > 0) return v;
+        }
+        // Generic fallback: any non-locator string field.
+        for (const [k, v] of Object.entries(obj)) {
+            if (k === 'bbox' || k === 'page' || k === 'quote' || k === 'confidence') continue;
+            if (typeof v === 'string' && v.trim().length > 0) return v;
+        }
         const quote = obj['quote'];
         if (typeof quote === 'string' && quote.trim().length > 0) return quote;
         return '';

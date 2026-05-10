@@ -128,7 +128,7 @@ const projectArtifact = (
             documentUuid: artifact.documentUuid,
             docType: artifact.docType,
             fieldPath,
-            value: leaf['value'] ?? null,
+            value: deriveSnippetValue(leaf),
             page: leaf['page'] as number,
             bbox: [bbox[0] ?? 0, bbox[1] ?? 0, bbox[2] ?? 0, bbox[3] ?? 0] as const,
             quote: leaf['quote'] as string,
@@ -140,6 +140,34 @@ const projectArtifact = (
         };
         return { snippet, createdAtMs, corpus: buildCorpus(snippet) };
     });
+};
+
+/**
+ * Build the snippet's `value` payload the synthesizer will see. Two
+ * shapes flow through here:
+ *
+ *   1. Lab/intake "cited field envelope" leaves: `{value, page, bbox,
+ *      quote, confidence}`. We pass `value` through directly.
+ *   2. Lab/intake row-shaped leaves: `{relation, condition, ...,
+ *      page, bbox, quote, confidence}` (family history, allergies,
+ *      medications, past medical history). These don't carry a
+ *      top-level `value`; without one, the synthesizer reads
+ *      `value: null` and concludes "no value captured" even though
+ *      every meaningful field IS captured. Fold every non-locator
+ *      key/value pair into a structured object so the synthesizer
+ *      sees the full row.
+ */
+const deriveSnippetValue = (leaf: Record<string, unknown>): unknown => {
+    if (Object.prototype.hasOwnProperty.call(leaf, 'value')) {
+        return leaf['value'];
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(leaf)) {
+        if (LOCATOR_KEYS.has(key)) continue;
+        out[key] = val;
+    }
+    if (Object.keys(out).length === 0) return null;
+    return out;
 };
 
 const keywordScore = (

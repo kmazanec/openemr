@@ -227,21 +227,23 @@ describe('snapExtractionBboxes', () => {
     });
 
     it('uses a snapped row-neighbor to align an unsnappable single-char flag', () => {
-        // The "result_value" snap finds "108" on page row y≈200; the
-        // adjacent "flag" cell's quote is just "H" — too ambiguous
-        // to OCR-match alone. Pass 2 should borrow the row-neighbor's
-        // y-band, keeping its own model-x for column placement.
+        // The first row's analyte_name "Glucose" snaps via OCR; the
+        // adjacent "flag" row carries the single-token value "H" —
+        // too ambiguous to OCR-match alone. Pass 2 should borrow the
+        // row-neighbor's y-band, keeping its own model-x for column
+        // placement.
         const extraction = {
             results: [
                 {
                     analyte_name: 'Glucose',
                     page: 1,
                     bbox: [85, 350, 60, 20] as [number, number, number, number],
-                    quote: '108',
+                    quote: 'Glucose 108',
                     confidence: 0.95,
                 },
                 {
                     analyte_name: 'GlucoseFlag',
+                    value: 'H',
                     page: 1,
                     // Flag's model bbox sits on the same row as Glucose
                     // (y ≈ 350) but the model emitted a slightly off y.
@@ -252,7 +254,7 @@ describe('snapExtractionBboxes', () => {
             ],
         };
         const page = buildPage([
-            ocrWord('108', 100, 200, 150, 220, 1),
+            ocrWord('Glucose', 100, 200, 150, 220, 1),
         ]);
         const summary = snapExtractionBboxes(extraction, [page]);
         expect(summary.snappedBboxes).toBe(2);
@@ -266,11 +268,13 @@ describe('snapExtractionBboxes', () => {
         expect(flagBbox?.[2]).toBe(12);
     });
 
-    it('skips bboxes with empty quote and leaves them untouched', () => {
+    it('skips bboxes with no extractable needle and leaves them untouched', () => {
+        // Field has no `value`, no recognized row-shape identifier
+        // (no name/substance/condition/analyte_name), and an empty
+        // `quote`. Snap should bail.
         const extraction = {
             results: [
                 {
-                    analyte_name: 'X',
                     page: 1,
                     bbox: [100, 100, 200, 30] as [number, number, number, number],
                     quote: '',
