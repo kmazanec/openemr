@@ -83,6 +83,23 @@ export function TrendChart({
             </title>
           </circle>
         ))}
+        {projected.points.map((p, i) => (
+          <text
+            key={`label-${p.observedAt}-${String(i)}`}
+            className={
+              p.abnormal
+                ? 'copilot-trend__point-label copilot-trend__point-label--abnormal'
+                : 'copilot-trend__point-label'
+            }
+            x={p.cx}
+            y={p.labelAnchor === 'above' ? p.cy - 7 : p.cy + 14}
+            textAnchor="middle"
+            data-testid="copilot-trend-point-label"
+            data-anchor={p.labelAnchor}
+          >
+            {p.label}
+          </text>
+        ))}
         <text
           className="copilot-trend__axis-label"
           x={PAD.left - 6}

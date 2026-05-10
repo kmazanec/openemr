@@ -100,4 +100,28 @@ describe('projectChart', () => {
     const projected = projectChart(buildChart({ referenceRange: 'positive' }));
     expect(projected?.band).toBeNull();
   });
+  it('emits a per-point numeric label using the same rounding as the y-axis', () => {
+    const projected = projectChart(buildChart({
+      referenceRange: '0-200',
+      points: [
+        point({ observedAt: '2024-01-01T00:00:00Z', value: 142.7, abnormal: false }),
+        point({ observedAt: '2025-01-01T00:00:00Z', value: 7.42, abnormal: false }),
+      ],
+    }));
+    expect(projected?.points[0]?.label).toBe('143');
+    expect(projected?.points[1]?.label).toBe('7.4');
+  });
+  it('anchors labels above for low-half points and below for high-half points', () => {
+    const projected = projectChart(buildChart({
+      referenceRange: '0-100',
+      points: [
+        point({ observedAt: '2024-01-01T00:00:00Z', value: 10, abnormal: false }),
+        point({ observedAt: '2025-01-01T00:00:00Z', value: 90, abnormal: true }),
+      ],
+    }));
+    // Low-y-value (=10) sits visually near the bottom of the SVG → label above.
+    expect(projected?.points[0]?.labelAnchor).toBe('above');
+    // High-y-value (=90) sits visually near the top → label below.
+    expect(projected?.points[1]?.labelAnchor).toBe('below');
+  });
 });

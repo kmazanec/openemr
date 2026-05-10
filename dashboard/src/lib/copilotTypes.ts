@@ -95,9 +95,28 @@ export interface AssistantMessageTrendChart {
   groundedInClaimIds: readonly string[];
 }
 
+// Subset of `ClaimGroups` from the agent — the dashboard only acts
+// on the `extractedDocument` bucket (drives the document-confirm
+// flow). Other buckets stay opaque on the wire.
+export interface DocumentClaimCard {
+  documentUuid: string | null;
+  claims: readonly Claim[];
+}
+
+export interface DocumentClaimGroup {
+  cards: readonly DocumentClaimCard[];
+}
+
+export interface ClaimGroups {
+  extractedDocument?: DocumentClaimGroup;
+  // Other groups (chart / recommendation / guideline) are present on
+  // the wire but the dashboard doesn't render them — leave opaque.
+  [k: string]: unknown;
+}
+
 export interface AssistantMessage {
   segments: readonly AssistantMessageSegment[];
-  claimGroups: unknown; // we don't render the side panel — leave opaque
+  claimGroups: ClaimGroups;
   gaps: readonly Gap[];
   suggestedFollowUps: readonly SuggestedFollowUp[];
   archetypeFlags: readonly string[];

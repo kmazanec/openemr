@@ -112,6 +112,27 @@ describe('renderTrendChartSvg', () => {
         expect(dotMatches).toHaveLength(2);
         expect(svg).toContain('copilot-trend__dot--abnormal');
     });
+    test('emits a numeric label per point so values are readable in-chart', () => {
+        const svg = renderTrendChartSvg(sampleChart());
+        const labelMatches = svg.match(/<text[^>]*data-role="trend-point-label"/g);
+        expect(labelMatches).toHaveLength(2);
+        // The two abnormal lab values are 7.4 and 8.4 — both should
+        // appear as label text, with the abnormal modifier class.
+        expect(svg).toContain('>7.4</text>');
+        expect(svg).toContain('>8.4</text>');
+        expect(svg).toContain('copilot-trend__point-label--abnormal');
+    });
+    test('rounds large-magnitude point labels to whole numbers', () => {
+        const svg = renderTrendChartSvg(sampleChart({
+            referenceRange: '0-200',
+            points: [
+                { observedAt: '2024-01-01T00:00:00Z', value: 142.7, abnormal: false },
+                { observedAt: '2025-01-01T00:00:00Z', value: 199.4, abnormal: false },
+            ],
+        }));
+        expect(svg).toContain('>143</text>');
+        expect(svg).toContain('>199</text>');
+    });
     test('emits a reference-range band for parseable ranges', () => {
         const svg = renderTrendChartSvg(sampleChart());
         expect(svg).toContain('data-role="trend-band"');
