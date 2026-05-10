@@ -115,27 +115,29 @@ export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): Pip
                 vision: {
                     invoker: deps.visionInvoker,
                     logger: deps.logger,
-                    // Bbox-snap pass is opt-in via AGENT_BBOX_SNAP=1.
-                    // The pass aligns the model's bbox tuple to OCR'd
-                    // text positions on the rasterized page. Default
-                    // OFF because (a) the new schema is a quadrilateral
-                    // (`vision-v3-quad`) that follows page skew, and
-                    // Tesseract returns axis-aligned word boxes that
-                    // can't represent rotated quads; (b) the model is
-                    // now prompted to emit row-spanning quads directly.
-                    // Kept wired (rather than removed) so we can flip
-                    // it back on in dev/eval to A/B against snap-then-
-                    // expand strategies without re-architecting.
-                    ...(process.env['AGENT_BBOX_SNAP'] === '1'
-                        ? {
+                    // Bbox-snap is ON by default. Vision models — both
+                    // Anthropic and OpenAI — get rows wrong by ~half a
+                    // row on dense lab tables even with a row-spanning
+                    // prompt. The snap pass re-OCRs each rasterized page
+                    // with Tesseract, finds the cited quote text, and
+                    // rewrites the bbox to wrap the actual OCR'd row.
+                    // For `vision-v3-quad` quads, the snap module
+                    // collapses to the bounding rect, snaps, and writes
+                    // back as a degenerate axis-aligned quad — same wire
+                    // shape, accurate row alignment.
+                    //
+                    // Set AGENT_BBOX_SNAP=0 to disable (keeps the model's
+                    // raw bboxes). Useful for A/B comparisons.
+                    ...(process.env['AGENT_BBOX_SNAP'] === '0'
+                        ? {}
+                        : {
                               bboxSnapper:
                                   deps.bboxSnapper ??
                                   createBboxSnapper({
                                       fetchBytes: defaultFetchPageBytes,
                                       logger: deps.logger,
                                   }),
-                          }
-                        : {}),
+                          }),
                 },
                 schemaValidate: { logger: deps.logger },
                 patientMatch: {

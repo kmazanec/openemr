@@ -49,7 +49,10 @@ import { randomUUID } from 'node:crypto';
 import { tryParseSpacesEnv } from '../config/spacesEnv.js';
 import { buildProductionPipelineRunner } from '../pipeline/production.js';
 import { createPopplerRasterizer } from '../pipeline/rasterizer.js';
-import { createAnthropicVisionInvocation } from '../pipeline/nodes/vision.js';
+import {
+    createVisionInvocationForVendor,
+    resolveVisionVendor,
+} from '../pipeline/nodes/vision.js';
 import { createCanonicalDocumentFallbackClient } from '../storage/canonicalDocumentFallback.js';
 import { createAgentSpacesClient, createOpenEmrSpacesClient } from '../storage/spaces.js';
 import { createOpenEmrDocumentReferenceClient } from '../storage/openemrDocumentReferenceClient.js';
@@ -845,7 +848,15 @@ export const start = async (port: number): Promise<void> => {
             openemrSpaces,
             agentSpaces,
             rasterizer: createPopplerRasterizer(),
-            visionInvoker: createAnthropicVisionInvocation(),
+            // Vendor-toggleable vision invoker. AGENT_VISION_VENDOR=openai
+            // switches to gpt-4o; default is claude-sonnet-4-6. Toggle by
+            // restarting the agent service. Logged at boot so the vendor
+            // currently in use is always visible in the agent log.
+            visionInvoker: (() => {
+                const vendor = resolveVisionVendor();
+                logger.info({ vendor }, 'vision: vendor selected');
+                return createVisionInvocationForVendor(vendor);
+            })(),
             documentReferenceClient,
             canonicalDocumentFallback,
             buildFetchChartDemographics: (ctx) => {

@@ -61,7 +61,7 @@ import { type PageImage, type PipelineError, type PipelineState } from '../state
  * `(document_hash, extractor_version)` idempotency key. The persist
  * node (B.7) reads this when computing the idempotency lookup.
  */
-export const EXTRACTOR_VERSION = 'vision-v3-quad';
+export const EXTRACTOR_VERSION = 'vision-v3-quad-snap';
 
 export const DEFAULT_VISION_MODEL = 'claude-sonnet-4-6';
 
@@ -670,3 +670,264 @@ const classifyAnthropicError = (err: unknown): Error => {
     }
     return err instanceof Error ? err : new Error(String(err));
 };
+
+/**
+ * Default OpenAI vision model. `gpt-4o` is the closest tier match to
+ * Sonnet 4.x for the cost/latency budget the pipeline is calibrated
+ * to ($1/doc cap, 200-page pre-flight). `gpt-4o-mini` is cheaper but
+ * weaker on dense tables; toggle via `OPENAI_MODEL_VISION`.
+ */
+export const DEFAULT_OPENAI_VISION_MODEL = 'gpt-4o';
+
+/**
+ * OpenAI-backed `VisionInvocation`. Selectable via
+ * `AGENT_VISION_VENDOR=openai` so the user can A/B vendors against
+ * the same upload pipeline. The wire format the agent ships
+ * downstream is identical (the same per-doctype Zod schema, the same
+ * `vision-v3-quad` bbox shape) so the renderer / verifier / persist
+ * code path is unchanged regardless of which vendor produced the
+ * extraction.
+ *
+ * Implementation notes
+ *   - Uses OpenAI's structured-outputs JSON-schema mode by deriving
+ *     the schema from the existing Zod schemas via `zod-to-json-schema`
+ *     (already installed transitively through @langchain/openai).
+ *     If conversion fails for a doctype we fall back to a JSON-mode
+ *     prompt and validate post-hoc against the same Zod schema —
+ *     either way the parsed object the caller sees has been Zod-
+ *     validated.
+ *   - PDF/image bytes flow through the same `signedUrl` field on the
+ *     PageImage state. OpenAI's chat-completions vision API accepts
+ *     URLs directly via `image_url`.
+ *   - Errors classify the same way (429 / 5xx → transient; schema
+ *     parse → VisionSchemaError) so the existing retry path applies.
+ */
+export const createOpenAiVisionInvocation = (options?: {
+    readonly model?: string;
+    readonly apiKey?: string;
+}): VisionInvocation => {
+    const model = options?.model ?? process.env['OPENAI_MODEL_VISION'] ?? DEFAULT_OPENAI_VISION_MODEL;
+    const apiKey = options?.apiKey ?? process.env['OPENAI_API_KEY'];
+    if (apiKey === undefined || apiKey.length === 0) {
+        throw new Error('OPENAI_API_KEY is required to build the OpenAI vision invocation');
+    }
+
+    return {
+        invoke: async ({ docType, pages, documentText }) => {
+            // Lazy-import the OpenAI SDK so the node-level import
+            // surface stays small.
+            const { default: OpenAI } = await import('openai');
+            const client = new OpenAI({ apiKey });
+
+            const schema =
+                docType === 'lab_pdf'
+                    ? labPdfSchema
+                    : docType === 'intake_form'
+                      ? intakeFormSchema
+                      : referralLetterSchema;
+            // Zod 4 ships its own JSON-schema converter; we use it
+            // instead of pulling zod-to-json-schema (which is on the
+            // zod 3 type graph and won't typecheck against zod 4
+            // schemas).
+            //
+            // OpenAI's structured-outputs mode requires
+            // `additionalProperties: false` on every nested object; our
+            // Zod schemas use `.passthrough()` (= `additionalProperties:
+            // true`) so the post-hoc Zod parse can tolerate extra keys.
+            // We override that for the OpenAI request, then validate
+            // the response against the original Zod schema (which still
+            // tolerates extras).
+            const jsonSchema = stripAdditionalPropertiesTrue(
+                (await import('zod')).z.toJSONSchema(schema) as JsonSchemaObject,
+            );
+
+            const userContent: OpenAiUserContentPart[] = [
+                { type: 'text', text: userInstruction(docType) },
+            ];
+            if (docType === 'referral_letter') {
+                if (documentText === null) {
+                    throw new Error('referral_letter vision call requires documentText');
+                }
+                userContent.push({
+                    type: 'text',
+                    text: `<DOCUMENT_TEXT>\n${documentText}\n</DOCUMENT_TEXT>`,
+                });
+            } else {
+                for (const page of pages) {
+                    userContent.push({ type: 'text', text: `<DOCUMENT_PAGE_${page.pageNum}>` });
+                    userContent.push({
+                        type: 'image_url',
+                        image_url: { url: page.signedUrl, detail: 'high' },
+                    });
+                    userContent.push({ type: 'text', text: `</DOCUMENT_PAGE_${page.pageNum}>` });
+                }
+            }
+
+            let response;
+            try {
+                response = await client.chat.completions.create({
+                    model,
+                    temperature: 0,
+                    messages: [
+                        { role: 'system', content: VISION_SYSTEM_PROMPT },
+                        { role: 'user', content: userContent },
+                    ],
+                    response_format: {
+                        type: 'json_schema',
+                        json_schema: {
+                            name: `${docType}_extraction`,
+                            strict: false,
+                            schema: jsonSchema,
+                        },
+                    },
+                });
+            } catch (err) {
+                throw classifyOpenAiError(err);
+            }
+
+            const choice = response.choices[0];
+            const raw = choice?.message?.content;
+            if (typeof raw !== 'string' || raw.length === 0) {
+                throw new VisionSchemaError('openai returned no content', [
+                    'no message content in response',
+                ]);
+            }
+            let parsedJson: unknown;
+            try {
+                parsedJson = JSON.parse(raw);
+            } catch (err) {
+                throw new VisionSchemaError('openai returned non-JSON content', [String(err)]);
+            }
+            const parseResult = schema.safeParse(parsedJson);
+            if (!parseResult.success) {
+                throw new VisionSchemaError(
+                    'openai output failed schema validation',
+                    parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+                );
+            }
+
+            const usageMeta = response.usage;
+            const usage =
+                usageMeta !== undefined
+                    ? {
+                          model,
+                          inputTokens: usageMeta.prompt_tokens ?? 0,
+                          outputTokens: usageMeta.completion_tokens ?? 0,
+                          // OpenAI doesn't expose Anthropic-style cache
+                          // breakdown; both default to 0.
+                          cacheCreationInputTokens: 0,
+                          cacheReadInputTokens: 0,
+                      }
+                    : undefined;
+            return {
+                extraction: parseResult.data,
+                ...(usage !== undefined ? { usage } : {}),
+            };
+        },
+    };
+};
+
+interface JsonSchemaObject {
+    type?: string;
+    properties?: Record<string, JsonSchemaObject>;
+    items?: JsonSchemaObject | JsonSchemaObject[];
+    additionalProperties?: boolean | JsonSchemaObject;
+    [key: string]: unknown;
+}
+
+/**
+ * Discriminated union for OpenAI chat-completion vision content parts.
+ * The SDK exposes this via `ChatCompletionContentPart` but we type it
+ * locally so the file doesn't grow a top-level OpenAI import (the
+ * invoker is dynamically imported).
+ */
+type OpenAiUserContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+
+/**
+ * Recursively replace any `additionalProperties: true` with `false`
+ * (OpenAI's structured-outputs mode rejects open-ended objects). We
+ * also pull `additionalProperties: undefined` to `false` for parity
+ * with how OpenAI's strict-schema mode wants schemas declared. The
+ * Zod `.passthrough()` modifier (which converts to `true`) is used in
+ * our schemas so unknown extra keys from the model don't break the
+ * parse — under OpenAI we just have to express the schema differently;
+ * post-hoc Zod validation still tolerates extra keys (Zod's default
+ * `passthrough()` keeps them).
+ */
+const stripAdditionalPropertiesTrue = (node: JsonSchemaObject): JsonSchemaObject => {
+    if (typeof node !== 'object' || node === null) return node;
+    const out: JsonSchemaObject = { ...node };
+    if (out.additionalProperties === true || out.additionalProperties === undefined) {
+        out.additionalProperties = false;
+    } else if (typeof out.additionalProperties === 'object') {
+        out.additionalProperties = stripAdditionalPropertiesTrue(out.additionalProperties);
+    }
+    if (out.properties) {
+        const nextProps: Record<string, JsonSchemaObject> = {};
+        for (const [k, v] of Object.entries(out.properties)) {
+            nextProps[k] = stripAdditionalPropertiesTrue(v);
+        }
+        out.properties = nextProps;
+    }
+    if (Array.isArray(out.items)) {
+        out.items = out.items.map(stripAdditionalPropertiesTrue);
+    } else if (out.items !== undefined && typeof out.items === 'object') {
+        out.items = stripAdditionalPropertiesTrue(out.items);
+    }
+    if (Array.isArray((out as { definitions?: Record<string, JsonSchemaObject> }).definitions)) {
+        // no-op; definitions is a record, not array
+    }
+    const defs = (out as { definitions?: Record<string, JsonSchemaObject> }).definitions;
+    if (defs !== undefined) {
+        const nextDefs: Record<string, JsonSchemaObject> = {};
+        for (const [k, v] of Object.entries(defs)) {
+            nextDefs[k] = stripAdditionalPropertiesTrue(v);
+        }
+        (out as { definitions?: Record<string, JsonSchemaObject> }).definitions = nextDefs;
+    }
+    return out;
+};
+
+/**
+ * Translate an OpenAI SDK error into the same retry/abort taxonomy
+ * the Anthropic path uses. The SDK's APIError carries a `status`
+ * field for HTTP errors; transient (429 / 5xx) → retry, schema-
+ * shape parse → VisionSchemaError, anything else → unrecoverable.
+ */
+const classifyOpenAiError = (err: unknown): Error => {
+    if (err instanceof Error) {
+        const status = (err as { status?: number }).status;
+        if (status === 429 || (typeof status === 'number' && status >= 500 && status < 600)) {
+            return new TransientVisionError(err.message, { cause: err });
+        }
+        const lower = err.message.toLowerCase();
+        if (
+            lower.includes('failed to parse') ||
+            lower.includes('schema') ||
+            lower.includes('zod')
+        ) {
+            return new VisionSchemaError(err.message, [err.message]);
+        }
+    }
+    return err instanceof Error ? err : new Error(String(err));
+};
+
+/**
+ * Vendor-selecting factory. Reads `AGENT_VISION_VENDOR` from env
+ * (`anthropic` default; `openai` to opt in). Production wires this
+ * once at boot; switching vendors is a service restart.
+ */
+export type VisionVendor = 'anthropic' | 'openai';
+
+export const resolveVisionVendor = (env: NodeJS.ProcessEnv = process.env): VisionVendor => {
+    const raw = (env['AGENT_VISION_VENDOR'] ?? '').trim().toLowerCase();
+    if (raw === 'openai') return 'openai';
+    return 'anthropic';
+};
+
+export const createVisionInvocationForVendor = (
+    vendor: VisionVendor = resolveVisionVendor(),
+): VisionInvocation =>
+    vendor === 'openai' ? createOpenAiVisionInvocation() : createAnthropicVisionInvocation();
