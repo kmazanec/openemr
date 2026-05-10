@@ -23,24 +23,25 @@
 # are gone, the lookup-by-(lname,DOB) returns nothing and the link to
 # the old pids is lost.
 #
-# Two run modes:
+# Two environments, both run from the host (not from inside a
+# container). Both use `docker compose exec` against the local stack —
+# on the DigitalOcean droplet that stack is the production deploy, and
+# locally it's development-easy. Pick which one with --env:
 #
-#   * Local dev (default): orchestrates `docker compose exec` calls
-#     against the development-easy compose stack. Run from the host, in
-#     the repo root or anywhere — the script resolves its own paths.
+#   --env=local  (default)  Compose stack at docker/development-easy/.
+#                           Run from the repo root on a dev machine.
 #
-#   * Remote / inside-container (`--remote`): assumes psql is on PATH
-#     and DATABASE_URL points at the agent Postgres. Use this on
-#     Railway (`railway shell` into the openemr or agent service, then
-#     run this script with --remote). Also requires bin/console to be
-#     runnable as `php bin/console` from $REPO_ROOT.
+#   --env=prod              Compose stack at /srv/openemr/current/docker/
+#                           digitalocean/. Run from the DO droplet
+#                           (`ssh deploy@<droplet>`, then either cd into
+#                           the deploy tree or run this script via its
+#                           full path — it resolves its own paths).
 #
 # Usage:
-#   db/seeds/reset-demo-patients.sh
-#   db/seeds/reset-demo-patients.sh --remote                  # production
+#   db/seeds/reset-demo-patients.sh                           # local dev
+#   db/seeds/reset-demo-patients.sh --env=prod --yes          # DO droplet
 #   db/seeds/reset-demo-patients.sh --skip-next-day-appt      # skip step 5
 #   db/seeds/reset-demo-patients.sh --skip-agent-db-wipe      # OpenEMR only
-#   db/seeds/reset-demo-patients.sh --yes                     # non-interactive
 #
 # Exit codes:
 #   0 = success
@@ -53,14 +54,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-REMOTE=0
+ENV_NAME="local"
 ASSUME_YES=0
 SKIP_NEXT_DAY_APPT=0
 SKIP_AGENT_DB_WIPE=0
 
 for arg in "$@"; do
     case "$arg" in
-        --remote)             REMOTE=1 ;;
+        --env=local)          ENV_NAME="local" ;;
+        --env=prod)           ENV_NAME="prod" ;;
+        --env=*)
+            echo "Unknown --env value: ${arg#--env=} (expected 'local' or 'prod')." >&2
+            exit 1
+            ;;
         -y|--yes)             ASSUME_YES=1 ;;
         --skip-next-day-appt) SKIP_NEXT_DAY_APPT=1 ;;
         --skip-agent-db-wipe) SKIP_AGENT_DB_WIPE=1 ;;
@@ -76,49 +82,41 @@ for arg in "$@"; do
 done
 
 #
-# Run-mode dispatch: define `run_console` (PHP CLI in the openemr
-# context) and `run_psql` (psql against the agent Postgres) so the
+# Both environments orchestrate the same `docker compose exec` calls
+# against the local stack — only the compose-file path differs. On the
+# DO droplet that stack IS the production deploy; on a dev machine it
+# is development-easy. Define `run_console` and `run_psql` once so the
 # rest of the script reads identically in both modes.
 #
-if [[ "${REMOTE}" -eq 1 ]]; then
-    if ! command -v php >/dev/null 2>&1; then
-        echo "Error: --remote requires php on PATH." >&2
-        exit 1
-    fi
-    if [[ "${SKIP_AGENT_DB_WIPE}" -ne 1 ]] && ! command -v psql >/dev/null 2>&1; then
-        echo "Error: --remote requires psql on PATH (or pass --skip-agent-db-wipe)." >&2
-        exit 1
-    fi
-    if [[ "${SKIP_AGENT_DB_WIPE}" -ne 1 ]] && [[ -z "${DATABASE_URL:-}" ]]; then
-        echo "Error: --remote requires DATABASE_URL for the agent Postgres (or pass --skip-agent-db-wipe)." >&2
-        exit 1
-    fi
-    CONSOLE_BIN="${REPO_ROOT}/bin/console"
-    run_console() {
-        php "${CONSOLE_BIN}" "$@"
-    }
-    run_psql() {
-        psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 "$@"
-    }
-else
-    if ! command -v docker >/dev/null 2>&1; then
-        echo "Error: docker not found. Pass --remote if you're not using docker compose." >&2
-        exit 1
-    fi
-    COMPOSE_DIR="${REPO_ROOT}/docker/development-easy"
-    if [[ ! -f "${COMPOSE_DIR}/docker-compose.yml" ]]; then
-        echo "Error: docker-compose.yml not found at ${COMPOSE_DIR}." >&2
-        exit 1
-    fi
-    run_console() {
-        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T openemr \
-            php /var/www/localhost/htdocs/openemr/bin/console "$@"
-    }
-    run_psql() {
-        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T agent-postgres \
-            psql -U agent -d agent -v ON_ERROR_STOP=1 "$@"
-    }
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: docker not found on PATH." >&2
+    exit 1
 fi
+
+case "${ENV_NAME}" in
+    local) COMPOSE_DIR="${REPO_ROOT}/docker/development-easy" ;;
+    prod)  COMPOSE_DIR="/srv/openemr/current/docker/digitalocean" ;;
+esac
+
+if [[ ! -f "${COMPOSE_DIR}/docker-compose.yml" ]]; then
+    echo "Error: docker-compose.yml not found at ${COMPOSE_DIR}." >&2
+    if [[ "${ENV_NAME}" == "prod" ]]; then
+        echo "       This script's --env=prod assumes it's being run from the" >&2
+        echo "       DigitalOcean droplet, where the deploy tree lives at" >&2
+        echo "       /srv/openemr/current/. If your deploy path differs, adjust" >&2
+        echo "       COMPOSE_DIR in this script." >&2
+    fi
+    exit 1
+fi
+
+run_console() {
+    docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T openemr \
+        php /var/www/localhost/htdocs/openemr/bin/console "$@"
+}
+run_psql() {
+    docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T agent-postgres \
+        psql -U agent -d agent -v ON_ERROR_STOP=1 "$@"
+}
 
 #
 # Confirmation prompt. The reset is destructive against demo data only,

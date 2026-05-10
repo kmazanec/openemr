@@ -27,9 +27,10 @@ db/seeds/seed-all.sh --fixtures-only
 # Reset the four demo patients to a known state without touching anyone
 # else. Hard-deletes Chen/Whitaker/Reyes/Kowalski (and their agent
 # conversations + extraction artifacts), re-seeds them, then books one
-# next-business-day appointment per patient. Run from the host:
-db/seeds/reset-demo-patients.sh                            # local dev
-DATABASE_URL=… db/seeds/reset-demo-patients.sh --remote    # production
+# next-business-day appointment per patient. Run from the host (locally
+# from the repo root; in production from the DO droplet):
+db/seeds/reset-demo-patients.sh                       # local dev
+db/seeds/reset-demo-patients.sh --env=prod --yes      # DO droplet
 ```
 
 > **Container path note.** The container's default cwd is one level
