@@ -887,7 +887,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
         opts: {
             readonly fieldPath: string;
             readonly page: number;
-            readonly bbox: readonly number[];
+            readonly bbox: readonly [number, number, number, number];
             readonly quote: string;
         },
     ) => ({
@@ -908,7 +908,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
         fieldPath: 'results.0.value',
         value: '9.4',
         page: 1,
-        bbox: [10, 20, 210, 20, 210, 60, 10, 60],
+        bbox: [10, 20, 200, 40],
         quote: 'A1c 9.4 % (H)',
         confidence: 0.95,
         extractorVersion: 'v1',
@@ -926,7 +926,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
                         extractedRef('art-lab-1', {
                             fieldPath: 'results.0.value',
                             page: 1,
-                            bbox: [10, 20, 210, 20, 210, 60, 10, 60],
+                            bbox: [10, 20, 200, 40],
                             quote: 'A1c 9.4',
                         }),
                     ],
@@ -951,7 +951,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
                         extractedRef('art-FABRICATED', {
                             fieldPath: 'results.0.value',
                             page: 1,
-                            bbox: [10, 20, 210, 20, 210, 60, 10, 60],
+                            bbox: [10, 20, 200, 40],
                             quote: 'A1c 9.4',
                         }),
                     ],
@@ -977,7 +977,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
                         extractedRef('art-lab-1', {
                             fieldPath: 'results.0.value',
                             page: 1,
-                            bbox: [99, 99, 198, 99, 198, 198, 99, 198],
+                            bbox: [99, 99, 99, 99],
                             quote: 'A1c 9.4',
                         }),
                     ],
@@ -1000,7 +1000,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
                         extractedRef('art-lab-1', {
                             fieldPath: 'results.0.value',
                             page: 7,
-                            bbox: [10, 20, 210, 20, 210, 60, 10, 60],
+                            bbox: [10, 20, 200, 40],
                             quote: 'A1c 9.4',
                         }),
                     ],
@@ -1024,7 +1024,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
                         extractedRef('art-lab-1', {
                             fieldPath: 'results.0.value',
                             page: 1,
-                            bbox: [10, 20, 210, 20, 210, 60, 10, 60],
+                            bbox: [10, 20, 200, 40],
                             quote: 'A1c 5.5',
                         }),
                     ],
@@ -1044,7 +1044,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
             ...a1cSnippet,
             fieldPath: 'results.1.value',
             value: '180',
-            bbox: [10, 80, 210, 80, 210, 180, 10, 180],
+            bbox: [10, 80, 200, 100],
             quote: 'Glucose 180 mg/dL',
         };
         const out = verifyLedger(
@@ -1057,7 +1057,7 @@ describe('verifyLedger — extracted_document source_type (§C.5)', () => {
                         extractedRef('art-lab-1', {
                             fieldPath: 'results.1.value',
                             page: 1,
-                            bbox: [10, 20, 210, 20, 210, 60, 10, 60], // ← bbox of results.0, not results.1
+                            bbox: [10, 20, 200, 40], // ← bbox of results.0, not results.1
                             quote: 'Glucose 180',
                         }),
                     ],
@@ -1424,7 +1424,7 @@ describe('verifyLedger — confidence hard-stops (§C.5)', () => {
         fieldPath: 'results.0.value',
         value: '9.4',
         page: 1,
-        bbox: [10, 20, 210, 20, 210, 60, 10, 60],
+        bbox: [10, 20, 200, 40],
         quote: 'A1c 9.4 %',
         extractorVersion: 'v1',
         createdAt: '2026-04-15T10:00:00Z',
@@ -1436,7 +1436,7 @@ describe('verifyLedger — confidence hard-stops (§C.5)', () => {
         fieldPath: 'allergies.0.substance',
         value: 'Penicillin',
         page: 2,
-        bbox: [50, 100, 250, 100, 250, 130, 50, 130],
+        bbox: [50, 100, 200, 30],
         quote: 'Penicillin',
         extractorVersion: 'v1',
         createdAt: '2026-04-15T10:00:00Z',

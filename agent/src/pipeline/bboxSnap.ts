@@ -619,17 +619,39 @@ export const snapExtractionBboxes = (
         (a.obj as { bbox: GridQuad }).bbox = [x, y, x2, y, x2, y2, x, y2];
     };
 
+    /**
+     * Build the OCR needle for a cited field. We prefer the field's
+     * `value` over its `quote` because the value is the data point the
+     * clinician will validate ("5 mg", "Apixaban", "1958-11-03") —
+     * snapping the highlight onto that text is what makes the
+     * highlight read as "this is the data". The `quote` is often a
+     * row-level concatenation that includes the column label
+     * ("Apixaban  5 mg  PO twice daily ..."), which would smear the
+     * highlight across the entire row. Fall back to `quote` for
+     * fields that don't carry a stringifiable value (rare).
+     */
+    const needleForField = (obj: Record<string, unknown>): string => {
+        const value = obj['value'];
+        if (typeof value === 'string' && value.trim().length > 0) return value;
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        const quote = obj['quote'];
+        if (typeof quote === 'string' && quote.trim().length > 0) return quote;
+        return '';
+    };
+
     let snapped = 0;
-    // Pass 1 — direct OCR-quote snapping. The lion's share of bboxes
-    // resolve here.
+    // Pass 1 — direct OCR snapping. We snap onto the field's VALUE
+    // text (e.g. "5 mg") rather than the cited quote, so the
+    // highlight wraps the data point being validated rather than the
+    // surrounding row.
     for (const a of annotated) {
         const page = pages.find((p) => p.pageNum === a.pageNum);
         if (!page) continue;
-        const quote = typeof a.obj['quote'] === 'string' ? a.obj['quote'] : '';
-        if (quote.length === 0) continue;
+        const needle = needleForField(a.obj);
+        if (needle.length === 0) continue;
         const cx = ((a.modelXywh[0] + a.modelXywh[2] / 2) / 1000) * page.width;
         const cy = ((a.modelXywh[1] + a.modelXywh[3] / 2) / 1000) * page.height;
-        const snap = snapQuoteToOcr(quote, { x: cx, y: cy }, page);
+        const snap = snapQuoteToOcr(needle, { x: cx, y: cy }, page);
         if (snap) {
             writeBack(a, pixelRectToGrid(snap, page));
             a.snapped = true;

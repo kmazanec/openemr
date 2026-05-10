@@ -76,32 +76,22 @@ final class ExtractionFieldDecoder
     }
 
     /**
-     * Decode a citation bbox. Accepts either:
-     *   - 4-tuple `[x, y, w, h]` legacy axis-aligned shape (vision-v1/
-     *     v2 lab/intake extractions, and the referralLetter docx
-     *     character-offset shape `[charStart, charEnd, 0, 0]`);
-     *   - 8-tuple `[x1, y1, x2, y2, x3, y3, x4, y4]` row-spanning quad
-     *     introduced in `vision-v3-quad`. The quad follows the row's
-     *     angle on the page so a tilted scan still gets a tight outline.
-     * Downstream renderers branch on `count($bbox)`.
-     *
      * @param array<string, mixed> $data
-     * @return list<float|int>
+     * @return array{float|int, float|int, float|int, float|int}
      */
     public static function requireBbox(array $data, string $context): array
     {
         $bbox = $data['bbox'] ?? null;
-        if (!is_array($bbox) || (count($bbox) !== 4 && count($bbox) !== 8)) {
-            throw new DomainException("{$context}.bbox must be a 4- or 8-tuple");
+        if (!is_array($bbox) || count($bbox) !== 4) {
+            throw new DomainException("{$context}.bbox must be a 4-tuple");
         }
-        $out = [];
         foreach ($bbox as $coord) {
             if (!is_int($coord) && !is_float($coord)) {
                 throw new DomainException("{$context}.bbox coordinates must be numeric");
             }
-            $out[] = $coord;
         }
-        return $out;
+        /** @var array{float|int, float|int, float|int, float|int} $bbox */
+        return $bbox;
     }
 
     /**

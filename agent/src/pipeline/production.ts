@@ -115,19 +115,13 @@ export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): Pip
                 vision: {
                     invoker: deps.visionInvoker,
                     logger: deps.logger,
-                    // Bbox-snap is ON by default. Vision models — both
-                    // Anthropic and OpenAI — get rows wrong by ~half a
-                    // row on dense lab tables even with a row-spanning
-                    // prompt. The snap pass re-OCRs each rasterized page
-                    // with Tesseract, finds the cited quote text, and
-                    // rewrites the bbox to wrap the actual OCR'd row.
-                    // For `vision-v3-quad` quads, the snap module
-                    // collapses to the bounding rect, snaps, and writes
-                    // back as a degenerate axis-aligned quad — same wire
-                    // shape, accurate row alignment.
-                    //
-                    // Set AGENT_BBOX_SNAP=0 to disable (keeps the model's
-                    // raw bboxes). Useful for A/B comparisons.
+                    // Bbox-snap is ON by default. The model's raw
+                    // bboxes anchor to the wrong row by ~half-a-row
+                    // on dense lab tables; the snap pass re-OCRs each
+                    // rasterized page with Tesseract and snaps each
+                    // cited bbox to the actual OCR'd value text on
+                    // the page. Set AGENT_BBOX_SNAP=0 to disable for
+                    // A/B comparisons.
                     ...(process.env['AGENT_BBOX_SNAP'] === '0'
                         ? {}
                         : {

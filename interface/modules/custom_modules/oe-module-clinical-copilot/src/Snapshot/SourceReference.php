@@ -28,7 +28,7 @@ use DomainException;
 /**
  * @phpstan-type LocatorArray array{
  *     page?: int,
- *     bbox?: list<float|int>,
+ *     bbox?: array{0: float|int, 1: float|int, 2: float|int, 3: float|int},
  *     section?: string,
  *     field?: string,
  * }
@@ -117,13 +117,8 @@ final readonly class SourceReference
                     throw new DomainException('extracted_document SourceReference requires locator.bbox');
                 }
                 $bbox = $locator['bbox'];
-                // Accept either a 4-tuple `[x, y, w, h]` (legacy
-                // axis-aligned + referralLetter docx character offsets)
-                // or an 8-tuple `[x1, y1, x2, y2, x3, y3, x4, y4]`
-                // (`vision-v3-quad` row-spanning quad following page
-                // skew). Renderers branch on `count($bbox)`.
-                if (!is_array($bbox) || (count($bbox) !== 4 && count($bbox) !== 8)) {
-                    throw new DomainException('SourceReference.locator.bbox must be a 4- or 8-tuple');
+                if (!is_array($bbox) || count($bbox) !== 4) {
+                    throw new DomainException('SourceReference.locator.bbox must be a 4-tuple');
                 }
                 break;
             case self::SOURCE_TYPE_GUIDELINE:

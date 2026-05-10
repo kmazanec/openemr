@@ -46,32 +46,7 @@ export const SourceReferenceSchema = z
         source_id: z.string().min(1),
         locator: z.object({
             page: z.number().int().nonnegative().optional(),
-            // bbox accepts either:
-            //   4-tuple `[x, y, w, h]` — legacy axis-aligned (vision-v1/v2
-            //     image-mode, and the referralLetter docx character-offset
-            //     `[charStart, charEnd, 0, 0]` shape);
-            //   8-tuple `[x1, y1, x2, y2, x3, y3, x4, y4]` — `vision-v3-quad`
-            //     row-spanning quad following page skew.
-            // The verifier (`resolveExtractedDocument`) deep-equals the
-            // synthesizer's bbox against the snippet's bbox, so the
-            // shape that arrives here must round-trip the snippet's
-            // bbox exactly. Renderers branch on `length === 4` vs
-            // `=== 8`.
-            bbox: z
-                .union([
-                    z.tuple([z.number(), z.number(), z.number(), z.number()]),
-                    z.tuple([
-                        z.number(),
-                        z.number(),
-                        z.number(),
-                        z.number(),
-                        z.number(),
-                        z.number(),
-                        z.number(),
-                        z.number(),
-                    ]),
-                ])
-                .optional(),
+            bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
             section: z.string().min(1).optional(),
             field: z.string().min(1).optional(),
         }),
@@ -439,15 +414,7 @@ export interface ExtractedFactSnippet {
     readonly fieldPath: string;
     readonly value: unknown;
     readonly page: number;
-    /**
-     * Quad of 4 corner points (top-left, top-right, bottom-right,
-     * bottom-left) flattened to 8 ints on the 0..1000 grid. Spans
-     * the entire row of the cited field, following page skew.
-     * For referral-letter (DOCX) extractions the shape collapses to
-     * a 4-tuple `[charStart, charEnd, 0, 0]` per the docx schema —
-     * downstream renderers branch on `length === 8` vs `=== 4`.
-     */
-    readonly bbox: readonly number[];
+    readonly bbox: readonly [number, number, number, number];
     readonly quote: string;
     readonly confidence?: number;
     readonly extractorVersion: string;

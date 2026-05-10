@@ -371,7 +371,7 @@ describe('format', () => {
 // re-walking the snapshot. Empty sections are *absent* (not present-but-
 // empty) so the renderer can naturally omit headers.
 describe('format — claim groups by source_type (§C.6)', () => {
-    const docSourceRef = (artifactId: string, page = 1, bbox: readonly number[] = [0.1, 0.1, 0.2, 0.05], documentUuid = 'doc-uuid-1') => ({
+    const docSourceRef = (artifactId: string, page = 1, bbox: readonly [number, number, number, number] = [0.1, 0.1, 0.2, 0.05], documentUuid = 'doc-uuid-1') => ({
         source_type: 'extracted_document' as const,
         source_id: artifactId,
         locator: { page, bbox, field: 'results.0.value' },

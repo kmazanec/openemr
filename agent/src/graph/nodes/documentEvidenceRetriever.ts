@@ -77,9 +77,7 @@ const isFactLocator = (obj: Record<string, unknown>): boolean => {
     if (typeof obj['quote'] !== 'string' || obj['quote'].length === 0) return false;
     if (!Number.isInteger(obj['page'])) return false;
     const bbox = obj['bbox'];
-    // 4-tuple = legacy axis-aligned (referralLetter docx character
-    // offsets); 8-tuple = the `vision-v3-quad` row-spanning quad.
-    if (!Array.isArray(bbox) || (bbox.length !== 4 && bbox.length !== 8)) return false;
+    if (!Array.isArray(bbox) || bbox.length !== 4) return false;
     return bbox.every((n) => typeof n === 'number');
 };
 
@@ -125,13 +123,6 @@ const projectArtifact = (
     const createdAtMs = Date.parse(artifact.createdAt);
     return candidates.map(({ fieldPath, leaf }) => {
         const bbox = leaf['bbox'] as readonly number[];
-        // Pass the bbox shape through unchanged — 4-tuple legacy
-        // axis-aligned (`[x,y,w,h]` lab/intake under v1/v2, or
-        // `[charStart, charEnd, 0, 0]` referralLetter docx) and
-        // 8-tuple `vision-v3-quad` are both valid; renderers branch
-        // on `length`. Defensive copy so the snippet doesn't share
-        // state with the artifact's stored JSON.
-        const bboxCopy = bbox.map((n) => (typeof n === 'number' ? n : 0));
         const snippet: ExtractedFactSnippet = {
             artifactId: artifact.artifactId,
             documentUuid: artifact.documentUuid,
@@ -139,7 +130,7 @@ const projectArtifact = (
             fieldPath,
             value: leaf['value'] ?? null,
             page: leaf['page'] as number,
-            bbox: bboxCopy,
+            bbox: [bbox[0] ?? 0, bbox[1] ?? 0, bbox[2] ?? 0, bbox[3] ?? 0] as const,
             quote: leaf['quote'] as string,
             ...(typeof leaf['confidence'] === 'number'
                 ? { confidence: leaf['confidence'] }

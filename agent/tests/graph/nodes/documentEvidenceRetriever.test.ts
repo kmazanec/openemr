@@ -81,7 +81,7 @@ const labArtifact = (overrides: Partial<ExtractionArtifact> = {}): ExtractionArt
                 analyte: 'HbA1c',
                 value: 6.4,
                 page: 1,
-                bbox: [40, 200, 420, 200, 420, 420, 40, 420],
+                bbox: [40, 200, 380, 220],
                 quote: 'HbA1c 6.4 %',
                 confidence: 0.93,
             },
@@ -89,7 +89,7 @@ const labArtifact = (overrides: Partial<ExtractionArtifact> = {}): ExtractionArt
                 analyte: 'Glucose',
                 value: 102,
                 page: 1,
-                bbox: [40, 240, 420, 240, 420, 500, 40, 500],
+                bbox: [40, 240, 380, 260],
                 quote: 'Glucose 102 mg/dL',
                 confidence: 0.91,
             },
@@ -179,7 +179,7 @@ describe('createDocumentEvidenceRetriever (§C.1)', () => {
         expect(a1c?.documentUuid).toBe('22222222-2222-2222-2222-222222222222');
         expect(a1c?.docType).toBe('lab_pdf');
         expect(a1c?.page).toBe(1);
-        expect(a1c?.bbox).toEqual([40, 200, 420, 200, 420, 420, 40, 420]);
+        expect(a1c?.bbox).toEqual([40, 200, 380, 220]);
         expect(a1c?.quote).toContain('HbA1c');
         expect(a1c?.confidence).toBe(0.93);
         expect(a1c?.extractorVersion).toBe('v1.0.0');
@@ -200,7 +200,7 @@ describe('createDocumentEvidenceRetriever (§C.1)', () => {
                         analyte: 'HbA1c',
                         value: 6.4,
                         page: 1,
-                        bbox: [10, 10, 110, 10, 110, 40, 10, 40],
+                        bbox: [10, 10, 100, 30],
                         quote: 'HbA1c 6.4 %',
                     },
                 ],
@@ -215,7 +215,7 @@ describe('createDocumentEvidenceRetriever (§C.1)', () => {
                         analyte: 'TSH',
                         value: 2.1,
                         page: 1,
-                        bbox: [10, 50, 110, 50, 110, 120, 10, 120],
+                        bbox: [10, 50, 100, 70],
                         quote: 'TSH 2.1 mIU/L',
                     },
                 ],
@@ -259,7 +259,7 @@ describe('createDocumentEvidenceRetriever (§C.1)', () => {
                         analyte: 'Glucose',
                         value: 102,
                         page: 1,
-                        bbox: [10, 50, 110, 50, 110, 120, 10, 120],
+                        bbox: [10, 50, 100, 70],
                         quote: 'Glucose 102 mg/dL',
                     },
                 ],

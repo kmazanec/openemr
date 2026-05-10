@@ -96,7 +96,7 @@ describe('SourceReference cross-language contract', () => {
         const bad = {
             source_type: 'extracted_document',
             source_id: 'artifact-2',
-            locator: { page: 1, bbox: [1, 2, 4, 2, 4, 6, 1, 6] },
+            locator: { page: 1, bbox: [1, 2, 3, 4] },
             quote: 'value',
             confidence: 1.4,
         };

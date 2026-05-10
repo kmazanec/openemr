@@ -33,22 +33,11 @@ import { z } from 'zod';
  * cross-checks it against external rubrics (`schema_valid`,
  * `factually_consistent`). It is never blindly trusted for routing.
  */
-/**
- * Citation quad — 4 corner points (top-left, top-right, bottom-right,
- * bottom-left) flattened to 8 ints on the 0..1000 grid. See
- * `intakeForm.ts` for the design rationale; the shape is shared so
- * the renderer's discriminator (`length === 8`) is consistent across
- * doctypes.
- */
 const bboxSchema = z.tuple([
-    z.number().int().min(0).max(1000), // x1 — top-left
-    z.number().int().min(0).max(1000), // y1
-    z.number().int().min(0).max(1000), // x2 — top-right
-    z.number().int().min(0).max(1000), // y2
-    z.number().int().min(0).max(1000), // x3 — bottom-right
-    z.number().int().min(0).max(1000), // y3
-    z.number().int().min(0).max(1000), // x4 — bottom-left
-    z.number().int().min(0).max(1000), // y4
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000),
 ]);
 
 const citedField = <T extends z.ZodTypeAny>(value: T) =>
