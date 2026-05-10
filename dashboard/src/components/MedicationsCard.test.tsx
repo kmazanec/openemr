@@ -104,15 +104,13 @@ describe('MedicationsCard', () => {
     expect(await screen.findByText(/No active medications/i)).toBeInTheDocument();
   });
 
-  it('renders the Medications title and a View all link', async () => {
+  it('renders the Medications title and an Add medication button', async () => {
     const { MedicationsCard } = await import('./MedicationsCard');
     const client = clientReturning({ resourceType: 'Bundle', type: 'searchset', entry: [] });
 
     await renderWithClient(client, <MedicationsCard pid="42" />);
 
     expect(await screen.findByText('Medications')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: /view all/i });
-    expect(link.getAttribute('href')).toContain('stats_full.php');
-    expect(link.getAttribute('href')).toContain('category=medication');
+    expect(screen.getByRole('button', { name: /add medication/i })).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type {
   Bundle,
   BundleEntry,
@@ -7,11 +7,11 @@ import type {
 } from '@medplum/fhirtypes';
 import { Card } from './Card';
 import { useFhirRequest } from '../lib/useFhirRequest';
-
-const VIEW_ALL_HREF = '/interface/orders/orders_results.php';
+import { LabResultEditModal } from './LabResultEditModal';
 
 export interface LabsCardProps {
   pid: string;
+  fetchFn?: typeof fetch;
 }
 
 // Lab results map to DiagnosticReport in OpenEMR's FHIR layer.
@@ -21,21 +21,36 @@ export interface LabsCardProps {
 // follow-up story (would N+1 today).
 //
 // _sort=-date and _count=10 mirror the legacy "recent labs" pattern.
-export function LabsCard({ pid }: LabsCardProps): ReactElement {
+export function LabsCard({ pid, fetchFn }: LabsCardProps): ReactElement {
   const { data, error, loading, retry } = useFhirRequest<Bundle<DiagnosticReport>>(
     `DiagnosticReport?patient=${pid}&category=LAB&_sort=-date&_count=10`,
   );
+  const [adding, setAdding] = useState<boolean>(false);
 
   return (
-    <Card
-      title="Lab Results"
-      viewAllHref={VIEW_ALL_HREF}
-      loading={loading && data === undefined}
-      error={data === undefined ? error : null}
-      onRetry={retry}
-    >
-      <LabsBody bundle={data} />
-    </Card>
+    <>
+      <Card
+        title="Lab Results"
+        editLabel="Add lab result"
+        onEditClick={() => setAdding(true)}
+        loading={loading && data === undefined}
+        error={data === undefined ? error : null}
+        onRetry={retry}
+      >
+        <LabsBody bundle={data} />
+      </Card>
+      {adding && (
+        <LabResultEditModal
+          puuid={pid}
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false);
+            retry();
+          }}
+          {...(fetchFn !== undefined ? { fetchFn } : {})}
+        />
+      )}
+    </>
   );
 }
 

@@ -125,14 +125,12 @@ describe('ProblemListCard', () => {
     expect(await screen.findByText(/No active problems/i)).toBeInTheDocument();
   });
 
-  it('links View all to the legacy medical_problem stats page', async () => {
+  it('shows an Add problem edit button in the card header', async () => {
     const { ProblemListCard } = await import('./ProblemListCard');
     const client = clientReturning({ resourceType: 'Bundle', type: 'searchset', entry: [] });
 
     await renderWithClient(client, <ProblemListCard pid="42" />);
 
-    const link = screen.getByRole('link', { name: /view all/i });
-    expect(link.getAttribute('href')).toContain('stats_full.php');
-    expect(link.getAttribute('href')).toContain('category=medical_problem');
+    expect(screen.getByRole('button', { name: /add problem/i })).toBeInTheDocument();
   });
 });

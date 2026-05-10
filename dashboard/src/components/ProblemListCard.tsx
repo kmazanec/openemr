@@ -1,35 +1,64 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { Bundle, BundleEntry, Condition } from '@medplum/fhirtypes';
 import { Card } from './Card';
 import { useFhirRequest } from '../lib/useFhirRequest';
+import { ProblemEditModal } from './ProblemEditModal';
 
 const ICD10_SYS = 'http://hl7.org/fhir/sid/icd-10-cm';
 const SNOMED_SYS = 'http://snomed.info/sct';
-const VIEW_ALL_HREF = '/interface/patient_file/summary/stats_full.php?category=medical_problem';
 
 export interface ProblemListCardProps {
   pid: string;
+  fetchFn?: typeof fetch;
 }
 
-export function ProblemListCard({ pid }: ProblemListCardProps): ReactElement {
+export function ProblemListCard({ pid, fetchFn }: ProblemListCardProps): ReactElement {
   const { data, error, loading, retry } = useFhirRequest<Bundle<Condition>>(
     `Condition?patient=${pid}&category=problem-list-item`,
   );
+  const [editing, setEditing] = useState<Condition | null>(null);
+  const [adding, setAdding] = useState<boolean>(false);
+  const open = adding || editing !== null;
 
   return (
-    <Card
-      title="Medical Problems"
-      viewAllHref={VIEW_ALL_HREF}
-      loading={loading && data === undefined}
-      error={data === undefined ? error : null}
-      onRetry={retry}
-    >
-      <ProblemsBody bundle={data} />
-    </Card>
+    <>
+      <Card
+        title="Medical Problems"
+        editLabel="Add problem"
+        onEditClick={() => setAdding(true)}
+        loading={loading && data === undefined}
+        error={data === undefined ? error : null}
+        onRetry={retry}
+      >
+        <ProblemsBody bundle={data} onEdit={(c) => setEditing(c)} />
+      </Card>
+      {open && (
+        <ProblemEditModal
+          puuid={pid}
+          problem={editing}
+          onClose={() => {
+            setEditing(null);
+            setAdding(false);
+          }}
+          onSaved={() => {
+            setEditing(null);
+            setAdding(false);
+            retry();
+          }}
+          {...(fetchFn !== undefined ? { fetchFn } : {})}
+        />
+      )}
+    </>
   );
 }
 
-function ProblemsBody({ bundle }: { bundle: Bundle<Condition> | undefined }): ReactElement {
+function ProblemsBody({
+  bundle,
+  onEdit,
+}: {
+  bundle: Bundle<Condition> | undefined;
+  onEdit: (c: Condition) => void;
+}): ReactElement {
   const conditions = (bundle?.entry ?? [])
     .map((e: BundleEntry<Condition>) => e.resource)
     .filter((r): r is Condition => r !== undefined)
@@ -53,6 +82,7 @@ function ProblemsBody({ bundle }: { bundle: Bundle<Condition> | undefined }): Re
             <th scope="col">Code</th>
             <th scope="col">Onset</th>
             <th scope="col">Status</th>
+            <th scope="col" className="text-end" aria-label="Edit" />
           </tr>
         </thead>
         <tbody>
@@ -64,6 +94,17 @@ function ProblemsBody({ bundle }: { bundle: Bundle<Condition> | undefined }): Re
               <td>
                 <span className="badge bg-success-subtle text-success-emphasis">active</span>
               </td>
+              <td className="text-end">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-link p-0"
+                  onClick={() => onEdit(c)}
+                  data-testid="problem-row-edit"
+                  aria-label={`Edit ${titleOf(c)}`}
+                >
+                  Edit
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -74,7 +115,6 @@ function ProblemsBody({ bundle }: { bundle: Bundle<Condition> | undefined }): Re
 
 function isActive(c: Condition): boolean {
   const code = c.clinicalStatus?.coding?.[0]?.code;
-  // active, recurrence, relapse all count as currently-relevant problems.
   return code === 'active' || code === 'recurrence' || code === 'relapse' || code === undefined;
 }
 
