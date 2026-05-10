@@ -136,14 +136,13 @@ describe('LabsCard', () => {
     expect(screen.getByText(/Comprehensive metabolic 2000 panel/)).toBeInTheDocument();
   });
 
-  it('shows the title "Lab Results" and a View all link to legacy results', async () => {
+  it('shows the title "Lab Results" and an Add lab result button', async () => {
     const { LabsCard } = await import('./LabsCard');
     const client = clientReturning(emptyBundle);
 
     await renderWithClient(client, <LabsCard pid="42" />);
 
     expect(await screen.findByText('Lab Results')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: /view all/i });
-    expect(link.getAttribute('href')).toContain('orders_results.php');
+    expect(screen.getByRole('button', { name: /add lab result/i })).toBeInTheDocument();
   });
 });

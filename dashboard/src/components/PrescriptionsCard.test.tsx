@@ -57,8 +57,7 @@ describe('PrescriptionsCard', () => {
     );
   });
 
-  it('when erx_enable=true, the Add link goes to eRx.php?page=compose', async () => {
-    (window as unknown as Record<string, unknown>).erx_enable = true;
+  it('renders an in-page Add prescription button instead of a navigate-out link', async () => {
     const { PrescriptionsCard } = await import('./PrescriptionsCard');
     const bundle: Bundle<MedicationRequest> = {
       resourceType: 'Bundle',
@@ -70,28 +69,10 @@ describe('PrescriptionsCard', () => {
 
     await renderWithClient(client, <PrescriptionsCard pid="42" />);
 
-    const addLink = await screen.findByRole('link', { name: /add prescription/i });
-    expect(addLink.getAttribute('href')).toContain('eRx.php');
-    expect(addLink.getAttribute('href')).toContain('page=compose');
-  });
-
-  it('when erx_enable=false, the Add link goes to controller.php?prescription', async () => {
-    (window as unknown as Record<string, unknown>).erx_enable = false;
-    const { PrescriptionsCard } = await import('./PrescriptionsCard');
-    const bundle: Bundle<MedicationRequest> = {
-      resourceType: 'Bundle',
-      type: 'searchset',
-      total: 1,
-      entry: [{ resource: rx }],
-    };
-    const client = clientReturning(bundle);
-
-    await renderWithClient(client, <PrescriptionsCard pid="42" />);
-
-    const addLink = await screen.findByRole('link', { name: /add prescription/i });
-    expect(addLink.getAttribute('href')).toContain('controller.php');
-    expect(addLink.getAttribute('href')).toContain('prescription');
-    expect(addLink.getAttribute('href')).toContain('id=42');
+    expect(
+      await screen.findByRole('button', { name: /add prescription/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /add prescription/i })).not.toBeInTheDocument();
   });
 
   it('renders prescription details from the bundle', async () => {

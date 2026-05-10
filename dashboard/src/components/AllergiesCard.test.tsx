@@ -128,15 +128,27 @@ describe('AllergiesCard', () => {
     expect(rows.length).toBe(3);
   });
 
-  it('shows the title "Allergies" and a View all link to the legacy edit page', async () => {
+  it('shows the title "Allergies" and an Add allergy edit button', async () => {
     const { AllergiesCard } = await import('./AllergiesCard');
     const client = clientReturning(emptyBundle);
 
     await renderWithClient(client, <AllergiesCard pid="42" />);
 
     expect(await screen.findByText('Allergies')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: /view all/i });
-    expect(link.getAttribute('href')).toContain('stats_full.php');
-    expect(link.getAttribute('href')).toContain('category=allergy');
+    // The header pencil opens an in-page modal now instead of
+    // navigating to the legacy stats_full.php page.
+    const editButton = screen.getByRole('button', { name: /add allergy/i });
+    expect(editButton).toBeInTheDocument();
+  });
+
+  it('shows a row-level Edit button on each allergy', async () => {
+    const { AllergiesCard } = await import('./AllergiesCard');
+    const client = clientReturning(oneAllergy);
+
+    await renderWithClient(client, <AllergiesCard pid="42" />);
+
+    expect(await screen.findByText(/Penicillin/)).toBeInTheDocument();
+    const rowEdits = screen.getAllByTestId('allergy-row-edit');
+    expect(rowEdits.length).toBe(1);
   });
 });

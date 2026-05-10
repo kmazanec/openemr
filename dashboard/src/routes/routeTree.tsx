@@ -6,6 +6,7 @@ import { DashboardLanding } from './dashboardLanding';
 import { PatientRoute } from './patient';
 import { LegacyTabRoute } from './legacyTab';
 import { CopilotStandaloneRoute } from './copilot';
+import { EditSandboxRoute } from './editSandbox';
 
 const rootRoute = createRootRoute({
   component: function Root(): ReactElement {
@@ -59,7 +60,19 @@ const copilotRoute = createRoute({
   component: CopilotStandaloneRoute,
 });
 
-export const routeTree = rootRoute.addChildren([
+// Dev-only sandbox route for the in-page edit modals. Registered
+// only when `import.meta.env.DEV` is true so Playwright can drive
+// the modals without a FHIR session. In production the route is
+// not registered; users who navigate to `/edit-sandbox` see the
+// landing page. (The sandbox component itself stays in the prod
+// bundle since Rollup retains imports referenced in any branch.)
+const editSandboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/edit-sandbox',
+  component: EditSandboxRoute,
+});
+
+const baseRoutes = [
   indexRoute,
   loginRoute,
   authCallbackRoute,
@@ -67,4 +80,8 @@ export const routeTree = rootRoute.addChildren([
   patientRoute,
   legacyTabRoute,
   copilotRoute,
-]);
+];
+
+export const routeTree = rootRoute.addChildren(
+  import.meta.env.DEV ? [...baseRoutes, editSandboxRoute] : baseRoutes,
+);

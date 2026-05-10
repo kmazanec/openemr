@@ -1,33 +1,63 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { AllergyIntolerance, Bundle, BundleEntry } from '@medplum/fhirtypes';
 import { Card } from './Card';
 import { useFhirRequest } from '../lib/useFhirRequest';
-
-const VIEW_ALL_HREF = '/interface/patient_file/summary/stats_full.php?category=allergy';
+import { AllergyEditModal } from './AllergyEditModal';
 
 export interface AllergiesCardProps {
   pid: string;
+  // Test-only override forwarded to the modal so a Vitest case can
+  // drive the editor without a live PHP endpoint.
+  fetchFn?: typeof fetch;
 }
 
-export function AllergiesCard({ pid }: AllergiesCardProps): ReactElement {
+export function AllergiesCard({ pid, fetchFn }: AllergiesCardProps): ReactElement {
   const { data, error, loading, retry } = useFhirRequest<Bundle<AllergyIntolerance>>(
     `AllergyIntolerance?patient=${pid}&clinical-status=active`,
   );
+  const [editing, setEditing] = useState<AllergyIntolerance | null>(null);
+  const [adding, setAdding] = useState<boolean>(false);
+  const open = adding || editing !== null;
 
   return (
-    <Card
-      title="Allergies"
-      viewAllHref={VIEW_ALL_HREF}
-      loading={loading && data === undefined}
-      error={data === undefined ? error : null}
-      onRetry={retry}
-    >
-      <AllergiesBody bundle={data} />
-    </Card>
+    <>
+      <Card
+        title="Allergies"
+        editLabel="Add allergy"
+        onEditClick={() => setAdding(true)}
+        loading={loading && data === undefined}
+        error={data === undefined ? error : null}
+        onRetry={retry}
+      >
+        <AllergiesBody bundle={data} onEdit={(a) => setEditing(a)} />
+      </Card>
+      {open && (
+        <AllergyEditModal
+          puuid={pid}
+          allergy={editing}
+          onClose={() => {
+            setEditing(null);
+            setAdding(false);
+          }}
+          onSaved={() => {
+            setEditing(null);
+            setAdding(false);
+            retry();
+          }}
+          {...(fetchFn !== undefined ? { fetchFn } : {})}
+        />
+      )}
+    </>
   );
 }
 
-function AllergiesBody({ bundle }: { bundle: Bundle<AllergyIntolerance> | undefined }): ReactElement {
+function AllergiesBody({
+  bundle,
+  onEdit,
+}: {
+  bundle: Bundle<AllergyIntolerance> | undefined;
+  onEdit: (a: AllergyIntolerance) => void;
+}): ReactElement {
   const entries = bundle?.entry ?? [];
   const allergies = entries
     .map((e: BundleEntry<AllergyIntolerance>) => e.resource)
@@ -51,6 +81,7 @@ function AllergiesBody({ bundle }: { bundle: Bundle<AllergyIntolerance> | undefi
             <th scope="col">Severity</th>
             <th scope="col">Reaction</th>
             <th scope="col">Status</th>
+            <th scope="col" className="text-end" aria-label="Edit" />
           </tr>
         </thead>
         <tbody>
@@ -60,6 +91,17 @@ function AllergiesBody({ bundle }: { bundle: Bundle<AllergyIntolerance> | undefi
               <td>{severityOf(a)}</td>
               <td>{reactionOf(a)}</td>
               <td>{verificationOf(a)}</td>
+              <td className="text-end">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-link p-0"
+                  onClick={() => onEdit(a)}
+                  data-testid="allergy-row-edit"
+                  aria-label={`Edit ${allergenOf(a)}`}
+                >
+                  Edit
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

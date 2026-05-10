@@ -1,47 +1,65 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { Bundle, BundleEntry, MedicationRequest } from '@medplum/fhirtypes';
 import { Card } from './Card';
 import { useFhirRequest } from '../lib/useFhirRequest';
-import { isErxEnabled } from '../lib/config';
 import { drugOf, doseOf } from './medicationFormat';
+import { PrescriptionEditModal } from './PrescriptionEditModal';
 
 export interface PrescriptionsCardProps {
   // FHIR Patient UUID; used to query MedicationRequest.
   pid: string;
-  // Legacy integer pid; used to build links to legacy controllers
-  // (eRx.php, controller.php?prescription) which expect the integer
-  // patient_data.pid, not the UUID. Defaults to `pid` for tests and
-  // the standalone case where they happen to be the same value.
+  // Legacy integer pid; kept on the props so call-sites that already
+  // resolve it (PatientRoute) don't have to change. We don't use it
+  // for the in-page editor — the dashboard-editor module resolves
+  // pid by puuid server-side.
   legacyPid?: string;
+  fetchFn?: typeof fetch;
 }
 
 // Prescriptions (eRx-style records) maps to MedicationRequest with
 // intent=order in OpenEMR's FHIR layer (sourced from the prescriptions
 // table). Intent=plan covers the patient's currently-taking list,
 // rendered by MedicationsCard.
-export function PrescriptionsCard({ pid, legacyPid }: PrescriptionsCardProps): ReactElement {
+export function PrescriptionsCard({
+  pid,
+  fetchFn,
+}: PrescriptionsCardProps): ReactElement {
   const { data, error, loading, retry } = useFhirRequest<Bundle<MedicationRequest>>(
     `MedicationRequest?patient=${pid}&status=active&intent=order`,
   );
+  const [adding, setAdding] = useState<boolean>(false);
 
   return (
-    <Card
-      title="Prescriptions"
-      loading={loading && data === undefined}
-      error={data === undefined ? error : null}
-      onRetry={retry}
-    >
-      <PrescriptionsBody pid={legacyPid ?? pid} bundle={data} />
-    </Card>
+    <>
+      <Card
+        title="Prescriptions"
+        loading={loading && data === undefined}
+        error={data === undefined ? error : null}
+        onRetry={retry}
+      >
+        <PrescriptionsBody bundle={data} onAddClick={() => setAdding(true)} />
+      </Card>
+      {adding && (
+        <PrescriptionEditModal
+          puuid={pid}
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false);
+            retry();
+          }}
+          {...(fetchFn !== undefined ? { fetchFn } : {})}
+        />
+      )}
+    </>
   );
 }
 
 function PrescriptionsBody({
-  pid,
   bundle,
+  onAddClick,
 }: {
-  pid: string;
   bundle: Bundle<MedicationRequest> | undefined;
+  onAddClick: () => void;
 }): ReactElement {
   const rxs = (bundle?.entry ?? [])
     .map((e: BundleEntry<MedicationRequest>) => e.resource)
@@ -50,12 +68,14 @@ function PrescriptionsBody({
   return (
     <>
       <div className="d-flex justify-content-end mb-2">
-        <a
+        <button
+          type="button"
           className="btn btn-sm btn-outline-secondary"
-          href={addPrescriptionHref(pid)}
+          onClick={onAddClick}
+          data-testid="rx-add-button"
         >
           Add prescription
-        </a>
+        </button>
       </div>
       {rxs.length === 0 ? (
         <p className="text-muted mb-0 small">
@@ -109,13 +129,5 @@ function refillsOf(m: MedicationRequest): string {
 function filledOf(m: MedicationRequest): string {
   const a = m.authoredOn;
   if (typeof a !== 'string' || a.length === 0) return '—';
-  // Strip the time component when authoredOn is a full ISO timestamp.
   return a.slice(0, 10);
-}
-
-function addPrescriptionHref(pid: string): string {
-  if (isErxEnabled()) {
-    return `/interface/eRx.php?page=compose&pid=${encodeURIComponent(pid)}`;
-  }
-  return `/interface/patient_file/summary/demographics/controller.php?prescription&list&id=${encodeURIComponent(pid)}`;
 }

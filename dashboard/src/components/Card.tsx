@@ -3,9 +3,20 @@ import type { ReactElement, ReactNode } from 'react';
 export interface CardProps {
   title: string;
   // When set, the title-level edit link (rendered as a pencil icon
-  // on the right of the card header) points here. The card-link is
-  // still labelled "View all" for accessibility/test stability.
+  // on the right of the card header) points here. Used for cards
+  // that haven't been migrated to in-page editing yet (and as a
+  // fallback when `onEditClick` is also unset).
   viewAllHref?: string;
+  // When set, the title-level pencil icon becomes an in-page button
+  // that fires this handler — used by the new edit-modal flow on
+  // allergies/problems/medications/etc. Takes precedence over
+  // `viewAllHref` so the dashboard can ship the new UX without first
+  // ripping the legacy hrefs out of every call site.
+  onEditClick?: () => void;
+  // Tooltip + aria label for the edit affordance. Falls back to
+  // "Add {title}" / "View all {title}" depending on which mode the
+  // card is in so the icon-only button is announceable.
+  editLabel?: string;
   loading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
@@ -15,6 +26,8 @@ export interface CardProps {
 export function Card({
   title,
   viewAllHref,
+  onEditClick,
+  editLabel,
   loading,
   error,
   onRetry,
@@ -27,17 +40,29 @@ export function Card({
           <DragHandle />
           <span className="card-title fw-semibold mb-0 text-primary">{title}</span>
         </span>
-        {viewAllHref !== undefined && (
+        {onEditClick !== undefined ? (
+          <button
+            type="button"
+            className="btn btn-link card-link small text-primary p-0"
+            onClick={onEditClick}
+            aria-label={editLabel ?? `Add ${title}`}
+            title={editLabel ?? `Add ${title}`}
+            data-testid={`card-edit-${title.toLowerCase().replace(/\s+/g, '-')}`}
+          >
+            <PencilIcon />
+            <span className="visually-hidden">{editLabel ?? `Add ${title}`}</span>
+          </button>
+        ) : viewAllHref !== undefined ? (
           <a
             className="card-link small text-primary"
             href={viewAllHref}
-            aria-label={`View all ${title}`}
-            title="View all"
+            aria-label={editLabel ?? `View all ${title}`}
+            title={editLabel ?? 'View all'}
           >
             <PencilIcon />
-            <span className="visually-hidden">View all</span>
+            <span className="visually-hidden">{editLabel ?? `View all ${title}`}</span>
           </a>
-        )}
+        ) : null}
       </div>
       <div className="card-body px-2 py-2">{renderBody({ title, loading, error, onRetry, children })}</div>
     </div>
@@ -81,7 +106,7 @@ function renderBody({
   error,
   onRetry,
   children,
-}: Omit<CardProps, 'viewAllHref'>): ReactNode {
+}: Omit<CardProps, 'viewAllHref' | 'onEditClick' | 'editLabel'>): ReactNode {
   if (loading === true) {
     return (
       <div data-testid="card-skeleton" className="placeholder-glow" aria-busy="true">
