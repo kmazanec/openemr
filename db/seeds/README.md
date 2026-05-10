@@ -23,6 +23,13 @@ db/seeds/seed-all.sh --skip-baseline --count=100 --days=10
 # Incremental: only add (or refresh) the docs/example-documents fixture
 # patients + their weekly appointments — no random fill, no baseline.
 db/seeds/seed-all.sh --fixtures-only
+
+# Reset the four demo patients to a known state without touching anyone
+# else. Hard-deletes Chen/Whitaker/Reyes/Kowalski (and their agent
+# conversations + extraction artifacts), re-seeds them, then books one
+# next-business-day appointment per patient. Run from the host:
+db/seeds/reset-demo-patients.sh                            # local dev
+DATABASE_URL=… db/seeds/reset-demo-patients.sh --remote    # production
 ```
 
 > **Container path note.** The container's default cwd is one level
