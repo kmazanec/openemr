@@ -716,6 +716,172 @@
     .lever .impact.next { background: rgba(110, 168, 255, 0.14); color: var(--accent); }
     .lever .impact.future { background: rgba(245, 185, 105, 0.14); color: var(--accent-3); }
 
+    /* ── Patient demo slides ────────────────────── */
+    .patient-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr);
+      gap: 1.2rem;
+    }
+
+    .patient-meta {
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .patient-card {
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .patient-card.lab    { border-color: rgba(139, 233, 214, 0.3); background: rgba(139, 233, 214, 0.04); }
+    .patient-card.intake { border-color: rgba(110, 168, 255, 0.32); background: rgba(110, 168, 255, 0.05); }
+    .patient-card.refer  { border-color: rgba(245, 185, 105, 0.32); background: rgba(245, 185, 105, 0.05); }
+    .patient-card.corpus { border-color: rgba(200, 168, 255, 0.32); background: rgba(200, 168, 255, 0.05); }
+
+    .patient-card .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.3rem;
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+
+    .patient-card.lab    .label { color: var(--accent-2); }
+    .patient-card.intake .label { color: var(--accent); }
+    .patient-card.refer  .label { color: var(--accent-3); }
+    .patient-card.corpus .label { color: var(--accent-4); }
+
+    .patient-card p {
+      margin: 0;
+      color: var(--ink-dim);
+      font-size: 0.83rem;
+      line-height: 1.4;
+    }
+
+    .patient-card p + p { margin-top: 0.35rem; }
+
+    .patient-card strong { color: var(--ink); }
+
+    .patient-card .flag {
+      color: var(--danger);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .patient-card code {
+      color: var(--accent-2);
+      background: rgba(139, 233, 214, 0.08);
+      padding: 0.02rem 0.32rem;
+      border-radius: 0.3rem;
+      font-size: 0.78rem;
+    }
+
+    .corpus-badges { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+
+    .corpus-badge {
+      padding: 0.18rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(200, 168, 255, 0.12);
+      color: var(--accent-4);
+    }
+
+    .corpus-badge.uspstf  { background: rgba(110, 168, 255, 0.16); color: var(--accent); }
+    .corpus-badge.ada     { background: rgba(139, 233, 214, 0.14); color: var(--accent-2); }
+    .corpus-badge.cdc     { background: rgba(245, 185, 105, 0.16); color: var(--accent-3); }
+    .corpus-badge.beers   { background: rgba(200, 168, 255, 0.18); color: var(--accent-4); }
+
+    .question-list {
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .question {
+      display: grid;
+      grid-template-columns: 1.7rem minmax(0, 1fr) auto;
+      gap: 0.7rem;
+      align-items: center;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--line);
+      border-radius: 0.7rem;
+      background: rgba(255, 255, 255, 0.025);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .question .q-num {
+      display: grid;
+      place-items: center;
+      width: 1.6rem;
+      height: 1.6rem;
+      border-radius: 0.42rem;
+      background: rgba(110, 168, 255, 0.1);
+      border: 1px solid rgba(110, 168, 255, 0.28);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.74rem;
+    }
+
+    .question p { margin: 0; color: var(--ink); }
+
+    .q-tags { display: flex; gap: 0.25rem; align-items: center; }
+
+    .q-tag {
+      padding: 0.04rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .q-tag.lab    { background: rgba(139, 233, 214, 0.12); color: var(--accent-2); }
+    .q-tag.intake { background: rgba(110, 168, 255, 0.14); color: var(--accent); }
+    .q-tag.refer  { background: rgba(245, 185, 105, 0.14); color: var(--accent-3); }
+    .q-tag.uspstf { background: rgba(110, 168, 255, 0.18); color: var(--accent); }
+    .q-tag.ada    { background: rgba(139, 233, 214, 0.16); color: var(--accent-2); }
+    .q-tag.cdc    { background: rgba(245, 185, 105, 0.18); color: var(--accent-3); }
+    .q-tag.beers  { background: rgba(200, 168, 255, 0.18); color: var(--accent-4); }
+    .q-tag.refusal { background: rgba(255, 122, 138, 0.16); color: var(--danger); }
+    .q-tag.trend  { background: rgba(255, 255, 255, 0.06); color: var(--ink-dim); }
+
+    .patient-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding: 0.7rem 1rem;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(110, 168, 255, 0.1), rgba(139, 233, 214, 0.06));
+      border: 1px solid rgba(110, 168, 255, 0.28);
+      margin-bottom: 1rem;
+    }
+
+    .patient-banner h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .patient-banner small {
+      color: var(--ink-mute);
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+    }
+
+    .patient-banner .ids { font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.78rem; color: var(--ink-dim); }
+
     /* ── Closer ─────────────────────────────────── */
     .closer {
       display: flex;
@@ -743,6 +909,9 @@
       .coexist-grid { grid-template-columns: 1fr; }
       .toggle-arrow { transform: rotate(90deg); }
       .cost-grid { grid-template-columns: 1fr; }
+      .patient-grid { grid-template-columns: 1fr; }
+      .question { grid-template-columns: 1.7rem minmax(0, 1fr); }
+      .question .q-tags { grid-column: 2; justify-self: start; }
     }
 
     @media print {
@@ -751,8 +920,8 @@
       .slide { background: white; box-shadow: none; border-color: #ddd; page-break-inside: avoid; page-break-after: always; }
       .slide::before { display: none; }
       .slide-head h2, .hero h1 { color: #0a1530; }
-      .row, .panel, .meta-card, .stack-card, .iframe-bridge, .closer, .lane, .step, .ret-step, .callout, .cost-card, .lever, .cost-table { background: #f8fafc; border-color: #e1e6ef; }
-      .row .body p, .panel li, .stack-card span, .meta-card span, .closer p, .slide-head .lead, .step span, .ret-step span, .callout span, .cost-card p, .lever span, .cost-table tbody td { color: #2a3550; }
+      .row, .panel, .meta-card, .stack-card, .iframe-bridge, .closer, .lane, .step, .ret-step, .callout, .cost-card, .lever, .cost-table, .patient-card, .question, .patient-banner { background: #f8fafc; border-color: #e1e6ef; }
+      .row .body p, .panel li, .stack-card span, .meta-card span, .closer p, .slide-head .lead, .step span, .ret-step span, .callout span, .cost-card p, .lever span, .cost-table tbody td, .patient-card p { color: #2a3550; }
       .col-title, .lane-title { color: #2a3550; }
       .row .num, .row.warm .num, .row.cool .num, .row.purple .num { background: #eef3ff; border-color: #c8d6f7; color: #14398f; }
       .hero h1 em { color: #14398f; -webkit-text-fill-color: #14398f; }
@@ -777,6 +946,10 @@
         <a href="#dashboard">Dashboard port</a>
         <a href="#cost">Cost</a>
         <a href="#since">Since Thursday</a>
+        <a href="#demo-chen">Demo · Chen</a>
+        <a href="#demo-whitaker">Whitaker</a>
+        <a href="#demo-reyes">Reyes</a>
+        <a href="#demo-kowalski">Kowalski</a>
       </nav>
     </header>
 
@@ -1448,6 +1621,242 @@
             asks for — retrieval recall (1, 3), citation faithfulness (2), log safety (4), eval
             gate verifiability (5, 6). Nothing new, everything sharper.
           </p>
+        </div>
+      </section>
+
+      <!-- ─────────────── DEMO SLIDE · p01 CHEN ─────────────── -->
+      <section class="slide" id="demo-chen">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Demo · patient 1 of 4</span>
+            <h2>Margaret Chen — 58 F, fatigue + exertional chest tightness, T2DM &amp; hyperlipidemia.</h2>
+          </div>
+          <p class="lead">
+            Statin-refractory dyslipidemia, family history of early MI, cardiology referral pending.
+            Every question pairs at least one document fact with at least one corpus topic.
+          </p>
+        </div>
+
+        <div class="patient-grid">
+          <div class="patient-meta">
+            <div class="patient-banner">
+              <div>
+                <h3>Margaret Chen · 58 F</h3>
+                <small>T2DM · HTN · hyperlipidemia · former smoker · PCN allergy</small>
+              </div>
+              <span class="ids">p01-chen</span>
+            </div>
+            <div class="patient-card intake">
+              <span class="label">Intake form · 2026-04-22</span>
+              <p>Meds: <strong>lisinopril 10</strong> · <strong>metformin 500 BID</strong> · <strong>atorvastatin 20</strong> · <strong>ASA 81</strong>. PCN allergy (hives) + sulfa rash. Father MI age 61. Former smoker (~12 pack-yrs, quit 2008). Walks 3×/wk.</p>
+            </div>
+            <div class="patient-card lab">
+              <span class="label">Lipid panel · 2026-04-23 fasting</span>
+              <p>TC <span class="flag">232 H</span> · HDL <span class="flag">48 L</span> · LDL <span class="flag">158 H</span> · TG <span class="flag">178 H</span> · non-HDL <span class="flag">184 H</span> — mixed dyslipidemia despite statin.</p>
+            </div>
+            <div class="patient-card refer">
+              <span class="label">Cardiology referral · Dr. Liu</span>
+              <p>Statin-refractory hyperlipidemia on atorvastatin 40 mg × 14 mo, LDL 142 (goal &lt;70 secondary-prevention). Asks <strong>ezetimibe vs PCSK9i</strong> + <strong>CAC scoring</strong>.</p>
+            </div>
+            <div class="patient-card corpus">
+              <span class="label">Corpus intersections</span>
+              <div class="corpus-badges">
+                <span class="corpus-badge uspstf">USPSTF · statin primary prevention</span>
+                <span class="corpus-badge ada">ADA · lipids in T2DM, ASA</span>
+                <span class="corpus-badge cdc">CDC · Million Hearts · adult vax</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="question-list">
+            <div class="question"><span class="q-num">1</span><p>What does Margaret's lipid panel show, and which values are outside the reference range?</p><span class="q-tags"><span class="q-tag lab">lab</span></span></div>
+            <div class="question"><span class="q-num">2</span><p>Per ADA, what LDL target applies given her diabetes — and is she at it?</p><span class="q-tags"><span class="q-tag lab">lab</span><span class="q-tag ada">ADA</span></span></div>
+            <div class="question"><span class="q-num">3</span><p>Should her atorvastatin be intensified, and what does USPSTF say about high-intensity statins for diabetics with her risk profile?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">4</span><p>What is the cardiology referral asking about — ezetimibe vs PCSK9i — and how does ADA frame add-on therapy?</p><span class="q-tags"><span class="q-tag refer">referral</span><span class="q-tag ada">ADA</span></span></div>
+            <div class="question"><span class="q-num">5</span><p>Does ADA still support her aspirin 81 mg for primary prevention given her age and ASCVD risk factors?</p><span class="q-tags"><span class="q-tag ada">ADA</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">6</span><p>What's her 10-year ASCVD risk based on the documented variables, and how does that change the LDL target?</p><span class="q-tags"><span class="q-tag intake">intake</span><span class="q-tag lab">lab</span></span></div>
+            <div class="question"><span class="q-num">7</span><p>Are her exertional chest-tightness symptoms concerning enough to warrant urgent cardiology workup before any lipid escalation?</p><span class="q-tags"><span class="q-tag intake">intake</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">8</span><p>Per CDC, which adult vaccines is she due for at 58 — zoster, Tdap, flu, COVID?</p><span class="q-tags"><span class="q-tag cdc">CDC</span></span></div>
+            <div class="question"><span class="q-num">9</span><p>Given her PCN allergy, are there any contraindications to the add-on lipid agents being considered?</p><span class="q-tags"><span class="q-tag intake">intake</span><span class="q-tag refusal">safety</span></span></div>
+            <div class="question"><span class="q-num">10</span><p>Compare today's LDL (158) to the cardiology-referral LDL (142) — has she gotten worse, and what does ADA recommend next?</p><span class="q-tags"><span class="q-tag trend">trend</span><span class="q-tag ada">ADA</span></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── DEMO SLIDE · p02 WHITAKER ─────────────── -->
+      <section class="slide" id="demo-whitaker">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Demo · patient 2 of 4</span>
+            <h2>James Whitaker — 67 M, fatigue + dizziness, AFib on apixaban with new anemia.</h2>
+          </div>
+          <p class="lead">
+            Anticoagulated older adult with worsening anemia between intake and referral; the
+            interesting questions pair Beers Criteria with USPSTF screening windows.
+          </p>
+        </div>
+
+        <div class="patient-grid">
+          <div class="patient-meta">
+            <div class="patient-banner">
+              <div>
+                <h3>James Whitaker · 67 M</h3>
+                <small>AFib · hyperlipidemia · BPH · NKDA · retired carpenter</small>
+              </div>
+              <span class="ids">p02-whitaker</span>
+            </div>
+            <div class="patient-card intake">
+              <span class="label">Intake form · 2026-04-21</span>
+              <p>Meds: <strong>apixaban 5 BID</strong> · <strong>tamsulosin 0.4</strong> · <strong>atorvastatin 40</strong>. Father stroke at 70. Reports recent dizzy spell while gardening.</p>
+            </div>
+            <div class="patient-card lab">
+              <span class="label">CBC · 2026-04-21 (intake)</span>
+              <p>WBC 5.4 · RBC <span class="flag">3.78 L</span> · Hgb <span class="flag">11.1 L</span> · Hct <span class="flag">33.5 L</span> · MCV 88.6 N · plt 248 — mild <strong>normocytic</strong> anemia. Lab recs iron studies + occult-blood given apixaban.</p>
+            </div>
+            <div class="patient-card refer">
+              <span class="label">GI referral · Dr. Subramanian</span>
+              <p>New <strong>microcytic</strong> anemia (<span class="flag">Hgb 10.4 · MCV 76</span>) on apixaban — urgent EGD + colonoscopy for occult GI bleed; last screening colo &gt;10 yrs ago. Asks periprocedural anticoag plan.</p>
+            </div>
+            <div class="patient-card corpus">
+              <span class="label">Corpus intersections</span>
+              <div class="corpus-badges">
+                <span class="corpus-badge uspstf">USPSTF · CRC · AAA · falls</span>
+                <span class="corpus-badge cdc">CDC · zoster · RSV · pneumococcal</span>
+                <span class="corpus-badge beers">AGS-Beers · anticoag + antiplatelet · tamsulosin</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="question-list">
+            <div class="question"><span class="q-num">1</span><p>Summarize his CBC — is the anemia microcytic or normocytic, and how does that change the workup?</p><span class="q-tags"><span class="q-tag lab">lab</span></span></div>
+            <div class="question"><span class="q-num">2</span><p>Reconcile the intake CBC (Hgb 11.1, MCV 88.6) with the GI referral's labs (Hgb 10.4, MCV 76) — is the anemia worsening?</p><span class="q-tags"><span class="q-tag trend">trend</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">3</span><p>Per USPSTF, is he overdue for colorectal cancer screening, and how does the GI referral align?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">4</span><p>What does the GI consult ask regarding periprocedural apixaban management?</p><span class="q-tags"><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">5</span><p>Per AGS-Beers, are any of his current meds flagged as potentially inappropriate for a 67-year-old?</p><span class="q-tags"><span class="q-tag beers">Beers</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">6</span><p>Has he had AAA screening — does USPSTF recommend it given his age and smoking history?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span></span></div>
+            <div class="question"><span class="q-num">7</span><p>Which CDC-recommended vaccines is he due for at 67 — zoster, RSV, pneumococcal, Tdap?</p><span class="q-tags"><span class="q-tag cdc">CDC</span></span></div>
+            <div class="question"><span class="q-num">8</span><p>He had a dizzy spell gardening — what falls-prevention guidance applies, and does Beers flag tamsulosin in this context?</p><span class="q-tags"><span class="q-tag beers">Beers</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">9</span><p>Should atorvastatin 40 mg continue given the new anemia workup, and what does USPSTF say about statins in his age group?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span><span class="q-tag refusal">safety</span></span></div>
+            <div class="question"><span class="q-num">10</span><p>Given apixaban + new anemia, what's the recommended occult-blood and iron-studies workup before endoscopy?</p><span class="q-tags"><span class="q-tag refer">referral</span><span class="q-tag lab">lab</span></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── DEMO SLIDE · p03 REYES ─────────────── -->
+      <section class="slide" id="demo-reyes">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Demo · patient 3 of 4</span>
+            <h2>Sofia Reyes — 42 F, blurry vision + toe numbness, uncontrolled T2DM.</h2>
+          </div>
+          <p class="lead">
+            Worsening A1c despite metformin + GLP-1; depression on sertraline; the lab and the
+            referral disagree on the A1c value, which is itself a question.
+          </p>
+        </div>
+
+        <div class="patient-grid">
+          <div class="patient-meta">
+            <div class="patient-banner">
+              <div>
+                <h3>Sofia Reyes · 42 F</h3>
+                <small>T2DM · recurrent depression · ibuprofen-induced GI bleed · software engineer</small>
+              </div>
+              <span class="ids">p03-reyes</span>
+            </div>
+            <div class="patient-card intake">
+              <span class="label">Intake form · 2026-04-19</span>
+              <p>Meds: <strong>metformin 1000 BID</strong> · <strong>semaglutide 1 mg weekly</strong> · <strong>sertraline 50</strong>. Ibuprofen allergy (severe — GI bleed). Mother T2DM ~49.</p>
+            </div>
+            <div class="patient-card lab">
+              <span class="label">HbA1c lab · 2026-04-18 fasting</span>
+              <p>HbA1c <span class="flag">8.2 H</span> (ADA target &lt;7) · fasting glucose <span class="flag">152 H</span> · eGFR 88 (preserved). Lab recs semaglutide escalation, lifestyle counseling, ophtho referral.</p>
+            </div>
+            <div class="patient-card refer">
+              <span class="label">Endocrinology referral · Dr. Greenberg</span>
+              <p>A1c <strong>9.2%</strong> (up from 8.4% three months prior) · BMI 34 · FBG 180–220 · PPG &gt;250. Asks <strong>basal insulin initiation</strong> + <strong>semaglutide → 2 mg</strong>.</p>
+            </div>
+            <div class="patient-card corpus">
+              <span class="label">Corpus intersections</span>
+              <div class="corpus-badges">
+                <span class="corpus-badge uspstf">USPSTF · retinopathy · depression screening</span>
+                <span class="corpus-badge ada">ADA · A1c targets · GLP-1 + insulin · ASCVD</span>
+                <span class="corpus-badge cdc">CDC · diabetic adult vax (hep B · pneumo · flu)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="question-list">
+            <div class="question"><span class="q-num">1</span><p>What does her latest HbA1c show, and per ADA where should she be?</p><span class="q-tags"><span class="q-tag lab">lab</span><span class="q-tag ada">ADA</span></span></div>
+            <div class="question"><span class="q-num">2</span><p>Is the A1c trending up — compare the intake lab (8.2) with the referral's labs (9.2 from 8.4)?</p><span class="q-tags"><span class="q-tag trend">trend</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">3</span><p>Per ADA, what's the next pharmacologic step when metformin + GLP-1 fail to achieve target?</p><span class="q-tags"><span class="q-tag ada">ADA</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">4</span><p>Her blurry vision and toe numbness — what diabetic-complications screen does ADA recommend, and is ophtho referral indicated?</p><span class="q-tags"><span class="q-tag ada">ADA</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">5</span><p>What does the endo referral specifically request regarding insulin and semaglutide titration?</p><span class="q-tags"><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">6</span><p>Given her ibuprofen-induced GI bleed, are there safety concerns with the proposed regimen?</p><span class="q-tags"><span class="q-tag refusal">safety</span><span class="q-tag intake">intake</span></span></div>
+            <div class="question"><span class="q-num">7</span><p>Per USPSTF, is she due for depression screening — and how does sertraline 50 mg fit ADA's mental-health guidance for diabetics?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span><span class="q-tag ada">ADA</span></span></div>
+            <div class="question"><span class="q-num">8</span><p>Per CDC ACIP, which vaccines does a 42-year-old with diabetes need (hep B, pneumococcal, flu)?</p><span class="q-tags"><span class="q-tag cdc">CDC</span></span></div>
+            <div class="question"><span class="q-num">9</span><p>What ADA-recommended ASCVD risk reduction (statin, ASA, BP) applies to her now?</p><span class="q-tags"><span class="q-tag ada">ADA</span></span></div>
+            <div class="question"><span class="q-num">10</span><p>Should we initiate a statin per ADA's primary-prevention rules for a 42-year-old diabetic?</p><span class="q-tags"><span class="q-tag ada">ADA</span><span class="q-tag intake">intake</span></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── DEMO SLIDE · p04 KOWALSKI ─────────────── -->
+      <section class="slide" id="demo-kowalski">
+        <div class="slide-head">
+          <div>
+            <span class="eyebrow">Demo · patient 4 of 4</span>
+            <h2>Robert Kowalski — 54 M, RUQ pain, transaminitis, alcohol use disorder.</h2>
+          </div>
+          <p class="lead">
+            New transaminitis on rosuvastatin, mild renal insufficiency, an intake form that says
+            "remission" while the referral cites 4–6 drinks/day — a great test of conflicting
+            sources.
+          </p>
+        </div>
+
+        <div class="patient-grid">
+          <div class="patient-meta">
+            <div class="patient-banner">
+              <div>
+                <h3>Robert Kowalski · 54 M</h3>
+                <small>HTN · hyperlipidemia · alcohol use · Stage 2 CKD</small>
+              </div>
+              <span class="ids">p04-kowalski</span>
+            </div>
+            <div class="patient-card intake">
+              <span class="label">Intake form · partially OCR-illegible</span>
+              <p>Reports "never" tobacco/recreational drugs; alcohol annotated <strong>"remission"</strong>. On <strong>aspirin</strong> + <strong>multivitamin</strong> per OCR fragments. Chicago address.</p>
+            </div>
+            <div class="patient-card lab">
+              <span class="label">CMP · 2026-04-15 (ED)</span>
+              <p>Glu <span class="flag">108 H</span> · BUN <span class="flag">28 H</span> · Cr <span class="flag">1.4 H</span> · eGFR <span class="flag">62 L</span> (Stage 2 CKD) · K <span class="flag">3.3 L</span> · ALT <span class="flag">56 H</span> · AST <span class="flag">48 H</span> — hepatocellular transaminitis. RUQ ultrasound recommended.</p>
+            </div>
+            <div class="patient-card refer">
+              <span class="label">Hepatology referral · Dr. Sokolov</span>
+              <p>Follow-up labs: <strong>AST 68 · ALT 82 · ALP 114 · T.bili 1.6 H</strong> on lisinopril 20, rosuvastatin 20, MVI. Reports <strong>4–6 standard drinks/day</strong> for years. Asks viral hep serologies, FibroScan, alcohol-cessation reinforcement.</p>
+            </div>
+            <div class="patient-card corpus">
+              <span class="label">Corpus intersections</span>
+              <div class="corpus-badges">
+                <span class="corpus-badge uspstf">USPSTF · alcohol SBI · HCV · statin</span>
+                <span class="corpus-badge cdc">CDC · hep B vax in chronic liver disease</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="question-list">
+            <div class="question"><span class="q-num">1</span><p>What does the CMP show — which liver and renal values are flagged?</p><span class="q-tags"><span class="q-tag lab">lab</span></span></div>
+            <div class="question"><span class="q-num">2</span><p>Are his transaminases trending up between the ED visit (ALT 56 / AST 48) and the referral labs (ALT 82 / AST 68)?</p><span class="q-tags"><span class="q-tag trend">trend</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">3</span><p>Per USPSTF, is he in the screening window for unhealthy alcohol use, and what brief-intervention is recommended at 4–6 drinks/day?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">4</span><p>Should rosuvastatin be paused given the new transaminitis — what's the threshold per guideline?</p><span class="q-tags"><span class="q-tag refusal">safety</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">5</span><p>Per USPSTF, is he due for one-time HCV screening — and does his AUD raise the priority?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">6</span><p>What does the hepatology referral ask for (viral serologies, FibroScan), and is the workup appropriate?</p><span class="q-tags"><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">7</span><p>Per CDC, should he get hepatitis B vaccine given suspected alcohol-related liver injury?</p><span class="q-tags"><span class="q-tag cdc">CDC</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">8</span><p>Is his eGFR 62 (Stage 2 CKD) consistent with continuing lisinopril, or does it warrant dose review?</p><span class="q-tags"><span class="q-tag lab">lab</span><span class="q-tag refer">referral</span></span></div>
+            <div class="question"><span class="q-num">9</span><p>Per USPSTF statin primary-prevention rules, should rosuvastatin 20 mg continue given his age, HTN, and lipid history?</p><span class="q-tags"><span class="q-tag uspstf">USPSTF</span></span></div>
+            <div class="question"><span class="q-num">10</span><p>The intake form notes alcohol "remission" but the referral cites 4–6 drinks/day — how should we reconcile this discrepancy with the patient?</p><span class="q-tags"><span class="q-tag intake">intake</span><span class="q-tag refer">referral</span><span class="q-tag refusal">conflict</span></span></div>
+          </div>
         </div>
       </section>
     </main>
