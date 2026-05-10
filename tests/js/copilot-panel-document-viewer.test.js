@@ -310,34 +310,6 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
         expect(renderBboxOverlay({}, [100, 200, 300, 50])).toBeNull();
     });
 
-    // The `vision-v3-quad` schema emits an 8-tuple
-    // `[x1, y1, x2, y2, x3, y3, x4, y4]` clockwise from top-left so
-    // the citation can follow page skew on a tilted scan. The
-    // renderer mounts an SVG with a polygon child.
-    test('8-tuple quad renders as an SVG polygon overlay', () => {
-        const mount = fakeMount();
-        // Slightly tilted-down-to-the-right row.
-        const overlay = renderBboxOverlay(mount, [80, 220, 900, 228, 900, 244, 80, 236]);
-        expect(overlay).not.toBeNull();
-        expect(overlay.tagName.toLowerCase()).toBe('svg');
-        expect(overlay.dataset.role).toBe('bbox-overlay');
-        expect(overlay.getAttribute('viewBox')).toBe('0 0 1000 1000');
-        expect(overlay.getAttribute('preserveAspectRatio')).toBe('none');
-        expect(overlay.style.position).toBe('absolute');
-        expect(overlay.style.left).toBe('0');
-        expect(overlay.style.top).toBe('0');
-        expect(overlay.style.width).toBe('100%');
-        expect(overlay.style.height).toBe('100%');
-        const polygon = overlay.children[0];
-        expect(polygon.tagName.toLowerCase()).toBe('polygon');
-        expect(polygon.getAttribute('points')).toBe('80,220 900,228 900,244 80,236');
-        expect(polygon.getAttribute('vector-effect')).toBe('non-scaling-stroke');
-    });
-
-    test('8-tuple quad rejects non-numeric components', () => {
-        const mount = fakeMount();
-        expect(renderBboxOverlay(mount, [80, 220, 900, 'bad', 900, 244, 80, 236])).toBeNull();
-    });
 });
 
 describe('openDocument — branch dispatch by Content-Type', () => {

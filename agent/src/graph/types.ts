@@ -304,7 +304,7 @@ export interface RetrieveChartArgs {
  */
 export const DocumentEvidenceArgsSchema = z.object({
     query: z.string().min(1),
-    doc_types: z.array(z.enum(['lab_pdf', 'intake_form'])).min(1).optional(),
+    doc_types: z.array(z.enum(['lab_pdf', 'intake_form', 'referral_letter'])).min(1).optional(),
     lookback_days: z.number().int().min(1).max(3650).default(90),
     top_k: z.number().int().min(1).max(20).default(5),
 });
@@ -815,7 +815,11 @@ export type KickoffExtractionErrorCode = typeof KICKOFF_EXTRACTION_ERROR_CODES[n
  */
 export const KickoffExtractionArgsSchema = z.object({
     document_uuid: z.string().min(1).max(200),
-    doc_type: z.union([z.literal('lab_pdf'), z.literal('intake_form')]),
+    doc_type: z.union([
+        z.literal('lab_pdf'),
+        z.literal('intake_form'),
+        z.literal('referral_letter'),
+    ]),
 });
 
 export type KickoffExtractionArgs = z.infer<typeof KickoffExtractionArgsSchema>;

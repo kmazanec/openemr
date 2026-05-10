@@ -97,12 +97,13 @@ const DEFAULT_CANONICAL_EXT = 'pdf';
 
 const buildResult = (
     args: KickoffExtractionArgs,
+    docType: KickoffExtractionResult['docType'],
     final: PipelineState | null,
 ): KickoffExtractionResult => {
     if (final === null) {
         return {
             documentUuid: args.document_uuid,
-            docType: args.doc_type,
+            docType,
             status: 'failed',
             artifactId: null,
             errorCode: 'pipeline_no_terminal_state',
@@ -112,7 +113,7 @@ const buildResult = (
     if (final.status === 'persisted') {
         return {
             documentUuid: args.document_uuid,
-            docType: args.doc_type,
+            docType,
             status: 'persisted',
             artifactId: final.artifactId,
             errorCode: null,
@@ -128,7 +129,7 @@ const buildResult = (
         firstError?.code ?? 'pipeline_runtime_error';
     return {
         documentUuid: args.document_uuid,
-        docType: args.doc_type,
+        docType,
         status: 'failed',
         artifactId: final.artifactId,
         errorCode,
@@ -171,9 +172,15 @@ export const createKickoffExtraction = (
             });
             const rawUuid = lastDecision?.args?.['document_uuid'];
             const rawDocType = lastDecision?.args?.['doc_type'];
+            const fallbackDocType: KickoffExtractionResult['docType'] =
+                rawDocType === 'intake_form'
+                    ? 'intake_form'
+                    : rawDocType === 'referral_letter'
+                      ? 'referral_letter'
+                      : 'lab_pdf';
             return appendResult(state, {
                 documentUuid: typeof rawUuid === 'string' ? rawUuid : '',
-                docType: rawDocType === 'intake_form' ? 'intake_form' : 'lab_pdf',
+                docType: fallbackDocType,
                 status: 'failed',
                 artifactId: null,
                 errorCode: 'invalid_args',
@@ -206,16 +213,38 @@ export const createKickoffExtraction = (
                 ?? DEFAULT_CANONICAL_EXT,
             ...(deps.conversationId !== undefined ? { conversationId: deps.conversationId } : {}),
         };
+        // The pendingUpload's docType comes from the upload pipeline's
+        // MIME-driven guess (DOCX → referral_letter, PDF → lab_pdf,
+        // image → intake_form). The supervisor LLM occasionally
+        // re-classifies (e.g. picking `intake_form` for a docx because
+        // it sees an "intake-shaped" filename), which sends a docx
+        // through the image-mode pipeline and fails rasterize. Trust
+        // the pipeline's guess over the supervisor's when they disagree.
+        const effectiveDocType =
+            matchingPendingUpload?.docType ?? args.doc_type;
+        if (
+            matchingPendingUpload !== undefined
+            && matchingPendingUpload.docType !== args.doc_type
+        ) {
+            logger.warn(
+                {
+                    documentUuid: args.document_uuid,
+                    supervisorDocType: args.doc_type,
+                    pendingUploadDocType: matchingPendingUpload.docType,
+                },
+                'kickoffExtraction: supervisor docType disagreed with pendingUpload — using pendingUpload',
+            );
+        }
         const initialState = initialPipelineState({
             documentUuid: args.document_uuid,
-            docType: args.doc_type,
+            docType: effectiveDocType,
             pid: state.envelope.patient.pid,
             triggerSource: 'panel',
         });
 
         setRunMetadata({
             kickoff_extraction_event: 'invoke',
-            kickoff_extraction_doc_type: args.doc_type,
+            kickoff_extraction_doc_type: effectiveDocType,
             kickoff_extraction_document_uuid: args.document_uuid,
         });
 
@@ -228,7 +257,7 @@ export const createKickoffExtraction = (
         await emit({
             type: 'pipeline.start',
             documentUuid: args.document_uuid,
-            docType: args.doc_type,
+            docType: effectiveDocType,
             triggerSource: 'panel',
         });
 
@@ -251,7 +280,7 @@ export const createKickoffExtraction = (
             }
         } catch (err: unknown) {
             logger.error(
-                { err, documentUuid: args.document_uuid, docType: args.doc_type },
+                { err, documentUuid: args.document_uuid, docType: effectiveDocType },
                 'kickoffExtraction pipeline run threw — appending failed result',
             );
             await emit({
@@ -264,7 +293,7 @@ export const createKickoffExtraction = (
             });
             return appendResult(state, {
                 documentUuid: args.document_uuid,
-                docType: args.doc_type,
+                docType: effectiveDocType,
                 status: 'failed',
                 artifactId: null,
                 errorCode: 'pipeline_runtime_error',
@@ -272,7 +301,7 @@ export const createKickoffExtraction = (
             });
         }
 
-        const result = buildResult(args, finalState);
+        const result = buildResult(args, effectiveDocType, finalState);
         if (result.status === 'failed') {
             const firstError = finalState?.errors[0];
             await emit({

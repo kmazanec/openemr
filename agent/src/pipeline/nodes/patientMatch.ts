@@ -114,6 +114,13 @@ const buildWarnings = (name: MatchScore, dob: MatchScore): readonly string[] => 
     const warnings: string[] = [];
     if (name === 0.6) warnings.push('name_partial_match');
     if (dob === 0.5) warnings.push('dob_off_by_one_day');
+    // dobScore === 0.0 used to be a hard stop alongside name=0.0 —
+    // we relaxed it to a warning because intake-form / referral DOBs
+    // are commonly transcribed wrong even when the document is for
+    // the right patient. A name match with a wrong DOB still
+    // surfaces the document; the verifier sees the warning token and
+    // the briefing prose flags it for the clinician to reconcile.
+    if (dob === 0.0) warnings.push('dob_mismatch');
     return warnings;
 };
 
@@ -165,27 +172,42 @@ export const patientMatch = async (
     const nameScore = matchName(extractedName, chart.displayName);
     const dobScore = matchDob(extractedDob, chart.dateOfBirth);
 
-    if (nameScore === 0.0 || dobScore === 0.0) {
-        const reasons: string[] = [];
-        if (nameScore === 0.0) reasons.push('name');
-        if (dobScore === 0.0) reasons.push('dob');
-        const mismatchReason = reasons.join('+');
+    // Only a confident NAME mismatch is a hard stop. Confident DOB
+    // mismatches degrade to a warning (`dob_mismatch` in
+    // confidenceSignal.demographicsWarnings) — intake forms and
+    // referral letters in the wild routinely carry transcription
+    // errors on the DOB even when the document is genuinely for the
+    // right patient. The clinician needs to see the document; the
+    // warning surfaces the discrepancy for them to reconcile.
+    if (nameScore === 0.0) {
         deps.logger.warn(
             {
                 documentUuid: state.documentUuid,
                 pid: state.pid,
-                mismatchReason,
+                mismatchReason: 'name',
                 nameScore,
                 dobScore,
                 ...devDiagnostics(extractedName, extractedDob, chart),
             },
-            'patientMatch: confident mismatch — refusing extraction',
+            'patientMatch: confident name mismatch — refusing extraction',
         );
         return fail(state, {
             code: 'patient_mismatch',
             message: 'extracted demographics do not match chart',
-            details: { mismatch_reason: mismatchReason },
+            details: { mismatch_reason: 'name' },
         });
+    }
+    if (dobScore === 0.0) {
+        deps.logger.warn(
+            {
+                documentUuid: state.documentUuid,
+                pid: state.pid,
+                nameScore,
+                dobScore,
+                ...devDiagnostics(extractedName, extractedDob, chart),
+            },
+            'patientMatch: DOB mismatch — surfacing as warning, continuing pipeline',
+        );
     }
 
     const combinedScore = Number(((nameScore + dobScore) / 2).toFixed(5));

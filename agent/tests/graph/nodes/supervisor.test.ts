@@ -183,7 +183,11 @@ describe('createSupervisor (§A.7)', () => {
         ).rejects.toThrow(/query/i);
     });
 
-    it('rejects documentEvidenceRetriever args with empty doc_types (Zod min(1))', async () => {
+    it('drops empty / unknown doc_types instead of crashing the turn', async () => {
+        // Pathological supervisor output: empty doc_types array. We
+        // used to crash on `Zod min(1)`; now we drop the field and
+        // let the schema default take over (= search all known
+        // doctypes), keeping the turn alive.
         const llm = decide({
             handoff: 'documentEvidenceRetriever',
             reason: 'pathological narrowing', narration: 'test narration',
@@ -191,7 +195,9 @@ describe('createSupervisor (§A.7)', () => {
         });
         const supervisor = createSupervisor({ decide: llm });
 
-        await expect(supervisor(baseState())).rejects.toThrow();
+        const out = await supervisor(baseState());
+        expect(out.documentEvidenceArgs?.query).toBe('whatever');
+        expect(out.documentEvidenceArgs?.doc_types).toBeUndefined();
     });
 
     it('§C.3: narrows evidenceRetriever args (with defaults) into the evidenceRetrieverArgs slot', async () => {

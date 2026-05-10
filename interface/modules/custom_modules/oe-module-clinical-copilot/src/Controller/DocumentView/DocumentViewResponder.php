@@ -30,6 +30,15 @@ namespace OpenEMR\Modules\ClinicalCopilot\Controller\DocumentView;
  *     image/x-tiff        → decode via {@see TiffDecoder}, respond
  *                           with `image/png`. Decoder failure → 500
  *                           `tiff_decode_failed`.
+ *   - DOCX (OOXML word
+ *     processing MIME)    → extract plain text via
+ *                           {@see DocxTextExtractor}, respond with
+ *                           `text/plain; charset=utf-8`. Extractor
+ *                           failure → 500 `docx_extract_failed`. The
+ *                           text body is byte-equivalent to what the
+ *                           agent's text-mode extractor produced, so
+ *                           citation `[charStart, charEnd, 0, 0]`
+ *                           bboxes map directly to substrings.
  *   - any other MIME      → respond with the document's recorded MIME
  *                           and bytes; an empty/missing MIME falls
  *                           back to `application/octet-stream`.
@@ -43,8 +52,21 @@ final readonly class DocumentViewResponder
      */
     private const TIFF_MIME_TYPES = ['image/tiff', 'image/x-tiff'];
 
-    public function __construct(private TiffDecoder $tiffDecoder)
-    {
+    /**
+     * OOXML word-processing MIME (DOCX). The legacy alias
+     * `application/msword` only applies to .doc binaries; .docx
+     * archives that some uploaders mislabel as msword are NOT
+     * decoded here — the docx-text extractor needs a real OOXML
+     * package and would fail on a binary .doc anyway.
+     */
+    private const DOCX_MIME_TYPES = [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+
+    public function __construct(
+        private TiffDecoder $tiffDecoder,
+        private DocxTextExtractor $docxTextExtractor = new DocxTextExtractor(),
+    ) {
     }
 
     public function respond(?ResolvedDocument $document, int $sessionPid): DocumentViewResponse
@@ -60,13 +82,24 @@ final readonly class DocumentViewResponder
         }
 
         $mime = $document->mimeType !== '' ? $document->mimeType : 'application/octet-stream';
-        if (in_array(strtolower($mime), self::TIFF_MIME_TYPES, strict: true)) {
+        $mimeLc = strtolower($mime);
+
+        if (in_array($mimeLc, self::TIFF_MIME_TYPES, strict: true)) {
             try {
                 $png = $this->tiffDecoder->decodeToPng($document->bytes);
             } catch (TiffDecodeException) {
                 return DocumentViewResponse::error(500, 'tiff_decode_failed');
             }
             return DocumentViewResponse::ok('image/png', $png);
+        }
+
+        if (in_array($mimeLc, self::DOCX_MIME_TYPES, strict: true)) {
+            try {
+                $text = $this->docxTextExtractor->extract($document->bytes);
+            } catch (DocxParseException) {
+                return DocumentViewResponse::error(500, 'docx_extract_failed');
+            }
+            return DocumentViewResponse::ok('text/plain; charset=utf-8', $text);
         }
 
         return DocumentViewResponse::ok($mime, $document->bytes);

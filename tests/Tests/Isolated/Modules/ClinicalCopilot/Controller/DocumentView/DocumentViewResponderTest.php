@@ -54,6 +54,8 @@ require_once __DIR__
 require_once __DIR__
     . '/../../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/DocumentView/ResolvedDocument.php';
 require_once __DIR__
+    . '/../../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/DocumentView/DocxTextExtractor.php';
+require_once __DIR__
     . '/../../../../../../../interface/modules/custom_modules/oe-module-clinical-copilot/src/Controller/DocumentView/DocumentViewResponder.php';
 
 final class StubTiffDecoder implements TiffDecoder

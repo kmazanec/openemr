@@ -987,6 +987,37 @@ p.copilot-segment--chips-only {
     height: auto;
 }
 
+/* Text-mode (referral letter / DOCX) viewer body. Renders the
+ * extracted plain text as a left-aligned, paragraph-preserving block;
+ * the cited character range is wrapped in a `<mark>` that inherits
+ * the same amber palette as the rectangle / SVG-quad overlays. */
+.copilot-doc-viewer__text {
+    display: block;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 1em 1.25em;
+    text-align: left;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.95em;
+    line-height: 1.55;
+    color: #1c232e;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #fff;
+}
+
+mark.copilot-doc-viewer__bbox {
+    /* Inline-text highlight for the cited character range — same
+     * amber as the rectangle overlay so referral-letter citations
+     * read consistently with image/PDF citations. */
+    background: rgba(255, 217, 102, 0.45);
+    color: inherit;
+    padding: 0.05em 0.1em;
+    border-radius: 2px;
+    box-shadow: 0 0 0 2px rgba(255, 217, 102, 0.18);
+}
+
 .copilot-doc-viewer__bbox {
     /* Translucent overlay marking the cited region. The bbox snap pass
      * (Tesseract OCR alignment) writes the rectangle tight onto the

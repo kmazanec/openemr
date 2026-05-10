@@ -206,7 +206,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'documentEvidenceRetriever',
         description:
-            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms) for THIS patient. ALWAYS pick this immediately after a successful kickoffExtraction so the synthesizer can cite the specific values from the just-processed document — without retrieving, the synthesizer has no per-row data to surface and the briefing will say 'no document snippets returned'. Also pick when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form')[], lookback_days?: number (1..365, default 90), top_k?: number (1..20, default 5) } — top_k MUST be 20 or less; if you want broader coverage, use a more generic query. For the post-kickoff retrieval, set top_k=20 and use a broad query like the patient's chief concern or 'recent values' so the retriever returns the most-relevant snippets from the new artifact.",
+            "Retrieves structured fact snippets (bbox + page + quote + field path) from previously extracted documents (lab PDFs, intake forms, referral letters) for THIS patient. ALWAYS pick this immediately after a successful kickoffExtraction so the synthesizer can cite the specific values from the just-processed document — without retrieving, the synthesizer has no per-row data to surface and the briefing will say 'no document snippets returned'. Also pick when the user's question references something on a recently uploaded document, or when chart-only context isn't enough to answer a question that documents might address. Args: { query: string, doc_types?: ('lab_pdf'|'intake_form'|'referral_letter')[], lookback_days?: number (1..365, default 90), top_k?: number (1..20, default 5) } — top_k MUST be 20 or less; if you want broader coverage, use a more generic query. For the post-kickoff retrieval, set top_k=20 and use a broad query like the patient's chief concern or 'recent values' so the retriever returns the most-relevant snippets from the new artifact.",
     },
     {
         handoff: 'retrieveChart',
@@ -218,7 +218,7 @@ const HANDOFF_MANIFEST: readonly SupervisorHandoffManifestEntry[] = [
     {
         handoff: 'kickoffExtraction',
         description:
-            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on a document the clinician just attached. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' } — both fields MUST be copied verbatim from one of the entries in observation.pendingUploads. Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick FIRST whenever observation.pendingUploads contains an entry whose documentUuid does not yet appear in observation.kickoffExtractionResultsThisTurn — the clinician is waiting to find out what's in the document. Forbidden when no such pending entry exists, or when every pending entry has already been processed this turn. The patient pid is taken from the envelope, not the args. After every successful kickoffExtraction, your NEXT pick MUST be documentEvidenceRetriever to pull the per-row snippets; without that step the synthesizer has no per-field data to surface and the briefing will say 'no document snippets returned'.",
+            "Synchronously runs the document ingestion pipeline (rasterize → vision → schemaValidate → patientMatch → persist → emitDeltas) on a document the clinician just attached. Args: { document_uuid: string, doc_type: 'lab_pdf' | 'intake_form' | 'referral_letter' } — both fields MUST be copied verbatim from one of the entries in observation.pendingUploads (do NOT reclassify the docType the upload pipeline already determined; in particular, DOCX uploads are 'referral_letter' and must stay that way). Pipeline events stream back to the panel during the call; on completion, an artifact summary is appended to state.kickoffExtractionResults. Pick FIRST whenever observation.pendingUploads contains an entry whose documentUuid does not yet appear in observation.kickoffExtractionResultsThisTurn — the clinician is waiting to find out what's in the document. Forbidden when no such pending entry exists, or when every pending entry has already been processed this turn. The patient pid is taken from the envelope, not the args. After every successful kickoffExtraction, your NEXT pick MUST be documentEvidenceRetriever to pull the per-row snippets; without that step the synthesizer has no per-field data to surface and the briefing will say 'no document snippets returned'.",
     },
     {
         handoff: 'synthesize',
@@ -463,6 +463,31 @@ const narrowDocumentEvidenceArgs = (
     if (typeof rawLookback === 'number' && Number.isFinite(rawLookback)) {
         if (rawLookback > 365) merged['lookback_days'] = 365;
         else if (rawLookback < 1) merged['lookback_days'] = 1;
+    }
+    // Drop unknown doc_types entries before parse. The supervisor
+    // sometimes invents a doctype that's not in our enum (especially
+    // when the prompt mentions a new doctype before the schema
+    // catches up); without filtering, an "Invalid option" Zod error
+    // here would crash the entire turn.
+    const knownDocTypes = new Set(['lab_pdf', 'intake_form', 'referral_letter']);
+    const rawDocTypes = merged['doc_types'];
+    if (Array.isArray(rawDocTypes)) {
+        const filtered = rawDocTypes.filter(
+            (v) => typeof v === 'string' && knownDocTypes.has(v),
+        );
+        if (filtered.length !== rawDocTypes.length) {
+            logger.warn(
+                { rawDocTypes, filtered },
+                'supervisor: documentEvidenceRetriever received unknown doc_types — dropping unknowns',
+            );
+        }
+        if (filtered.length === 0) {
+            // An empty array would fail `.min(1)`. Treat as if the
+            // supervisor omitted the field entirely.
+            delete merged['doc_types'];
+        } else {
+            merged['doc_types'] = filtered;
+        }
     }
     return DocumentEvidenceArgsSchema.parse(merged);
 };

@@ -73,6 +73,7 @@ const __copilotDocumentViewer = (function () {
     const PDF_MIME = 'application/pdf';
     const IMAGE_MIMES = new Set(['image/png', 'image/jpeg']);
     const TIFF_MIME = 'image/tiff';
+    const TEXT_MIME = 'text/plain';
 
     /**
      * Classify a MIME (case-insensitive, whitespace-trimmed, attribute
@@ -80,6 +81,13 @@ const __copilotDocumentViewer = (function () {
      * rasterizer sometimes ships content types like "application/pdf;
      * charset=binary" through Spaces; we want those to land on the PDF
      * branch, not the unsupported branch.
+     *
+     * `text/plain` is the server-side `DocumentViewResponder`'s
+     * representation of an extracted DOCX (referral letter): the agent
+     * stores `[charStart, charEnd, 0, 0]` character-offset bboxes
+     * against the same plain-text body the server returns here, so the
+     * viewer renders the text in a `<pre>` block and highlights the
+     * cited character range.
      */
     const classifyMime = (mime) => {
         if (typeof mime !== 'string') return 'unsupported';
@@ -87,6 +95,7 @@ const __copilotDocumentViewer = (function () {
         if (normalized === PDF_MIME) return 'pdf';
         if (IMAGE_MIMES.has(normalized)) return 'image';
         if (normalized === TIFF_MIME) return 'tiff';
+        if (normalized === TEXT_MIME) return 'text';
         return 'unsupported';
     };
 
@@ -323,6 +332,62 @@ const __copilotDocumentViewer = (function () {
     };
 
     /**
+     * Render a docx referral letter as text with a character-range
+     * highlight. The server returns the same plain text the agent's
+     * docx text extractor produced; bboxes for this doctype are
+     * `[charStart, charEnd, 0, 0]` where the first two ints are
+     * character offsets into that text. We render the body in a
+     * `<pre>`-like wrapper (preserving paragraph breaks) and wrap
+     * the cited substring in a highlighted `<mark>` so it scrolls
+     * into view the same way the image / PDF branches do.
+     */
+    const renderText = async (mountEl, fetchedBlob, bbox) => {
+        clearChildren(mountEl);
+        const fullText = await fetchedBlob.text();
+        const wrapper = mountEl.ownerDocument.createElement('div');
+        wrapper.className = 'copilot-doc-viewer__page copilot-doc-viewer__text';
+        wrapper.dataset.role = 'viewer-page';
+
+        // Pull `[charStart, charEnd, 0, 0]` if it parses as a 4-tuple
+        // with the trailing pair zeroed. Otherwise fall back to no
+        // highlight (still mount the text — the clinician can scroll).
+        let charStart = -1;
+        let charEnd = -1;
+        if (
+            Array.isArray(bbox)
+            && bbox.length === 4
+            && bbox.every((n) => typeof n === 'number' && Number.isFinite(n))
+            && bbox[2] === 0 && bbox[3] === 0
+            && bbox[0] >= 0 && bbox[1] > bbox[0]
+        ) {
+            charStart = Math.min(bbox[0], fullText.length);
+            charEnd = Math.min(bbox[1], fullText.length);
+        }
+
+        if (charStart >= 0 && charEnd > charStart) {
+            const before = fullText.slice(0, charStart);
+            const cited = fullText.slice(charStart, charEnd);
+            const after = fullText.slice(charEnd);
+            const beforeNode = mountEl.ownerDocument.createTextNode(before);
+            const mark = mountEl.ownerDocument.createElement('mark');
+            mark.className = 'copilot-doc-viewer__bbox';
+            mark.dataset.role = 'bbox-overlay';
+            mark.textContent = cited;
+            const afterNode = mountEl.ownerDocument.createTextNode(after);
+            wrapper.appendChild(beforeNode);
+            wrapper.appendChild(mark);
+            wrapper.appendChild(afterNode);
+            mountEl.appendChild(wrapper);
+            mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } else {
+            wrapper.textContent = fullText;
+            mountEl.appendChild(wrapper);
+            wrapper.scrollIntoView({ block: 'start' });
+        }
+        return wrapper;
+    };
+
+    /**
      * The single public entry point. Fetches the document, branches on
      * Content-Type, and mounts the result inside `mountEl`. `fetcher`
      * defaults to `globalThis.fetch`; tests inject a stub. Returns a
@@ -376,6 +441,10 @@ const __copilotDocumentViewer = (function () {
         if (branch === 'image') {
             const mountedEl = await renderImage(mountEl, blob, bbox);
             return { branch: 'image', mountedEl };
+        }
+        if (branch === 'text') {
+            const mountedEl = await renderText(mountEl, blob, bbox);
+            return { branch: 'text', mountedEl };
         }
         return {
             branch: 'unsupported',

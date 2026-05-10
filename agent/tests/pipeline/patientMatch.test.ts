@@ -155,15 +155,20 @@ describe('patientMatch node', () => {
         expect(result.confidenceSignal).toBeUndefined();
     });
 
-    it('different DOB year — DOB 0.0 → status="failed/patient_mismatch" with dob in mismatch_reason', async () => {
+    it('different DOB year — DOB 0.0 surfaces as warning but does not fail the pipeline', async () => {
+        // DOB transcription errors are common on intake/referral
+        // documents; the gate degrades to a `dob_mismatch` warning
+        // instead of refusing the extraction. Name still has to
+        // match for the document to flow.
         const result = await patientMatch(
             baseState({ schema: labExtraction({ dob: '1980-08-14' }) }),
             { logger: noopLogger, fetchChartDemographics: fetchChenContext() },
         );
 
-        expect(result.status).toBe('failed');
-        expect(result.errors?.[0]?.code).toBe('patient_mismatch');
-        expect(String(result.errors?.[0]?.details?.['mismatch_reason'])).toContain('dob');
+        expect(result.status).toBe('matched');
+        const signal = result.confidenceSignal!;
+        expect(signal.demographicsWarnings).toContain('dob_mismatch');
+        expect(signal.patientMatchPartial).toBe(true);
     });
 
     it('partial name (surname + initial) + exact DOB → status="matched", partial flag true', async () => {
@@ -225,7 +230,7 @@ describe('patientMatch node', () => {
         expect(result.errors?.[0]?.code).toBe('patient_mismatch');
     });
 
-    it('chart demographics missing DOB → DOB axis 0.0 → refuse', async () => {
+    it('chart demographics missing DOB → DOB axis 0.0 surfaces as warning, name match still flows', async () => {
         const fetch: PatientMatchDeps['fetchChartDemographics'] = vi.fn(() =>
             Promise.resolve({
                 ...chartChen,
@@ -239,8 +244,8 @@ describe('patientMatch node', () => {
             fetchChartDemographics: fetch,
         });
 
-        expect(result.status).toBe('failed');
-        expect(result.errors?.[0]?.code).toBe('patient_mismatch');
+        expect(result.status).toBe('matched');
+        expect(result.confidenceSignal?.demographicsWarnings).toContain('dob_mismatch');
     });
 
     it('intake_form schema is dispatched the same as lab_pdf', async () => {
