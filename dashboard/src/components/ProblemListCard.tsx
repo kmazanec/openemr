@@ -13,8 +13,14 @@ export interface ProblemListCardProps {
 }
 
 export function ProblemListCard({ pid, fetchFn }: ProblemListCardProps): ReactElement {
+  // The FHIR layer doesn't register `category` as a search parameter
+  // for Condition — passing it makes the search throw a
+  // SearchFieldException and the bundle comes back empty. Fetch
+  // unfiltered; the body filters down to active problems below so
+  // promoted entries (which the agent writes with type='medical_
+  // problem' and no enddate) surface alongside legacy ones.
   const { data, error, loading, retry } = useFhirRequest<Bundle<Condition>>(
-    `Condition?patient=${pid}&category=problem-list-item`,
+    `Condition?patient=${pid}`,
   );
   const [editing, setEditing] = useState<Condition | null>(null);
   const [adding, setAdding] = useState<boolean>(false);

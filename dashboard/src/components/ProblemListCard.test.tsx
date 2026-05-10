@@ -72,15 +72,17 @@ const conditions: Bundle<Condition> = {
 };
 
 describe('ProblemListCard', () => {
-  it('queries Condition with the problem-list-item category for the patient', async () => {
+  it('queries Condition unfiltered for the patient (active narrowing happens client-side)', async () => {
     const { ProblemListCard } = await import('./ProblemListCard');
     const client = clientReturning({ resourceType: 'Bundle', type: 'searchset', entry: [] });
 
     await renderWithClient(client, <ProblemListCard pid="42" />);
 
-    expect(client.request).toHaveBeenCalledWith(
-      'Condition?patient=42&category=problem-list-item',
-    );
+    // The FHIR layer doesn't register `category` as a search
+    // parameter for Condition, so passing it would make the search
+    // throw and return an empty bundle silently. Fetching unfiltered
+    // avoids that; the body filters to active conditions in JS.
+    expect(client.request).toHaveBeenCalledWith('Condition?patient=42');
   });
 
   it('only renders active conditions (filters out resolved)', async () => {

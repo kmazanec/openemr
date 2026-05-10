@@ -10,6 +10,7 @@ use OpenEMR\FHIR\R4\FHIRElement\FHIRCoding;
 use OpenEMR\FHIR\R4\FHIRElement\FHIRId;
 use OpenEMR\FHIR\R4\FHIRElement\FHIRMeta;
 use OpenEMR\FHIR\R4\FHIRElement\FHIRReference;
+use OpenEMR\FHIR\R4\FHIRElement\FHIRString;
 use OpenEMR\FHIR\R4\FHIRResource\FHIRAllergyIntolerance\FHIRAllergyIntoleranceReaction;
 use OpenEMR\Services\AllergyIntoleranceService;
 use OpenEMR\Services\FHIR\FhirServiceBase;
@@ -169,8 +170,9 @@ class FhirAllergyIntoleranceService extends FhirServiceBase implements IResource
         if (!empty($dataRecord['reaction']) && $dataRecord['reaction'] !== 'unassigned') {
             $reaction = new FHIRAllergyIntoleranceReaction();
             $reactionConcept = new FHIRCodeableConcept();
-            $conceptText = $dataRecord['reaction_title'] ?? "";
-            $reactionConcept->setText($conceptText);
+            $rawReactionTitle = $dataRecord['reaction_title'] ?? '';
+            $conceptText = is_string($rawReactionTitle) ? $rawReactionTitle : '';
+            $reactionConcept->setText(new FHIRString($conceptText));
 
             foreach ($dataRecord['reaction'] as $code => $codeValues) {
                 $reactionCoding = new FHIRCoding();
@@ -214,10 +216,30 @@ class FhirAllergyIntoleranceService extends FhirServiceBase implements IResource
             }
             $allergyIntoleranceResource->setCode($diagnosisCode);
         } else {
-            $allergyIntoleranceResource->setCode(UtilsService::createDataAbsentUnknownCodeableConcept());
+            // No coded `diagnosis` value — fall back to the
+            // free-text `lists.title`. The agent's promote pipeline
+            // and the legacy edit form both write the substance into
+            // `lists.title` (with `lists.diagnosis` left empty), so
+            // the previous "data-absent unknown" stub made every
+            // promoted allergy render as "Unknown" in any consumer
+            // that reads `code.text` (the new dashboard's
+            // AllergiesCard does exactly that). Surface the title as
+            // the codeable concept's text instead so the resource
+            // still validates against US Core (which only requires
+            // `code.text` when no coding is supplied).
+            $rawTitle = $dataRecord['title'] ?? null;
+            $title = is_string($rawTitle) ? trim($rawTitle) : '';
+            if ($title !== '') {
+                $codeableConcept = new FHIRCodeableConcept();
+                $codeableConcept->setText(new FHIRString($title));
+                $allergyIntoleranceResource->setCode($codeableConcept);
+            } else {
+                $allergyIntoleranceResource->setCode(UtilsService::createDataAbsentUnknownCodeableConcept());
+            }
         }
-        // we don't have title anywhere else so we mark it as an additional narrative.  If we don't have an actual code
-        // this becomes very helpful.
+        // Keep the additional narrative in sync with the title even
+        // when we put it into `code.text` above; the `text.div`
+        // narrative is what some legacy renderers display.
         $allergyIntoleranceResource->setText(UtilsService::createNarrative($dataRecord['title'], "additional"));
 
         $verificationStatus = new FHIRCodeableConcept();

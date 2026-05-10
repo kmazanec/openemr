@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type {
   Bundle,
   BundleEntry,
@@ -7,28 +7,51 @@ import type {
 } from '@medplum/fhirtypes';
 import { Card } from './Card';
 import { useFhirRequest } from '../lib/useFhirRequest';
+import { CareTeamEditModal } from './CareTeamEditModal';
 
 export interface CareTeamCardProps {
   pid: string;
+  fetchFn?: typeof fetch;
 }
 
 // Uses _include=CareTeam:participant to resolve practitioner displays
 // in a single round-trip when the FHIR server supports it. Falls back
 // to whatever member.display the server already returned otherwise.
-export function CareTeamCard({ pid }: CareTeamCardProps): ReactElement {
+export function CareTeamCard({ pid, fetchFn }: CareTeamCardProps): ReactElement {
   const { data, error, loading, retry } = useFhirRequest<Bundle<CareTeam>>(
     `CareTeam?patient=${pid}&status=active&_include=CareTeam:participant`,
   );
+  const [adding, setAdding] = useState<boolean>(false);
+
+  const firstTeam = (data?.entry ?? [])
+    .map((e: BundleEntry<CareTeam>) => e.resource)
+    .filter((r): r is CareTeam => r !== undefined && r.resourceType === 'CareTeam')[0] ?? null;
 
   return (
-    <Card
-      title="Care Team"
-      loading={loading && data === undefined}
-      error={data === undefined ? error : null}
-      onRetry={retry}
-    >
-      <CareTeamBody bundle={data} />
-    </Card>
+    <>
+      <Card
+        title="Care Team"
+        editLabel="Add member"
+        onEditClick={() => setAdding(true)}
+        loading={loading && data === undefined}
+        error={data === undefined ? error : null}
+        onRetry={retry}
+      >
+        <CareTeamBody bundle={data} />
+      </Card>
+      {adding && (
+        <CareTeamEditModal
+          puuid={pid}
+          existingTeam={firstTeam}
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false);
+            retry();
+          }}
+          {...(fetchFn !== undefined ? { fetchFn } : {})}
+        />
+      )}
+    </>
   );
 }
 

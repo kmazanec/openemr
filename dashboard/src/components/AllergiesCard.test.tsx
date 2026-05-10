@@ -83,15 +83,17 @@ const multipleAllergiesWithMissingFields: Bundle = {
 };
 
 describe('AllergiesCard', () => {
-  it('queries AllergyIntolerance for the active patient with clinical-status=active', async () => {
+  it('queries AllergyIntolerance for the active patient (unfiltered; active narrowing happens client-side)', async () => {
     const { AllergiesCard } = await import('./AllergiesCard');
     const client = clientReturning(emptyBundle);
 
     await renderWithClient(client, <AllergiesCard pid="42" />);
 
-    expect(client.request).toHaveBeenCalledWith(
-      'AllergyIntolerance?patient=42&clinical-status=active',
-    );
+    // The FHIR layer doesn't register `clinical-status` as a search
+    // parameter, so passing it would make the search throw and
+    // return an empty bundle silently. Fetching unfiltered avoids
+    // that, and the body filters to active rows in JS.
+    expect(client.request).toHaveBeenCalledWith('AllergyIntolerance?patient=42');
   });
 
   it('renders an empty state when there are no allergies', async () => {

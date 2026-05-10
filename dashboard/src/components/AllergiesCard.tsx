@@ -12,8 +12,14 @@ export interface AllergiesCardProps {
 }
 
 export function AllergiesCard({ pid, fetchFn }: AllergiesCardProps): ReactElement {
+  // The FHIR layer doesn't register `clinical-status` as a search
+  // parameter for AllergyIntolerance — passing it makes the search
+  // throw a SearchFieldException and the bundle comes back empty
+  // (silently). We fetch unfiltered and narrow to active rows below
+  // so promoted entries (which the agent writes with no enddate)
+  // surface alongside legacy ones.
   const { data, error, loading, retry } = useFhirRequest<Bundle<AllergyIntolerance>>(
-    `AllergyIntolerance?patient=${pid}&clinical-status=active`,
+    `AllergyIntolerance?patient=${pid}`,
   );
   const [editing, setEditing] = useState<AllergyIntolerance | null>(null);
   const [adding, setAdding] = useState<boolean>(false);
@@ -61,7 +67,8 @@ function AllergiesBody({
   const entries = bundle?.entry ?? [];
   const allergies = entries
     .map((e: BundleEntry<AllergyIntolerance>) => e.resource)
-    .filter((r): r is AllergyIntolerance => r !== undefined);
+    .filter((r): r is AllergyIntolerance => r !== undefined)
+    .filter((a) => isActiveAllergy(a));
 
   if (allergies.length === 0) {
     return (
@@ -108,6 +115,15 @@ function AllergiesBody({
       </table>
     </div>
   );
+}
+
+function isActiveAllergy(a: AllergyIntolerance): boolean {
+  // The FHIR mapper sets clinicalStatus.code = 'active' when the
+  // underlying lists row has no enddate. Resolved/inactive rows are
+  // still useful in some surfaces, but the dashboard card mirrors
+  // the legacy "Allergies" panel which shows active only.
+  const code = a.clinicalStatus?.coding?.[0]?.code;
+  return code === undefined || code === 'active';
 }
 
 function allergenOf(a: AllergyIntolerance): string {
