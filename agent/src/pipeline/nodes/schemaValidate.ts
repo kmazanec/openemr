@@ -67,7 +67,10 @@ const hasValidBboxAndPage = (field: Record<string, unknown>): boolean => {
     const bbox = field['bbox'];
     const page = field['page'];
     if (typeof page !== 'number' || !Number.isInteger(page) || page <= 0) return false;
-    if (!Array.isArray(bbox) || bbox.length !== 4) return false;
+    // 4-tuple = legacy axis-aligned `[x,y,w,h]` (referralLetter docx
+    // character offsets still use this shape); 8-tuple = the
+    // `vision-v3-quad` row-spanning quad `[x1,y1,x2,y2,x3,y3,x4,y4]`.
+    if (!Array.isArray(bbox) || (bbox.length !== 4 && bbox.length !== 8)) return false;
     return bbox.every((n) => typeof n === 'number' && Number.isFinite(n));
 };
 

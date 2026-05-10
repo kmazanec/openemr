@@ -84,7 +84,7 @@ describe('verification', () => {
         const honestRef = extractedDocRef(realSnippet, 'HbA1c 6.4');
         const fabricatedRef = {
             ...honestRef,
-            locator: { ...honestRef.locator, bbox: [0, 0, 50, 50] as const },
+            locator: { ...honestRef.locator, bbox: [0, 0, 50, 0, 50, 50, 0, 50] as const },
         };
         const claim: Claim = {
             id: 'cl-1',
@@ -154,7 +154,7 @@ describe('verification', () => {
             fieldPath: 'allergies.0',
             value: 'penicillin',
             page: 2,
-            bbox: [50, 300, 250, 320],
+            bbox: [50, 300, 300, 300, 300, 620, 50, 620],
             quote: 'Allergies: penicillin (rash)',
             confidence: 0.55,
         });

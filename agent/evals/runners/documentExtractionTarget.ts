@@ -238,26 +238,39 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
     const cited = (value: string, conf = 0.95) => ({
         value,
         page: 1,
-        bbox: [0, 0, 1, 1] as const,
+        bbox: [0, 0, 1, 0, 1, 1, 0, 1] as const,
         quote: value,
         confidence: conf,
     });
 
     if (entry.docType === 'referral_letter') {
+        // Referral letters use the docx character-offset bbox shape
+        // (`[charStart, charEnd, 0, 0]`) — 4-tuple, NOT the 8-tuple
+        // quad the lab/intake schemas adopted in `vision-v3-quad`.
+        // Stub the cited-field shape locally so the `cited()` factory
+        // (which emits 8-tuples for the lab/intake path) doesn't apply
+        // here.
+        const docxCited = (value: string, charStart = 0, charEnd = 1) => ({
+            value,
+            page: 1,
+            bbox: [charStart, charEnd, 0, 0] as const,
+            quote: value,
+            confidence: 0.95,
+        });
         return {
             sender_provider: {
-                name: cited('Helen Park, MD'),
-                npi: cited('1618829315'),
+                name: docxCited('Helen Park, MD'),
+                npi: docxCited('1618829315'),
             },
             recipient_provider: {
-                name: cited('Jonathan Liu, MD'),
-                npi: cited('1748392758'),
+                name: docxCited('Jonathan Liu, MD'),
+                npi: docxCited('1748392758'),
             },
             patient_identifiers: {
-                name: cited(demo.displayName),
-                dob: cited(demo.dateOfBirth ?? '1900-01-01'),
+                name: docxCited(demo.displayName),
+                dob: docxCited(demo.dateOfBirth ?? '1900-01-01'),
             },
-            reason_for_referral: cited(
+            reason_for_referral: docxCited(
                 'Evaluation of statin-refractory hyperlipidemia',
             ),
             past_medical_history: [
@@ -265,7 +278,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                     condition: 'Hyperlipidemia',
                     icd10: 'E78.5',
                     page: 1,
-                    bbox: [0, 0, 1, 1] as const,
+                    bbox: [0, 1, 0, 0] as const,
                     quote: 'Hyperlipidemia (E78.5)',
                     confidence: 0.92,
                 },
@@ -277,7 +290,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                     route: 'PO',
                     frequency: 'daily',
                     page: 1,
-                    bbox: [0, 0, 1, 1] as const,
+                    bbox: [0, 1, 0, 0] as const,
                     quote: 'atorvastatin 40 mg PO daily',
                     confidence: 0.92,
                 },
@@ -290,7 +303,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                     unit: 'mg/dL',
                     abnormal_flag: 'high',
                     page: 1,
-                    bbox: [0, 0, 1, 1] as const,
+                    bbox: [0, 1, 0, 0] as const,
                     quote: 'LDL-C: 142 mg/dL',
                     confidence: 0.93,
                 },
@@ -307,7 +320,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                 unit: '%',
                 collection_date: '2026-04-30',
                 page: 1,
-                bbox: [0, 0, 1, 1] as const,
+                bbox: [0, 0, 1, 0, 1, 1, 0, 1] as const,
                 quote: '7.2',
                 confidence: 0.95,
             },
@@ -317,7 +330,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                 unit: 'mg/dL',
                 collection_date: '2026-04-30',
                 page: 1,
-                bbox: [0, 0, 1, 1] as const,
+                bbox: [0, 0, 1, 0, 1, 1, 0, 1] as const,
                 quote: '210',
                 confidence: 0.92,
             },
@@ -329,7 +342,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                 unit: 'mg/dL',
                 collection_date: '2026-04-30',
                 page: 1,
-                bbox: [0, 0, 1, 1] as const,
+                bbox: [0, 0, 1, 0, 1, 1, 0, 1] as const,
                 quote: '140',
                 confidence: 0.9,
             },
@@ -339,7 +352,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
                 unit: 'mg/dL',
                 collection_date: '2026-04-30',
                 page: 1,
-                bbox: [0, 0, 1, 1] as const,
+                bbox: [0, 0, 1, 0, 1, 1, 0, 1] as const,
                 quote: '45',
                 confidence: 0.9,
             },
@@ -358,7 +371,7 @@ export const buildStubExtraction = (entry: ManifestEntry): unknown => {
             ordering_provider: {
                 name: 'Dr. Patel',
                 page: 1,
-                bbox: [0, 0, 1, 1] as const,
+                bbox: [0, 0, 1, 0, 1, 1, 0, 1] as const,
                 quote: 'Dr. Patel',
                 confidence: 0.88,
             },
@@ -604,7 +617,15 @@ export const runDocumentExtractionCase = async (
                 typeof obj['confidence'] === 'number' &&
                 typeof obj['page'] === 'number'
             ) {
-                if (!Array.isArray(obj['bbox']) || obj['bbox'].length !== 4) {
+                if (
+                    !Array.isArray(obj['bbox']) ||
+                    (obj['bbox'].length !== 4 && obj['bbox'].length !== 8)
+                ) {
+                    // 4-tuple = legacy axis-aligned (`vision-v1/v2`,
+                    // and the referral-letter docx character-offset
+                    // shape); 8-tuple = `vision-v3-quad`. Either is
+                    // accepted here; downstream renderers branch on
+                    // `length`.
                     hasCitations = false;
                 }
             }

@@ -414,7 +414,15 @@ export interface ExtractedFactSnippet {
     readonly fieldPath: string;
     readonly value: unknown;
     readonly page: number;
-    readonly bbox: readonly [number, number, number, number];
+    /**
+     * Quad of 4 corner points (top-left, top-right, bottom-right,
+     * bottom-left) flattened to 8 ints on the 0..1000 grid. Spans
+     * the entire row of the cited field, following page skew.
+     * For referral-letter (DOCX) extractions the shape collapses to
+     * a 4-tuple `[charStart, charEnd, 0, 0]` per the docx schema —
+     * downstream renderers branch on `length === 8` vs `=== 4`.
+     */
+    readonly bbox: readonly number[];
     readonly quote: string;
     readonly confidence?: number;
     readonly extractorVersion: string;

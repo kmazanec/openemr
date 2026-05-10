@@ -77,9 +77,9 @@ const chenChart = (): ChartSnapshot => ({
 
 const labSchemaForChen = (): unknown => ({
     patient_demographics: {
-        name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 1, 1], quote: 'CHEN', confidence: 0.99 },
-        dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 1], quote: '1967-08-14', confidence: 0.99 },
-        sex: { value: 'female', page: 1, bbox: [0, 0, 1, 1], quote: 'F', confidence: 0.99 },
+        name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'CHEN', confidence: 0.99 },
+        dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: '1967-08-14', confidence: 0.99 },
+        sex: { value: 'female', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'F', confidence: 0.99 },
     },
     results: [
         {
@@ -88,7 +88,7 @@ const labSchemaForChen = (): unknown => ({
             unit: '%',
             collection_date: '2026-04-30',
             page: 1,
-            bbox: [0, 0, 1, 1],
+            bbox: [0, 0, 1, 0, 1, 1, 0, 1],
             quote: '7.2',
             confidence: 0.95,
         },
@@ -96,7 +96,7 @@ const labSchemaForChen = (): unknown => ({
     ordering_provider: {
         name: 'Dr. Patel',
         page: 1,
-        bbox: [0, 0, 1, 1],
+        bbox: [0, 0, 1, 0, 1, 1, 0, 1],
         quote: 'Patel',
         confidence: 0.9,
     },

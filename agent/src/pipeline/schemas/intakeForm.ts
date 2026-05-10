@@ -18,11 +18,25 @@
 
 import { z } from 'zod';
 
+/**
+ * Citation quad — 4 corner points (top-left, top-right, bottom-right,
+ * bottom-left) flattened to 8 ints on the 0..1000 grid. The quad
+ * spans the entire row of the cited field, following the row's angle
+ * on the page so a tilted scan still gets a tight outline. The flat
+ * 8-tuple shape (over a nested `[[x,y]×4]`) keeps the wire format a
+ * primitive array — the renderer can discriminate from the 4-tuple
+ * legacy `[x,y,w,h]` shape by `length === 8` without parsing nested
+ * arrays.
+ */
 const bboxSchema = z.tuple([
-    z.number().int().min(0).max(1000),
-    z.number().int().min(0).max(1000),
-    z.number().int().min(0).max(1000),
-    z.number().int().min(0).max(1000),
+    z.number().int().min(0).max(1000), // x1 — top-left
+    z.number().int().min(0).max(1000), // y1
+    z.number().int().min(0).max(1000), // x2 — top-right
+    z.number().int().min(0).max(1000), // y2
+    z.number().int().min(0).max(1000), // x3 — bottom-right
+    z.number().int().min(0).max(1000), // y3
+    z.number().int().min(0).max(1000), // x4 — bottom-left
+    z.number().int().min(0).max(1000), // y4
 ]);
 
 const citedField = <T extends z.ZodTypeAny>(value: T) =>

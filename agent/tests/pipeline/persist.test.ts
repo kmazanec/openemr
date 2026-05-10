@@ -39,9 +39,9 @@ const noopLogger = pino({ level: 'silent' });
 
 const labSchemaFixture = (): unknown => ({
     patient_demographics: {
-        name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 10, 10], quote: 'CHEN', confidence: 0.99 },
-        dob: { value: '1967-08-14', page: 1, bbox: [0, 10, 10, 20], quote: '1967-08-14', confidence: 0.99 },
-        sex: { value: 'female', page: 1, bbox: [0, 20, 10, 30], quote: 'F', confidence: 0.99 },
+        name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 10, 0, 10, 10, 0, 10], quote: 'CHEN', confidence: 0.99 },
+        dob: { value: '1967-08-14', page: 1, bbox: [0, 10, 10, 10, 10, 30, 0, 30], quote: '1967-08-14', confidence: 0.99 },
+        sex: { value: 'female', page: 1, bbox: [0, 20, 10, 20, 10, 50, 0, 50], quote: 'F', confidence: 0.99 },
     },
     results: [
         {
@@ -50,7 +50,7 @@ const labSchemaFixture = (): unknown => ({
             unit: '%',
             collection_date: '2026-04-30',
             page: 1,
-            bbox: [0, 30, 10, 40],
+            bbox: [0, 30, 10, 30, 10, 70, 0, 70],
             quote: '7.2',
             confidence: 0.95,
         },
@@ -58,7 +58,7 @@ const labSchemaFixture = (): unknown => ({
     ordering_provider: {
         name: 'Dr. Patel',
         page: 1,
-        bbox: [0, 40, 10, 50],
+        bbox: [0, 40, 10, 40, 10, 90, 0, 90],
         quote: 'Patel',
         confidence: 0.9,
     },

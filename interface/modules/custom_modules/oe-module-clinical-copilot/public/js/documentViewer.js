@@ -152,9 +152,55 @@ const __copilotDocumentViewer = (function () {
         return x + w <= BBOX_GRID && y + h <= BBOX_GRID;
     };
 
+    /**
+     * Render an 8-tuple quad bbox as an SVG polygon overlay. The
+     * `vision-v3-quad` schema emits `[x1, y1, x2, y2, x3, y3, x4, y4]`
+     * on the 0..1000 grid in clockwise order from top-left, allowing
+     * the citation to follow the row's actual angle on a tilted scan
+     * instead of being clamped to an axis-aligned rect. SVG with
+     * percentage-based viewBox (`0 0 1000 1000`) and `preserveAspectRatio="none"`
+     * stretches the quad to whatever pixel size the page is rendered
+     * at, matching the percentage-CSS strategy the rectangle path
+     * uses.
+     */
+    const renderQuadOverlay = (pageEl, bbox) => {
+        const [x1, y1, x2, y2, x3, y3, x4, y4] = bbox;
+        if (![x1, y1, x2, y2, x3, y3, x4, y4].every((n) => typeof n === 'number' && Number.isFinite(n))) {
+            return null;
+        }
+        const svg = pageEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', `0 0 ${BBOX_GRID} ${BBOX_GRID}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('class', 'copilot-doc-viewer__bbox');
+        svg.dataset.role = 'bbox-overlay';
+        svg.style.position = 'absolute';
+        svg.style.left = '0';
+        svg.style.top = '0';
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        svg.style.pointerEvents = 'none';
+        const polygon = pageEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygon.setAttribute('points', `${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`);
+        // Rendered with vector-effect so the stroke width stays
+        // consistent regardless of how aggressively the SVG is
+        // scaled to the page image.
+        polygon.setAttribute('vector-effect', 'non-scaling-stroke');
+        svg.appendChild(polygon);
+        return svg;
+    };
+
     const renderBboxOverlay = (pageEl, bbox) => {
         if (!(pageEl instanceof HTMLElement)) return null;
-        if (!Array.isArray(bbox) || bbox.length !== 4) return null;
+        if (!Array.isArray(bbox)) return null;
+        // 8-tuple = `vision-v3-quad` row-spanning quad, follows page
+        // skew. Renders as an SVG polygon overlay.
+        if (bbox.length === 8) {
+            return renderQuadOverlay(pageEl, bbox);
+        }
+        // 4-tuple = legacy axis-aligned `[x, y, w, h]` (vision-v1/v2,
+        // and the referralLetter docx character-offset shape). Renders
+        // as a CSS-percent rectangle.
+        if (bbox.length !== 4) return null;
         const [x, y, w, h] = bbox;
         if (![x, y, w, h].every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
         const overlay = pageEl.ownerDocument.createElement('div');

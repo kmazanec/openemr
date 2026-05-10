@@ -31,7 +31,7 @@ use DomainException;
  *     reaction?: ?string,
  *     severity?: ?string,
  *     page: int,
- *     bbox: array{float|int, float|int, float|int, float|int},
+ *     bbox: list<float|int>,
  *     quote: string,
  *     confidence: float
  * }
@@ -43,7 +43,7 @@ use DomainException;
  *     route?: ?string,
  *     notes?: ?string,
  *     page: int,
- *     bbox: array{float|int, float|int, float|int, float|int},
+ *     bbox: list<float|int>,
  *     quote: string,
  *     confidence: float
  * }
@@ -53,7 +53,7 @@ use DomainException;
  *     onset_year?: ?string,
  *     notes?: ?string,
  *     page: int,
- *     bbox: array{float|int, float|int, float|int, float|int},
+ *     bbox: list<float|int>,
  *     quote: string,
  *     confidence: float
  * }
@@ -63,7 +63,7 @@ use DomainException;
  *     condition: string,
  *     notes?: ?string,
  *     page: int,
- *     bbox: array{float|int, float|int, float|int, float|int},
+ *     bbox: list<float|int>,
  *     quote: string,
  *     confidence: float
  * }

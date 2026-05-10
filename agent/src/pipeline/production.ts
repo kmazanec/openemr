@@ -115,12 +115,27 @@ export const buildProductionPipelineRunner = (deps: ProductionPipelineDeps): Pip
                 vision: {
                     invoker: deps.visionInvoker,
                     logger: deps.logger,
-                    bboxSnapper:
-                        deps.bboxSnapper ??
-                        createBboxSnapper({
-                            fetchBytes: defaultFetchPageBytes,
-                            logger: deps.logger,
-                        }),
+                    // Bbox-snap pass is opt-in via AGENT_BBOX_SNAP=1.
+                    // The pass aligns the model's bbox tuple to OCR'd
+                    // text positions on the rasterized page. Default
+                    // OFF because (a) the new schema is a quadrilateral
+                    // (`vision-v3-quad`) that follows page skew, and
+                    // Tesseract returns axis-aligned word boxes that
+                    // can't represent rotated quads; (b) the model is
+                    // now prompted to emit row-spanning quads directly.
+                    // Kept wired (rather than removed) so we can flip
+                    // it back on in dev/eval to A/B against snap-then-
+                    // expand strategies without re-architecting.
+                    ...(process.env['AGENT_BBOX_SNAP'] === '1'
+                        ? {
+                              bboxSnapper:
+                                  deps.bboxSnapper ??
+                                  createBboxSnapper({
+                                      fetchBytes: defaultFetchPageBytes,
+                                      logger: deps.logger,
+                                  }),
+                          }
+                        : {}),
                 },
                 schemaValidate: { logger: deps.logger },
                 patientMatch: {

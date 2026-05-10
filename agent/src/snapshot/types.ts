@@ -24,7 +24,13 @@ export interface SourceReference {
     readonly source_id: string;
     readonly locator: {
         readonly page?: number | undefined;
-        readonly bbox?: readonly [number, number, number, number] | undefined;
+        /**
+         * 8-tuple quad `[x1,y1,x2,y2,x3,y3,x4,y4]` for image-mode
+         * citations (lab/intake), or 4-tuple `[charStart, charEnd, 0, 0]`
+         * for docx character-offset citations (referral-letter).
+         * Renderers branch on `length`.
+         */
+        readonly bbox?: readonly number[] | undefined;
         readonly section?: string | undefined;
         readonly field?: string | undefined;
     };

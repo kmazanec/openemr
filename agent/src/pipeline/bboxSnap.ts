@@ -48,8 +48,40 @@ const execFileAsync = promisify(execFile) as (
 
 const TESSERACT_TIMEOUT_MS = 60_000;
 
-/** A bbox on the same 0..1000 grid the vision schema uses. */
+/**
+ * Legacy 4-tuple grid bbox shape (xywh OR xyxy depending on which
+ * format the model emitted on a given call — `detectBboxFormat`
+ * resolves the ambiguity). The current schema (`vision-v3-quad`)
+ * uses `GridQuad` instead; this type stays for the snap pipeline,
+ * which is opt-in and only useful on axis-aligned input.
+ */
 export type GridBbox = readonly [number, number, number, number];
+
+/**
+ * Quad bbox shape — flat 8-tuple [x1, y1, x2, y2, x3, y3, x4, y4]
+ * matching the `vision-v3-quad` schema. The snap pipeline reduces
+ * a quad to its axis-aligned bounding rect before searching for an
+ * OCR match (Tesseract returns axis-aligned word boxes; rotated
+ * snap is a separate problem).
+ */
+export type GridQuad = readonly [
+    number, number, number, number, number, number, number, number,
+];
+
+/**
+ * Reduce a quad to its axis-aligned bounding rect in xywh form so
+ * the snap pass (which operates on rectangles) can still produce a
+ * useful hint center for opt-in dev runs.
+ */
+const quadToBoundingXywh = (q: GridQuad): GridBbox => {
+    const xs = [q[0], q[2], q[4], q[6]];
+    const ys = [q[1], q[3], q[5], q[7]];
+    const x1 = Math.min(...xs);
+    const y1 = Math.min(...ys);
+    const x2 = Math.max(...xs);
+    const y2 = Math.max(...ys);
+    return [x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1)];
+};
 
 /** Pixel-space corners on a rasterized page image. */
 export interface PixelRect {
@@ -498,7 +530,12 @@ export const snapExtractionBboxes = (
     extraction: unknown,
     pages: readonly PageOcr[],
 ): SnapSummary => {
-    const allBboxes: { obj: Record<string, unknown>; page: number }[] = [];
+    type BboxShape = '4-tuple' | '8-tuple-quad';
+    const allBboxes: {
+        obj: Record<string, unknown>;
+        page: number;
+        shape: BboxShape;
+    }[] = [];
     const visit = (node: unknown): void => {
         if (node === null || node === undefined) return;
         if (Array.isArray(node)) {
@@ -511,11 +548,15 @@ export const snapExtractionBboxes = (
         const page = obj['page'];
         if (
             Array.isArray(bbox) &&
-            bbox.length === 4 &&
+            (bbox.length === 4 || bbox.length === 8) &&
             bbox.every((n) => typeof n === 'number') &&
             typeof page === 'number'
         ) {
-            allBboxes.push({ obj, page });
+            allBboxes.push({
+                obj,
+                page,
+                shape: bbox.length === 8 ? '8-tuple-quad' : '4-tuple',
+            });
         }
         for (const [k, v] of Object.entries(obj)) {
             if (k === 'bbox' || k === 'page' || k === 'quote' || k === 'confidence') continue;
@@ -524,23 +565,59 @@ export const snapExtractionBboxes = (
     };
     visit(extraction);
 
-    const bboxes = allBboxes.map((e) => e.obj['bbox'] as GridBbox);
-    const format = detectBboxFormat(bboxes);
+    // Reduce every bbox to a 4-tuple so the format detector and the
+    // snap pipeline see a uniform input shape. 8-tuple quads collapse
+    // to their axis-aligned bounding rect (xywh); 4-tuples stay as-is.
+    const reducedBboxes = allBboxes.map((e) => {
+        const raw = e.obj['bbox'] as readonly number[];
+        if (raw.length === 8) {
+            return quadToBoundingXywh(raw as unknown as GridQuad);
+        }
+        return raw as unknown as GridBbox;
+    });
+    const format = detectBboxFormat(
+        reducedBboxes.filter((_, i) => allBboxes[i]?.shape === '4-tuple'),
+    );
 
     interface AnnotatedBbox {
         readonly obj: Record<string, unknown>;
         readonly pageNum: number;
+        readonly shape: BboxShape;
         /** Always xywh on the 0..1000 grid. */
         readonly modelXywh: GridBbox;
         snapped: boolean;
     }
 
-    const annotated: AnnotatedBbox[] = allBboxes.map(({ obj, page: pageNum }) => ({
-        obj,
-        pageNum,
-        modelXywh: toXywh(obj['bbox'] as GridBbox, format),
-        snapped: false,
-    }));
+    const annotated: AnnotatedBbox[] = allBboxes.map(({ obj, page: pageNum, shape }, i) => {
+        const reduced = reducedBboxes[i];
+        if (reduced === undefined) throw new Error('reducedBboxes index out of range');
+        const modelXywh =
+            shape === '4-tuple' ? toXywh(reduced, format) : reduced; // quads already reduced to xywh
+        return {
+            obj,
+            pageNum,
+            shape,
+            modelXywh,
+            snapped: false,
+        };
+    });
+
+    /**
+     * Write a snapped axis-aligned xywh rect back onto the bbox field
+     * in the shape the source object originally used. 4-tuple inputs
+     * stay 4-tuple; 8-tuple-quad inputs get a degenerate axis-aligned
+     * quad (4 corners of the rect, clockwise from top-left).
+     */
+    const writeBack = (a: AnnotatedBbox, xywh: GridBbox): void => {
+        if (a.shape === '4-tuple') {
+            (a.obj as { bbox: GridBbox }).bbox = xywh;
+            return;
+        }
+        const [x, y, w, h] = xywh;
+        const x2 = x + w;
+        const y2 = y + h;
+        (a.obj as { bbox: GridQuad }).bbox = [x, y, x2, y, x2, y2, x, y2];
+    };
 
     let snapped = 0;
     // Pass 1 — direct OCR-quote snapping. The lion's share of bboxes
@@ -554,7 +631,7 @@ export const snapExtractionBboxes = (
         const cy = ((a.modelXywh[1] + a.modelXywh[3] / 2) / 1000) * page.height;
         const snap = snapQuoteToOcr(quote, { x: cx, y: cy }, page);
         if (snap) {
-            (a.obj as { bbox: GridBbox }).bbox = pixelRectToGrid(snap, page);
+            writeBack(a, pixelRectToGrid(snap, page));
             a.snapped = true;
             snapped++;
         }
@@ -594,14 +671,14 @@ export const snapExtractionBboxes = (
             const [mx, , mw] = a.modelXywh;
             const cx = Math.max(0, Math.min(1000, mx));
             const cw = Math.max(0, Math.min(1000 - cx, mw));
-            (a.obj as { bbox: GridBbox }).bbox = [cx, ny, cw, nh];
+            writeBack(a, [cx, ny, cw, nh]);
             a.snapped = true;
             snapped++;
-        } else if (format === 'xyxy') {
-            // Last-resort: when corners couldn't snap and we don't
-            // have a row-neighbor either, normalize the bbox shape
-            // so the renderer (which assumes xywh) doesn't draw a
-            // box stretching to the bottom-right.
+        } else if (format === 'xyxy' && a.shape === '4-tuple') {
+            // Last-resort for 4-tuple corners: when corners couldn't
+            // snap and we don't have a row-neighbor either, normalize
+            // the bbox shape so the renderer (which assumes xywh)
+            // doesn't draw a box stretching to the bottom-right.
             (a.obj as { bbox: GridBbox }).bbox = a.modelXywh;
         }
     }

@@ -65,6 +65,12 @@ class FakeElement {
         this.attributes[name] = value;
     }
 
+    getAttribute(name) {
+        return Object.prototype.hasOwnProperty.call(this.attributes, name)
+            ? this.attributes[name]
+            : null;
+    }
+
     addEventListener(name, fn) {
         if (!this._listeners.has(name)) this._listeners.set(name, []);
         this._listeners.get(name).push(fn);
@@ -111,6 +117,18 @@ class FakeDocument {
             el.naturalHeight = 2200;
         }
         return el;
+    }
+
+    /**
+     * `createElementNS` shim for the SVG path the renderer takes when
+     * a bbox is an 8-tuple quad. Real browsers branch on the namespace
+     * URI to construct an SVGElement subclass; FakeElement is already
+     * shape-compatible (it carries `tagName`, `setAttribute`, etc.) so
+     * the namespace argument is ignored — we just return a FakeElement
+     * with the requested tag.
+     */
+    createElementNS(_namespaceURI, qualifiedName) {
+        return new FakeElement(qualifiedName, this);
     }
 }
 
@@ -290,6 +308,35 @@ describe('renderBboxOverlay — shared overlay primitive', () => {
     test('refuses non-element page anchor', () => {
         expect(renderBboxOverlay(null, [100, 200, 300, 50])).toBeNull();
         expect(renderBboxOverlay({}, [100, 200, 300, 50])).toBeNull();
+    });
+
+    // The `vision-v3-quad` schema emits an 8-tuple
+    // `[x1, y1, x2, y2, x3, y3, x4, y4]` clockwise from top-left so
+    // the citation can follow page skew on a tilted scan. The
+    // renderer mounts an SVG with a polygon child.
+    test('8-tuple quad renders as an SVG polygon overlay', () => {
+        const mount = fakeMount();
+        // Slightly tilted-down-to-the-right row.
+        const overlay = renderBboxOverlay(mount, [80, 220, 900, 228, 900, 244, 80, 236]);
+        expect(overlay).not.toBeNull();
+        expect(overlay.tagName.toLowerCase()).toBe('svg');
+        expect(overlay.dataset.role).toBe('bbox-overlay');
+        expect(overlay.getAttribute('viewBox')).toBe('0 0 1000 1000');
+        expect(overlay.getAttribute('preserveAspectRatio')).toBe('none');
+        expect(overlay.style.position).toBe('absolute');
+        expect(overlay.style.left).toBe('0');
+        expect(overlay.style.top).toBe('0');
+        expect(overlay.style.width).toBe('100%');
+        expect(overlay.style.height).toBe('100%');
+        const polygon = overlay.children[0];
+        expect(polygon.tagName.toLowerCase()).toBe('polygon');
+        expect(polygon.getAttribute('points')).toBe('80,220 900,228 900,244 80,236');
+        expect(polygon.getAttribute('vector-effect')).toBe('non-scaling-stroke');
+    });
+
+    test('8-tuple quad rejects non-numeric components', () => {
+        const mount = fakeMount();
+        expect(renderBboxOverlay(mount, [80, 220, 900, 'bad', 900, 244, 80, 236])).toBeNull();
     });
 });
 

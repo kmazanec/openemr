@@ -166,19 +166,22 @@ const decodeLocator = (path: string, raw: unknown): SourceReference['locator'] =
     }
     if (obj['bbox'] !== undefined) {
         const bboxRaw: unknown = obj['bbox'];
-        if (!Array.isArray(bboxRaw) || bboxRaw.length !== 4) {
-            throw new ChartSnapshotDecodeError(`${path}.bbox`, 'expected a 4-tuple of numbers');
+        // 4-tuple = legacy axis-aligned `[x,y,w,h]` (still used by the
+        // referral-letter docx character-offset shape), 8-tuple = the
+        // `vision-v3-quad` row-spanning quad `[x1,y1,x2,y2,x3,y3,x4,y4]`.
+        if (!Array.isArray(bboxRaw) || (bboxRaw.length !== 4 && bboxRaw.length !== 8)) {
+            throw new ChartSnapshotDecodeError(`${path}.bbox`, 'expected a 4- or 8-tuple of numbers');
         }
         const bboxArr = bboxRaw as readonly unknown[];
         const bbox: number[] = [];
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < bboxArr.length; i++) {
             const v = bboxArr[i];
             if (typeof v !== 'number') {
                 throw new ChartSnapshotDecodeError(`${path}.bbox[${i}]`, 'expected a number');
             }
             bbox.push(v);
         }
-        locator.bbox = bbox as unknown as readonly [number, number, number, number];
+        locator.bbox = bbox;
     }
     if (obj['section'] !== undefined) {
         locator.section = expectString(`${path}.section`, obj['section']);

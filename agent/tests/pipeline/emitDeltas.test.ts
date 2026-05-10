@@ -118,13 +118,13 @@ describe('emitDeltas', () => {
         });
         const schema = {
             patient_demographics: {
-                name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
+                name: { value: 'Margaret Chen', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
             },
             allergies: [
-                { substance: 'Sulfa drugs', page: 2, bbox: [0, 0, 1, 1], quote: 'sulfa', confidence: 0.9 },
-                { substance: 'penicillin', page: 2, bbox: [0, 0, 1, 1], quote: 'pcn', confidence: 0.9 },
+                { substance: 'Sulfa drugs', page: 2, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'sulfa', confidence: 0.9 },
+                { substance: 'penicillin', page: 2, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'pcn', confidence: 0.9 },
             ],
             current_medications: [],
             past_medical_history: [],
@@ -175,15 +175,15 @@ describe('emitDeltas', () => {
         });
         const schema = {
             patient_demographics: {
-                name: { value: 'M', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
+                name: { value: 'M', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
             },
             allergies: [],
             current_medications: [
-                { name: 'Lisinopril', page: 2, bbox: [0, 0, 1, 1], quote: 'l', confidence: 0.9 },
-                { name: 'METFORMIN', page: 2, bbox: [0, 0, 1, 1], quote: 'm', confidence: 0.9 },
-                { name: 'Atorvastatin', page: 2, bbox: [0, 0, 1, 1], quote: 'a', confidence: 0.9 },
+                { name: 'Lisinopril', page: 2, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'l', confidence: 0.9 },
+                { name: 'METFORMIN', page: 2, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'm', confidence: 0.9 },
+                { name: 'Atorvastatin', page: 2, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'a', confidence: 0.9 },
             ],
             past_medical_history: [],
             family_history: [],
@@ -201,11 +201,11 @@ describe('emitDeltas', () => {
         const chart = baseChart();
         const schema = {
             patient_demographics: {
-                name: { value: 'M Chen', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                address: { value: '123 New St', page: 1, bbox: [0, 0, 1, 1], quote: 'a', confidence: 0.9 },
-                phone: { value: '555-1212', page: 1, bbox: [0, 0, 1, 1], quote: 'p', confidence: 0.9 },
+                name: { value: 'M Chen', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                address: { value: '123 New St', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'a', confidence: 0.9 },
+                phone: { value: '555-1212', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'p', confidence: 0.9 },
             },
             allergies: [],
             current_medications: [],
@@ -223,9 +223,9 @@ describe('emitDeltas', () => {
         const chart = baseChart();
         const schema = {
             patient_demographics: {
-                name: { value: 'CHEN', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
-                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 1], quote: 'q', confidence: 1 },
+                name: { value: 'CHEN', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                dob: { value: '1967-08-14', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
+                sex: { value: 'female', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'q', confidence: 1 },
             },
             results: [
                 {
@@ -234,12 +234,12 @@ describe('emitDeltas', () => {
                     unit: '%',
                     collection_date: '2026-04-30',
                     page: 1,
-                    bbox: [0, 0, 1, 1],
+                    bbox: [0, 0, 1, 0, 1, 1, 0, 1],
                     quote: '7.2',
                     confidence: 0.95,
                 },
             ],
-            ordering_provider: { name: 'Dr P', page: 1, bbox: [0, 0, 1, 1], quote: 'p', confidence: 0.9 },
+            ordering_provider: { name: 'Dr P', page: 1, bbox: [0, 0, 1, 0, 1, 1, 0, 1], quote: 'p', confidence: 0.9 },
         };
 
         const { deps, updates } = buildDeps(chart);

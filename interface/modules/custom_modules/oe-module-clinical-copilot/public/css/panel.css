@@ -974,22 +974,52 @@
 }
 
 .copilot-doc-viewer__bbox {
-    /* Translucent overlay marking the cited region. Vision bboxes are
-     * not pixel-precise, so the overlay is padded vertically (in
-     * documentViewer.js) and styled as a soft spotlight rather than a
-     * tight box: the diffuse fill and inset shadow read as "the cited
+    /* Translucent overlay marking the cited region. Two render shapes
+     * share this class:
+     *   - <div> rectangle (legacy 4-tuple [x,y,w,h] bboxes — referral-
+     *     letter docx character offsets, and any pre-`vision-v3-quad`
+     *     extractions still in the cache);
+     *   - <svg> with a <polygon> child (the new 8-tuple row-spanning
+     *     quad that follows page skew). The SVG itself is invisible —
+     *     all visible styling lives on the inner polygon below.
+     * Vision bboxes from the model alone are not pixel-precise, so
+     * the overlay reads as a soft spotlight rather than a tight box:
+     * the diffuse fill and inset shadow communicate "the cited
      * content is somewhere in this band" while still narrowing the
      * gaze to a useful region of the page. */
     position: absolute;
+    pointer-events: none;
+}
+
+div.copilot-doc-viewer__bbox {
     background: rgba(255, 217, 102, 0.28);
     border: 1px solid rgba(220, 165, 0, 0.55);
     border-radius: 4px;
     box-shadow: 0 0 0 4px rgba(255, 217, 102, 0.12),
                 inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-    pointer-events: none;
     /* Gentle pulse on first render to draw the eye to the highlight
      * without the overlay being visually noisy after orientation. */
     animation: copilot-doc-viewer-pulse 1.4s ease-out 1;
+}
+
+svg.copilot-doc-viewer__bbox {
+    /* The SVG is a transparent layer; the polygon does the painting. */
+    overflow: visible;
+}
+
+svg.copilot-doc-viewer__bbox > polygon {
+    fill: rgba(255, 217, 102, 0.28);
+    stroke: rgba(220, 165, 0, 0.75);
+    stroke-width: 2;
+    /* Same pulse as the rectangle; opacity-based here since SVG
+     * polygons can't carry a CSS box-shadow. */
+    animation: copilot-doc-viewer-quad-pulse 1.4s ease-out 1;
+}
+
+@keyframes copilot-doc-viewer-quad-pulse {
+    0%   { fill: rgba(255, 217, 102, 0.55); }
+    70%  { fill: rgba(255, 217, 102, 0.15); }
+    100% { fill: rgba(255, 217, 102, 0.28); }
 }
 
 @keyframes copilot-doc-viewer-pulse {
@@ -1008,7 +1038,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .copilot-doc-viewer__bbox {
+    .copilot-doc-viewer__bbox,
+    svg.copilot-doc-viewer__bbox > polygon {
         animation: none;
     }
 }

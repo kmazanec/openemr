@@ -35,7 +35,15 @@ use DomainException;
  * CitedField simple avoids a generic that would otherwise force every
  * caller to pin `<string>` annotations.
  *
- * @phpstan-type Bbox array{float|int, float|int, float|int, float|int}
+ * Bbox is either a 4-tuple `[x, y, w, h]` (legacy axis-aligned —
+ * vision-v1/v2 and referralLetter docx character offsets) or an
+ * 8-tuple `[x1, y1, x2, y2, x3, y3, x4, y4]` row-spanning quad
+ * introduced in `vision-v3-quad`. PHPStan can't express a length
+ * union over array tuples cleanly, so we widen to `list<float|int>`
+ * and rely on `ExtractionFieldDecoder::requireBbox` for the runtime
+ * length check.
+ *
+ * @phpstan-type Bbox list<float|int>
  *
  * @phpstan-type CitedFieldArray array{
  *     value: mixed,
