@@ -354,17 +354,42 @@ const narrowRetrieveChartArgs = (args: Record<string, unknown> | undefined): Ret
 };
 
 /**
+ * Generic guideline-shaped query for a `default_briefing` turn that
+ * carries neither a typed clinician question nor an upload — i.e. a
+ * morning-prep kickoff where the LLM still wants to reach for
+ * authoritative evidence on top of the chart. retrieveChart has
+ * already populated `state.snapshot` by the time the supervisor runs
+ * (graph wiring: START → retrieveChart → supervisor), so the model
+ * has the chart in context when it formulates its actual retriever
+ * args; this string is only the fallback when the model picked a
+ * retriever without writing args.query.
+ */
+const DEFAULT_BRIEFING_FALLBACK_QUERY =
+    "For this patient's active conditions, current medications, and recent results, what guideline-based actions, screenings, or follow-up should I consider?";
+
+/**
  * Recover a usable retriever query when the supervisor LLM picked a
  * retriever handoff but didn't fill in `args.query`. Production
  * Anthropic with `withStructuredOutput` is mostly reliable about this,
- * but real-model evals have surfaced occasional handoffs with
- * `{ handoff: 'evidenceRetriever', reason: …, narration: … }` and no
- * `args` — the model effectively meant "look up something for this
- * question" without restating it. Falling back to the envelope's
- * typed question (or the synthesized implicit question on
- * upload-only turns) keeps the run useful instead of throwing the
- * graph on the floor. Returns null when neither source is populated;
- * caller decides whether to throw.
+ * but real-model evals (and prod) have surfaced occasional handoffs
+ * with `{ handoff: 'evidenceRetriever', reason: …, narration: … }` and
+ * no `args` — the model effectively meant "look up something for this
+ * question" without restating it. Falling back keeps the run useful
+ * instead of throwing the graph on the floor.
+ *
+ * Sources, in priority order:
+ *   1. envelope.question — the clinician typed something explicit.
+ *   2. implicit upload question — the envelope carried docs, no typed
+ *      question (a chart-side document or a chat-panel attachment).
+ *   3. default_briefing kickoff fallback — morning-prep with neither a
+ *      question nor uploads. Returns a generic guideline-shaped query
+ *      so the retriever still has something to work with against the
+ *      chart context the model already has in scope.
+ *
+ * Returns null only when none of those sources apply (currently:
+ * follow_up turns with no question and no uploads, which the
+ * envelope schema rejects upstream — but the null branch is preserved
+ * for defense in depth).
  */
 const fallbackQueryFromState = (state: BriefingState): string | null => {
     const explicit = state.envelope.question;
@@ -376,6 +401,9 @@ const fallbackQueryFromState = (state: BriefingState): string | null => {
     );
     if (implicit !== null && implicit.trim().length > 0) {
         return implicit.trim();
+    }
+    if (state.envelope.task === 'default_briefing') {
+        return DEFAULT_BRIEFING_FALLBACK_QUERY;
     }
     return null;
 };

@@ -146,7 +146,14 @@ describe('createSupervisor (§A.7)', () => {
         });
     });
 
-    it('rejects malformed documentEvidenceRetriever args (missing query) before they reach state', async () => {
+    it('recovers documentEvidenceRetriever (missing query) on default_briefing kickoff via the chart-grounded fallback', async () => {
+        // A bare default_briefing envelope (no typed question, no
+        // pendingUploads) should not crash the graph just because the
+        // model forgot to write args.query — by the time the supervisor
+        // runs, retrieveChart has already populated state.snapshot, so
+        // there is something coherent for the retriever to chase. The
+        // fallback synthesises a generic guideline-shaped query for the
+        // morning-prep case.
         const llm = decide({
             handoff: 'documentEvidenceRetriever',
             reason: 'forgot to set a query', narration: 'test narration',
@@ -154,7 +161,26 @@ describe('createSupervisor (§A.7)', () => {
         });
         const supervisor = createSupervisor({ decide: llm });
 
-        await expect(supervisor(baseState())).rejects.toThrow(/query/i);
+        const out = await supervisor(baseState());
+
+        expect(out.documentEvidenceArgs?.query).toMatch(/guideline/i);
+        expect(out.documentEvidenceArgs?.doc_types).toEqual(['lab_pdf']);
+    });
+
+    it('still rejects documentEvidenceRetriever (missing query) on a follow_up turn with no question and no uploads', async () => {
+        // The fallback only fires for default_briefing. A follow_up
+        // with neither a typed question nor uploads has nothing to
+        // chase and must surface as a typed error.
+        const llm = decide({
+            handoff: 'documentEvidenceRetriever',
+            reason: 'forgot to set a query', narration: 'test narration',
+            args: { doc_types: ['lab_pdf'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(
+            supervisor(baseState({ envelope: { ...envelope, task: 'follow_up' } })),
+        ).rejects.toThrow(/query/i);
     });
 
     it('rejects documentEvidenceRetriever args with empty doc_types (Zod min(1))', async () => {
@@ -208,7 +234,11 @@ describe('createSupervisor (§A.7)', () => {
         });
     });
 
-    it('§C.3: rejects malformed evidenceRetriever args (missing query) before they reach state', async () => {
+    it('§C.3: recovers evidenceRetriever (missing query) on default_briefing kickoff via the chart-grounded fallback', async () => {
+        // Mirrors the documentEvidenceRetriever recovery test above —
+        // see that test for why the morning-prep no-question path
+        // fills in a synthesised query rather than throwing. This is
+        // the case the prod failure on patient pid 109 surfaced.
         const llm = decide({
             handoff: 'evidenceRetriever',
             reason: 'forgot to set a query', narration: 'test narration',
@@ -216,7 +246,23 @@ describe('createSupervisor (§A.7)', () => {
         });
         const supervisor = createSupervisor({ decide: llm });
 
-        await expect(supervisor(baseState())).rejects.toThrow(/query/i);
+        const out = await supervisor(baseState());
+
+        expect(out.evidenceRetrieverArgs?.query).toMatch(/guideline/i);
+        expect(out.evidenceRetrieverArgs?.top_k).toBe(3);
+    });
+
+    it('§C.3: still rejects evidenceRetriever (missing query) on a follow_up turn with no question and no uploads', async () => {
+        const llm = decide({
+            handoff: 'evidenceRetriever',
+            reason: 'forgot to set a query', narration: 'test narration',
+            args: { top_k: 3 },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        await expect(
+            supervisor(baseState({ envelope: { ...envelope, task: 'follow_up' } })),
+        ).rejects.toThrow(/query/i);
     });
 
     it('§C.3: rejects evidenceRetriever args with empty source_filter (Zod min(1))', async () => {
