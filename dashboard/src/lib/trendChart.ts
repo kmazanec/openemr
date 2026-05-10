@@ -87,6 +87,13 @@ export function trendChartCaption(chart: AssistantMessageTrendChart): string {
 export interface ProjectedPoint extends AssistantMessageTrendPoint {
   cx: number;
   cy: number;
+  // Pre-formatted numeric label drawn next to the dot. Same rounding
+  // rule the y-axis ticks use so labels read consistently.
+  label: string;
+  // Where to anchor the label relative to the dot. The projector
+  // picks "above" for points in the lower half of the plot and
+  // "below" for the upper half so labels never collide with the line.
+  labelAnchor: 'above' | 'below';
 }
 
 export interface ProjectedChart {
@@ -150,19 +157,26 @@ export function projectChart(chart: AssistantMessageTrendChart): ProjectedChart 
     }
   }
 
-  const projected: ProjectedPoint[] = points.map((p, i) => ({
-    ...p,
-    cx: xPx(xs[i]!),
-    cy: yPx(ys[i]!),
-  }));
-  const path = projected
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${String(p.cx)},${String(p.cy)}`)
-    .join(' ');
-
   const yLabel = (val: number): string => {
     const rounded = Math.abs(val) >= 100 ? Math.round(val) : Math.round(val * 10) / 10;
     return String(rounded);
   };
+
+  const plotMidY = PAD.top + plotH / 2;
+  const projected: ProjectedPoint[] = points.map((p, i) => {
+    const cy = yPx(ys[i]!);
+    return {
+      ...p,
+      cx: xPx(xs[i]!),
+      cy,
+      label: yLabel(p.value),
+      labelAnchor: cy <= plotMidY ? 'below' : 'above',
+    };
+  });
+  const path = projected
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${String(p.cx)},${String(p.cy)}`)
+    .join(' ');
+
   const firstYear = new Date(points[0]!.observedAt).getUTCFullYear();
   const lastYear = new Date(points[points.length - 1]!.observedAt).getUTCFullYear();
   const includeYear =

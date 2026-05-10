@@ -77,20 +77,35 @@ function PatientHeaderView({
               &times;
             </button>
           </div>
-          <div className="text-body-secondary small">
+          <dl
+            className="patient-header__demographics small mb-0"
+            data-testid="patient-header-demographics"
+          >
             {dob !== undefined && (
-              <span className="me-3">
-                DOB: {dob}
-                {age !== null && <> Age: {age}</>}
-              </span>
+              <div className="patient-header__demographics-item">
+                <dt>DOB</dt>
+                <dd>{dob}</dd>
+              </div>
+            )}
+            {age !== null && (
+              <div className="patient-header__demographics-item">
+                <dt>Age</dt>
+                <dd>{age}</dd>
+              </div>
             )}
             {sex !== undefined && (
-              <span className="me-3">
-                Sex: <span className="text-capitalize">{sex}</span>
-              </span>
+              <div className="patient-header__demographics-item">
+                <dt>Sex</dt>
+                <dd className="text-capitalize">{sex}</dd>
+              </div>
             )}
-            {mrn !== null && <span className="me-3">MRN: {mrn}</span>}
-          </div>
+            {mrn !== null && (
+              <div className="patient-header__demographics-item">
+                <dt>MRN</dt>
+                <dd>{mrn}</dd>
+              </div>
+            )}
+          </dl>
         </div>
         <EncounterSelector />
       </div>

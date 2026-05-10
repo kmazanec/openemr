@@ -97,13 +97,27 @@
     margin-top: 0.55em;
 }
 
-/* Segments flow inline so prose reads as one paragraph; chips inline with text. */
-.copilot-segment {
-    display: inline;
+/* Segments now render as block-level <p>/<ul> so multi-section
+   briefings (with **Headline:** markers, numbered follow-ups, or
+   blank-line-separated paragraphs) lay out vertically instead of
+   collapsing into a single wall of text. Inline `[source]` chips and
+   inline emphasis still flow with the surrounding text. */
+p.copilot-segment,
+ul.copilot-segment {
+    margin: 0 0 0.55em 0;
 }
 
-.copilot-segment + .copilot-segment::before {
-    content: ' ';
+p.copilot-segment:last-child,
+ul.copilot-segment:last-child {
+    margin-bottom: 0;
+}
+
+ul.copilot-segment--list {
+    padding-left: 1.25rem;
+}
+
+p.copilot-segment--chips-only {
+    margin-top: 0.25em;
 }
 
 /*
@@ -1305,4 +1319,18 @@
 .copilot-trend__axis-label {
     font-size: 10px;
     fill: #64748b;
+}
+
+.copilot-trend__point-label {
+    font-size: 10px;
+    font-weight: 600;
+    fill: #1e3a8a;
+    paint-order: stroke;
+    stroke: #ffffff;
+    stroke-width: 3;
+    stroke-linejoin: round;
+}
+
+.copilot-trend__point-label--abnormal {
+    fill: #b91c1c;
 }

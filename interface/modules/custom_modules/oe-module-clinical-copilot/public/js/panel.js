@@ -203,6 +203,89 @@ const __copilotPanel = (function () {
     };
 
     /**
+     * Tiny inline-markdown renderer for assistant prose. The
+     * synthesizer occasionally emits `**Bold:**` headlines, *italic*
+     * runs, and `code` literals — the panel was rendering them
+     * verbatim, which produced walls of text littered with
+     * asterisks. We process *already-HTML-escaped* text so the
+     * markdown markers (`**`, `*`, `` ` ``) survive the DOM
+     * round-trip in `escapeText`. Output is HTML — the only sources
+     * are agent prose, and we whitelist exactly three tags
+     * (`strong`, `em`, `code`); JSX-time HTML escaping happens before
+     * the markdown step, so we never round-trip raw user input.
+     */
+    const renderInlineMarkdown = (escaped) => {
+        if (typeof escaped !== 'string' || escaped.length === 0) return '';
+        let out = '';
+        let i = 0;
+        const len = escaped.length;
+        while (i < len) {
+            const c = escaped[i];
+            if ((c === '*' || c === '_') && escaped[i + 1] === c) {
+                const delim = c + c;
+                const close = escaped.indexOf(delim, i + 2);
+                if (close !== -1 && close > i + 2) {
+                    const inner = escaped.slice(i + 2, close);
+                    out += `<strong>${renderInlineMarkdown(inner)}</strong>`;
+                    i = close + 2;
+                    continue;
+                }
+            }
+            if (c === '*' || c === '_') {
+                const close = escaped.indexOf(c, i + 1);
+                const before = escaped[i - 1];
+                const after = escaped[i + 1];
+                const wordBoundaryStart = before === undefined || /\W/.test(before);
+                const contentStart = after !== undefined && after !== c && !/\s/.test(after);
+                if (close !== -1 && close > i + 1 && wordBoundaryStart && contentStart) {
+                    const innerBefore = escaped[close - 1];
+                    const innerAfter = escaped[close + 1];
+                    const contentEnd = innerBefore !== undefined && !/\s/.test(innerBefore);
+                    const wordBoundaryEnd = innerAfter === undefined || /\W/.test(innerAfter);
+                    if (contentEnd && wordBoundaryEnd) {
+                        const inner = escaped.slice(i + 1, close);
+                        out += `<em>${renderInlineMarkdown(inner)}</em>`;
+                        i = close + 1;
+                        continue;
+                    }
+                }
+            }
+            if (c === '`') {
+                const close = escaped.indexOf('`', i + 1);
+                if (close !== -1 && close > i + 1) {
+                    const inner = escaped.slice(i + 1, close);
+                    out += `<code>${inner}</code>`;
+                    i = close + 1;
+                    continue;
+                }
+            }
+            out += c;
+            i += 1;
+        }
+        return out;
+    };
+
+    /**
+     * Split a long assistant text run into paragraph strings. Inserts
+     * a paragraph break before bolded `**Headline:**` markers (the
+     * synthesizer emits them inline) and before numbered "(N)" /
+     * bullet markers so multi-section briefings don't render as a
+     * single wall of text. Operates on plain text — the caller is
+     * responsible for escaping each paragraph and feeding it through
+     * `renderInlineMarkdown` before splicing into HTML.
+     */
+    const splitMarkdownParagraphs = (text) => {
+        if (typeof text !== 'string' || text.trim() === '') return [];
+        let normalized = text.replace(/\s+(?=\*\*[^*\n]{1,80}:\*\*)/g, '\n\n');
+        normalized = normalized.replace(/(?<=\S)\s+(?=\(\d+\)\s)/g, '\n');
+        normalized = normalized.replace(/(?<=\S)\s+(?=[•·]\s)/g, '\n');
+        return normalized
+            .split(/\n{2,}/)
+            .map((p) => p.replace(/^\n+|\n+$/g, '').trim())
+            .filter((p) => p.length > 0);
+    };
+
+    /**
      * Translate the W2 unified `SourceReference` shape into the W1
      * record-kind taxonomy the OpenEMR record-page URLs key off. The
      * agent ships every chart citation with `source_type='chart'` and a
@@ -456,15 +539,46 @@ const __copilotPanel = (function () {
         // verified" chip; rendering them here would re-introduce the
         // distracting in-line placeholders the chip exists to replace.
         if (segment.redacted) return '';
-        // ISO dates the synthesizer leaves embedded in prose
-        // (e.g. "started on 2024-03-15") get rewritten to
-        // "March 15, 2024" so the doctor reads natural-language
-        // dates. Applied AFTER escapeText so we operate on a string
-        // that's already HTML-safe; we never feed dates through
-        // attribute values or URLs.
-        const text = formatDatesInText(escapeText(segment.text));
         const chips = renderSegmentChips(segment.claims, bubbleIdx, segmentIdx);
-        return `<span class="copilot-segment">${text}${chips ? ' ' + chips : ''}</span>`;
+
+        // Split the segment text into markdown-aware paragraphs and
+        // render each as its own block. Markdown markers (**Bold:**,
+        // *italic*, `code`) become inline HTML; chips for the segment
+        // attach to the last paragraph so each citation stays
+        // anchored to its prose. This replaces the old single-span
+        // renderer that produced wall-of-text bubbles when the
+        // synthesizer emitted multi-section briefings inline.
+        const paragraphTexts = splitMarkdownParagraphs(segment.text);
+        if (paragraphTexts.length === 0) {
+            // Pure-chip segments still need an attachment point;
+            // emit a paragraph containing only the chips.
+            if (!chips) return '';
+            return `<p class="copilot-segment copilot-segment--chips-only">${chips}</p>`;
+        }
+
+        return paragraphTexts
+            .map((paragraph, pIdx) => {
+                const lines = paragraph.split(/\n+/);
+                const allBullets = lines.length > 0
+                    && lines.every((ln) => /^\s*-\s+/.test(ln));
+                const isLast = pIdx === paragraphTexts.length - 1;
+                const trailingChips = isLast && chips ? ' ' + chips : '';
+                if (allBullets) {
+                    const items = lines.map((ln, li) => {
+                        const body = formatDatesInText(
+                            renderInlineMarkdown(escapeText(ln.replace(/^\s*-\s+/, ''))),
+                        );
+                        const tail = isLast && li === lines.length - 1 ? trailingChips : '';
+                        return `<li>${body}${tail}</li>`;
+                    }).join('');
+                    return `<ul class="copilot-segment copilot-segment--list">${items}</ul>`;
+                }
+                const html = formatDatesInText(
+                    renderInlineMarkdown(escapeText(paragraph.replace(/\n+/g, ' '))),
+                );
+                return `<p class="copilot-segment">${html}${trailingChips}</p>`;
+            })
+            .join('');
     };
 
     /**
@@ -923,6 +1037,34 @@ const __copilotPanel = (function () {
             })
             .join('');
 
+        // Per-point numeric labels. Anchored above for points in the
+        // lower half of the plot and below for the upper half so the
+        // text never overlaps the trend line. Same rounding rule the
+        // y-axis ticks use so the in-chart labels read consistently.
+        const plotMidY = P.top + plotH / 2;
+        const formatPointLabel = (val) => {
+            const v = Number(val);
+            if (!Number.isFinite(v)) return '';
+            const rounded = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+            return String(rounded);
+        };
+        const pointLabels = points
+            .map((p, i) => {
+                const cy = yPx(ys[i]);
+                const anchor = cy <= plotMidY ? 'below' : 'above';
+                const labelY = anchor === 'above' ? cy - 7 : cy + 14;
+                const cls = p.abnormal
+                    ? 'copilot-trend__point-label copilot-trend__point-label--abnormal'
+                    : 'copilot-trend__point-label';
+                return `<text class="${cls}"
+                              x="${String(xPx(xs[i]))}"
+                              y="${String(labelY)}"
+                              text-anchor="middle"
+                              data-role="trend-point-label"
+                              data-anchor="${anchor}">${escapeSvg(formatPointLabel(p.value))}</text>`;
+            })
+            .join('');
+
         // Y-axis: just the min and max labels — keeps the chart tidy
         // inside a chat bubble. The dot tooltips carry the precise
         // values per point.
@@ -968,6 +1110,7 @@ const __copilotPanel = (function () {
             ${bandSvg}
             <path class="copilot-trend__line" d="${linePath}" data-role="trend-line"></path>
             ${dots}
+            ${pointLabels}
             ${yAxis}
             ${xAxis}
         </svg>`;
@@ -1192,7 +1335,7 @@ const __copilotPanel = (function () {
             const segments = messageSegments
                 .map((segment, segIdx) => renderSegment(segment, segIdx, index))
                 .filter((html) => html.length > 0)
-                .join(' ');
+                .join('');
             const unverified = renderUnverifiedChip(messageSegments, index);
             const gaps = renderGapsBanner(entry.message.gaps);
             const suggestions = renderSuggestionsRail(entry.message.suggestedFollowUps, index);
@@ -3267,6 +3410,10 @@ const __copilotPanel = (function () {
         trendChartCaption,
         parseTrendRange,
         formatTrendDate,
+        // Markdown-rendering helpers, exposed for
+        // `tests/js/copilot-panel-markdown.test.js`.
+        renderInlineMarkdown,
+        splitMarkdownParagraphs,
     };
 })();
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import {
   useCopilotStream,
   type CopilotTurn as Turn,
@@ -11,6 +11,7 @@ import type {
   SourceReference,
 } from '../lib/copilotTypes';
 import { isFiniteBbox, type Bbox } from '../lib/bbox';
+import { inlineMarkdownToNodes, splitParagraphs } from '../lib/copilotMarkdown';
 import {
   DocumentViewerDrawer,
   type DocumentViewerArgs,
@@ -18,6 +19,7 @@ import {
 import { GuidelineDrawer } from './GuidelineDrawer';
 import { CopilotHistory } from './CopilotHistory';
 import { TrendChart } from './TrendChart';
+import { DocumentFactReview } from './DocumentFactReview';
 import type { PdfJsImporter } from '../lib/pdfjsLoader';
 
 const PROXY_URL =
@@ -293,7 +295,14 @@ export function CopilotPanel({
             </div>
           ) : (
             state.turns.map((turn, i) => (
-              <TurnView key={i} turn={turn} onChipClick={onChipClick} />
+              <TurnView
+                key={i}
+                turn={turn}
+                onChipClick={onChipClick}
+                proxyUrl={effectiveProxyUrl}
+                pid={pid}
+                conversationId={state.conversationId}
+              />
             ))
           )}
 
@@ -416,9 +425,15 @@ function lastAssistantTurn(turns: readonly Turn[]): { message: AssistantMessage 
 function TurnView({
   turn,
   onChipClick,
+  proxyUrl,
+  pid,
+  conversationId,
 }: {
   turn: Turn;
   onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
+  proxyUrl: string;
+  pid: number;
+  conversationId: string | null;
 }): ReactElement {
   switch (turn.kind) {
     case 'user':
@@ -434,7 +449,15 @@ function TurnView({
         </div>
       );
     case 'assistant':
-      return <AssistantBubble message={turn.message} onChipClick={onChipClick} />;
+      return (
+        <AssistantBubble
+          message={turn.message}
+          onChipClick={onChipClick}
+          proxyUrl={proxyUrl}
+          pid={pid}
+          conversationId={conversationId}
+        />
+      );
     case 'progress':
       return (
         <div className="d-flex justify-content-start mb-2">
@@ -518,11 +541,18 @@ function TurnView({
 function AssistantBubble({
   message,
   onChipClick,
+  proxyUrl,
+  pid,
+  conversationId,
 }: {
   message: AssistantMessage;
   onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
+  proxyUrl: string;
+  pid: number;
+  conversationId: string | null;
 }): ReactElement {
   const redactedCount = message.segments.filter((s) => s.redacted).length;
+  const docGroup = extractedDocumentGroup(message.claimGroups);
   return (
     <div className="d-flex justify-content-start mb-2">
       <div
@@ -544,10 +574,11 @@ function AssistantBubble({
             ))}
           </div>
         )}
-        <p className="mb-0" data-testid="copilot-prose">
-          {message.segments.filter((s) => !s.redacted).map((seg, i) => (
-            <SegmentInline key={i} segment={seg} onChipClick={onChipClick} />
-          ))}
+        <div className="copilot-prose mb-0" data-testid="copilot-prose">
+          <AssistantProse
+            segments={message.segments.filter((s) => !s.redacted)}
+            onChipClick={onChipClick}
+          />
           {redactedCount > 0 && (
             <span
               className="badge bg-secondary ms-1"
@@ -557,34 +588,150 @@ function AssistantBubble({
               {redactedCount} unverified
             </span>
           )}
-        </p>
+        </div>
         <TrendChart chart={message.trendChart} />
+        {docGroup !== null && (
+          <DocumentFactReview
+            group={docGroup}
+            proxyUrl={proxyUrl}
+            pid={pid}
+            conversationId={conversationId}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function SegmentInline({
-  segment,
+/**
+ * Pull the (typed) `extractedDocument` slice out of the assistant's
+ * `claimGroups` payload. The wire shape is permissive (the dashboard
+ * doesn't render every bucket, so it's typed as a permissive
+ * record), but the `extractedDocument` slot follows a known shape
+ * that we narrow at the boundary so the React tree downstream sees
+ * a typed object.
+ */
+function extractedDocumentGroup(
+  claimGroups: AssistantMessage['claimGroups'],
+): import('../lib/copilotTypes').DocumentClaimGroup | null {
+  const slot = claimGroups.extractedDocument;
+  if (slot === undefined || slot.cards.length === 0) return null;
+  return slot;
+}
+
+/**
+ * Render the assistant's segment list as a stack of paragraphs with
+ * inline `[source]` chips. Walks the segment list in order, splits
+ * each segment's text into paragraphs (markdown-aware: blank lines,
+ * bolded `**Headline:**` markers, numbered "(N)" follow-ups), and
+ * appends each segment's chips to the segment's last paragraph so
+ * citations stay anchored to the prose they back.
+ *
+ * Empty paragraphs are dropped — this happens when one segment ends
+ * mid-sentence and the next picks it up; we keep the chips for the
+ * truncated piece by appending them to the next paragraph the panel
+ * emits.
+ */
+function AssistantProse({
+  segments,
   onChipClick,
 }: {
-  segment: AssistantMessageSegment;
+  segments: readonly AssistantMessageSegment[];
   onChipClick: (claim: Claim, ref: SourceReference, anchor: HTMLElement) => void;
 }): ReactElement {
-  return (
-    <span data-testid="copilot-segment">
-      {segment.text}
-      {segment.claims.map((claim) =>
-        claim.sourceReferences.map((ref, ri) => (
+  const paragraphs: { nodes: ReactNode[]; isList: boolean }[] = [];
+  let pendingParagraph: ReactNode[] = [];
+  let pendingIsList = false;
+
+  const flushPending = (): void => {
+    if (pendingParagraph.length > 0) {
+      paragraphs.push({ nodes: pendingParagraph, isList: pendingIsList });
+      pendingParagraph = [];
+      pendingIsList = false;
+    }
+  };
+
+  segments.forEach((seg, segIdx) => {
+    const splits = splitParagraphs(seg.text);
+    const chips: ReactNode[] = seg.claims.flatMap((claim, ci) =>
+      claim.sourceReferences.map((ref, ri) => (
+        <Fragment key={`seg${String(segIdx)}-${claim.id}-${String(ci)}-${String(ri)}`}>
           <SourceChip
-            key={`${claim.id}-${ri}`}
             claim={claim}
             reference={ref}
             onClick={(anchor) => onChipClick(claim, ref, anchor)}
           />
-        )),
-      )}{' '}
-    </span>
+          <span> </span>
+        </Fragment>
+      )),
+    );
+
+    if (splits.length === 0) {
+      // Only chips, no prose this segment — append to pending.
+      pendingParagraph.push(...chips);
+      return;
+    }
+
+    splits.forEach((paragraph, pIdx) => {
+      const isLast = pIdx === splits.length - 1;
+      const lines = paragraph.split(/\n+/);
+      const allBullets = lines.length > 0 && lines.every((ln) => /^\s*-\s+/.test(ln));
+      if (allBullets) {
+        // Flush any in-progress paragraph before switching to a list.
+        flushPending();
+        const items: ReactNode[] = lines.map((ln, li) => (
+          <li key={`seg${String(segIdx)}-p${String(pIdx)}-li${String(li)}`}>
+            {inlineMarkdownToNodes(ln.replace(/^\s*-\s+/, ''), `seg${String(segIdx)}-p${String(pIdx)}-li${String(li)}`)}
+            {isLast && li === lines.length - 1 ? <> {chips}</> : null}
+          </li>
+        ));
+        paragraphs.push({ nodes: items, isList: true });
+        return;
+      }
+
+      const inline = inlineMarkdownToNodes(paragraph, `seg${String(segIdx)}-p${String(pIdx)}`);
+      if (pendingParagraph.length === 0) {
+        pendingParagraph = inline;
+      } else {
+        pendingParagraph.push(' ', ...inline);
+      }
+      if (isLast) {
+        if (chips.length > 0) {
+          pendingParagraph.push(' ', ...chips);
+        }
+      }
+      // Each split (except possibly the last when it gets merged with
+      // the next segment) becomes its own paragraph.
+      if (!isLast) {
+        flushPending();
+      }
+    });
+  });
+
+  flushPending();
+
+  return (
+    <>
+      {paragraphs.map((para, idx) =>
+        para.isList ? (
+          <ul
+            key={`para-${String(idx)}`}
+            className="copilot-prose__list mb-2"
+            data-testid="copilot-segment"
+          >
+            {para.nodes}
+          </ul>
+        ) : (
+          <p
+            key={`para-${String(idx)}`}
+            className="copilot-prose__paragraph mb-2"
+            data-testid="copilot-segment"
+          >
+            {para.nodes}
+          </p>
+        ),
+      )}
+    </>
   );
 }
 

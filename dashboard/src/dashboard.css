@@ -49,6 +49,52 @@
   background-color: #fff;
 }
 
+/* Demographics row underneath the patient name. Each field is a
+   labeled key/value pair laid out in a flex strip so the labels stay
+   distinguishable at a glance instead of collapsing into a single
+   run-on line. The vertical pipe between items is a visual
+   separator; the surrounding gap absorbs wrap when the row gets too
+   narrow to fit on one line. */
+.patient-header__demographics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.875rem;
+  margin-top: 0.125rem;
+  color: #495057;
+}
+
+.patient-header__demographics-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.patient-header__demographics-item + .patient-header__demographics-item::before {
+  content: '';
+  position: absolute;
+  left: -0.5rem;
+  top: 0.15em;
+  bottom: 0.15em;
+  width: 1px;
+  background-color: #dee2e6;
+}
+
+.patient-header__demographics dt {
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  margin: 0;
+}
+
+.patient-header__demographics dd {
+  margin: 0;
+  color: #212529;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Tab strip: legacy-look (small text, paper tabs sitting on a baseline). */
 .tab-strip-legacy {
   background-color: #fafafa;
@@ -490,4 +536,68 @@
 .copilot-trend__axis-label {
   font-size: 10px;
   fill: #64748b;
+}
+
+.copilot-trend__point-label {
+  font-size: 10px;
+  font-weight: 600;
+  fill: #1e3a8a;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.copilot-trend__point-label--abnormal {
+  fill: #b91c1c;
+}
+
+/* Markdown-rendered assistant prose. Each segment can produce one or
+   more paragraphs; chips flow inline at the end of the segment's
+   last paragraph. Spacing between paragraphs gives multi-section
+   briefings (headline + body + follow-ups) visual structure. */
+.copilot-prose__paragraph {
+  margin: 0 0 0.55em 0;
+}
+
+.copilot-prose__paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.copilot-prose__list {
+  margin: 0 0 0.55em 0;
+  padding-left: 1.25rem;
+}
+
+.copilot-prose__list:last-child {
+  margin-bottom: 0;
+}
+
+/* Document fact review (the dashboard equivalent of the legacy
+   "From documents" cards). One card per uploaded document; each row
+   is a single extracted fact with Accept / Reject buttons. */
+.copilot-fact-review__card + .copilot-fact-review__card {
+  margin-top: 0.75rem;
+}
+
+.copilot-fact-review__row:first-of-type {
+  border-top: none !important;
+}
+
+.copilot-fact-review__row--rejected {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.copilot-fact-review__row--rejected .copilot-fact-review__category {
+  text-decoration: none;
+}
+
+.copilot-fact-review__row--accepted {
+  background-color: #f0fdf4;
+}
+
+.copilot-fact-review__category {
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
 }
