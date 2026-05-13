@@ -218,6 +218,35 @@ export interface PendingUpload {
      * a single page. The panel returns this from `document_upload.php`.
      */
     readonly canonicalExt: string;
+    /**
+     * Where this pending upload came from:
+     *   - `chat-upload`: the clinician attached this document to the
+     *     current turn via the chat panel composer. The supervisor
+     *     should fire `kickoffExtraction` on it — the clinician is
+     *     actively waiting on it.
+     *   - `chart-enriched`: discovered server-side by
+     *     `enrichPendingUploadsWithChartDocuments` because it exists on
+     *     the patient's chart (legacy Documents UI upload) but has not
+     *     yet been extracted. These can pile up; firing
+     *     `kickoffExtraction` on every one of them blows past the
+     *     supervisor's iteration cap and the LangGraph recursion limit.
+     *     The supervisor should only extract a chart-enriched entry
+     *     when the clinician's question this turn plausibly references
+     *     it (filename hint, doc-type hint, or the question explicitly
+     *     asks about an uploaded document). Defaults to `chat-upload`
+     *     when omitted so legacy callers stay compatible.
+     */
+    readonly source?: 'chat-upload' | 'chart-enriched';
+    /**
+     * Original filename surfaced to the supervisor so it can decide
+     * whether a chart-enriched document is the one the clinician's
+     * question is about (e.g. "what does the colonoscopy referral say"
+     * vs. a filename like `colonoscopy-referral-2026.pdf`). `null` when
+     * the source didn't carry a filename (chat-panel uploads currently
+     * omit it — the panel composer treats them as the "active"
+     * document and never needs a hint).
+     */
+    readonly filename?: string | null;
 }
 
 /**

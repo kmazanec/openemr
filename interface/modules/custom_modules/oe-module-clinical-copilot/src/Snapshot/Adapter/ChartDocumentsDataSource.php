@@ -32,8 +32,12 @@ interface ChartDocumentsDataSource
      *   - `canonical_ext` — file extension the rasterizer expects
      *     (`pdf` / `png` / `jpg` / `jpeg` / `tiff` / `tif` / `docx`),
      *     derived from `documents.url` (the canonical legacy filename).
+     *   - `filename` — original `documents.name` the clinician uploaded,
+     *     or `null` when missing. The agent's supervisor uses this to
+     *     decide whether a chart-enriched document is the one the
+     *     user's question this turn is about.
      *
-     * @return list<array{document_uuid: string, doc_type: string, canonical_ext: string}>
+     * @return list<array{document_uuid: string, doc_type: string, canonical_ext: string, filename: string|null}>
      */
     public function listForPid(int $pid): array;
 }

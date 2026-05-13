@@ -377,7 +377,19 @@ export const createApp = ({
                 task: parsed.data.task,
                 ...(parsed.data.question !== undefined ? { question: parsed.data.question } : {}),
                 ...(parsed.data.pendingUploads !== undefined && parsed.data.pendingUploads.length > 0
-                    ? { pendingUploads: parsed.data.pendingUploads }
+                    ? {
+                        pendingUploads: parsed.data.pendingUploads.map((u) => ({
+                            ...u,
+                            // Chat-panel uploads always carry the
+                            // `chat-upload` provenance — the clinician
+                            // attached the document this turn and is
+                            // actively waiting on it. The chart-side
+                            // discovery path (`enrichPendingUploads`)
+                            // tags its entries `chart-enriched` so the
+                            // supervisor can tell them apart.
+                            source: 'chat-upload' as const,
+                        })),
+                    }
                     : {}),
             };
 

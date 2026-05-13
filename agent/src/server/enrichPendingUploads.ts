@@ -130,6 +130,15 @@ export const enrichPendingUploadsWithChartDocuments = async (
             documentUuid: doc.documentUuid,
             docType: doc.docType,
             canonicalExt: doc.canonicalExt,
+            // Tag the provenance so the supervisor can tell chart-
+            // side uploads (don't auto-extract; only extract when the
+            // clinician's question this turn references one) from
+            // chat-panel uploads (always extract — clinician is
+            // actively waiting on the result). Filename rides through
+            // so the supervisor can do that referencing check against
+            // the actual document name the clinician filed under.
+            source: 'chart-enriched',
+            filename: doc.filename,
         });
     }
 

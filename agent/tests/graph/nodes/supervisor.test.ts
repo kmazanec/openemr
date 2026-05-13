@@ -383,7 +383,12 @@ describe('createSupervisor (§A.7)', () => {
         }));
 
         const obs = observed[0] as {
-            pendingUploads: readonly { documentUuid: string; docType: string }[];
+            pendingUploads: readonly {
+                documentUuid: string;
+                docType: string;
+                source: string;
+                filename: string | null;
+            }[];
             kickoffExtractionResultsThisTurn: readonly unknown[];
         };
         // The observation deliberately omits `canonicalExt` —
@@ -391,9 +396,16 @@ describe('createSupervisor (§A.7)', () => {
         // keeping the supervisor prompt narrow keeps the supervisor's
         // attention on the routing decision. The kickoffExtraction
         // node looks up canonicalExt from the envelope's pendingUploads
-        // entry directly.
+        // entry directly. `source` and `filename` ARE surfaced so the
+        // supervisor can tell chat-panel uploads from chart-side
+        // documents and steer extraction accordingly.
         expect(obs.pendingUploads).toEqual([
-            { documentUuid: 'doc-1', docType: 'lab_pdf' },
+            {
+                documentUuid: 'doc-1',
+                docType: 'lab_pdf',
+                source: 'chat-upload',
+                filename: null,
+            },
         ]);
         expect(obs.kickoffExtractionResultsThisTurn).toEqual([]);
     });
@@ -429,11 +441,21 @@ describe('createSupervisor (§A.7)', () => {
         }));
 
         const obs = observed[0] as {
-            pendingUploads: readonly { documentUuid: string }[];
+            pendingUploads: readonly {
+                documentUuid: string;
+                docType: string;
+                source: string;
+                filename: string | null;
+            }[];
             kickoffExtractionResultsThisTurn: readonly { documentUuid: string; status: string }[];
         };
         expect(obs.pendingUploads).toEqual([
-            { documentUuid: 'doc-1', docType: 'lab_pdf' },
+            {
+                documentUuid: 'doc-1',
+                docType: 'lab_pdf',
+                source: 'chat-upload',
+                filename: null,
+            },
         ]);
         expect(obs.kickoffExtractionResultsThisTurn).toEqual([
             { documentUuid: 'doc-1', status: 'persisted' },

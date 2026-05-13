@@ -114,6 +114,7 @@ final readonly class ChartDocumentsDataSource implements ChartDocumentsDataSourc
                 'document_uuid' => $canonicalUuid,
                 'doc_type' => $docType,
                 'canonical_ext' => $canonicalExt,
+                'filename' => $filename !== '' ? $filename : null,
             ];
         }
         return $out;

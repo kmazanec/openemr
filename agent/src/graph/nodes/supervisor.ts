@@ -102,6 +102,27 @@ export interface SupervisorStateObservation {
     readonly pendingUploads: readonly {
         readonly documentUuid: string;
         readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
+        /**
+         * Where the entry came from. `chat-upload` is a document the
+         * clinician just attached via the chat panel composer this
+         * turn — the supervisor should fire `kickoffExtraction` on
+         * it. `chart-enriched` is a document discovered on the
+         * patient's chart (legacy Documents UI upload) that has not
+         * been extracted yet — the supervisor should only extract it
+         * when the clinician's question this turn references it
+         * (filename hint, doc-type hint, or the question explicitly
+         * asks about an uploaded document). Defaulting to
+         * `chat-upload` keeps legacy callers and tests compatible.
+         */
+        readonly source: 'chat-upload' | 'chart-enriched';
+        /**
+         * Original filename of the uploaded document, surfaced so the
+         * supervisor can decide whether a chart-enriched entry is the
+         * one the user's question this turn is actually about. `null`
+         * when the source didn't carry a filename (chat-panel uploads
+         * routinely omit it).
+         */
+        readonly filename: string | null;
     }[];
     /**
      * `kickoffExtraction` results appended on this turn, projected
@@ -256,17 +277,31 @@ const presentCategoryFlags = (state: BriefingState): readonly string[] => {
  * exactly the kind of question the supervisor's evidenceRetriever
  * routing rule fires on. We pick the doc type from the FIRST pending
  * entry; multi-doc turns get a generic phrasing.
+ *
+ * Chart-enriched entries are skipped — those documents weren't
+ * attached this turn (they were already on the chart), so the
+ * clinician isn't implicitly asking "what about this lab" the way
+ * they are for a chat-panel upload. Without this filter, a fresh
+ * morning-prep briefing with N un-extracted chart documents would
+ * inherit "what do these documents tell us…" as the implicit
+ * question, which dragged the supervisor into kickoffExtraction for
+ * every document and blew past the recursion limit (the bug this
+ * fixes).
  */
 const buildImplicitQuestion = (
     pendingUploads: readonly {
         readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
+        readonly source?: 'chat-upload' | 'chart-enriched';
     }[],
 ): string | null => {
-    if (pendingUploads.length === 0) return null;
-    if (pendingUploads.length > 1) {
+    const chatUploads = pendingUploads.filter(
+        (p) => (p.source ?? 'chat-upload') === 'chat-upload',
+    );
+    if (chatUploads.length === 0) return null;
+    if (chatUploads.length > 1) {
         return 'What do these documents tell us about the patient, and what should I consider doing about it given the chart and applicable guidelines?';
     }
-    const first = pendingUploads[0];
+    const first = chatUploads[0];
     if (first === undefined) return null;
     switch (first.docType) {
         case 'lab_pdf':
@@ -280,10 +315,34 @@ const buildImplicitQuestion = (
 
 const observeState = (state: BriefingState): SupervisorStateObservation => {
     const history = state.supervisorDecisionHistory;
-    const pendingUploads = (state.envelope.pendingUploads ?? []).map((p) => ({
+    const rawPendingUploads = (state.envelope.pendingUploads ?? []).map((p) => ({
         documentUuid: p.documentUuid,
         docType: p.docType,
+        // Default to `chat-upload` so envelopes that pre-date the
+        // source tag (older tests, third-party callers) keep behaving
+        // the way they did before — i.e. the supervisor fires
+        // kickoffExtraction on them.
+        source: p.source ?? ('chat-upload' as const),
+        filename: p.filename ?? null,
     }));
+    // Hard cap on how many chart-enriched entries the supervisor sees
+    // per turn. Chart-side documents are ordered newest-first by the
+    // chart-documents endpoint, so trimming the tail keeps the most
+    // recently uploaded ones (the ones the clinician is most likely
+    // to be asking about). Without this, a patient with 10
+    // un-extracted chart-side documents would feed the supervisor 10
+    // candidates per iteration; even with the prompt rule above, a
+    // single misroute per turn would exhaust the LangGraph recursion
+    // limit. Chat-upload entries are never trimmed — the clinician is
+    // actively waiting on them.
+    const CHART_ENRICHED_VISIBILITY_CAP = 3;
+    let chartEnrichedShown = 0;
+    const pendingUploads = rawPendingUploads.filter((p) => {
+        if (p.source !== 'chart-enriched') return true;
+        if (chartEnrichedShown >= CHART_ENRICHED_VISIBILITY_CAP) return false;
+        chartEnrichedShown += 1;
+        return true;
+    });
     const kickoffExtractionResultsThisTurn = state.kickoffExtractionResults.map((r) => ({
         documentUuid: r.documentUuid,
         status: r.status,
@@ -397,7 +456,10 @@ const fallbackQueryFromState = (state: BriefingState): string | null => {
         return explicit.trim();
     }
     const implicit = buildImplicitQuestion(
-        (state.envelope.pendingUploads ?? []).map((p) => ({ docType: p.docType })),
+        (state.envelope.pendingUploads ?? []).map((p) => ({
+            docType: p.docType,
+            source: p.source ?? 'chat-upload',
+        })),
     );
     if (implicit !== null && implicit.trim().length > 0) {
         return implicit.trim();
@@ -728,7 +790,9 @@ Rules:
 - Pick exactly one handoff from the manifest.
 - Provide a non-empty reason — you are accountable for every routing decision.
 - Provide a one-sentence narration (≤120 chars), written for the clinician watching the panel: a clear, concrete description of what you're about to do, in present continuous tense. Examples: "Pulling prior lipid panels to compare." / "Checking the USPSTF on statin primary prevention." / "Analyzing the lipid panel you just attached." / "Drafting your briefing." It will be shown verbatim as the panel's progress line for this step. Avoid jargon, internal handoff names, and technical detail.
-- When the envelope carries pendingUploads (documents the clinician just attached) and any entry has not yet been processed this turn (its documentUuid is absent from observation.kickoffExtractionResultsThisTurn), kickoffExtraction is usually the right first move — copy { document_uuid, doc_type } from the pending entry verbatim into args. The two cases where you should SKIP kickoffExtraction even though pendingUploads has unprocessed entries: (a) on a 'follow_up' task with an explicit observation.question that does not reference the attached document(s) — the clinician asked something specific and is waiting on an answer, not on us to re-process documents that were already surfaced in a previous turn (chart-side documents enriched by the briefing runner can re-appear on every turn until the user dismisses them); answer the question first via the normal evidence/synthesize path. (b) When every pending entry has already produced a 'failed' result you can route around. Otherwise, until every pending entry has been processed, do not pick synthesize. After kickoffExtraction completes, decide on the next iteration what additional context the extracted document warrants — for a lab, prior trending via retrieveChart('lab') is often valuable; for a question the document raises, evidenceRetriever may add guideline backing; for grounding a citation in the extracted facts, documentEvidenceRetriever surfaces the structured snippets.
+- Each pendingUploads entry has a 'source' field: 'chat-upload' means the clinician just attached the document via the chat panel this turn (they are actively waiting on a result); 'chart-enriched' means the document was discovered on the patient's chart but wasn't attached this turn. The routing rules below differ by source.
+- For a 'chat-upload' pendingUploads entry that hasn't been processed yet (its documentUuid is absent from observation.kickoffExtractionResultsThisTurn), kickoffExtraction is usually the right first move — copy { document_uuid, doc_type } from the pending entry verbatim into args. The two cases where you should SKIP kickoffExtraction even though chat-upload entries are unprocessed: (a) on a 'follow_up' task with an explicit observation.question that does not reference the attached document(s) — the clinician asked something specific and is waiting on an answer, not on us to re-process documents that were already surfaced in a previous turn; answer the question first via the normal evidence/synthesize path. (b) When every pending entry has already produced a 'failed' result you can route around. After kickoffExtraction completes on a chat-upload, decide on the next iteration what additional context the extracted document warrants — for a lab, prior trending via retrieveChart('lab') is often valuable; for a question the document raises, evidenceRetriever may add guideline backing; for grounding a citation in the extracted facts, documentEvidenceRetriever surfaces the structured snippets.
+- For 'chart-enriched' pendingUploads entries, DO NOT pick kickoffExtraction by default. The clinician didn't attach those documents this turn — they're on the chart from a previous upload, and processing every un-extracted chart document on every turn would loop you to the iteration cap. Only pick kickoffExtraction for a chart-enriched entry when the clinician's question this turn plausibly references it — the entry's 'filename' or 'docType' lines up with what the question is about (e.g. question mentions "the colonoscopy referral" and the filename contains "colonoscopy", or the question is "what does my intake form say" and the docType is intake_form). When in doubt for a chart-enriched entry, prefer evidenceRetriever or synthesize over kickoffExtraction — a missed chart-side document is recoverable next turn; a runaway extraction loop is not. Chart-enriched entries do NOT block synthesize; you may pick synthesize even when chart-enriched pendingUploads remain unprocessed.
 - When observation.implicitQuestion is set (the envelope carried documents but no typed question), treat it as if the clinician asked it explicitly. The same routing rules below — guideline-shaped routing to evidenceRetriever, chart-only lookups direct to synthesize, etc. — apply unchanged. Concretely: an implicit "what should I consider doing about this lab" against a chart with abnormal results almost always benefits from evidenceRetriever before synthesize. Do not skip evidenceRetriever just because the question is implicit.
 - When you pick retrieveChart on a turn that has already retrieved chart data once, you must include args.categories naming which categories to re-fetch.
 - Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question. The synthesizer is forbidden from citing clinical knowledge from its own training data — its only valid sources are this turn's chart records and any retriever output already in state.

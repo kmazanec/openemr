@@ -46,11 +46,21 @@ const buildStore = (artifacts: readonly Pick<ExtractionArtifact, 'documentUuid'>
 };
 
 describe('enrichPendingUploadsWithChartDocuments', () => {
-    it('splices unprocessed chart docs onto pendingUploads', async () => {
+    it('splices unprocessed chart docs onto pendingUploads, tagged chart-enriched with filename', async () => {
         const { client } = mockClient({
             documents: [
-                { document_uuid: 'doc-A', doc_type: 'intake_form', canonical_ext: 'pdf' },
-                { document_uuid: 'doc-B', doc_type: 'lab_pdf', canonical_ext: 'pdf' },
+                {
+                    document_uuid: 'doc-A',
+                    doc_type: 'intake_form',
+                    canonical_ext: 'pdf',
+                    filename: 'intake-2026-01-12.pdf',
+                },
+                {
+                    document_uuid: 'doc-B',
+                    doc_type: 'lab_pdf',
+                    canonical_ext: 'pdf',
+                    filename: 'cbc-2026-02-01.pdf',
+                },
             ],
         });
         const out = await enrichPendingUploadsWithChartDocuments(
@@ -60,7 +70,11 @@ describe('enrichPendingUploadsWithChartDocuments', () => {
         expect(out.pendingUploads).toHaveLength(2);
         expect(out.pendingUploads?.[0]?.documentUuid).toBe('doc-A');
         expect(out.pendingUploads?.[0]?.docType).toBe('intake_form');
+        expect(out.pendingUploads?.[0]?.source).toBe('chart-enriched');
+        expect(out.pendingUploads?.[0]?.filename).toBe('intake-2026-01-12.pdf');
         expect(out.pendingUploads?.[1]?.documentUuid).toBe('doc-B');
+        expect(out.pendingUploads?.[1]?.source).toBe('chart-enriched');
+        expect(out.pendingUploads?.[1]?.filename).toBe('cbc-2026-02-01.pdf');
     });
 
     it('drops chart docs that already have an extraction artifact', async () => {

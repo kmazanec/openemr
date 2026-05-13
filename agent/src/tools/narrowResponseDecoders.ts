@@ -65,6 +65,14 @@ export interface ChartDocument {
     readonly documentUuid: string;
     readonly docType: 'lab_pdf' | 'intake_form' | 'referral_letter';
     readonly canonicalExt: string;
+    /**
+     * Original `documents.name` from OpenEMR (the filename the
+     * clinician uploaded). Surfaced so the supervisor can decide
+     * whether a chart-side document is the one the user's question
+     * this turn is actually about. `null` when the PHP side omitted
+     * the field (older OpenEMR rows or fixtures).
+     */
+    readonly filename: string | null;
 }
 
 /**
@@ -259,6 +267,7 @@ export const decodeChartDocumentsResponse = (raw: unknown): readonly ChartDocume
             documentUuid: expectString(`${path}.document_uuid`, row['document_uuid']),
             docType,
             canonicalExt: expectString(`${path}.canonical_ext`, row['canonical_ext']),
+            filename: optionalString(`${path}.filename`, row['filename'] ?? null),
         };
     });
 };
