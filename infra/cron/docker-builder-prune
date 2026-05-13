@@ -1,0 +1,8 @@
+# Weekly docker build-cache prune — reclaims CI build layers older than 7d.
+#
+# The GitLab runner on this Droplet executes `docker build` for every
+# pipeline run, and buildx cache layers accumulate indefinitely. Without
+# this prune, the cache grew to >20G inside a few weeks of deploys.
+#
+# Installed by infra/cloud-init.sh.template into /etc/cron.d/.
+0 4 * * 0 root docker builder prune -af --filter "until=168h" >/var/log/docker-builder-prune.log 2>&1

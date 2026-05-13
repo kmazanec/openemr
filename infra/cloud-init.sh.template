@@ -165,6 +165,16 @@ install -D -m 0644 -o gitlab-runner -g gitlab-runner \
 mkdir -p /opt/site
 
 # ---------------------------------------------------------------------------
+# 6c. Weekly docker build-cache prune
+# ---------------------------------------------------------------------------
+# The GitLab runner builds images on the Droplet itself; buildx cache
+# layers pile up indefinitely otherwise (observed >20G inside a few
+# weeks). File ships in the repo so future bootstraps get it too.
+install -D -m 0644 -o root -g root \
+    "${INITIAL_RELEASE}/infra/cron/docker-builder-prune" \
+    /etc/cron.d/docker-builder-prune
+
+# ---------------------------------------------------------------------------
 # 7. Bring up the stack and start the runner
 # ---------------------------------------------------------------------------
 
