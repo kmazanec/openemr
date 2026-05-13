@@ -46,6 +46,7 @@ docker/development-easy-redis/docker-compose.override.yml
 # AI assistant tooling (per-developer, not project state)
 /.agents/
 /.claude/*
+!/.claude/skills/
 !/.claude/commands/
 /skills-lock.json
 /.obsidian
