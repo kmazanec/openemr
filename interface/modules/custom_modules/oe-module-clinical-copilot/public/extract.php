@@ -41,6 +41,7 @@ use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Core\OEGlobalsBag;
 use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolutionException;
 use OpenEMR\Modules\ClinicalCopilot\Auth\FhirUserResolver;
+use OpenEMR\Modules\ClinicalCopilot\Bootstrap\AgentEndpointBootstrap;
 use OpenEMR\Modules\ClinicalCopilot\Controller\ExtractController;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -65,7 +66,14 @@ $sessionPid = (is_scalar($sessionPidRaw) && $sessionPidRaw !== '' && $sessionPid
 $siteAddr = $globals->getString('site_addr_oath');
 $webroot = $globals->getWebRoot();
 $fhirBaseUrl = $siteAddr . $webroot . '/apis/' . $siteId . '/fhir';
-$issuer = $siteAddr . $webroot . '/oauth2/' . $siteId;
+// Resolve the JWT issuer through the shared helper so this entry point
+// agrees byte-for-byte with the verifier side. Composing
+// `site_addr_oath + webroot + /oauth2/{site}` directly produces the
+// container's self-URL (e.g. http://localhost:8300), which mismatches
+// the agent's AGENT_JWT_ISSUER on any deploy where the browser-facing
+// URL differs (https://localhost:9300 in dev, https://emr.biograph.dev
+// in prod). The helper honors OE_AGENT_JWT_ISSUER for that pinning.
+$issuer = AgentEndpointBootstrap::resolveIssuer($siteId);
 
 $resolvedFhirUser = null;
 if ($authUserId !== '') {
