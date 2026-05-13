@@ -310,6 +310,10 @@ services:
     volumes:
     - ./Caddyfile:/etc/caddy/Caddyfile:ro
     - /opt/site:/srv/site:ro
+    # Sibling-project route snippets. Each app (CATS etc.) drops a
+    # *.caddyfile here; the Caddyfile globs them in. Read-only so a
+    # buggy app can't tamper with caddy state.
+    - /etc/caddy/conf.d:/etc/caddy/conf.d:ro
     - caddydata:/data
     - caddyconfig:/config
     environment:

@@ -50,3 +50,14 @@
     file_server
     encode gzip zstd
 }
+
+# ---------------------------------------------------------------------------
+# Sibling-project route snippets
+# ---------------------------------------------------------------------------
+# Other projects on this Droplet (CATS, etc.) drop a `.caddyfile` into
+# /etc/caddy/conf.d/ on the host, mounted into this container at the
+# same path. Each snippet brings its own site block(s) and is free to
+# `import security_headers` if it wants the same baseline. This keeps
+# cross-project Caddy ownership clean — OpenEMR's deploy never has to
+# know what other apps are routed here.
+import /etc/caddy/conf.d/*.caddyfile
