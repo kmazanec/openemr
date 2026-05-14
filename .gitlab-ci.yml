@@ -36,6 +36,7 @@
 stages:
 - test
 - deploy
+- notify
 
 # Run on MRs and on push to master. Used by all test jobs.
 .test-rules: &test-rules
@@ -306,6 +307,47 @@ deploy:
   environment:
     name: production
     url: https://emr.biograph.dev
+
+# Tell CATS (the adversarial-eval platform) that the Co-Pilot has
+# redeployed so it can re-run its confirmed findings against the new
+# version. Authenticated with HMAC-SHA256 over the raw POST body using
+# a per-project secret generated in the CATS UI.
+#
+# Opt-in: skips cleanly when CATS_WEBHOOK_URL / CATS_WEBHOOK_SECRET are
+# unset, so the job is safe to land before the operator has configured
+# the variables.
+#
+# allow_failure: true — the deploy has already completed by the time
+# this runs. A CATS outage shouldn't redden a successful pipeline.
+#
+# Runs only on master/push, like deploy. needs: ["deploy"] both gates
+# on deploy success and shortens the pipeline graph.
+notify:cats-regression:
+  <<: *runner-tags
+  stage: notify
+  needs:
+  - deploy
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
+  allow_failure: true
+  script:
+  - |
+    if [ -z "${CATS_WEBHOOK_URL:-}" ] || [ -z "${CATS_WEBHOOK_SECRET:-}" ]; then
+      echo "CATS_WEBHOOK_URL or CATS_WEBHOOK_SECRET unset — skipping notify."
+      exit 0
+    fi
+    docker run --rm \
+      -e CATS_WEBHOOK_URL \
+      -e CATS_WEBHOOK_SECRET \
+      -e CI_COMMIT_SHORT_SHA \
+      alpine:latest \
+      sh -ec '
+        apk add --no-cache curl python3 >/dev/null
+        BODY=$(printf "{\"version_tag\":\"%s\"}" "$CI_COMMIT_SHORT_SHA")
+        SIG=$(printf "%s" "$BODY" | python3 -c "import sys, hmac, hashlib, os; print(\"sha256=\" + hmac.new(os.environ[\"CATS_WEBHOOK_SECRET\"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())")
+        curl -fsS -X POST "$CATS_WEBHOOK_URL" -H "Content-Type: application/json" -H "X-CATS-Signature: $SIG" --data-raw "$BODY"
+        echo "CATS notified: version_tag=$CI_COMMIT_SHORT_SHA"
+      '
 
 # Manual nuke for the named CI volumes. Run from the GitLab UI
 # (CI/CD → Pipelines → "Run pipeline" on master, then click "Play" on

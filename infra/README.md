@@ -272,6 +272,37 @@ ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/
 ssh root@emr.biograph.dev sudo -u gitlab-runner bash /srv/openemr/current/infra/deploy.sh
 ```
 
+### CATS regression notify (optional)
+
+After every successful `deploy` job on `master`, the
+`notify:cats-regression` job in `.gitlab-ci.yml` POSTs an
+HMAC-signed signal to CATS (the adversarial-eval platform) so it can
+re-run its confirmed findings against the new Co-Pilot version.
+
+The job is **opt-in**: if `CATS_WEBHOOK_URL` and `CATS_WEBHOOK_SECRET`
+are unset it exits 0 and the pipeline continues. It's also
+`allow_failure: true` — a CATS outage doesn't redden a successful
+deploy.
+
+To enable, add three variables in
+**GitLab → Settings → CI/CD → Variables** (all marked
+**Protected + Masked**):
+
+| Variable              | Where to get it                                              |
+| --------------------- | ------------------------------------------------------------ |
+| `CATS_WEBHOOK_URL`    | CATS project edit page → "Deploy webhook" panel              |
+| `CATS_WEBHOOK_SECRET` | CATS project edit page → "generate secret" (shown **once**)  |
+| `CATS_PROJECT_ID`     | Same panel — informational; not read by today's script       |
+
+To rotate the secret, click "rotate secret" in the CATS UI and update
+`CATS_WEBHOOK_SECRET` in GitLab. The old secret is invalidated the
+moment the new one is stored.
+
+To temporarily disable without removing the variables, click "revoke"
+in the CATS UI — the webhook will return 503 and the job's
+`curl --fail` will mark the job failed (but `allow_failure: true`
+keeps the pipeline green).
+
 ### Database migrations
 
 OpenEMR has two migration systems and we touch both.
