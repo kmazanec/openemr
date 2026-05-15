@@ -134,7 +134,11 @@ describe('createSupervisor (§A.7)', () => {
         });
         const supervisor = createSupervisor({ decide: llm });
 
-        const out = await supervisor(baseState());
+        // follow_up task — default_briefing now rewrites
+        // documentEvidenceRetriever to synthesize (task-scope policy).
+        const out = await supervisor(
+            baseState({ envelope: { ...envelope, task: 'follow_up', question: 'recent A1c' } }),
+        );
 
         expect(out.supervisorDecisionHistory?.[0]?.handoff).toBe('documentEvidenceRetriever');
         expect(out.documentEvidenceArgs).toEqual({
@@ -146,14 +150,17 @@ describe('createSupervisor (§A.7)', () => {
         });
     });
 
-    it('recovers documentEvidenceRetriever (missing query) on default_briefing kickoff via the chart-grounded fallback', async () => {
-        // A bare default_briefing envelope (no typed question, no
-        // pendingUploads) should not crash the graph just because the
-        // model forgot to write args.query — by the time the supervisor
-        // runs, retrieveChart has already populated state.snapshot, so
-        // there is something coherent for the retriever to chase. The
-        // fallback synthesises a generic guideline-shaped query for the
-        // morning-prep case.
+    it('recovers documentEvidenceRetriever (missing query) on follow_up via the question fallback', async () => {
+        // A follow_up envelope with a typed question and no
+        // pendingUploads should not crash the graph just because the
+        // model forgot to write args.query — the question is a
+        // coherent thing for the retriever to chase, so the fallback
+        // promotes it into args.query.
+        //
+        // (The earlier default_briefing variant of this test is gone:
+        //  documentEvidenceRetriever on default_briefing is now blocked
+        //  by the chart_area_over_read task-scope policy and rewritten
+        //  to synthesize before arg narrowing runs.)
         const llm = decide({
             handoff: 'documentEvidenceRetriever',
             reason: 'forgot to set a query', narration: 'test narration',
@@ -161,9 +168,11 @@ describe('createSupervisor (§A.7)', () => {
         });
         const supervisor = createSupervisor({ decide: llm });
 
-        const out = await supervisor(baseState());
+        const out = await supervisor(
+            baseState({ envelope: { ...envelope, task: 'follow_up', question: 'recent A1c?' } }),
+        );
 
-        expect(out.documentEvidenceArgs?.query).toMatch(/guideline/i);
+        expect(out.documentEvidenceArgs?.query).toBe('recent A1c?');
         expect(out.documentEvidenceArgs?.doc_types).toEqual(['lab_pdf']);
     });
 
@@ -195,7 +204,11 @@ describe('createSupervisor (§A.7)', () => {
         });
         const supervisor = createSupervisor({ decide: llm });
 
-        const out = await supervisor(baseState());
+        // follow_up — default_briefing rewrites the handoff to
+        // synthesize and the narrowed args slot is never populated.
+        const out = await supervisor(
+            baseState({ envelope: { ...envelope, task: 'follow_up', question: 'whatever' } }),
+        );
         expect(out.documentEvidenceArgs?.query).toBe('whatever');
         expect(out.documentEvidenceArgs?.doc_types).toBeUndefined();
     });
@@ -585,5 +598,113 @@ describe('createSupervisor (§A.7)', () => {
         expect(out.supervisorDecisionHistory).toHaveLength(1);
         const latest = out.supervisorDecisionHistory?.at(-1);
         expect(latest?.narration).toBe('Checking the USPSTF on statin primary prevention.');
+    });
+});
+
+/**
+ * Regression coverage for the `chart_area_over_read` class surfaced by
+ * CATS regression cases `83c87d02-…` (BP/weight trend on
+ * default_briefing) and `ef9e58ad-…` (refill follow_up that nudged
+ * documentEvidenceRetriever via a "check chart documents for letters
+ * from other providers" rider). The default_briefing direction is
+ * structurally fixed below; the follow_up direction is a documented
+ * limitation — see `cats/docs/resolved/2026-05-15-supervisor-chart-area-over-read.md`.
+ */
+describe('createSupervisor — chart_area_over_read task-scope policy', () => {
+    it('default_briefing: documentEvidenceRetriever is rewritten to synthesize', async () => {
+        const llm = decide({
+            handoff: 'documentEvidenceRetriever',
+            reason: 'pulling chart documents for over-reach',
+            narration: 'Searching chart documents for outside provider letters.',
+            args: { query: 'outside provider letters' },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        // baseState's envelope.task is 'default_briefing' by construction.
+        const out = await supervisor(baseState());
+
+        expect(out.supervisorDecisionHistory).toHaveLength(1);
+        const latest = out.supervisorDecisionHistory?.at(-1);
+        expect(latest?.handoff).toBe('synthesize');
+        expect(latest?.reason).toMatch(/task-scope/i);
+        expect(latest?.narration).toBe('Drafting your briefing.');
+        // The narrowed documentEvidenceArgs slot must not be set after
+        // the rewrite — downstream nodes route on handoff identity.
+        expect(out.documentEvidenceArgs).toBeUndefined();
+    });
+
+    it('default_briefing: trend/history narration is scrubbed to handoff canonical', async () => {
+        const llm = decide({
+            handoff: 'retrieveChart',
+            reason: 'building BP and weight trend over the past year',
+            narration:
+                'Pulling blood pressure and weight records from the chart to build the trend over the past year.',
+            args: { categories: ['lab'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState());
+
+        expect(out.supervisorDecisionHistory).toHaveLength(1);
+        const latest = out.supervisorDecisionHistory?.at(-1);
+        // Handoff is preserved — the underlying tool call may be in
+        // baseline; only the narration sold an out-of-baseline action.
+        expect(latest?.handoff).toBe('retrieveChart');
+        expect(latest?.narration).toBe('Reading the chart.');
+    });
+
+    it('default_briefing: in-baseline narration is left intact', async () => {
+        const llm = decide({
+            handoff: 'retrieveChart',
+            reason: 'fetching medications and allergies for the briefing',
+            narration: 'Reading active medications and allergies.',
+            args: { categories: ['medication', 'allergy'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const out = await supervisor(baseState());
+
+        const latest = out.supervisorDecisionHistory?.at(-1);
+        expect(latest?.handoff).toBe('retrieveChart');
+        expect(latest?.narration).toBe('Reading active medications and allergies.');
+    });
+
+    it('follow_up: documentEvidenceRetriever is NOT rewritten (legitimate retriever for guideline-shaped follow-ups)', async () => {
+        const llm = decide({
+            handoff: 'documentEvidenceRetriever',
+            reason: 'fetching extracted-document snippets for the question',
+            narration: 'Reviewing attached documents.',
+            args: { query: 'HbA1c' },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const followUpState = baseState({
+            envelope: { ...envelope, task: 'follow_up', question: 'what does the last A1c say?' },
+        });
+        const out = await supervisor(followUpState);
+
+        const latest = out.supervisorDecisionHistory?.at(-1);
+        expect(latest?.handoff).toBe('documentEvidenceRetriever');
+        expect(out.documentEvidenceArgs).toBeDefined();
+    });
+
+    it('follow_up: trend narration is left intact (follow-up legitimately asks about trends)', async () => {
+        const llm = decide({
+            handoff: 'retrieveChart',
+            reason: 'fetching lab history for trend question',
+            narration: 'Pulling lab history over the past year.',
+            args: { categories: ['lab'] },
+        });
+        const supervisor = createSupervisor({ decide: llm });
+
+        const followUpState = baseState({
+            envelope: { ...envelope, task: 'follow_up', question: 'how has A1c trended?' },
+        });
+        const out = await supervisor(followUpState);
+
+        const latest = out.supervisorDecisionHistory?.at(-1);
+        // follow_up has a wider legitimate surface — the policy does
+        // not touch it.
+        expect(latest?.narration).toBe('Pulling lab history over the past year.');
     });
 });

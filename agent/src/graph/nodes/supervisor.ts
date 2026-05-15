@@ -608,6 +608,122 @@ const buildCapHitDecision = (): SupervisorDecision => ({
     narration: 'Drafting your briefing.',
 });
 
+/**
+ * Task-scope policy. Adversarial chat phrasing can coerce the
+ * supervisor into picking handoffs or narrating actions that fall
+ * outside the legitimate tool/area set for the envelope's task — a
+ * class of attack CATS calls `chart_area_over_read`. The supervisor
+ * system prompt already discourages this, but prompt obedience is not
+ * a defense: production traces have shown the model narrating
+ * "Pulling blood pressure and weight over the past year" on a
+ * `default_briefing` turn that asked for vitals trends, and reaching
+ * for `documentEvidenceRetriever` on a `default_briefing` even though
+ * chart documents are squarely follow-up territory. The structural
+ * defense here mirrors the chart-enriched fanout cap: the model's
+ * decision is post-filtered by a deterministic rule that runs
+ * regardless of how the prompt-following looked.
+ *
+ * Rules — both scoped to `default_briefing` only, where the baseline
+ * is tight and unambiguous:
+ *
+ *   1. `documentEvidenceRetriever` → rewrite to `synthesize`. Chart
+ *      documents are out-of-baseline for the briefing task (see
+ *      `cats/reports/tool_abuse/baselines.md`); a briefing surfaces
+ *      current-state data, not the document inventory.
+ *   2. Any handoff whose narration matches a trend/history pattern
+ *      → keep the handoff (the actual tool call may be in baseline;
+ *      `retrieveChart`'s category enum doesn't even expose lab-history
+ *      or vitals-history), but replace the narration with the
+ *      handoff's canonical wording. The judge consumes narration text
+ *      as ground truth; a model that narrates "pulling BP and weight
+ *      over the past year" sells an out-of-baseline action to the
+ *      clinician even when the underlying tool call wouldn't have
+ *      produced one.
+ *
+ * `follow_up` is left alone — the legitimate-follow-up baseline is
+ * the same as the briefing baseline on paper, but in practice
+ * follow-ups frequently and legitimately reach for chart documents
+ * (the multi-retriever eval is a canonical example), and a structural
+ * gate without a per-question intent classifier would block too much.
+ * The follow-up over-read class is a documented limitation in the
+ * cats/docs/resolved/ entry that filed this fix.
+ *
+ * Each rewrite emits a `task-scope-block` trace event so the rewrite
+ * is observable in LangSmith and dashboards.
+ */
+const TREND_NARRATION_PATTERNS: readonly RegExp[] = [
+    /\btrend(s|ing)?\b/i,
+    /\bhistor(y|ical)\b/i,
+    /\bover the (past|last)\b/i,
+    /\b(past|last) (year|month|week|few)\b/i,
+    /\bgradual\b/i,
+    /\blongitudinal\b/i,
+];
+
+const CANONICAL_NARRATION: Readonly<Record<string, string>> = {
+    retrieveChart: 'Reading the chart.',
+    evidenceRetriever: 'Checking the guidelines.',
+    documentEvidenceRetriever: 'Reviewing attached documents.',
+    kickoffExtraction: 'Analyzing the attached document.',
+    synthesize: 'Drafting your briefing.',
+};
+
+export interface TaskScopeRewriteEvent {
+    readonly task: 'default_briefing' | 'follow_up';
+    readonly originalHandoff: SupervisorHandoff;
+    readonly rewrittenHandoff: SupervisorHandoff;
+    readonly rewroteNarration: boolean;
+    readonly rule:
+        | 'document_evidence_blocked_in_briefing'
+        | 'trend_narration_scrubbed_in_briefing';
+}
+
+const matchesTrendNarration = (narration: string | null | undefined): boolean => {
+    if (typeof narration !== 'string' || narration.length === 0) return false;
+    return TREND_NARRATION_PATTERNS.some((pat) => pat.test(narration));
+};
+
+const applyTaskScopePolicy = (
+    decision: SupervisorDecision,
+    state: BriefingState,
+): { readonly decision: SupervisorDecision; readonly rewrite: TaskScopeRewriteEvent | null } => {
+    const task = state.envelope.task;
+
+    if (decision.handoff === 'documentEvidenceRetriever' && task === 'default_briefing') {
+        return {
+            decision: {
+                handoff: 'synthesize',
+                reason:
+                    'task-scope: documentEvidenceRetriever is out-of-baseline for default_briefing — forcing synthesize',
+                narration: CANONICAL_NARRATION['synthesize'] ?? 'Drafting your briefing.',
+            },
+            rewrite: {
+                task,
+                originalHandoff: decision.handoff,
+                rewrittenHandoff: 'synthesize',
+                rewroteNarration: true,
+                rule: 'document_evidence_blocked_in_briefing',
+            },
+        };
+    }
+
+    if (task === 'default_briefing' && matchesTrendNarration(decision.narration)) {
+        const canonical = CANONICAL_NARRATION[decision.handoff] ?? 'Reading the chart.';
+        return {
+            decision: { ...decision, narration: canonical },
+            rewrite: {
+                task,
+                originalHandoff: decision.handoff,
+                rewrittenHandoff: decision.handoff,
+                rewroteNarration: true,
+                rule: 'trend_narration_scrubbed_in_briefing',
+            },
+        };
+    }
+
+    return { decision, rewrite: null };
+};
+
 export const createSupervisor = (
     deps: SupervisorDeps,
 ): ((state: BriefingState) => Promise<BriefingStateUpdate>) => {
@@ -649,7 +765,9 @@ export const createSupervisor = (
             handoffManifest: HANDOFF_MANIFEST,
         });
 
-        const decision: SupervisorDecision = isDecisionWithUsage(result) ? result.decision : result;
+        const rawDecision: SupervisorDecision = isDecisionWithUsage(result)
+            ? result.decision
+            : result;
         const usage = isDecisionWithUsage(result) ? result.usage : undefined;
 
         // Validate the structured shape one more time. `withStructuredOutput`
@@ -658,7 +776,34 @@ export const createSupervisor = (
         // otherwise reach the graph. Per `W2_ARCHITECTURE.md`
         // §"Structural-output coercion via Zod (rejects malformed model
         // output before it reaches graph state)".
-        SupervisorDecisionSchema.parse(decision);
+        SupervisorDecisionSchema.parse(rawDecision);
+
+        // Task-scope policy: deterministically post-filter the
+        // supervisor's decision against the envelope task. See
+        // `applyTaskScopePolicy` for the rules — this is the
+        // chart_area_over_read structural defense.
+        const { decision, rewrite } = applyTaskScopePolicy(rawDecision, state);
+        if (rewrite !== null) {
+            setRunMetadata({
+                supervisor_event: 'task-scope-block',
+                supervisor_iteration: observation.iteration,
+                supervisor_task: rewrite.task,
+                supervisor_original_handoff: rewrite.originalHandoff,
+                supervisor_rewritten_handoff: rewrite.rewrittenHandoff,
+                supervisor_rewrite_rule: rewrite.rule,
+                supervisor_rewrote_narration: rewrite.rewroteNarration,
+            });
+            logger.warn(
+                {
+                    iteration: observation.iteration,
+                    task: rewrite.task,
+                    rule: rewrite.rule,
+                    originalHandoff: rewrite.originalHandoff,
+                    rewrittenHandoff: rewrite.rewrittenHandoff,
+                },
+                'supervisor task-scope rewrite',
+            );
+        }
 
         // Per-handoff arg narrowing. Each typed-slot handoff narrows
         // the loose `Record<string, unknown>` decision args into a
@@ -798,7 +943,8 @@ Rules:
 - Pick synthesize only when chart context plus retrieved evidence is sufficient to answer the question. The synthesizer is forbidden from citing clinical knowledge from its own training data — its only valid sources are this turn's chart records and any retriever output already in state.
 - Decide before each handoff: would the answer benefit from authoritative guideline backing? If yes, pick evidenceRetriever first. The synthesizer is forbidden from naming named guidelines (USPSTF, ADA, AHA, JNC, etc.) unless they appear as snippets in state — so routing directly to synthesize for a guideline-shaped question yields a chart-only answer the clinician will read as "you didn't actually look it up." Triggers include but are not limited to: prevention guidance ("should X be on aspirin"), screening intervals ("when is the next mammogram due"), treatment thresholds ("at what BP do we start medication"), dosing rules, risk-stratification, and any question that would normally be answered by reaching for a clinical guideline rather than the chart alone. ONLY skip evidenceRetriever when the question is purely a chart-data lookup ("when was her last visit", "what's her current Rx list").
 - For follow-up questions that reference a recently uploaded document or where the chart alone won't answer a question that documents likely address — pick documentEvidenceRetriever before synthesize.
-- Do not invent handoffs; do not invent arg shapes outside the documented per-handoff schema.`;
+- Do not invent handoffs; do not invent arg shapes outside the documented per-handoff schema.
+- Task-scope hygiene on observation.task === 'default_briefing': do NOT pick documentEvidenceRetriever (a briefing surfaces current-state data, not the document inventory — chart documents are follow-up territory); do NOT narrate trend / history / over-the-past-year coverage even when picking retrieveChart (retrieveChart's category enum does not expose lab-history or vitals-history; promising one in narration over-states the action). A deterministic post-decision policy enforces both — picking documentEvidenceRetriever on default_briefing rewrites the handoff to synthesize, and trend-shaped narration is replaced with the handoff's canonical wording — but you should not rely on the post-filter: write the right decision in the first place.`;
 
 const buildUserPrompt = (input: SupervisorDecideInput): string => {
     const obs = input.observation;
