@@ -18,7 +18,11 @@ FROM postgres:16-alpine
 # tini gives us correct signal handling so `docker stop` interrupts the
 # `sleep` loop in entrypoint.sh promptly instead of waiting out the
 # kernel's 10s grace period.
-RUN apk add --no-cache aws-cli tini bash
+# coreutils provides GNU `date`, which the entrypoint's schedule check
+# relies on: `date -d 'today 02:30 UTC'` is GNU syntax that BusyBox's
+# built-in `date` (Alpine's default) rejects with "invalid date",
+# producing an empty result, a negative sleep value, and a crash-loop.
+RUN apk add --no-cache aws-cli tini bash coreutils
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
